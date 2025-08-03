@@ -5,7 +5,7 @@ import { getAuth } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyCFa-syZpZlvi7e_TqHy6coAY5AikR55-U",
+  apiKey: "YOUR_API_KEY_HERE", // APIキーはFirebase Consoleから取得してください
   authDomain: "pdca-lab.firebaseapp.com",
   projectId: "pdca-lab",
   storageBucket: "pdca-lab.firebasestorage.app",
