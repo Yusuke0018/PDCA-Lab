@@ -2251,7 +2251,7 @@
         let touchEndX = 0;
         let touchEndY = 0;
         let currentViewIndex = 0;
-        const views = ['home', 'cards', 'new', 'history', 'stats'];
+        const views = ['home', 'new', 'history', 'stats', 'cards'];
         const viewElements = {
             'home': 'home-view',
             'new': 'new-hypothesis-view',
@@ -2307,10 +2307,10 @@
                 }
                 
                 if (diffX > 0) {
-                    // 左スワイプ - 次の画面へ
+                    // 左スワイプ（指を右から左へ） - 次の画面へ
                     navigateToNextView();
                 } else {
-                    // 右スワイプ - 前の画面へ
+                    // 右スワイプ（指を左から右へ） - 前の画面へ
                     navigateToPreviousView();
                 }
             }
