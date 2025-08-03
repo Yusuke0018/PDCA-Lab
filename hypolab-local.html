@@ -717,18 +717,71 @@
             background-clip: text;
         }
 
+        /* スワイプインジケーター */
+        .swipe-hint {
+            position: fixed;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 40px;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 2000;
+            animation: swipeHint 0.5s ease-out;
+        }
+        
+        .swipe-hint.left {
+            left: 20px;
+        }
+        
+        .swipe-hint.right {
+            right: 20px;
+        }
+        
+        @keyframes swipeHint {
+            0% {
+                opacity: 0;
+                transform: translateY(-50%) scale(0.5);
+            }
+            50% {
+                opacity: 0.8;
+                transform: translateY(-50%) scale(1.2);
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(-50%) scale(1);
+            }
+        }
+
         /* レスポンシブ */
         @media (max-width: 768px) {
             .container {
-                padding: 16px;
+                padding: 12px;
+                padding-bottom: 100px; /* フッター分の余白 */
             }
             
             .card {
-                padding: 20px;
+                padding: 16px;
+                border-radius: 16px;
+            }
+            
+            .btn {
+                padding: 16px 24px;
+                font-size: 16px;
+                min-height: 48px; /* タッチターゲットの最小サイズ */
+            }
+            
+            .nav-btn {
+                padding: 16px 16px;
+                font-size: 14px;
             }
             
             .duration-selector {
                 grid-template-columns: 1fr;
+            }
+            
+            .duration-option {
+                padding: 24px;
+                min-height: 80px;
             }
             
             .calendar-grid {
@@ -738,6 +791,8 @@
             .day-cell {
                 font-size: 14px;
                 padding: 3px;
+                min-height: 44px;
+                min-width: 44px;
             }
             
             .day-cell small {
@@ -746,6 +801,32 @@
             
             .progress-percentage {
                 font-size: 28px;
+            }
+            
+            .hypothesis-item {
+                padding: 16px;
+                margin-bottom: 12px;
+            }
+            
+            input, textarea {
+                padding: 14px 16px;
+                font-size: 16px; /* iOS のズーム防止 */
+            }
+            
+            .header {
+                padding: 12px 16px;
+            }
+            
+            h1 {
+                font-size: 20px;
+            }
+            
+            .stats-grid {
+                gap: 12px;
+            }
+            
+            .stat-card {
+                padding: 16px !important;
             }
         }
 
@@ -814,6 +895,13 @@
             <button class="nav-btn" onclick="showStatsView()" data-view="stats">
                 📊 統計
             </button>
+        </div>
+        <!-- ページインジケーター -->
+        <div class="page-indicator" style="position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px;">
+            <span class="dot active" data-page="0" style="width: 6px; height: 6px; background: var(--primary); border-radius: 50%; transition: all 0.3s;"></span>
+            <span class="dot" data-page="1" style="width: 6px; height: 6px; background: var(--surface-light); border-radius: 50%; transition: all 0.3s;"></span>
+            <span class="dot" data-page="2" style="width: 6px; height: 6px; background: var(--surface-light); border-radius: 50%; transition: all 0.3s;"></span>
+            <span class="dot" data-page="3" style="width: 6px; height: 6px; background: var(--surface-light); border-radius: 50%; transition: all 0.3s;"></span>
         </div>
     </nav>
 
@@ -1048,6 +1136,22 @@
             const activeBtn = document.querySelector(`[data-view="${activeView}"]`);
             if (activeBtn) {
                 activeBtn.classList.add('active');
+            }
+            
+            // ページインジケーターを更新
+            const viewIndex = views.indexOf(activeView);
+            if (viewIndex !== -1) {
+                document.querySelectorAll('.dot').forEach((dot, index) => {
+                    if (index === viewIndex) {
+                        dot.style.background = 'var(--primary)';
+                        dot.style.width = '8px';
+                        dot.style.height = '8px';
+                    } else {
+                        dot.style.background = 'var(--surface-light)';
+                        dot.style.width = '6px';
+                        dot.style.height = '6px';
+                    }
+                });
             }
         }
 
@@ -1577,8 +1681,189 @@
             updateNavigation('');
         }
 
+        // スワイプ機能
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let touchEndX = 0;
+        let touchEndY = 0;
+        let currentViewIndex = 0;
+        const views = ['home', 'new', 'history', 'stats'];
+        const viewElements = {
+            'home': 'home-view',
+            'new': 'new-hypothesis-view',
+            'history': 'history-view',
+            'stats': 'stats-view'
+        };
+
+        // スワイプイベントの設定
+        function setupSwipeListeners() {
+            const container = document.querySelector('.container');
+            let isSwipeEnabled = true;
+            
+            // フォーム要素でのスワイプを無効化
+            document.querySelectorAll('input, textarea, button').forEach(element => {
+                element.addEventListener('touchstart', () => {
+                    isSwipeEnabled = false;
+                }, { passive: true });
+                
+                element.addEventListener('touchend', () => {
+                    setTimeout(() => {
+                        isSwipeEnabled = true;
+                    }, 100);
+                }, { passive: true });
+            });
+            
+            container.addEventListener('touchstart', (e) => {
+                if (!isSwipeEnabled) return;
+                touchStartX = e.changedTouches[0].screenX;
+                touchStartY = e.changedTouches[0].screenY;
+            }, { passive: true });
+
+            container.addEventListener('touchend', (e) => {
+                if (!isSwipeEnabled) return;
+                touchEndX = e.changedTouches[0].screenX;
+                touchEndY = e.changedTouches[0].screenY;
+                handleSwipe();
+            }, { passive: true });
+        }
+
+        // スワイプ処理
+        function handleSwipe() {
+            const diffX = touchStartX - touchEndX;
+            const diffY = touchStartY - touchEndY;
+            const minSwipeDistance = 50;
+            
+            // 水平スワイプのみを検出（垂直移動が少ない場合）
+            if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > minSwipeDistance) {
+                // シャッフル画面や進捗画面ではスワイプ無効
+                const currentView = getCurrentView();
+                if (currentView === 'shuffle' || currentView === 'progress' || currentView === 'about') {
+                    return;
+                }
+                
+                if (diffX > 0) {
+                    // 左スワイプ - 次の画面へ
+                    navigateToNextView();
+                } else {
+                    // 右スワイプ - 前の画面へ
+                    navigateToPreviousView();
+                }
+            }
+        }
+
+        // 現在のビューを取得
+        function getCurrentView() {
+            if (document.getElementById('home-view').style.display !== 'none') return 'home';
+            if (document.getElementById('new-hypothesis-view').style.display !== 'none') return 'new';
+            if (document.getElementById('history-view').style.display !== 'none') return 'history';
+            if (document.getElementById('stats-view').style.display !== 'none') return 'stats';
+            if (document.getElementById('shuffle-view').style.display !== 'none') return 'shuffle';
+            if (document.getElementById('progress-view').style.display !== 'none') return 'progress';
+            if (document.getElementById('about-view').style.display !== 'none') return 'about';
+            return 'home';
+        }
+
+        // 次のビューへ遷移
+        function navigateToNextView() {
+            const currentView = getCurrentView();
+            const currentIndex = views.indexOf(currentView);
+            if (currentIndex !== -1 && currentIndex < views.length - 1) {
+                const nextView = views[currentIndex + 1];
+                showViewWithAnimation(nextView, 'left');
+            }
+        }
+
+        // 前のビューへ遷移
+        function navigateToPreviousView() {
+            const currentView = getCurrentView();
+            const currentIndex = views.indexOf(currentView);
+            if (currentIndex > 0) {
+                const previousView = views[currentIndex - 1];
+                showViewWithAnimation(previousView, 'right');
+            }
+        }
+
+        // アニメーション付きでビューを表示
+        function showViewWithAnimation(viewName, direction) {
+            const container = document.querySelector('.container');
+            container.style.transition = 'transform 0.3s ease-out';
+            
+            // スワイプヒントを表示
+            const hint = document.createElement('div');
+            hint.className = `swipe-hint ${direction}`;
+            hint.textContent = direction === 'left' ? '→' : '←';
+            document.body.appendChild(hint);
+            setTimeout(() => hint.remove(), 500);
+            
+            // スライドアニメーション
+            if (direction === 'left') {
+                container.style.transform = 'translateX(-20px)';
+            } else {
+                container.style.transform = 'translateX(20px)';
+            }
+            
+            setTimeout(() => {
+                switch (viewName) {
+                    case 'home':
+                        showHomeView();
+                        break;
+                    case 'new':
+                        showNewHypothesisView();
+                        break;
+                    case 'history':
+                        showHistoryView();
+                        break;
+                    case 'stats':
+                        showStatsView();
+                        break;
+                }
+                
+                container.style.transform = 'translateX(0)';
+                setTimeout(() => {
+                    container.style.transition = '';
+                }, 300);
+            }, 150);
+        }
+
+        // スワイプインジケーターを追加
+        function addSwipeIndicator() {
+            const indicator = document.createElement('div');
+            indicator.className = 'swipe-indicator';
+            indicator.innerHTML = '← スワイプでページ移動 →';
+            indicator.style.cssText = `
+                position: fixed;
+                bottom: 80px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(0, 0, 0, 0.7);
+                color: white;
+                padding: 8px 16px;
+                border-radius: 20px;
+                font-size: 12px;
+                z-index: 1000;
+                opacity: 0;
+                transition: opacity 0.3s;
+                pointer-events: none;
+            `;
+            document.body.appendChild(indicator);
+            
+            // 初回表示
+            setTimeout(() => {
+                indicator.style.opacity = '1';
+                setTimeout(() => {
+                    indicator.style.opacity = '0';
+                }, 3000);
+            }, 1000);
+        }
+
         // 初期化
         showHomeView();
+        setupSwipeListeners();
+        
+        // モバイルデバイスの場合のみスワイプインジケーターを表示
+        if ('ontouchstart' in window) {
+            addSwipeIndicator();
+        }
     </script>
 </body>
 </html>
