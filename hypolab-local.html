@@ -1,0 +1,1349 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>HypoLab - 仮説検証プラットフォーム（ローカル版）</title>
+    
+    <!-- PWA対応 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0f172a">
+    
+    <style>
+        /* リセット */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* CSS変数 */
+        :root {
+            --primary: #10b981;
+            --secondary: #3b82f6;
+            --background: #0f172a;
+            --surface: #1e293b;
+            --surface-light: #334155;
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --border: rgba(255, 255, 255, 0.1);
+            --gradient-1: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+            --gradient-2: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
+            --gradient-3: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+        }
+
+        /* 基本スタイル */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            background: var(--background);
+            color: var(--text-primary);
+            overflow-x: hidden;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            touch-action: manipulation;
+        }
+
+        /* ヘッダー */
+        .header {
+            background: var(--surface);
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 800;
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* メインコンテナ */
+        .container {
+            flex: 1;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* カード共通 */
+        .card {
+            background: var(--surface);
+            border-radius: 20px;
+            padding: 24px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--gradient-1);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .card:hover::before {
+            opacity: 1;
+        }
+
+        /* ボタン */
+        .btn {
+            background: var(--gradient-1);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: var(--surface-light);
+        }
+
+        .btn-secondary:hover {
+            background: #475569;
+            box-shadow: 0 10px 30px rgba(71, 85, 105, 0.3);
+        }
+
+        /* 仮説リスト */
+        .hypothesis-list {
+            display: grid;
+            gap: 16px;
+        }
+
+        .hypothesis-item {
+            background: var(--surface);
+            border-radius: 16px;
+            padding: 20px;
+            border: 1px solid var(--border);
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .hypothesis-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border-color: var(--primary);
+        }
+
+        .hypothesis-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .hypothesis-description {
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+            line-height: 1.5;
+        }
+
+        .hypothesis-meta {
+            display: flex;
+            gap: 16px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .hypothesis-days {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .hypothesis-progress {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* フォーム */
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        input, textarea {
+            width: 100%;
+            background: var(--background);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 12px 16px;
+            font-size: 16px;
+            color: var(--text-primary);
+            transition: all 0.3s;
+        }
+
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        /* シャッフル選択 */
+        .duration-selector {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .duration-option {
+            background: var(--surface-light);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .duration-option:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .duration-option.selected {
+            background: var(--gradient-1);
+            border-color: transparent;
+            color: white;
+        }
+
+        .duration-option h3 {
+            font-size: 18px;
+            margin-bottom: 4px;
+        }
+
+        .duration-option p {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        /* シャッフルアニメーション */
+        .shuffle-container {
+            text-align: center;
+            padding: 40px;
+            display: none;
+        }
+
+        .shuffle-number {
+            font-size: 80px;
+            font-weight: 800;
+            margin: 20px 0;
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        @keyframes shuffle {
+            0% { transform: scale(1) rotate(0deg); opacity: 1; }
+            50% { transform: scale(1.2) rotate(180deg); opacity: 0.5; }
+            100% { transform: scale(1) rotate(360deg); opacity: 1; }
+        }
+
+        .shuffling {
+            animation: shuffle 0.3s ease-in-out;
+        }
+
+        /* カレンダー */
+        .calendar-container {
+            background: var(--surface);
+            border-radius: 20px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .calendar-title {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 8px;
+        }
+
+        @media (max-width: 640px) {
+            .calendar-grid {
+                gap: 4px;
+            }
+        }
+
+        .day-cell {
+            aspect-ratio: 1;
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+            padding: 5px;
+        }
+        
+        .day-cell small {
+            font-size: 12px;
+            font-weight: 400;
+            color: var(--text-secondary);
+            line-height: 1;
+        }
+
+        .day-cell::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: rgba(255, 255, 255, 0.05);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .day-cell:hover::before {
+            opacity: 1;
+        }
+
+        .day-cell.achieved {
+            background: var(--gradient-1);
+            color: white;
+            position: relative;
+            animation: achievedPulse 0.5s ease-out;
+        }
+
+        @keyframes achievedPulse {
+            0% { 
+                transform: scale(0.8) rotate(0deg);
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+            }
+            25% {
+                transform: scale(1.3) rotate(90deg);
+                box-shadow: 0 0 20px 10px rgba(16, 185, 129, 0.3);
+            }
+            50% { 
+                transform: scale(1.1) rotate(180deg);
+                box-shadow: 0 0 30px 20px rgba(16, 185, 129, 0.1);
+            }
+            75% {
+                transform: scale(1.2) rotate(270deg);
+                box-shadow: 0 0 10px 30px rgba(16, 185, 129, 0);
+            }
+            100% { 
+                transform: scale(1) rotate(360deg);
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+            }
+        }
+
+        .day-cell.achieved::after {
+            content: '✨';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            animation: sparkle 1s ease-in-out;
+        }
+
+        @keyframes sparkle {
+            0% {
+                transform: scale(0) rotate(0deg) translateY(0);
+                opacity: 0;
+            }
+            25% {
+                transform: scale(1.8) rotate(90deg) translateY(-10px);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.5) rotate(180deg) translateY(-5px);
+                opacity: 1;
+            }
+            75% {
+                transform: scale(1.3) rotate(270deg) translateY(-8px);
+                opacity: 0.8;
+            }
+            100% {
+                transform: scale(1) rotate(360deg) translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .day-cell.not-achieved {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-secondary);
+        }
+
+        .day-cell.future {
+            background: rgba(255, 255, 255, 0.02);
+            color: var(--text-secondary);
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* 進捗表示 */
+        .progress-container {
+            background: var(--surface);
+            border-radius: 20px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .progress-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .progress-percentage {
+            font-size: 36px;
+            font-weight: 800;
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .progress-bar {
+            background: var(--surface-light);
+            height: 12px;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--gradient-1);
+            transition: width 0.5s ease-out;
+        }
+
+        .progress-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        /* モーダル */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+
+        .modal-content {
+            background: var(--surface);
+            border-radius: 24px;
+            padding: 32px;
+            max-width: 500px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .modal-title {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            padding: 8px;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+
+        .close-btn:hover {
+            background: var(--surface-light);
+            color: var(--text-primary);
+        }
+
+        /* 達成アニメーション */
+        .achievement-animation {
+            position: fixed;
+            font-size: 60px;
+            z-index: 2000;
+            pointer-events: none;
+            animation: achievementBurst 2s ease-out forwards;
+        }
+
+        @keyframes achievementBurst {
+            0% {
+                transform: scale(0) rotate(0deg);
+                opacity: 0;
+            }
+            20% {
+                transform: scale(1.5) rotate(180deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateX(calc(var(--endX) - var(--startX))) 
+                         translateY(calc(var(--endY) - var(--startY))) 
+                         scale(0.8) 
+                         rotate(720deg);
+                opacity: 0;
+            }
+        }
+
+        /* 完了オプション */
+        .completion-options {
+            background: var(--gradient-1);
+            border-radius: 20px;
+            padding: 24px;
+            margin-bottom: 20px;
+            text-align: center;
+            display: none;
+        }
+
+        .completion-options h3 {
+            font-size: 24px;
+            margin-bottom: 16px;
+            color: white;
+        }
+
+        .completion-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .completion-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .completion-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        /* 履歴 */
+        .history-item {
+            background: var(--surface);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 12px;
+            border: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .history-info h4 {
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+
+        .history-meta {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .achievement-badge {
+            font-size: 32px;
+            font-weight: 800;
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* レスポンシブ */
+        @media (max-width: 768px) {
+            .container {
+                padding: 16px;
+            }
+            
+            .card {
+                padding: 20px;
+            }
+            
+            .duration-selector {
+                grid-template-columns: 1fr;
+            }
+            
+            .calendar-grid {
+                gap: 4px;
+            }
+            
+            .day-cell {
+                width: 45px;
+                height: 45px;
+                font-size: 14px;
+                padding: 3px;
+            }
+            
+            .day-cell small {
+                font-size: 10px;
+            }
+            
+            .progress-percentage {
+                font-size: 28px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            h1 {
+                font-size: 22px;
+            }
+            
+            .day-cell {
+                width: 38px;
+                height: 38px;
+                font-size: 12px;
+                padding: 2px;
+            }
+            
+            .day-cell small {
+                font-size: 9px;
+            }
+            
+            .shuffle-number {
+                font-size: 60px;
+            }
+        }
+
+        /* アニメーション */
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .slide-in {
+            animation: slideIn 0.5s ease-out;
+        }
+    </style>
+</head>
+<body>
+    <!-- ヘッダー -->
+    <header class="header">
+        <div class="header-content">
+            <h1>🧪 HypoLab (ローカル版)</h1>
+            <button class="btn btn-secondary" onclick="showHistoryView()">
+                📚 履歴
+            </button>
+        </div>
+    </header>
+
+    <!-- メインコンテナ -->
+    <div class="container">
+        <!-- ホーム画面 -->
+        <div id="home-view">
+            <div class="card">
+                <h2 style="margin-bottom: 16px;">現在の仮説</h2>
+                <div id="current-hypothesis-list" class="hypothesis-list">
+                    <!-- 動的に生成 -->
+                </div>
+                <button class="btn" onclick="showNewHypothesisView()" style="margin-top: 16px;">
+                    ➕ 新規仮説立案
+                </button>
+            </div>
+        </div>
+
+        <!-- 新規仮説作成画面 -->
+        <div id="new-hypothesis-view" style="display: none;">
+            <div class="card">
+                <h2 style="margin-bottom: 24px;">新規仮説立案</h2>
+                <form onsubmit="createHypothesis(event)">
+                    <div class="form-group">
+                        <label for="hypothesis-title">仮説タイトル</label>
+                        <input type="text" id="hypothesis-title" required placeholder="例: 毎日10分の瞑想">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="hypothesis-description">仮説の詳細</label>
+                        <textarea id="hypothesis-description" required placeholder="この仮説で何を検証したいか詳しく記述してください"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>検証期間を選択</label>
+                        <div class="duration-selector">
+                            <div class="duration-option" onclick="selectDuration('short')" data-duration="short">
+                                <h3>短期間</h3>
+                                <p>3〜7日</p>
+                            </div>
+                            <div class="duration-option" onclick="selectDuration('medium')" data-duration="medium">
+                                <h3>中期間</h3>
+                                <p>8〜14日</p>
+                            </div>
+                            <div class="duration-option" onclick="selectDuration('long')" data-duration="long">
+                                <h3>長期間</h3>
+                                <p>15〜30日</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <button type="submit" class="btn">
+                            🎲 シャッフルして開始
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="showHomeView()" style="margin-left: 12px;">
+                            キャンセル
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- シャッフル画面 -->
+        <div id="shuffle-view" style="display: none;">
+            <div class="card">
+                <div class="shuffle-container">
+                    <h2>検証期間を決定中...</h2>
+                    <div class="shuffle-number" id="shuffle-number">?</div>
+                    <p>日間</p>
+                </div>
+                <div style="text-align: center; display: none;" id="shuffle-result">
+                    <h2 style="margin-bottom: 16px;">検証期間が決まりました！</h2>
+                    <div class="shuffle-number" id="final-days">7</div>
+                    <p style="margin-bottom: 24px;">日間</p>
+                    <button class="btn" onclick="startHypothesis()">
+                        検証を開始する
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 検証進捗画面 -->
+        <div id="progress-view" style="display: none;">
+            <div class="card">
+                <button class="btn btn-secondary" onclick="showHomeView()" style="margin-bottom: 16px;">
+                    ← ホームに戻る
+                </button>
+                <h2 id="progress-hypothesis-title" style="margin-bottom: 8px;"></h2>
+                <p id="progress-hypothesis-description" style="color: var(--text-secondary); margin-bottom: 16px;"></p>
+                <div id="progress-days-info" style="margin-bottom: 24px; color: var(--text-secondary);"></div>
+            </div>
+
+            <div class="progress-container">
+                <div class="progress-header">
+                    <div class="progress-title">達成率</div>
+                    <div class="progress-percentage" id="achievement-rate">0%</div>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill" style="width: 0%;"></div>
+                </div>
+                <div class="progress-info">
+                    <span id="achieved-days">達成: 0日</span>
+                    <span id="remaining-days">残り: 0日</span>
+                </div>
+            </div>
+
+            <div class="completion-options" id="completion-options">
+                <h3>🎉 検証期間が終了しました！</h3>
+                <div class="completion-buttons">
+                    <button class="completion-btn" onclick="continueHypothesis()">
+                        ➡️ 継続する
+                    </button>
+                    <button class="completion-btn" onclick="modifyAndContinue()">
+                        ✏️ 修正して継続
+                    </button>
+                    <button class="completion-btn" onclick="completeHypothesis()">
+                        ✅ 完了する
+                    </button>
+                </div>
+            </div>
+
+            <div class="calendar-container">
+                <div class="calendar-header">
+                    <div class="calendar-title">進捗カレンダー</div>
+                </div>
+                <div class="calendar-grid" id="calendar-grid">
+                    <!-- 動的に生成 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 履歴画面 -->
+        <div id="history-view" style="display: none;">
+            <div class="card">
+                <button class="btn btn-secondary" onclick="showHomeView()" style="margin-bottom: 16px;">
+                    ← ホームに戻る
+                </button>
+                <h2 style="margin-bottom: 24px;">完了した仮説</h2>
+                <div id="history-list">
+                    <!-- 動的に生成 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ローカルストレージのキー
+        const STORAGE_KEY = 'hypolab_local_data';
+
+        // 現在の仮説
+        let currentHypothesis = null;
+        let selectedDuration = null;
+
+        // データの読み込み
+        function loadData() {
+            const data = localStorage.getItem(STORAGE_KEY);
+            return data ? JSON.parse(data) : {
+                currentHypotheses: [],
+                completedHypotheses: []
+            };
+        }
+
+        // データの保存
+        function saveData(data) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        }
+
+        // ホーム画面を表示
+        function showHomeView() {
+            document.getElementById('home-view').style.display = 'block';
+            document.getElementById('new-hypothesis-view').style.display = 'none';
+            document.getElementById('shuffle-view').style.display = 'none';
+            document.getElementById('progress-view').style.display = 'none';
+            document.getElementById('history-view').style.display = 'none';
+            
+            updateCurrentHypothesisList();
+        }
+
+        // 新規仮説作成画面を表示
+        function showNewHypothesisView() {
+            document.getElementById('home-view').style.display = 'none';
+            document.getElementById('new-hypothesis-view').style.display = 'block';
+            
+            // フォームをリセット
+            document.getElementById('hypothesis-title').value = '';
+            document.getElementById('hypothesis-description').value = '';
+            selectedDuration = null;
+            document.querySelectorAll('.duration-option').forEach(opt => {
+                opt.classList.remove('selected');
+            });
+        }
+
+        // 検証期間を選択
+        function selectDuration(duration) {
+            selectedDuration = duration;
+            document.querySelectorAll('.duration-option').forEach(opt => {
+                opt.classList.remove('selected');
+            });
+            document.querySelector(`[data-duration="${duration}"]`).classList.add('selected');
+        }
+
+        // 仮説を作成
+        function createHypothesis(event) {
+            event.preventDefault();
+            
+            if (!selectedDuration) {
+                alert('検証期間を選択してください');
+                return;
+            }
+            
+            const title = document.getElementById('hypothesis-title').value;
+            const description = document.getElementById('hypothesis-description').value;
+            
+            currentHypothesis = {
+                id: Date.now(),
+                title: title,
+                description: description,
+                duration: selectedDuration,
+                startDate: new Date().toISOString(),
+                achievements: {}
+            };
+            
+            // シャッフル画面を表示
+            showShuffleView();
+        }
+
+        // シャッフル画面を表示
+        function showShuffleView() {
+            document.getElementById('new-hypothesis-view').style.display = 'none';
+            document.getElementById('shuffle-view').style.display = 'block';
+            
+            const shuffleContainer = document.querySelector('.shuffle-container');
+            const shuffleResult = document.getElementById('shuffle-result');
+            
+            shuffleContainer.style.display = 'block';
+            shuffleResult.style.display = 'none';
+            
+            // シャッフルアニメーション
+            const durationRanges = {
+                short: { min: 3, max: 7 },
+                medium: { min: 8, max: 14 },
+                long: { min: 15, max: 30 }
+            };
+            
+            const range = durationRanges[currentHypothesis.duration];
+            let shuffleCount = 0;
+            const maxShuffles = 20;
+            
+            const shuffleInterval = setInterval(() => {
+                const randomDays = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+                const shuffleNumber = document.getElementById('shuffle-number');
+                shuffleNumber.textContent = randomDays;
+                shuffleNumber.classList.add('shuffling');
+                
+                setTimeout(() => {
+                    shuffleNumber.classList.remove('shuffling');
+                }, 250);
+                
+                shuffleCount++;
+                
+                if (shuffleCount >= maxShuffles) {
+                    clearInterval(shuffleInterval);
+                    
+                    // 最終的な日数を決定
+                    const finalDays = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+                    currentHypothesis.totalDays = finalDays;
+                    
+                    setTimeout(() => {
+                        shuffleContainer.style.display = 'none';
+                        shuffleResult.style.display = 'block';
+                        document.getElementById('final-days').textContent = finalDays;
+                    }, 500);
+                }
+            }, 150);
+        }
+
+        // 仮説を開始
+        function startHypothesis() {
+            const data = loadData();
+            data.currentHypotheses.push(currentHypothesis);
+            saveData(data);
+            
+            showProgressView(currentHypothesis.id);
+        }
+
+        // 進捗画面を表示
+        function showProgressView(hypothesisId) {
+            const data = loadData();
+            const hypothesis = data.currentHypotheses.find(h => h.id === hypothesisId);
+            
+            if (!hypothesis) return;
+            
+            window.currentHypothesis = hypothesis;
+            
+            document.getElementById('home-view').style.display = 'none';
+            document.getElementById('shuffle-view').style.display = 'none';
+            document.getElementById('progress-view').style.display = 'block';
+            
+            // 仮説情報を表示
+            document.getElementById('progress-hypothesis-title').textContent = hypothesis.title;
+            document.getElementById('progress-hypothesis-description').textContent = hypothesis.description;
+            
+            // カレンダーを更新
+            updateCalendar();
+            updateProgress();
+        }
+
+        // カレンダーを更新
+        function updateCalendar() {
+            const calendarGrid = document.getElementById('calendar-grid');
+            calendarGrid.innerHTML = '';
+            
+            const startDate = new Date(window.currentHypothesis.startDate);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const daysPassed = Math.min(
+                Math.floor((today - startDate) / (1000 * 60 * 60 * 24)) + 1,
+                window.currentHypothesis.totalDays
+            );
+            
+            for (let i = 0; i < window.currentHypothesis.totalDays; i++) {
+                const cellDate = new Date(startDate);
+                cellDate.setDate(startDate.getDate() + i);
+                
+                const dayCell = document.createElement('div');
+                dayCell.className = 'day-cell';
+                // 実際の日付を表示（月/日形式）
+                const displayMonth = cellDate.getMonth() + 1;
+                const displayDate = cellDate.getDate();
+                dayCell.innerHTML = `<small>${displayMonth}/${displayDate}</small><br>${i + 1}`;
+                dayCell.dataset.day = i + 1;
+                
+                const dateKey = cellDate.toISOString().split('T')[0];
+                
+                if (cellDate > today) {
+                    dayCell.classList.add('future');
+                } else if (window.currentHypothesis.achievements[dateKey]) {
+                    dayCell.classList.add('achieved');
+                } else {
+                    dayCell.classList.add('not-achieved');
+                    dayCell.onclick = () => toggleDayStatus(dateKey, dayCell);
+                }
+                
+                // 今日の日付の場合、クリック可能にする
+                if (cellDate.toDateString() === today.toDateString() && !window.currentHypothesis.achievements[dateKey]) {
+                    dayCell.classList.remove('future');
+                    dayCell.classList.add('not-achieved');
+                    dayCell.onclick = () => toggleDayStatus(dateKey, dayCell);
+                }
+                
+                calendarGrid.appendChild(dayCell);
+            }
+            
+            // 期間情報を更新
+            document.getElementById('progress-days-info').textContent = 
+                `検証期間: ${daysPassed}日目 / ${window.currentHypothesis.totalDays}日間`;
+        }
+
+        // 日の達成状態を切り替え
+        function toggleDayStatus(dateKey, dayCell) {
+            if (!window.currentHypothesis.achievements[dateKey]) {
+                window.currentHypothesis.achievements[dateKey] = true;
+                dayCell.classList.remove('not-achieved');
+                dayCell.classList.add('achieved');
+                dayCell.onclick = null;
+                
+                // 達成アニメーションを表示
+                showAchievementAnimation();
+            }
+            
+            // データを保存
+            const data = loadData();
+            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (index !== -1) {
+                data.currentHypotheses[index] = window.currentHypothesis;
+                saveData(data);
+            }
+            
+            updateProgress();
+        }
+
+        // 達成アニメーション表示
+        function showAchievementAnimation() {
+            // 複数の絵文字を同時に表示
+            const emojis = ['🎉', '✨', '🌟', '⭐', '🎊', '💫', '🏆', '🔥', '💪', '🚀', '🎯', '🥳', '👏', '💯'];
+            const numberOfEmojis = 8;
+            
+            for (let i = 0; i < numberOfEmojis; i++) {
+                setTimeout(() => {
+                    const emoji = emojis[Math.floor(Math.random() * emojis.length)];
+                    const animation = document.createElement('div');
+                    animation.className = 'achievement-animation';
+                    animation.textContent = emoji;
+                    
+                    // ランダムな位置から開始
+                    const startX = Math.random() * window.innerWidth;
+                    const startY = window.innerHeight / 2 + (Math.random() - 0.5) * 200;
+                    
+                    animation.style.left = startX + 'px';
+                    animation.style.top = startY + 'px';
+                    
+                    // ランダムな方向に飛ばす
+                    const angle = Math.random() * Math.PI * 2;
+                    const distance = 200 + Math.random() * 300;
+                    const endX = startX + Math.cos(angle) * distance;
+                    const endY = startY + Math.sin(angle) * distance - 200; // 上方向に偏らせる
+                    
+                    animation.style.setProperty('--startX', startX + 'px');
+                    animation.style.setProperty('--startY', startY + 'px');
+                    animation.style.setProperty('--endX', endX + 'px');
+                    animation.style.setProperty('--endY', endY + 'px');
+                    
+                    document.body.appendChild(animation);
+                    
+                    setTimeout(() => {
+                        animation.remove();
+                    }, 2000);
+                }, i * 100); // 少しずつ遅らせて表示
+            }
+        }
+
+        // 進捗を更新
+        function updateProgress() {
+            const startDate = new Date(window.currentHypothesis.startDate);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const daysPassed = Math.min(
+                Math.floor((today - startDate) / (1000 * 60 * 60 * 24)) + 1,
+                window.currentHypothesis.totalDays
+            );
+            
+            const achievedDays = Object.keys(window.currentHypothesis.achievements).length;
+            const achievementRate = Math.round((achievedDays / daysPassed) * 100);
+            
+            // 進捗バーを更新
+            document.getElementById('achievement-rate').textContent = achievementRate + '%';
+            document.getElementById('progress-fill').style.width = achievementRate + '%';
+            document.getElementById('achieved-days').textContent = `達成: ${achievedDays}日`;
+            document.getElementById('remaining-days').textContent = `残り: ${window.currentHypothesis.totalDays - daysPassed}日`;
+            
+            // 達成率に応じてグラデーションを変更
+            const progressFill = document.getElementById('progress-fill');
+            if (achievementRate >= 80) {
+                progressFill.style.background = 'var(--gradient-1)';
+            } else if (achievementRate >= 50) {
+                progressFill.style.background = 'var(--gradient-2)';
+            } else {
+                progressFill.style.background = 'var(--gradient-3)';
+            }
+            
+            // 期間が終了したかチェック
+            if (daysPassed >= window.currentHypothesis.totalDays) {
+                document.getElementById('completion-options').style.display = 'block';
+            } else {
+                document.getElementById('completion-options').style.display = 'none';
+            }
+        }
+
+        // 現在の仮説リストを更新
+        function updateCurrentHypothesisList() {
+            const data = loadData();
+            const listContainer = document.getElementById('current-hypothesis-list');
+            listContainer.innerHTML = '';
+            
+            if (data.currentHypotheses.length === 0) {
+                listContainer.innerHTML = '<p style="color: var(--text-secondary);">現在進行中の仮説はありません</p>';
+                return;
+            }
+            
+            data.currentHypotheses.forEach(hypothesis => {
+                const item = document.createElement('div');
+                item.className = 'hypothesis-item';
+                item.onclick = () => showProgressView(hypothesis.id);
+                
+                const startDate = new Date(hypothesis.startDate);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                
+                const daysPassed = Math.min(
+                    Math.floor((today - startDate) / (1000 * 60 * 60 * 24)) + 1,
+                    hypothesis.totalDays
+                );
+                
+                const achievedDays = Object.keys(hypothesis.achievements || {}).length;
+                const achievementRate = Math.round((achievedDays / daysPassed) * 100);
+                
+                item.innerHTML = `
+                    <h3 class="hypothesis-title">${hypothesis.title}</h3>
+                    <p class="hypothesis-description">${hypothesis.description}</p>
+                    <div class="hypothesis-meta">
+                        <div class="hypothesis-days">
+                            📅 ${daysPassed}日目 / ${hypothesis.totalDays}日間
+                        </div>
+                        <div class="hypothesis-progress">
+                            ✨ 達成率: ${achievementRate}%
+                        </div>
+                    </div>
+                `;
+                
+                listContainer.appendChild(item);
+            });
+        }
+
+        // 仮説を継続
+        function continueHypothesis() {
+            const data = loadData();
+            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            
+            if (index !== -1) {
+                // 期間を延長
+                const additionalDays = 7; // 1週間延長
+                data.currentHypotheses[index].totalDays += additionalDays;
+                saveData(data);
+                
+                window.currentHypothesis = data.currentHypotheses[index];
+                updateCalendar();
+                updateProgress();
+                
+                alert(`検証期間を${additionalDays}日間延長しました！`);
+            }
+        }
+
+        // 修正して継続
+        function modifyAndContinue() {
+            // 新規作成画面に移動（現在の仮説をベースに）
+            document.getElementById('progress-view').style.display = 'none';
+            document.getElementById('new-hypothesis-view').style.display = 'block';
+            
+            document.getElementById('hypothesis-title').value = window.currentHypothesis.title;
+            document.getElementById('hypothesis-description').value = window.currentHypothesis.description;
+            
+            // 現在の仮説を完了扱いにする
+            completeHypothesis(false);
+        }
+
+        // 仮説を完了
+        function completeHypothesis(showHome = true) {
+            const data = loadData();
+            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            
+            if (index !== -1) {
+                const hypothesis = data.currentHypotheses[index];
+                hypothesis.completedDate = new Date().toISOString();
+                
+                // 最終的な達成率を計算
+                const achievedDays = Object.keys(hypothesis.achievements || {}).length;
+                hypothesis.finalAchievementRate = Math.round((achievedDays / hypothesis.totalDays) * 100);
+                
+                // 完了リストに追加
+                data.completedHypotheses.push(hypothesis);
+                
+                // 現在のリストから削除
+                data.currentHypotheses.splice(index, 1);
+                
+                saveData(data);
+                
+                if (showHome) {
+                    alert('仮説の検証が完了しました！');
+                    showHomeView();
+                }
+            }
+        }
+
+        // 履歴画面を表示
+        function showHistoryView() {
+            document.getElementById('home-view').style.display = 'none';
+            document.getElementById('history-view').style.display = 'block';
+            
+            const data = loadData();
+            const historyList = document.getElementById('history-list');
+            historyList.innerHTML = '';
+            
+            if (data.completedHypotheses.length === 0) {
+                historyList.innerHTML = '<p style="color: var(--text-secondary);">完了した仮説はまだありません</p>';
+                return;
+            }
+            
+            // 新しい順に表示
+            const sortedHistory = [...data.completedHypotheses].reverse();
+            
+            sortedHistory.forEach(hypothesis => {
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                
+                const completedDate = new Date(hypothesis.completedDate);
+                const dateStr = completedDate.toLocaleDateString('ja-JP');
+                
+                item.innerHTML = `
+                    <div class="history-info">
+                        <h4>${hypothesis.title}</h4>
+                        <div class="history-meta">
+                            完了日: ${dateStr} | 期間: ${hypothesis.totalDays}日間
+                        </div>
+                    </div>
+                    <div class="achievement-badge">
+                        ${hypothesis.finalAchievementRate}%
+                    </div>
+                `;
+                
+                // ダブルクリックで削除
+                item.ondblclick = () => {
+                    if (confirm('この履歴を削除しますか？')) {
+                        const newData = loadData();
+                        newData.completedHypotheses = newData.completedHypotheses.filter(h => h.id !== hypothesis.id);
+                        saveData(newData);
+                        showHistoryView();
+                    }
+                };
+                
+                historyList.appendChild(item);
+            });
+        }
+
+        // 初期化
+        showHomeView();
+    </script>
+</body>
+</html>
