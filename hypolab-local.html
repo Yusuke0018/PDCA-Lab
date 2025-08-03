@@ -1323,6 +1323,12 @@
                     pendingPenalties: []
                 };
             }
+            if (!parsed.completedHypotheses) {
+                parsed.completedHypotheses = [];
+            }
+            if (!parsed.currentHypotheses) {
+                parsed.currentHypotheses = [];
+            }
             return parsed;
         }
 
@@ -2040,8 +2046,15 @@
 
         // 仮説を完了
         function completeHypothesis(showHome = true) {
+            console.log('completeHypothesis called', {
+                showHome: showHome,
+                currentHypothesis: window.currentHypothesis
+            });
+            
             const data = loadData();
             const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            
+            console.log('Found hypothesis at index:', index);
             
             if (index !== -1) {
                 const hypothesis = data.currentHypotheses[index];
