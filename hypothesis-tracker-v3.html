@@ -1,0 +1,1435 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>仮説検証トラッカー</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+        }
+
+        /* ナビゲーションバー */
+        .navbar {
+            background: white;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            padding: 15px 0;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nav-brand {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .nav-menu {
+            display: flex;
+            gap: 30px;
+            align-items: center;
+        }
+
+        .nav-link {
+            color: #666;
+            text-decoration: none;
+            font-weight: 500;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+
+        .nav-link:hover, .nav-link.active {
+            color: #667eea;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .user-avatar {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            background: #667eea;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        /* メインコンテンツ */
+        .main-container {
+            margin-top: 80px;
+            padding: 20px;
+            max-width: 1200px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            padding: 40px;
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 28px;
+        }
+
+        .screen {
+            display: none;
+        }
+
+        .screen.active {
+            display: block;
+        }
+
+        /* ログイン画面 */
+        .login-container {
+            text-align: center;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        .login-button {
+            background: white;
+            border: 2px solid #e0e0e0;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin: 20px auto;
+            justify-content: center;
+        }
+
+        .login-button:hover {
+            border-color: #667eea;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
+        }
+
+        .login-button img {
+            width: 24px;
+            height: 24px;
+        }
+
+        /* ダッシュボード */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .hypothesis-card {
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 15px;
+            padding: 25px;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .hypothesis-card:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
+        }
+
+        .hypothesis-card h3 {
+            color: #333;
+            margin-bottom: 10px;
+            padding-right: 40px;
+        }
+
+        .hypothesis-card p {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+
+        .card-actions {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .card-action {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #999;
+            transition: color 0.3s;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .card-action:hover {
+            background: #f0f0f0;
+        }
+
+        .card-action.edit:hover {
+            color: #667eea;
+        }
+
+        .card-action.delete:hover {
+            color: #f56565;
+        }
+
+        .card-stats {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .achievement-badge {
+            background: #f0f0f0;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .achievement-badge.high {
+            background: #d4f4dd;
+            color: #2d6e3e;
+        }
+
+        .achievement-badge.medium {
+            background: #fff4db;
+            color: #8b6914;
+        }
+
+        .achievement-badge.low {
+            background: #fde2e2;
+            color: #991b1b;
+        }
+
+        .status-badge {
+            font-size: 12px;
+            padding: 3px 10px;
+            border-radius: 15px;
+        }
+
+        .status-badge.active {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .status-badge.completed {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        /* プログレスバー */
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            margin: 15px 0 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            border-radius: 10px;
+            transition: width 0.5s ease-out;
+        }
+
+        /* フォーム要素 */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 600;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .period-options {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .period-option {
+            padding: 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: white;
+        }
+
+        .period-option:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
+        }
+
+        .period-option.selected {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .period-option h3 {
+            margin-bottom: 5px;
+            font-size: 18px;
+        }
+
+        .period-option p {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .btn:hover {
+            background: #5a67d8;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .btn-secondary:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #e53e3e;
+        }
+
+        /* シャッフルアニメーション */
+        .shuffle-container {
+            text-align: center;
+            padding: 60px 0;
+        }
+
+        .shuffle-number {
+            font-size: 120px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .shuffle-number.animating {
+            animation: shuffle 0.1s linear infinite;
+        }
+
+        @keyframes shuffle {
+            0% { transform: scale(1) rotate(0deg); }
+            50% { transform: scale(1.1) rotate(5deg); }
+            100% { transform: scale(1) rotate(0deg); }
+        }
+
+        .shuffle-text {
+            margin-top: 20px;
+            font-size: 18px;
+            color: #666;
+        }
+
+        /* 進捗トラッキング */
+        .progress-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .progress-info {
+            display: flex;
+            justify-content: space-around;
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 15px;
+        }
+
+        .progress-stat {
+            text-align: center;
+        }
+
+        .progress-stat h3 {
+            font-size: 24px;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .progress-stat p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 10px;
+            margin: 30px 0;
+        }
+
+        .day-cell {
+            aspect-ratio: 1;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            font-size: 18px;
+        }
+
+        .day-cell.future {
+            background: #f0f0f0;
+            color: #999;
+            cursor: not-allowed;
+        }
+
+        .day-cell.today {
+            background: #667eea;
+            color: white;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .day-cell.achieved {
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+            color: white;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .day-cell.achieved::after {
+            content: '✨';
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            font-size: 20px;
+            animation: sparkle 1s ease-in-out;
+        }
+
+        @keyframes sparkle {
+            0% {
+                transform: scale(0) rotate(0deg);
+                opacity: 0;
+            }
+            50% {
+                transform: scale(1.2) rotate(180deg);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(1) rotate(360deg);
+                opacity: 1;
+            }
+        }
+
+        .day-cell.not-achieved {
+            background: #e0e0e0;
+            color: #666;
+        }
+
+        .day-cell.pending {
+            background: white;
+            border: 2px solid #e0e0e0;
+        }
+
+        .day-cell:hover:not(.future) {
+            transform: scale(1.1);
+        }
+
+        .hypothesis-summary {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+
+        .hypothesis-summary h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .hypothesis-summary p {
+            color: #666;
+            line-height: 1.6;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty-state h3 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: #666;
+        }
+
+        /* 達成アニメーション */
+        .achievement-animation {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 100px;
+            z-index: 2000;
+            pointer-events: none;
+            animation: achievementPop 1s ease-out forwards;
+        }
+
+        @keyframes achievementPop {
+            0% {
+                transform: translate(-50%, -50%) scale(0) rotate(0deg);
+                opacity: 0;
+            }
+            50% {
+                transform: translate(-50%, -50%) scale(1.5) rotate(360deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(1) rotate(720deg);
+                opacity: 0;
+            }
+        }
+
+        /* モーダル */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            animation: modalSlideIn 0.3s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+        }
+
+        /* レスポンシブ対応 */
+        @media (max-width: 768px) {
+            .nav-menu {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .period-options {
+                grid-template-columns: 1fr;
+            }
+
+            .calendar-grid {
+                grid-template-columns: repeat(5, 1fr);
+            }
+
+            .shuffle-number {
+                font-size: 80px;
+            }
+
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- ナビゲーションバー -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">仮説検証トラッカー</div>
+            <div class="nav-menu">
+                <a class="nav-link active" onclick="showScreen('dashboard-screen')">ダッシュボード</a>
+                <a class="nav-link" onclick="showScreen('hypothesis-screen')">新しい仮説</a>
+                <a class="nav-link" onclick="showScreen('history-screen')">履歴</a>
+                <div class="user-info">
+                    <div class="user-avatar" id="user-avatar">?</div>
+                    <button class="nav-link" id="auth-button" onclick="handleAuth()">ログイン</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <!-- ログイン画面 -->
+        <div id="login-screen" class="screen active">
+            <div class="container">
+                <div class="login-container">
+                    <h1>ようこそ</h1>
+                    <p style="margin-bottom: 30px; color: #666;">仮説を立てて、検証を始めましょう</p>
+                    <button class="login-button" onclick="signInWithGoogle()">
+                        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">
+                        Googleでログイン
+                    </button>
+                    <button class="login-button" onclick="signInAnonymously()">
+                        ゲストとして開始
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ダッシュボード -->
+        <div id="dashboard-screen" class="screen">
+            <div class="container">
+                <h1>ダッシュボード</h1>
+                <div id="dashboard-content">
+                    <div class="empty-state">
+                        <h3>仮説がありません</h3>
+                        <p>新しい仮説を立てて検証を始めましょう</p>
+                        <button class="btn" style="max-width: 300px; margin: 20px auto;" onclick="showScreen('hypothesis-screen')">新しい仮説を作成</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 仮説入力画面 -->
+        <div id="hypothesis-screen" class="screen">
+            <div class="container">
+                <h1>仮説を立てよう</h1>
+                <form id="hypothesis-form">
+                    <div class="form-group">
+                        <label for="hypothesis-title">仮説のタイトル</label>
+                        <input type="text" id="hypothesis-title" placeholder="例: 毎朝30分の運動で生産性が上がる" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="hypothesis-content">仮説の詳細</label>
+                        <textarea id="hypothesis-content" placeholder="なぜこの仮説を検証したいのか、期待される効果などを詳しく記入してください" required></textarea>
+                    </div>
+                    <button type="submit" class="btn">次へ: 期間を選択</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- 期間選択画面 -->
+        <div id="period-screen" class="screen">
+            <div class="container">
+                <h1>検証期間を選ぼう</h1>
+                <div class="period-options">
+                    <div class="period-option" data-period="short">
+                        <h3>短期間</h3>
+                        <p>3〜7日</p>
+                    </div>
+                    <div class="period-option" data-period="medium">
+                        <h3>中期間</h3>
+                        <p>8〜14日</p>
+                    </div>
+                    <div class="period-option" data-period="long">
+                        <h3>長期間</h3>
+                        <p>15〜30日</p>
+                    </div>
+                </div>
+                <button id="start-shuffle" class="btn" disabled>シャッフル開始！</button>
+                <button class="btn btn-secondary" onclick="showScreen('hypothesis-screen')">戻る</button>
+            </div>
+        </div>
+
+        <!-- シャッフル画面 -->
+        <div id="shuffle-screen" class="screen">
+            <div class="container">
+                <div class="shuffle-container">
+                    <div class="shuffle-number" id="shuffle-display">?</div>
+                    <p class="shuffle-text">検証期間を決定中...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 進捗トラッキング画面 -->
+        <div id="tracking-screen" class="screen">
+            <div class="container">
+                <div class="progress-header">
+                    <h1>仮説検証の進捗</h1>
+                    <div class="progress-info">
+                        <div class="progress-stat">
+                            <h3 id="day-count">1</h3>
+                            <p>日目</p>
+                        </div>
+                        <div class="progress-stat">
+                            <h3 id="achievement-rate">0%</h3>
+                            <p>達成率</p>
+                        </div>
+                        <div class="progress-stat">
+                            <h3 id="remaining-days">-</h3>
+                            <p>残り日数</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="hypothesis-summary">
+                    <h3 id="tracking-title">-</h3>
+                    <p id="tracking-content">-</p>
+                </div>
+
+                <div class="calendar-grid" id="calendar-grid">
+                    <!-- カレンダーセルが動的に生成される -->
+                </div>
+
+                <button class="btn" onclick="completeHypothesis()">検証を完了する</button>
+                <button class="btn btn-secondary" onclick="showScreen('dashboard-screen')">ダッシュボードに戻る</button>
+            </div>
+        </div>
+
+        <!-- 履歴画面 -->
+        <div id="history-screen" class="screen">
+            <div class="container">
+                <h1>検証履歴</h1>
+                <div id="history-content">
+                    <div class="empty-state">
+                        <h3>履歴がありません</h3>
+                        <p>完了した仮説検証がここに表示されます</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 編集モーダル -->
+    <div id="edit-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>仮説を編集</h2>
+                <button class="modal-close" onclick="closeEditModal()">✕</button>
+            </div>
+            <form id="edit-form">
+                <div class="form-group">
+                    <label for="edit-title">タイトル</label>
+                    <input type="text" id="edit-title" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-content">詳細</label>
+                    <textarea id="edit-content" rows="4" required></textarea>
+                </div>
+                <button type="submit" class="btn">保存</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Firebase設定 -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, where, orderBy, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        import { getAuth, signInWithPopup, GoogleAuthProvider, signInAnonymously as firebaseSignInAnonymously, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+
+        // Firebase設定
+        const firebaseConfig = {
+            apiKey: "AIzaSyCFa-syZpZlvi7e_TqHy6coAY5AikR55-U",
+            authDomain: "pdca-lab.firebaseapp.com",
+            projectId: "pdca-lab",
+            storageBucket: "pdca-lab.firebasestorage.app",
+            messagingSenderId: "222821808402",
+            appId: "1:222821808402:web:2269abd2453d28c4625bcb"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const googleProvider = new GoogleAuthProvider();
+
+        // グローバル変数
+        window.currentUser = null;
+        window.currentHypothesis = null;
+        window.selectedPeriod = null;
+        window.determinedDays = null;
+        window.hypothesisData = null;
+        window.editingHypothesisId = null;
+
+        // 認証状態の監視
+        onAuthStateChanged(auth, (user) => {
+            window.currentUser = user;
+            updateAuthUI();
+            
+            if (user) {
+                showScreen('dashboard-screen');
+                loadDashboard();
+            } else {
+                showScreen('login-screen');
+            }
+        });
+
+        // 認証UIの更新
+        function updateAuthUI() {
+            const authButton = document.getElementById('auth-button');
+            const userAvatar = document.getElementById('user-avatar');
+            
+            if (window.currentUser) {
+                authButton.textContent = 'ログアウト';
+                if (window.currentUser.photoURL) {
+                    userAvatar.style.backgroundImage = `url(${window.currentUser.photoURL})`;
+                    userAvatar.style.backgroundSize = 'cover';
+                    userAvatar.textContent = '';
+                } else {
+                    userAvatar.textContent = (window.currentUser.email || 'G')[0].toUpperCase();
+                }
+            } else {
+                authButton.textContent = 'ログイン';
+                userAvatar.style.backgroundImage = '';
+                userAvatar.textContent = '?';
+            }
+        }
+
+        // Googleログイン
+        window.signInWithGoogle = async function() {
+            try {
+                await signInWithPopup(auth, googleProvider);
+            } catch (error) {
+                console.error("Googleログインエラー:", error);
+                alert("ログインに失敗しました");
+            }
+        }
+
+        // 匿名ログイン
+        window.signInAnonymously = async function() {
+            try {
+                await firebaseSignInAnonymously(auth);
+            } catch (error) {
+                console.error("匿名ログインエラー:", error);
+                alert("ログインに失敗しました");
+            }
+        }
+
+        // 認証処理
+        window.handleAuth = async function() {
+            if (window.currentUser) {
+                if (confirm('ログアウトしますか？')) {
+                    try {
+                        await signOut(auth);
+                    } catch (error) {
+                        console.error("ログアウトエラー:", error);
+                    }
+                }
+            } else {
+                showScreen('login-screen');
+            }
+        }
+
+        // ダッシュボードの読み込み
+        async function loadDashboard() {
+            if (!window.currentUser) return;
+
+            try {
+                const q = query(
+                    collection(db, 'hypotheses'),
+                    where('userId', '==', window.currentUser.uid),
+                    orderBy('createdAt', 'desc')
+                );
+                const snapshot = await getDocs(q);
+                
+                const dashboardContent = document.getElementById('dashboard-content');
+                const hypotheses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                
+                if (hypotheses.length === 0) {
+                    dashboardContent.innerHTML = `
+                        <div class="empty-state">
+                            <h3>仮説がありません</h3>
+                            <p>新しい仮説を立てて検証を始めましょう</p>
+                            <button class="btn" style="max-width: 300px; margin: 20px auto;" onclick="showScreen('hypothesis-screen')">新しい仮説を作成</button>
+                        </div>
+                    `;
+                } else {
+                    const activeHypotheses = hypotheses.filter(h => h.status === 'active');
+                    const completedHypotheses = hypotheses.filter(h => h.status === 'completed');
+                    
+                    dashboardContent.innerHTML = `
+                        ${activeHypotheses.length > 0 ? '<h2 style="margin-bottom: 20px;">進行中の仮説</h2>' : ''}
+                        <div class="dashboard-grid">
+                            ${activeHypotheses.map(h => createHypothesisCard(h)).join('')}
+                        </div>
+                        ${completedHypotheses.length > 0 ? '<h2 style="margin: 40px 0 20px;">完了した仮説</h2>' : ''}
+                        <div class="dashboard-grid">
+                            ${completedHypotheses.map(h => createHypothesisCard(h)).join('')}
+                        </div>
+                    `;
+                }
+                
+                // 履歴画面も更新
+                loadHistory();
+            } catch (error) {
+                console.error("ダッシュボード読み込みエラー:", error);
+            }
+        }
+
+        // 仮説カードの作成
+        function createHypothesisCard(hypothesis) {
+            const startDate = new Date(hypothesis.startDate);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const daysPassed = Math.min(
+                Math.floor((today - startDate) / (1000 * 60 * 60 * 24)) + 1,
+                hypothesis.totalDays
+            );
+            
+            const achievedDays = Object.values(hypothesis.dailyRecords || {}).filter(v => v === true).length;
+            const achievementRate = daysPassed > 0 ? Math.round((achievedDays / daysPassed) * 100) : 0;
+            
+            const achievementClass = achievementRate >= 80 ? 'high' : achievementRate >= 50 ? 'medium' : 'low';
+            const statusClass = hypothesis.status === 'active' ? 'active' : 'completed';
+            
+            return `
+                <div class="hypothesis-card">
+                    <div class="card-actions">
+                        <button class="card-action edit" onclick="event.stopPropagation(); editHypothesis('${hypothesis.id}')" title="編集">✏️</button>
+                        <button class="card-action delete" onclick="event.stopPropagation(); deleteHypothesis('${hypothesis.id}')" title="削除">🗑️</button>
+                    </div>
+                    <div onclick="openHypothesis('${hypothesis.id}')">
+                        <h3>${hypothesis.title}</h3>
+                        <p>${hypothesis.content.substring(0, 100)}${hypothesis.content.length > 100 ? '...' : ''}</p>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${achievementRate}%"></div>
+                        </div>
+                        <div class="card-stats">
+                            <span class="achievement-badge ${achievementClass}">${achievementRate}% 達成</span>
+                            <span class="status-badge ${statusClass}">${hypothesis.status === 'active' ? '進行中' : '完了'}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 仮説を開く
+        window.openHypothesis = async function(hypothesisId) {
+            try {
+                const q = query(
+                    collection(db, 'hypotheses'),
+                    where('userId', '==', window.currentUser.uid)
+                );
+                const snapshot = await getDocs(q);
+                const hypothesis = snapshot.docs.find(doc => doc.id === hypothesisId);
+                
+                if (hypothesis) {
+                    window.currentHypothesis = { id: hypothesis.id, ...hypothesis.data() };
+                    showTrackingScreen();
+                }
+            } catch (error) {
+                console.error("仮説読み込みエラー:", error);
+            }
+        }
+
+        // 仮説の編集
+        window.editHypothesis = async function(hypothesisId) {
+            try {
+                const q = query(
+                    collection(db, 'hypotheses'),
+                    where('userId', '==', window.currentUser.uid)
+                );
+                const snapshot = await getDocs(q);
+                const hypothesis = snapshot.docs.find(doc => doc.id === hypothesisId);
+                
+                if (hypothesis) {
+                    const data = hypothesis.data();
+                    window.editingHypothesisId = hypothesisId;
+                    document.getElementById('edit-title').value = data.title;
+                    document.getElementById('edit-content').value = data.content;
+                    document.getElementById('edit-modal').classList.add('active');
+                }
+            } catch (error) {
+                console.error("編集エラー:", error);
+            }
+        }
+
+        // 編集モーダルを閉じる
+        window.closeEditModal = function() {
+            document.getElementById('edit-modal').classList.remove('active');
+            document.getElementById('edit-form').reset();
+            window.editingHypothesisId = null;
+        }
+
+        // 編集フォームの送信
+        document.getElementById('edit-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            if (!window.editingHypothesisId) return;
+            
+            try {
+                await updateDoc(doc(db, 'hypotheses', window.editingHypothesisId), {
+                    title: document.getElementById('edit-title').value,
+                    content: document.getElementById('edit-content').value
+                });
+                
+                closeEditModal();
+                loadDashboard();
+                
+                // 現在表示中の仮説も更新
+                if (window.currentHypothesis && window.currentHypothesis.id === window.editingHypothesisId) {
+                    window.currentHypothesis.title = document.getElementById('edit-title').value;
+                    window.currentHypothesis.content = document.getElementById('edit-content').value;
+                    document.getElementById('tracking-title').textContent = window.currentHypothesis.title;
+                    document.getElementById('tracking-content').textContent = window.currentHypothesis.content;
+                }
+            } catch (error) {
+                console.error("更新エラー:", error);
+                alert("更新に失敗しました");
+            }
+        });
+
+        // 仮説の削除
+        window.deleteHypothesis = async function(hypothesisId) {
+            if (!confirm('この仮説を削除しますか？')) return;
+            
+            try {
+                await deleteDoc(doc(db, 'hypotheses', hypothesisId));
+                loadDashboard();
+                
+                // 削除した仮説が現在表示中の場合はダッシュボードに戻る
+                if (window.currentHypothesis && window.currentHypothesis.id === hypothesisId) {
+                    window.currentHypothesis = null;
+                    showScreen('dashboard-screen');
+                }
+            } catch (error) {
+                console.error("削除エラー:", error);
+                alert("削除に失敗しました");
+            }
+        }
+
+        // 履歴の読み込み
+        async function loadHistory() {
+            if (!window.currentUser) return;
+
+            try {
+                const q = query(
+                    collection(db, 'hypotheses'),
+                    where('userId', '==', window.currentUser.uid),
+                    where('status', '==', 'completed'),
+                    orderBy('completedAt', 'desc')
+                );
+                const snapshot = await getDocs(q);
+                
+                const historyContent = document.getElementById('history-content');
+                const completedHypotheses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                
+                if (completedHypotheses.length === 0) {
+                    historyContent.innerHTML = `
+                        <div class="empty-state">
+                            <h3>履歴がありません</h3>
+                            <p>完了した仮説検証がここに表示されます</p>
+                        </div>
+                    `;
+                } else {
+                    historyContent.innerHTML = `
+                        <div class="dashboard-grid">
+                            ${completedHypotheses.map(h => createHypothesisCard(h)).join('')}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error("履歴読み込みエラー:", error);
+            }
+        }
+
+        // 画面遷移関数
+        window.showScreen = function(screenId) {
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            document.getElementById(screenId).classList.add('active');
+            
+            // ナビゲーションの更新
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            if (screenId === 'dashboard-screen') {
+                document.querySelector('[onclick="showScreen(\'dashboard-screen\')"]').classList.add('active');
+                if (window.currentUser) {
+                    loadDashboard();
+                }
+            } else if (screenId === 'hypothesis-screen') {
+                document.querySelector('[onclick="showScreen(\'hypothesis-screen\')"]').classList.add('active');
+            } else if (screenId === 'history-screen') {
+                document.querySelector('[onclick="showScreen(\'history-screen\')"]').classList.add('active');
+            }
+        }
+
+        // 仮説フォームの送信
+        document.getElementById('hypothesis-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            window.hypothesisData = {
+                title: document.getElementById('hypothesis-title').value,
+                content: document.getElementById('hypothesis-content').value
+            };
+            showScreen('period-screen');
+        });
+
+        // 期間選択
+        document.querySelectorAll('.period-option').forEach(option => {
+            option.addEventListener('click', function() {
+                document.querySelectorAll('.period-option').forEach(opt => {
+                    opt.classList.remove('selected');
+                });
+                this.classList.add('selected');
+                window.selectedPeriod = this.dataset.period;
+                document.getElementById('start-shuffle').disabled = false;
+            });
+        });
+
+        // シャッフル開始
+        document.getElementById('start-shuffle').addEventListener('click', startShuffle);
+
+        async function startShuffle() {
+            showScreen('shuffle-screen');
+            
+            // 期間に応じた日数の範囲
+            const ranges = {
+                short: { min: 3, max: 7 },
+                medium: { min: 8, max: 14 },
+                long: { min: 15, max: 30 }
+            };
+            
+            const range = ranges[window.selectedPeriod];
+            const shuffleDisplay = document.getElementById('shuffle-display');
+            shuffleDisplay.classList.add('animating');
+            
+            // シャッフルアニメーション
+            let shuffleCount = 0;
+            const shuffleInterval = setInterval(() => {
+                const randomNum = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+                shuffleDisplay.textContent = randomNum;
+                shuffleCount++;
+                
+                if (shuffleCount > 30) {
+                    clearInterval(shuffleInterval);
+                    window.determinedDays = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+                    shuffleDisplay.textContent = window.determinedDays;
+                    shuffleDisplay.classList.remove('animating');
+                    
+                    // 2秒後に保存して進捗画面へ
+                    setTimeout(() => {
+                        saveHypothesis();
+                    }, 2000);
+                }
+            }, 100);
+        }
+
+        // 仮説を保存
+        async function saveHypothesis() {
+            if (!window.currentUser || !window.hypothesisData) return;
+
+            try {
+                const hypothesisDoc = {
+                    userId: window.currentUser.uid,
+                    title: window.hypothesisData.title,
+                    content: window.hypothesisData.content,
+                    periodType: window.selectedPeriod,
+                    totalDays: window.determinedDays,
+                    startDate: new Date().toISOString().split('T')[0],
+                    status: 'active',
+                    dailyRecords: {},
+                    createdAt: serverTimestamp()
+                };
+
+                const docRef = await addDoc(collection(db, 'hypotheses'), hypothesisDoc);
+                window.currentHypothesis = { id: docRef.id, ...hypothesisDoc, createdAt: new Date() };
+                
+                // フォームをリセット
+                document.getElementById('hypothesis-form').reset();
+                document.querySelectorAll('.period-option').forEach(opt => {
+                    opt.classList.remove('selected');
+                });
+                document.getElementById('start-shuffle').disabled = true;
+                
+                showTrackingScreen();
+            } catch (error) {
+                console.error("保存エラー:", error);
+                alert("保存に失敗しました");
+            }
+        }
+
+        // 進捗トラッキング画面を表示
+        function showTrackingScreen() {
+            if (!window.currentHypothesis) return;
+
+            showScreen('tracking-screen');
+            
+            // 仮説情報を表示
+            document.getElementById('tracking-title').textContent = window.currentHypothesis.title;
+            document.getElementById('tracking-content').textContent = window.currentHypothesis.content;
+            
+            // カレンダーを生成
+            generateCalendar();
+            updateProgress();
+        }
+
+        // カレンダー生成
+        function generateCalendar() {
+            const calendarGrid = document.getElementById('calendar-grid');
+            calendarGrid.innerHTML = '';
+            
+            const startDate = new Date(window.currentHypothesis.startDate);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            for (let i = 0; i < window.currentHypothesis.totalDays; i++) {
+                const cellDate = new Date(startDate);
+                cellDate.setDate(startDate.getDate() + i);
+                
+                const dayCell = document.createElement('div');
+                dayCell.className = 'day-cell';
+                dayCell.textContent = i + 1;
+                dayCell.dataset.day = i + 1;
+                
+                const dateKey = cellDate.toISOString().split('T')[0];
+                
+                if (cellDate > today) {
+                    dayCell.classList.add('future');
+                } else if (cellDate.getTime() === today.getTime()) {
+                    dayCell.classList.add('today');
+                } else {
+                    // 過去の日付の記録をチェック
+                    if (window.currentHypothesis.dailyRecords && window.currentHypothesis.dailyRecords[dateKey] !== undefined) {
+                        dayCell.classList.add(window.currentHypothesis.dailyRecords[dateKey] ? 'achieved' : 'not-achieved');
+                    } else {
+                        dayCell.classList.add('pending');
+                    }
+                }
+                
+                // クリックイベント（今日以前の日付のみ）
+                if (cellDate <= today) {
+                    dayCell.addEventListener('click', () => toggleDayStatus(dateKey, dayCell));
+                }
+                
+                calendarGrid.appendChild(dayCell);
+            }
+        }
+
+        // 日付の達成状況を切り替え
+        async function toggleDayStatus(dateKey, dayCell) {
+            if (!window.currentHypothesis || dayCell.classList.contains('future')) return;
+
+            const currentStatus = window.currentHypothesis.dailyRecords[dateKey];
+            let newStatus;
+
+            if (currentStatus === undefined) {
+                newStatus = true; // 未設定 → 達成
+            } else if (currentStatus === true) {
+                newStatus = false; // 達成 → 未達成
+            } else {
+                newStatus = undefined; // 未達成 → 未設定
+            }
+
+            // Firebaseを更新
+            try {
+                const updatedRecords = { ...window.currentHypothesis.dailyRecords };
+                if (newStatus === undefined) {
+                    delete updatedRecords[dateKey];
+                } else {
+                    updatedRecords[dateKey] = newStatus;
+                }
+
+                await updateDoc(doc(db, 'hypotheses', window.currentHypothesis.id), {
+                    dailyRecords: updatedRecords
+                });
+
+                window.currentHypothesis.dailyRecords = updatedRecords;
+                
+                // UIを更新
+                dayCell.classList.remove('achieved', 'not-achieved', 'pending');
+                if (newStatus === true) {
+                    dayCell.classList.add('achieved');
+                    showAchievementAnimation();
+                } else if (newStatus === false) {
+                    dayCell.classList.add('not-achieved');
+                } else {
+                    dayCell.classList.add('pending');
+                }
+
+                updateProgress();
+            } catch (error) {
+                console.error("更新エラー:", error);
+            }
+        }
+
+        // 達成アニメーション表示
+        function showAchievementAnimation() {
+            const emoji = ['🎉', '✨', '🌟', '⭐', '🎊', '💫', '🏆'][Math.floor(Math.random() * 7)];
+            const animation = document.createElement('div');
+            animation.className = 'achievement-animation';
+            animation.textContent = emoji;
+            document.body.appendChild(animation);
+            
+            setTimeout(() => {
+                animation.remove();
+            }, 1000);
+        }
+
+        // 進捗を更新
+        function updateProgress() {
+            const startDate = new Date(window.currentHypothesis.startDate);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const daysPassed = Math.min(
+                Math.floor((today - startDate) / (1000 * 60 * 60 * 24)) + 1,
+                window.currentHypothesis.totalDays
+            );
+            
+            const achievedDays = Object.values(window.currentHypothesis.dailyRecords || {})
+                .filter(status => status === true).length;
+            
+            const achievementRate = daysPassed > 0 ? Math.round((achievedDays / daysPassed) * 100) : 0;
+            const remainingDays = Math.max(0, window.currentHypothesis.totalDays - daysPassed);
+            
+            document.getElementById('day-count').textContent = daysPassed;
+            document.getElementById('achievement-rate').textContent = achievementRate + '%';
+            document.getElementById('remaining-days').textContent = remainingDays;
+        }
+
+        // 検証を完了
+        window.completeHypothesis = async function() {
+            if (!window.currentHypothesis || !confirm('この仮説検証を完了しますか？')) return;
+
+            try {
+                await updateDoc(doc(db, 'hypotheses', window.currentHypothesis.id), {
+                    status: 'completed',
+                    completedAt: serverTimestamp()
+                });
+
+                alert('仮説検証が完了しました！');
+                window.currentHypothesis = null;
+                showScreen('dashboard-screen');
+                loadDashboard();
+            } catch (error) {
+                console.error("完了エラー:", error);
+            }
+        }
+    </script>
+</body>
+</html>

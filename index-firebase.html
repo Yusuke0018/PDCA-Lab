@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDCA Lab - PDCAサイクル管理ツール</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>PDCA Lab</h1>
+            <p class="subtitle">効率的なPDCAサイクル管理ツール</p>
+            <div id="auth-status" style="text-align: right; margin-top: 10px;">
+                <span id="user-email"></span>
+                <button id="auth-button" class="btn-secondary">ログイン</button>
+            </div>
+        </header>
+
+        <nav>
+            <button class="nav-btn active" data-section="dashboard">ダッシュボード</button>
+            <button class="nav-btn" data-section="plan">Plan 計画</button>
+            <button class="nav-btn" data-section="do">Do 実行</button>
+            <button class="nav-btn" data-section="check">Check 評価</button>
+            <button class="nav-btn" data-section="act">Act 改善</button>
+        </nav>
+
+        <main>
+            <!-- ダッシュボード -->
+            <section id="dashboard" class="section active">
+                <h2>ダッシュボード</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>進行中のサイクル</h3>
+                        <p class="stat-number" id="active-cycles">0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>完了したサイクル</h3>
+                        <p class="stat-number" id="completed-cycles">0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>全体の進捗率</h3>
+                        <p class="stat-number" id="overall-progress">0%</p>
+                    </div>
+                </div>
+                
+                <div class="recent-activities">
+                    <h3>最近の活動</h3>
+                    <ul id="activity-list">
+                        <li>まだ活動がありません</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- Plan 計画 -->
+            <section id="plan" class="section">
+                <h2>Plan 計画</h2>
+                <div class="form-container">
+                    <h3>新しい目標を設定</h3>
+                    <form id="plan-form">
+                        <div class="form-group">
+                            <label for="goal-title">目標タイトル</label>
+                            <input type="text" id="goal-title" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="goal-description">詳細説明</label>
+                            <textarea id="goal-description" rows="4" required></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="goal-deadline">期限</label>
+                            <input type="date" id="goal-deadline" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="goal-metrics">成功指標</label>
+                            <textarea id="goal-metrics" rows="3" placeholder="数値化可能な成功指標を入力" required></textarea>
+                        </div>
+                        
+                        <button type="submit" class="btn-primary">計画を登録</button>
+                    </form>
+                </div>
+                
+                <div class="plans-list">
+                    <h3>登録済み計画</h3>
+                    <div id="plans-container">
+                        <p>まだ計画がありません</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Do 実行 -->
+            <section id="do" class="section">
+                <h2>Do 実行</h2>
+                <div class="tasks-container">
+                    <h3>実行中のタスク</h3>
+                    <div id="active-tasks">
+                        <p>実行中のタスクはありません</p>
+                    </div>
+                    
+                    <h3>新しいタスクを追加</h3>
+                    <form id="task-form">
+                        <div class="form-group">
+                            <label for="task-plan">関連する計画</label>
+                            <select id="task-plan" required>
+                                <option value="">計画を選択してください</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="task-description">タスク内容</label>
+                            <input type="text" id="task-description" required>
+                        </div>
+                        
+                        <button type="submit" class="btn-primary">タスクを追加</button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Check 評価 -->
+            <section id="check" class="section">
+                <h2>Check 評価</h2>
+                <div class="evaluation-container">
+                    <h3>進捗を評価</h3>
+                    <form id="check-form">
+                        <div class="form-group">
+                            <label for="check-plan">評価する計画</label>
+                            <select id="check-plan" required>
+                                <option value="">計画を選択してください</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="progress-percentage">進捗率 (%)</label>
+                            <input type="number" id="progress-percentage" min="0" max="100" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="evaluation-notes">評価メモ</label>
+                            <textarea id="evaluation-notes" rows="4" placeholder="達成状況や課題を記入"></textarea>
+                        </div>
+                        
+                        <button type="submit" class="btn-primary">評価を保存</button>
+                    </form>
+                </div>
+                
+                <div class="evaluation-history">
+                    <h3>評価履歴</h3>
+                    <div id="evaluations-container">
+                        <p>まだ評価がありません</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Act 改善 -->
+            <section id="act" class="section">
+                <h2>Act 改善</h2>
+                <div class="improvement-container">
+                    <h3>改善アクションを設定</h3>
+                    <form id="act-form">
+                        <div class="form-group">
+                            <label for="act-plan">改善する計画</label>
+                            <select id="act-plan" required>
+                                <option value="">計画を選択してください</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="improvement-action">改善アクション</label>
+                            <textarea id="improvement-action" rows="4" placeholder="次のサイクルに向けた改善点" required></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>アクションタイプ</label>
+                            <div class="radio-group">
+                                <label>
+                                    <input type="radio" name="action-type" value="continue" checked>
+                                    現在の計画を継続
+                                </label>
+                                <label>
+                                    <input type="radio" name="action-type" value="modify">
+                                    計画を修正
+                                </label>
+                                <label>
+                                    <input type="radio" name="action-type" value="complete">
+                                    計画を完了
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn-primary">改善を記録</button>
+                    </form>
+                </div>
+                
+                <div class="improvements-history">
+                    <h3>改善履歴</h3>
+                    <div id="improvements-container">
+                        <p>まだ改善アクションがありません</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>&copy; 2024 PDCA Lab. All rights reserved.</p>
+        </footer>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module" src="js/firebase-config.js"></script>
+    <script type="module" src="js/app-firebase.js"></script>
+</body>
+</html>

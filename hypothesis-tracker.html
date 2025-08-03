@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>仮説検証トラッカー</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 600px;
+            padding: 40px;
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            text-align: center;
+            font-size: 28px;
+        }
+
+        .screen {
+            display: none;
+        }
+
+        .screen.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 600;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .period-options {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .period-option {
+            padding: 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: white;
+        }
+
+        .period-option:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
+        }
+
+        .period-option.selected {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .period-option h3 {
+            margin-bottom: 5px;
+            font-size: 18px;
+        }
+
+        .period-option p {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .btn:hover {
+            background: #5a67d8;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* シャッフルアニメーション */
+        .shuffle-container {
+            text-align: center;
+            padding: 60px 0;
+        }
+
+        .shuffle-number {
+            font-size: 120px;
+            font-weight: bold;
+            color: #667eea;
+            animation: shuffle 0.1s linear infinite;
+        }
+
+        @keyframes shuffle {
+            0% { transform: scale(1) rotate(0deg); }
+            50% { transform: scale(1.1) rotate(5deg); }
+            100% { transform: scale(1) rotate(0deg); }
+        }
+
+        .shuffle-text {
+            margin-top: 20px;
+            font-size: 18px;
+            color: #666;
+        }
+
+        /* 進捗トラッキング */
+        .progress-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .progress-info {
+            display: flex;
+            justify-content: space-around;
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 15px;
+        }
+
+        .progress-stat {
+            text-align: center;
+        }
+
+        .progress-stat h3 {
+            font-size: 24px;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .progress-stat p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 10px;
+            margin: 30px 0;
+        }
+
+        .day-cell {
+            aspect-ratio: 1;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .day-cell.future {
+            background: #f0f0f0;
+            color: #999;
+            cursor: not-allowed;
+        }
+
+        .day-cell.today {
+            background: #667eea;
+            color: white;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .day-cell.achieved {
+            background: #48bb78;
+            color: white;
+        }
+
+        .day-cell.not-achieved {
+            background: #f56565;
+            color: white;
+        }
+
+        .day-cell.pending {
+            background: white;
+            border: 2px solid #e0e0e0;
+        }
+
+        .day-cell:hover:not(.future) {
+            transform: scale(1.1);
+        }
+
+        .hypothesis-summary {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+
+        .hypothesis-summary h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .hypothesis-summary p {
+            color: #666;
+            line-height: 1.6;
+        }
+
+        /* レスポンシブ対応 */
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+
+            .period-options {
+                grid-template-columns: 1fr;
+            }
+
+            .calendar-grid {
+                grid-template-columns: repeat(5, 1fr);
+            }
+
+            .shuffle-number {
+                font-size: 80px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 仮説入力画面 -->
+        <div id="hypothesis-screen" class="screen active">
+            <h1>仮説を立てよう</h1>
+            <form id="hypothesis-form">
+                <div class="form-group">
+                    <label for="hypothesis-title">仮説のタイトル</label>
+                    <input type="text" id="hypothesis-title" placeholder="例: 毎朝30分の運動で生産性が上がる" required>
+                </div>
+                <div class="form-group">
+                    <label for="hypothesis-content">仮説の詳細</label>
+                    <textarea id="hypothesis-content" placeholder="なぜこの仮説を検証したいのか、期待される効果などを詳しく記入してください" required></textarea>
+                </div>
+                <button type="submit" class="btn">次へ: 期間を選択</button>
+            </form>
+        </div>
+
+        <!-- 期間選択画面 -->
+        <div id="period-screen" class="screen">
+            <h1>検証期間を選ぼう</h1>
+            <div class="period-options">
+                <div class="period-option" data-period="short">
+                    <h3>短期間</h3>
+                    <p>3〜7日</p>
+                </div>
+                <div class="period-option" data-period="medium">
+                    <h3>中期間</h3>
+                    <p>8〜14日</p>
+                </div>
+                <div class="period-option" data-period="long">
+                    <h3>長期間</h3>
+                    <p>15〜30日</p>
+                </div>
+            </div>
+            <button id="start-shuffle" class="btn" disabled>シャッフル開始！</button>
+        </div>
+
+        <!-- シャッフル画面 -->
+        <div id="shuffle-screen" class="screen">
+            <div class="shuffle-container">
+                <div class="shuffle-number" id="shuffle-display">?</div>
+                <p class="shuffle-text">検証期間を決定中...</p>
+            </div>
+        </div>
+
+        <!-- 進捗トラッキング画面 -->
+        <div id="tracking-screen" class="screen">
+            <div class="progress-header">
+                <h1>仮説検証の進捗</h1>
+                <div class="progress-info">
+                    <div class="progress-stat">
+                        <h3 id="day-count">1</h3>
+                        <p>日目</p>
+                    </div>
+                    <div class="progress-stat">
+                        <h3 id="achievement-rate">0%</h3>
+                        <p>達成率</p>
+                    </div>
+                    <div class="progress-stat">
+                        <h3 id="remaining-days">-</h3>
+                        <p>残り日数</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="hypothesis-summary">
+                <h3 id="tracking-title">-</h3>
+                <p id="tracking-content">-</p>
+            </div>
+
+            <div class="calendar-grid" id="calendar-grid">
+                <!-- カレンダーセルが動的に生成される -->
+            </div>
+
+            <button class="btn" onclick="completeHypothesis()">検証を完了する</button>
+        </div>
+    </div>
+
+    <!-- Firebase設定 -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, query, where, orderBy } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+
+        // Firebase設定
+        const firebaseConfig = {
+            apiKey: "AIzaSyCFa-syZpZlvi7e_TqHy6coAY5AikR55-U",
+            authDomain: "pdca-lab.firebaseapp.com",
+            projectId: "pdca-lab",
+            storageBucket: "pdca-lab.firebasestorage.app",
+            messagingSenderId: "222821808402",
+            appId: "1:222821808402:web:2269abd2453d28c4625bcb"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // グローバル変数
+        let currentUser = null;
+        let currentHypothesis = null;
+        let selectedPeriod = null;
+        let determinedDays = null;
+
+        // 匿名認証
+        signInAnonymously(auth).catch((error) => {
+            console.error("認証エラー:", error);
+        });
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                loadActiveHypothesis();
+            }
+        });
+
+        // アクティブな仮説を読み込む
+        async function loadActiveHypothesis() {
+            if (!currentUser) return;
+
+            try {
+                const q = query(
+                    collection(db, 'hypotheses'),
+                    where('userId', '==', currentUser.uid),
+                    where('status', '==', 'active'),
+                    orderBy('createdAt', 'desc')
+                );
+                const snapshot = await getDocs(q);
+                
+                if (!snapshot.empty) {
+                    currentHypothesis = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+                    showTrackingScreen();
+                }
+            } catch (error) {
+                console.error("仮説の読み込みエラー:", error);
+            }
+        }
+
+        // 画面遷移関数
+        window.showScreen = function(screenId) {
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        // 仮説フォームの送信
+        document.getElementById('hypothesis-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            window.hypothesisData = {
+                title: document.getElementById('hypothesis-title').value,
+                content: document.getElementById('hypothesis-content').value
+            };
+            showScreen('period-screen');
+        });
+
+        // 期間選択
+        document.querySelectorAll('.period-option').forEach(option => {
+            option.addEventListener('click', function() {
+                document.querySelectorAll('.period-option').forEach(opt => {
+                    opt.classList.remove('selected');
+                });
+                this.classList.add('selected');
+                selectedPeriod = this.dataset.period;
+                document.getElementById('start-shuffle').disabled = false;
+            });
+        });
+
+        // シャッフル開始
+        document.getElementById('start-shuffle').addEventListener('click', startShuffle);
+
+        async function startShuffle() {
+            showScreen('shuffle-screen');
+            
+            // 期間に応じた日数の範囲
+            const ranges = {
+                short: { min: 3, max: 7 },
+                medium: { min: 8, max: 14 },
+                long: { min: 15, max: 30 }
+            };
+            
+            const range = ranges[selectedPeriod];
+            const shuffleDisplay = document.getElementById('shuffle-display');
+            
+            // シャッフルアニメーション
+            let shuffleCount = 0;
+            const shuffleInterval = setInterval(() => {
+                const randomNum = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+                shuffleDisplay.textContent = randomNum;
+                shuffleCount++;
+                
+                if (shuffleCount > 30) {
+                    clearInterval(shuffleInterval);
+                    determinedDays = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+                    shuffleDisplay.textContent = determinedDays;
+                    
+                    // 2秒後に保存して進捗画面へ
+                    setTimeout(() => {
+                        saveHypothesis();
+                    }, 2000);
+                }
+            }, 100);
+        }
+
+        // 仮説を保存
+        async function saveHypothesis() {
+            if (!currentUser || !window.hypothesisData) return;
+
+            try {
+                const hypothesisDoc = {
+                    userId: currentUser.uid,
+                    title: window.hypothesisData.title,
+                    content: window.hypothesisData.content,
+                    periodType: selectedPeriod,
+                    totalDays: determinedDays,
+                    startDate: new Date().toISOString().split('T')[0],
+                    status: 'active',
+                    dailyRecords: {},
+                    createdAt: new Date()
+                };
+
+                const docRef = await addDoc(collection(db, 'hypotheses'), hypothesisDoc);
+                currentHypothesis = { id: docRef.id, ...hypothesisDoc };
+                showTrackingScreen();
+            } catch (error) {
+                console.error("保存エラー:", error);
+                alert("保存に失敗しました");
+            }
+        }
+
+        // 進捗トラッキング画面を表示
+        function showTrackingScreen() {
+            if (!currentHypothesis) return;
+
+            showScreen('tracking-screen');
+            
+            // 仮説情報を表示
+            document.getElementById('tracking-title').textContent = currentHypothesis.title;
+            document.getElementById('tracking-content').textContent = currentHypothesis.content;
+            
+            // カレンダーを生成
+            generateCalendar();
+            updateProgress();
+        }
+
+        // カレンダー生成
+        function generateCalendar() {
+            const calendarGrid = document.getElementById('calendar-grid');
+            calendarGrid.innerHTML = '';
+            
+            const startDate = new Date(currentHypothesis.startDate);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            for (let i = 0; i < currentHypothesis.totalDays; i++) {
+                const cellDate = new Date(startDate);
+                cellDate.setDate(startDate.getDate() + i);
+                
+                const dayCell = document.createElement('div');
+                dayCell.className = 'day-cell';
+                dayCell.textContent = i + 1;
+                dayCell.dataset.day = i + 1;
+                
+                const dateKey = cellDate.toISOString().split('T')[0];
+                
+                if (cellDate > today) {
+                    dayCell.classList.add('future');
+                } else if (cellDate.getTime() === today.getTime()) {
+                    dayCell.classList.add('today');
+                } else {
+                    // 過去の日付の記録をチェック
+                    if (currentHypothesis.dailyRecords && currentHypothesis.dailyRecords[dateKey] !== undefined) {
+                        dayCell.classList.add(currentHypothesis.dailyRecords[dateKey] ? 'achieved' : 'not-achieved');
+                    } else {
+                        dayCell.classList.add('pending');
+                    }
+                }
+                
+                // クリックイベント（今日以前の日付のみ）
+                if (cellDate <= today) {
+                    dayCell.addEventListener('click', () => toggleDayStatus(dateKey, dayCell));
+                }
+                
+                calendarGrid.appendChild(dayCell);
+            }
+        }
+
+        // 日付の達成状況を切り替え
+        async function toggleDayStatus(dateKey, dayCell) {
+            if (!currentHypothesis || dayCell.classList.contains('future')) return;
+
+            const currentStatus = currentHypothesis.dailyRecords[dateKey];
+            let newStatus;
+
+            if (currentStatus === undefined) {
+                newStatus = true; // 未設定 → 達成
+            } else if (currentStatus === true) {
+                newStatus = false; // 達成 → 未達成
+            } else {
+                newStatus = undefined; // 未達成 → 未設定
+            }
+
+            // Firebaseを更新
+            try {
+                const updatedRecords = { ...currentHypothesis.dailyRecords };
+                if (newStatus === undefined) {
+                    delete updatedRecords[dateKey];
+                } else {
+                    updatedRecords[dateKey] = newStatus;
+                }
+
+                await updateDoc(doc(db, 'hypotheses', currentHypothesis.id), {
+                    dailyRecords: updatedRecords
+                });
+
+                currentHypothesis.dailyRecords = updatedRecords;
+                
+                // UIを更新
+                dayCell.classList.remove('achieved', 'not-achieved', 'pending');
+                if (newStatus === true) {
+                    dayCell.classList.add('achieved');
+                } else if (newStatus === false) {
+                    dayCell.classList.add('not-achieved');
+                } else {
+                    dayCell.classList.add('pending');
+                }
+
+                updateProgress();
+            } catch (error) {
+                console.error("更新エラー:", error);
+            }
+        }
+
+        // 進捗を更新
+        function updateProgress() {
+            const startDate = new Date(currentHypothesis.startDate);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const daysPassed = Math.min(
+                Math.floor((today - startDate) / (1000 * 60 * 60 * 24)) + 1,
+                currentHypothesis.totalDays
+            );
+            
+            const achievedDays = Object.values(currentHypothesis.dailyRecords || {})
+                .filter(status => status === true).length;
+            
+            const achievementRate = daysPassed > 0 ? Math.round((achievedDays / daysPassed) * 100) : 0;
+            const remainingDays = Math.max(0, currentHypothesis.totalDays - daysPassed);
+            
+            document.getElementById('day-count').textContent = daysPassed;
+            document.getElementById('achievement-rate').textContent = achievementRate + '%';
+            document.getElementById('remaining-days').textContent = remainingDays;
+        }
+
+        // 検証を完了
+        window.completeHypothesis = async function() {
+            if (!currentHypothesis || !confirm('この仮説検証を完了しますか？')) return;
+
+            try {
+                await updateDoc(doc(db, 'hypotheses', currentHypothesis.id), {
+                    status: 'completed',
+                    completedAt: new Date()
+                });
+
+                alert('仮説検証が完了しました！');
+                currentHypothesis = null;
+                showScreen('hypothesis-screen');
+                document.getElementById('hypothesis-form').reset();
+            } catch (error) {
+                console.error("完了エラー:", error);
+            }
+        }
+    </script>
+</body>
+</html>
