@@ -1,0 +1,37 @@
+# 環境変数
+.env
+.env.local
+.env.production
+.env.*.local
+
+# Firebase
+.firebase/
+.firebaserc
+
+# Firebase設定
+firebase-config.js
+js/firebase-config-local.js
+
+# Mac
+.DS_Store
+
+# Node
+node_modules/
+npm-debug.log*
+
+# ログ
+*.log
+pglite-debug.log
+
+# キャッシュ
+.cache/
+
+# ビルド成果物
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
