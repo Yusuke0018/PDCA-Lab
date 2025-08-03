@@ -2045,30 +2045,6 @@
                 // 現在のリストから削除
                 data.currentHypotheses.splice(index, 1);
                 
-                // カード獲得処理（すでに獲得していない場合のみ）
-                if (!hypothesis.cardsAcquired) {
-                    const acquiredCards = getCardsBasedOnAchievement(hypothesis.finalAchievementRate);
-                    if (acquiredCards.length > 0) {
-                        acquiredCards.forEach(cardId => {
-                            const card = CARD_MASTER[cardId];
-                            if (card) {
-                                if (card.type === 'reward') {
-                                    data.cards.inventory.push({
-                                        cardId: cardId,
-                                        acquiredDate: new Date().toISOString(),
-                                        used: false
-                                    });
-                                } else if (card.type === 'penalty') {
-                                    data.cards.pendingPenalties.push({
-                                        cardId: cardId,
-                                        acquiredDate: new Date().toISOString()
-                                    });
-                                }
-                            }
-                        });
-                    }
-                }
-                
                 saveData(data);
                 
                 if (showHome) {
