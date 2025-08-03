@@ -1677,14 +1677,26 @@
                 return;
             }
             
+            // achievementsが存在しない場合は初期化
+            if (!window.currentHypothesis.achievements) {
+                window.currentHypothesis.achievements = {};
+            }
+            
             // 達成状態にする
             window.currentHypothesis.achievements[dateKey] = true;
+            
+            // デバッグ用ログ
+            console.log('スキップチケット適用:', {
+                dateKey: dateKey,
+                achievements: window.currentHypothesis.achievements,
+                hypothesisId: window.currentHypothesis.id
+            });
             
             // カードを消費
             data.cards.inventory[skipTicketIndex].used = true;
             data.cards.inventory[skipTicketIndex].usedDate = new Date().toISOString();
             
-            // 現在の仮説を更新（achievementsが存在しない場合は初期化）
+            // 現在の仮説を更新
             const hypothesisIndex = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
             if (hypothesisIndex !== -1) {
                 if (!data.currentHypotheses[hypothesisIndex].achievements) {
