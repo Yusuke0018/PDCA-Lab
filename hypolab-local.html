@@ -66,6 +66,12 @@
             justify-content: space-between;
         }
 
+        .header-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
         h1 {
             font-size: 24px;
             font-weight: 800;
@@ -73,6 +79,69 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
+        }
+
+        /* ナビゲーションバー */
+        .nav {
+            background: rgba(30, 41, 59, 0.95);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 60px;
+            z-index: 99;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+
+        .nav-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+
+        .nav-content::-webkit-scrollbar {
+            display: none;
+        }
+
+        .nav-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            padding: 16px 20px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            white-space: nowrap;
+        }
+
+        .nav-btn::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 3px;
+            background: var(--gradient-1);
+            transition: width 0.3s;
+        }
+
+        .nav-btn:hover {
+            color: var(--text-primary);
+        }
+
+        .nav-btn.active {
+            color: var(--text-primary);
+        }
+
+        .nav-btn.active::after {
+            width: 100%;
         }
 
         /* メインコンテナ */
@@ -720,12 +789,33 @@
     <!-- ヘッダー -->
     <header class="header">
         <div class="header-content">
-            <h1>🧪 HypoLab (ローカル版)</h1>
-            <button class="btn btn-secondary" onclick="showHistoryView()">
-                📚 履歴
+            <div class="header-logo">
+                <h1>🧪 HypoLab</h1>
+                <span style="font-size: 12px; color: var(--text-secondary); background: var(--surface-light); padding: 4px 8px; border-radius: 4px;">ローカル版</span>
+            </div>
+            <button class="btn btn-secondary" onclick="showAboutView()">
+                ℹ️ このアプリについて
             </button>
         </div>
     </header>
+
+    <!-- ナビゲーションバー -->
+    <nav class="nav">
+        <div class="nav-content">
+            <button class="nav-btn active" onclick="showHomeView()" data-view="home">
+                🏠 ホーム
+            </button>
+            <button class="nav-btn" onclick="showNewHypothesisView()" data-view="new">
+                ➕ 新規仮説
+            </button>
+            <button class="nav-btn" onclick="showHistoryView()" data-view="history">
+                📚 履歴
+            </button>
+            <button class="nav-btn" onclick="showStatsView()" data-view="stats">
+                📊 統計
+            </button>
+        </div>
+    </nav>
 
     <!-- メインコンテナ -->
     <div class="container">
@@ -809,9 +899,6 @@
         <!-- 検証進捗画面 -->
         <div id="progress-view" style="display: none;">
             <div class="card">
-                <button class="btn btn-secondary" onclick="showHomeView()" style="margin-bottom: 16px;">
-                    ← ホームに戻る
-                </button>
                 <h2 id="progress-hypothesis-title" style="margin-bottom: 8px;"></h2>
                 <p id="progress-hypothesis-description" style="color: var(--text-secondary); margin-bottom: 16px;"></p>
                 <div id="progress-days-info" style="margin-bottom: 24px; color: var(--text-secondary);"></div>
@@ -859,16 +946,77 @@
         <!-- 履歴画面 -->
         <div id="history-view" style="display: none;">
             <div class="card">
-                <button class="btn btn-secondary" onclick="showHomeView()" style="margin-bottom: 16px;">
-                    ← ホームに戻る
-                </button>
                 <h2 style="margin-bottom: 24px;">完了した仮説</h2>
                 <div id="history-list">
                     <!-- 動的に生成 -->
                 </div>
             </div>
         </div>
+
+        <!-- 統計画面 -->
+        <div id="stats-view" style="display: none;">
+            <div class="card">
+                <h2 style="margin-bottom: 24px;">📊 統計データ</h2>
+                <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+                    <div class="stat-card" style="background: var(--background); padding: 20px; border-radius: 12px; text-align: center;">
+                        <div class="stat-value" id="total-hypotheses" style="font-size: 36px; font-weight: 800; background: var(--gradient-1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">0</div>
+                        <div class="stat-label" style="color: var(--text-secondary); margin-top: 8px;">総仮説数</div>
+                    </div>
+                    <div class="stat-card" style="background: var(--background); padding: 20px; border-radius: 12px; text-align: center;">
+                        <div class="stat-value" id="avg-achievement" style="font-size: 36px; font-weight: 800; background: var(--gradient-2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">0%</div>
+                        <div class="stat-label" style="color: var(--text-secondary); margin-top: 8px;">平均達成率</div>
+                    </div>
+                    <div class="stat-card" style="background: var(--background); padding: 20px; border-radius: 12px; text-align: center;">
+                        <div class="stat-value" id="total-days" style="font-size: 36px; font-weight: 800; background: var(--gradient-3); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">0</div>
+                        <div class="stat-label" style="color: var(--text-secondary); margin-top: 8px;">総検証日数</div>
+                    </div>
+                </div>
+                <div class="achievement-chart" id="achievement-chart">
+                    <!-- チャートをここに表示 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- アバウト画面 -->
+        <div id="about-view" style="display: none;">
+            <div class="card">
+                <h2 style="margin-bottom: 24px;">ℹ️ HypoLab について</h2>
+                <div style="color: var(--text-secondary); line-height: 1.8;">
+                    <p style="margin-bottom: 16px;">HypoLab（ローカル版）は、日々の仮説検証を楽しくサポートするアプリケーションです。</p>
+                    
+                    <h3 style="color: var(--text-primary); margin: 24px 0 12px;">✨ 特徴</h3>
+                    <ul style="margin-left: 20px; margin-bottom: 16px;">
+                        <li>🎲 ランダムな検証期間で飽きずに継続</li>
+                        <li>📊 進捗の可視化でモチベーション維持</li>
+                        <li>🔒 完全ローカル保存でプライバシー保護</li>
+                        <li>📱 モバイル対応でいつでもチェック</li>
+                    </ul>
+                    
+                    <h3 style="color: var(--text-primary); margin: 24px 0 12px;">💡 使い方</h3>
+                    <ol style="margin-left: 20px; margin-bottom: 16px;">
+                        <li>新規仮説を立案（タイトルと詳細を入力）</li>
+                        <li>検証期間を選択（短期/中期/長期）</li>
+                        <li>シャッフルで具体的な日数を決定</li>
+                        <li>毎日の達成をカレンダーでチェック</li>
+                        <li>期間終了後は継続/修正/完了を選択</li>
+                    </ol>
+                    
+                    <p style="margin-top: 24px; text-align: center; opacity: 0.7;">Version 1.0.0</p>
+                </div>
+                <button class="btn" onclick="showHomeView()" style="margin-top: 24px; width: 100%;">
+                    ホームに戻る
+                </button>
+            </div>
+        </div>
     </div>
+
+    <!-- フッター -->
+    <footer style="background: var(--surface); border-top: 1px solid var(--border); padding: 20px; margin-top: auto;">
+        <div style="max-width: 1200px; margin: 0 auto; text-align: center; color: var(--text-secondary); font-size: 14px;">
+            <p>© 2025 HypoLab - 仮説検証プラットフォーム</p>
+            <p style="margin-top: 8px; opacity: 0.7;">すべてのデータはブラウザ内に保存されます</p>
+        </div>
+    </footer>
 
     <script>
         // ローカルストレージのキー
@@ -892,6 +1040,17 @@
             localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
         }
 
+        // ナビゲーションを更新
+        function updateNavigation(activeView) {
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            const activeBtn = document.querySelector(`[data-view="${activeView}"]`);
+            if (activeBtn) {
+                activeBtn.classList.add('active');
+            }
+        }
+
         // ホーム画面を表示
         function showHomeView() {
             document.getElementById('home-view').style.display = 'block';
@@ -899,7 +1058,10 @@
             document.getElementById('shuffle-view').style.display = 'none';
             document.getElementById('progress-view').style.display = 'none';
             document.getElementById('history-view').style.display = 'none';
+            document.getElementById('stats-view').style.display = 'none';
+            document.getElementById('about-view').style.display = 'none';
             
+            updateNavigation('home');
             updateCurrentHypothesisList();
         }
 
@@ -907,6 +1069,11 @@
         function showNewHypothesisView() {
             document.getElementById('home-view').style.display = 'none';
             document.getElementById('new-hypothesis-view').style.display = 'block';
+            document.getElementById('history-view').style.display = 'none';
+            document.getElementById('stats-view').style.display = 'none';
+            document.getElementById('about-view').style.display = 'none';
+            
+            updateNavigation('new');
             
             // フォームをリセット
             document.getElementById('hypothesis-title').value = '';
@@ -1295,7 +1462,14 @@
         // 履歴画面を表示
         function showHistoryView() {
             document.getElementById('home-view').style.display = 'none';
+            document.getElementById('new-hypothesis-view').style.display = 'none';
+            document.getElementById('shuffle-view').style.display = 'none';
+            document.getElementById('progress-view').style.display = 'none';
             document.getElementById('history-view').style.display = 'block';
+            document.getElementById('stats-view').style.display = 'none';
+            document.getElementById('about-view').style.display = 'none';
+            
+            updateNavigation('history');
             
             const data = loadData();
             const historyList = document.getElementById('history-list');
@@ -1340,6 +1514,67 @@
                 
                 historyList.appendChild(item);
             });
+        }
+
+        // 統計画面を表示
+        function showStatsView() {
+            document.getElementById('home-view').style.display = 'none';
+            document.getElementById('new-hypothesis-view').style.display = 'none';
+            document.getElementById('shuffle-view').style.display = 'none';
+            document.getElementById('progress-view').style.display = 'none';
+            document.getElementById('history-view').style.display = 'none';
+            document.getElementById('stats-view').style.display = 'block';
+            document.getElementById('about-view').style.display = 'none';
+            
+            updateNavigation('stats');
+            
+            const data = loadData();
+            const totalHypotheses = data.currentHypotheses.length + data.completedHypotheses.length;
+            let totalAchievement = 0;
+            let totalDays = 0;
+            
+            // 現在の仮説の統計
+            data.currentHypotheses.forEach(hypothesis => {
+                const startDate = new Date(hypothesis.startDate);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                
+                const daysPassed = Math.min(
+                    Math.max(0, Math.floor((today - startDate) / (1000 * 60 * 60 * 24)) + 1),
+                    hypothesis.totalDays
+                );
+                
+                const achievedDays = Object.keys(hypothesis.achievements || {}).length;
+                const achievementRate = daysPassed > 0 ? Math.round((achievedDays / daysPassed) * 100) : 0;
+                
+                totalAchievement += achievementRate;
+                totalDays += daysPassed;
+            });
+            
+            // 完了した仮説の統計
+            data.completedHypotheses.forEach(hypothesis => {
+                totalAchievement += hypothesis.finalAchievementRate || 0;
+                totalDays += hypothesis.totalDays || 0;
+            });
+            
+            const avgAchievement = totalHypotheses > 0 ? Math.round(totalAchievement / totalHypotheses) : 0;
+            
+            document.getElementById('total-hypotheses').textContent = totalHypotheses;
+            document.getElementById('avg-achievement').textContent = avgAchievement + '%';
+            document.getElementById('total-days').textContent = totalDays;
+        }
+
+        // アバウト画面を表示
+        function showAboutView() {
+            document.getElementById('home-view').style.display = 'none';
+            document.getElementById('new-hypothesis-view').style.display = 'none';
+            document.getElementById('shuffle-view').style.display = 'none';
+            document.getElementById('progress-view').style.display = 'none';
+            document.getElementById('history-view').style.display = 'none';
+            document.getElementById('stats-view').style.display = 'none';
+            document.getElementById('about-view').style.display = 'block';
+            
+            updateNavigation('');
         }
 
         // 初期化
