@@ -1729,8 +1729,13 @@
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             
+            // 開始日を0時0分0秒に設定
+            startDate.setHours(0, 0, 0, 0);
+            
+            // 経過日数を計算（開始日を1日目として計算）
+            const timeDiff = today.getTime() - startDate.getTime();
             const daysPassed = Math.min(
-                Math.max(0, Math.floor((today - startDate) / (1000 * 60 * 60 * 24)) + 1),
+                Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1),
                 window.currentHypothesis.totalDays
             );
             
@@ -1852,8 +1857,13 @@
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             
+            // 開始日を0時0分0秒に設定
+            startDate.setHours(0, 0, 0, 0);
+            
+            // 経過日数を計算（開始日を1日目として計算）
+            const timeDiff = today.getTime() - startDate.getTime();
             const daysPassed = Math.min(
-                Math.max(0, Math.floor((today - startDate) / (1000 * 60 * 60 * 24)) + 1),
+                Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1),
                 window.currentHypothesis.totalDays
             );
             
@@ -1876,8 +1886,8 @@
                 progressFill.style.background = 'var(--gradient-3)';
             }
             
-            // 期間が終了したかチェック
-            if (daysPassed >= window.currentHypothesis.totalDays) {
+            // 期間が終了したかチェック（最終日の翌日以降）
+            if (daysPassed > window.currentHypothesis.totalDays) {
                 document.getElementById('completion-options').style.display = 'block';
                 
                 // カード獲得処理（まだ獲得していない場合）
@@ -1954,8 +1964,13 @@
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
                 
+                // 開始日を0時0分0秒に設定
+                startDate.setHours(0, 0, 0, 0);
+                
+                // 経過日数を計算（開始日を1日目として計算）
+                const timeDiff = today.getTime() - startDate.getTime();
                 const daysPassed = Math.min(
-                    Math.max(0, Math.floor((today - startDate) / (1000 * 60 * 60 * 24)) + 1),
+                    Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1),
                     hypothesis.totalDays
                 );
                 
@@ -2160,8 +2175,13 @@
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
                 
+                // 開始日を0時0分0秒に設定
+                startDate.setHours(0, 0, 0, 0);
+                
+                // 経過日数を計算（開始日を1日目として計算）
+                const timeDiff = today.getTime() - startDate.getTime();
                 const daysPassed = Math.min(
-                    Math.max(0, Math.floor((today - startDate) / (1000 * 60 * 60 * 24)) + 1),
+                    Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1),
                     hypothesis.totalDays
                 );
                 
@@ -2573,6 +2593,7 @@
             
             updateCalendar();
             updateProgressInfo();
+            updateProgress();  // 即座に進捗を更新
             showNotification('⏩ 日付を3日進めました', 'success');
         }
         
@@ -2583,11 +2604,11 @@
                 return;
             }
             
-            // 開始日を totalDays 日前にずらして期間を終了させる
+            // 開始日を totalDays+1 日前にずらして期間を終了させる（最終日の翌日にする）
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             const newStartDate = new Date(today);
-            newStartDate.setDate(today.getDate() - window.currentHypothesis.totalDays + 1);
+            newStartDate.setDate(today.getDate() - window.currentHypothesis.totalDays);
             window.currentHypothesis.startDate = newStartDate.toISOString();
             
             // データを保存
@@ -2600,8 +2621,8 @@
             
             updateCalendar();
             updateProgressInfo();
-            checkCompletion();
-            showNotification('🏁 仮説を完了しました', 'success');
+            updateProgress();  // 即座に進捗を更新
+            showNotification('🏁 仮説を完了状態にしました', 'success');
         }
         
         // デバッグモードの有効化（URLパラメータまたはローカルストレージで制御）
