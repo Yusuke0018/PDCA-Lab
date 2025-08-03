@@ -757,6 +757,7 @@
             aspect-ratio: 1;
             border-radius: 16px;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
             font-weight: 700;
@@ -765,6 +766,14 @@
             transition: all 0.3s;
             position: relative;
             overflow: hidden;
+            padding: 5px;
+        }
+        
+        .day-cell small {
+            font-size: 12px;
+            font-weight: 400;
+            color: var(--text-secondary);
+            line-height: 1;
         }
 
         .day-cell::before {
@@ -1177,9 +1186,14 @@
             }
             
             .day-cell {
-                width: 40px;
-                height: 40px;
+                width: 45px;
+                height: 45px;
                 font-size: 14px;
+                padding: 3px;
+            }
+            
+            .day-cell small {
+                font-size: 10px;
             }
             
             /* 進捗情報 */
@@ -1267,9 +1281,14 @@
             }
             
             .day-cell {
-                width: 35px;
-                height: 35px;
+                width: 38px;
+                height: 38px;
                 font-size: 12px;
+                padding: 2px;
+            }
+            
+            .day-cell small {
+                font-size: 9px;
             }
             
             .shuffle-number {
@@ -2215,7 +2234,10 @@
                 
                 const dayCell = document.createElement('div');
                 dayCell.className = 'day-cell';
-                dayCell.textContent = i + 1;
+                // 実際の日付を表示（月/日形式）
+                const displayMonth = cellDate.getMonth() + 1;
+                const displayDate = cellDate.getDate();
+                dayCell.innerHTML = `<small>${displayMonth}/${displayDate}</small><br>${i + 1}`;
                 dayCell.dataset.day = i + 1;
                 
                 const dateKey = cellDate.toISOString().split('T')[0];
