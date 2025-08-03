@@ -958,6 +958,18 @@
                 <h1>🧪 HypoLab</h1>
                 <span style="font-size: 12px; color: var(--text-secondary); background: var(--surface-light); padding: 4px 8px; border-radius: 4px;">ローカル版</span>
             </div>
+            <button id="debug-toggle" onclick="toggleDebugMode()" style="
+                background: none;
+                border: 1px solid var(--border);
+                color: var(--text-secondary);
+                padding: 6px 12px;
+                border-radius: 8px;
+                font-size: 12px;
+                cursor: pointer;
+                transition: all 0.3s;
+            ">
+                🛠️ デバッグ
+            </button>
         </div>
     </header>
 
@@ -2319,8 +2331,10 @@
         function navigateToNextView() {
             const currentView = getCurrentView();
             const currentIndex = views.indexOf(currentView);
-            if (currentIndex !== -1 && currentIndex < views.length - 1) {
-                const nextView = views[currentIndex + 1];
+            if (currentIndex !== -1) {
+                // 最後のビューの場合は最初に戻る（ループ）
+                const nextIndex = (currentIndex + 1) % views.length;
+                const nextView = views[nextIndex];
                 showViewWithAnimation(nextView, 'left');
             }
         }
@@ -2329,8 +2343,10 @@
         function navigateToPreviousView() {
             const currentView = getCurrentView();
             const currentIndex = views.indexOf(currentView);
-            if (currentIndex > 0) {
-                const previousView = views[currentIndex - 1];
+            if (currentIndex !== -1) {
+                // 最初のビューの場合は最後に戻る（ループ）
+                const previousIndex = currentIndex === 0 ? views.length - 1 : currentIndex - 1;
+                const previousView = views[previousIndex];
                 showViewWithAnimation(previousView, 'right');
             }
         }
@@ -2537,16 +2553,55 @@
             showNotification('🏁 仮説を完了しました', 'success');
         }
         
-        // デバッグモードの有効化（URLパラメータで制御）
+        // デバッグモードの有効化（URLパラメータまたはローカルストレージで制御）
         function checkDebugMode() {
             const urlParams = new URLSearchParams(window.location.search);
-            const debugMode = urlParams.get('debug') === 'true';
+            const debugMode = urlParams.get('debug') === 'true' || localStorage.getItem('debugMode') === 'true';
             
             if (debugMode) {
                 const debugPanel = document.getElementById('debug-panel');
                 if (debugPanel) {
                     debugPanel.style.display = 'block';
                 }
+                // ボタンのスタイルを更新
+                const debugToggle = document.getElementById('debug-toggle');
+                if (debugToggle) {
+                    debugToggle.style.background = 'var(--error)';
+                    debugToggle.style.color = 'white';
+                    debugToggle.style.border = 'none';
+                }
+            }
+        }
+        
+        // デバッグモードのトグル
+        function toggleDebugMode() {
+            const currentMode = localStorage.getItem('debugMode') === 'true';
+            const newMode = !currentMode;
+            localStorage.setItem('debugMode', newMode.toString());
+            
+            const debugPanel = document.getElementById('debug-panel');
+            const debugToggle = document.getElementById('debug-toggle');
+            
+            if (newMode) {
+                if (debugPanel) {
+                    debugPanel.style.display = 'block';
+                }
+                if (debugToggle) {
+                    debugToggle.style.background = 'var(--error)';
+                    debugToggle.style.color = 'white';
+                    debugToggle.style.border = 'none';
+                }
+                showNotification('🛠️ デバッグモードを有効化しました', 'success');
+            } else {
+                if (debugPanel) {
+                    debugPanel.style.display = 'none';
+                }
+                if (debugToggle) {
+                    debugToggle.style.background = 'none';
+                    debugToggle.style.color = 'var(--text-secondary)';
+                    debugToggle.style.border = '1px solid var(--border)';
+                }
+                showNotification('🛠️ デバッグモードを無効化しました', 'info');
             }
         }
 
