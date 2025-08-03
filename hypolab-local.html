@@ -958,9 +958,6 @@
                 <h1>🧪 HypoLab</h1>
                 <span style="font-size: 12px; color: var(--text-secondary); background: var(--surface-light); padding: 4px 8px; border-radius: 4px;">ローカル版</span>
             </div>
-            <button class="btn btn-secondary" onclick="showAboutView()">
-                ℹ️ このアプリについて
-            </button>
         </div>
     </header>
 
@@ -1094,6 +1091,52 @@
                 </div>
             </div>
 
+            <!-- カード使用ボタン -->
+            <div id="card-use-section" style="margin-bottom: 20px; display: none;">
+                <button class="btn btn-secondary" onclick="showCardUseMenu()" style="width: 100%;">
+                    🎴 カードを使用
+                </button>
+            </div>
+            
+            <!-- デバッグモード -->
+            <div id="debug-panel" style="margin-top: 24px; margin-bottom: 24px; display: none;">
+                <div class="card" style="background: rgba(239, 68, 68, 0.1); border: 2px dashed #ef4444;">
+                    <h4 style="color: #ef4444; margin-bottom: 16px;">🛠️ デバッグモード</h4>
+                    <div style="display: grid; gap: 12px;">
+                        <button onclick="debugAchieveToday()" class="btn" style="
+                            background: #10b981;
+                            color: white;
+                        ">
+                            ✅ 今日を達成にする
+                        </button>
+                        <button onclick="debugFailToday()" class="btn" style="
+                            background: #ef4444;
+                            color: white;
+                        ">
+                            ❌ 今日を未達成にする
+                        </button>
+                        <button onclick="debugAchieveAllPast()" class="btn" style="
+                            background: #3b82f6;
+                            color: white;
+                        ">
+                            📅 過去全てを達成にする
+                        </button>
+                        <button onclick="debugSkipDays()" class="btn" style="
+                            background: #f59e0b;
+                            color: white;
+                        ">
+                            ⏩ 日付を進める（3日）
+                        </button>
+                        <button onclick="debugCompleteHypothesis()" class="btn" style="
+                            background: #8b5cf6;
+                            color: white;
+                        ">
+                            🏁 仮説を完了する
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <div class="completion-options" id="completion-options">
                 <h3>🎉 検証期間が終了しました！</h3>
                 <div class="completion-buttons">
@@ -1153,39 +1196,6 @@
             </div>
         </div>
 
-        <!-- アバウト画面 -->
-        <div id="about-view" style="display: none;">
-            <div class="card">
-                <h2 style="margin-bottom: 24px;">ℹ️ HypoLab について</h2>
-                <div style="color: var(--text-secondary); line-height: 1.8;">
-                    <p style="margin-bottom: 16px;">HypoLab（ローカル版）は、日々の仮説検証を楽しくサポートするアプリケーションです。</p>
-                    
-                    <h3 style="color: var(--text-primary); margin: 24px 0 12px;">✨ 特徴</h3>
-                    <ul style="margin-left: 20px; margin-bottom: 16px;">
-                        <li>🎲 ランダムな検証期間で飽きずに継続</li>
-                        <li>📊 進捗の可視化でモチベーション維持</li>
-                        <li>🔒 完全ローカル保存でプライバシー保護</li>
-                        <li>📱 モバイル対応でいつでもチェック</li>
-                        <li>🎴 カードシステムで楽しく継続</li>
-                    </ul>
-                    
-                    <h3 style="color: var(--text-primary); margin: 24px 0 12px;">💡 使い方</h3>
-                    <ol style="margin-left: 20px; margin-bottom: 16px;">
-                        <li>新規仮説を立案（タイトルと詳細を入力）</li>
-                        <li>検証期間を選択（短期/中期/長期）</li>
-                        <li>シャッフルで具体的な日数を決定</li>
-                        <li>毎日の達成をカレンダーでチェック</li>
-                        <li>期間終了後は継続/修正/完了を選択</li>
-                        <li>達成率に応じてカードを獲得！</li>
-                    </ol>
-                    
-                    <p style="margin-top: 24px; text-align: center; opacity: 0.7;">Version 1.1.0</p>
-                </div>
-                <button class="btn" onclick="showHomeView()" style="margin-top: 24px; width: 100%;">
-                    ホームに戻る
-                </button>
-            </div>
-        </div>
 
         <!-- カード一覧画面 -->
         <div id="cards-view" style="display: none;">
@@ -1226,6 +1236,19 @@
                 <!-- 動的に生成 -->
             </div>
             <button class="btn" onclick="closeCardAcquisition()">確認</button>
+        </div>
+    </div>
+
+    <!-- カード使用メニュー -->
+    <div id="card-use-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2 class="modal-title">カードを使用</h2>
+                <button class="close-btn" onclick="closeCardUseMenu()">×</button>
+            </div>
+            <div id="usable-cards-container" style="display: grid; gap: 12px;">
+                <!-- 動的に生成 -->
+            </div>
         </div>
     </div>
 
@@ -1332,7 +1355,6 @@
             document.getElementById('history-view').style.display = 'none';
             document.getElementById('stats-view').style.display = 'none';
             document.getElementById('cards-view').style.display = 'none';
-            document.getElementById('about-view').style.display = 'none';
             
             updateNavigation('home');
             updateCurrentHypothesisList();
@@ -1345,7 +1367,6 @@
             document.getElementById('history-view').style.display = 'none';
             document.getElementById('stats-view').style.display = 'none';
             document.getElementById('cards-view').style.display = 'none';
-            document.getElementById('about-view').style.display = 'none';
             
             updateNavigation('new');
             
@@ -1530,6 +1551,156 @@
             // カレンダーを更新
             updateCalendar();
             updateProgress();
+            
+            // カード使用ボタンの表示/非表示
+            updateCardUseButton();
+        }
+
+        // カード使用ボタンの更新
+        function updateCardUseButton() {
+            const data = loadData();
+            const hasSkipTicket = data.cards.inventory.some(card => card.cardId === 'skip_ticket' && !card.used);
+            
+            const cardUseSection = document.getElementById('card-use-section');
+            if (hasSkipTicket) {
+                cardUseSection.style.display = 'block';
+            } else {
+                cardUseSection.style.display = 'none';
+            }
+        }
+
+        // カード使用メニューを表示
+        function showCardUseMenu() {
+            const modal = document.getElementById('card-use-modal');
+            const container = document.getElementById('usable-cards-container');
+            const data = loadData();
+            
+            container.innerHTML = '';
+            
+            // スキップチケットの数を数える
+            const skipTickets = data.cards.inventory.filter(card => card.cardId === 'skip_ticket' && !card.used);
+            
+            if (skipTickets.length > 0) {
+                const card = CARD_MASTER['skip_ticket'];
+                const cardDiv = document.createElement('div');
+                cardDiv.className = 'card-item reward';
+                cardDiv.style.cursor = 'pointer';
+                cardDiv.innerHTML = `
+                    <div class="card-icon">${card.icon}</div>
+                    <div class="card-name">${card.name}</div>
+                    <div class="card-description">${card.description}</div>
+                    <div class="card-count">×${skipTickets.length}</div>
+                `;
+                cardDiv.onclick = () => useSkipTicket();
+                container.appendChild(cardDiv);
+            } else {
+                container.innerHTML = '<p style="color: var(--text-secondary); text-align: center;">使用可能なカードがありません</p>';
+            }
+            
+            modal.style.display = 'flex';
+        }
+
+        // カード使用メニューを閉じる
+        function closeCardUseMenu() {
+            document.getElementById('card-use-modal').style.display = 'none';
+        }
+
+        // スキップチケットを使用
+        function useSkipTicket() {
+            closeCardUseMenu();
+            
+            // スキップモードを有効化
+            window.skipTicketMode = true;
+            
+            // メッセージを表示
+            const message = document.createElement('div');
+            message.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: var(--gradient-1);
+                color: white;
+                padding: 20px 40px;
+                border-radius: 20px;
+                font-size: 18px;
+                font-weight: 600;
+                z-index: 2000;
+                animation: fadeInOut 2s ease-out;
+            `;
+            message.textContent = '⏭️ スキップチケット使用中！達成したい日をタップ';
+            document.body.appendChild(message);
+            
+            setTimeout(() => message.remove(), 2000);
+            
+            // カレンダーを更新してスキップモードを反映
+            updateCalendar();
+        }
+        
+        // スキップチケットを適用
+        function applySkipTicket(dateKey, dayCell) {
+            if (!window.skipTicketMode) return;
+            
+            // 既に達成済みの日は選択不可
+            if (window.currentHypothesis.achievements[dateKey]) {
+                showNotification('⚠️ すでに達成済みの日です', 'error');
+                return;
+            }
+            
+            // スキップチケットを消費
+            const data = loadData();
+            const skipTicketIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'skip_ticket' && !card.used
+            );
+            
+            if (skipTicketIndex === -1) {
+                showNotification('⚠️ スキップチケットがありません', 'error');
+                window.skipTicketMode = false;
+                updateCalendar();
+                return;
+            }
+            
+            // 確認ダイアログ
+            if (!confirm(`この日をスキップして達成済みにしますか？\n日付: ${dateKey}`)) {
+                return;
+            }
+            
+            // 達成状態にする
+            window.currentHypothesis.achievements[dateKey] = true;
+            data.cards.inventory[skipTicketIndex].used = true;
+            data.cards.inventory[skipTicketIndex].usedDate = new Date().toISOString();
+            
+            // 現在の仮説を更新
+            const hypothesisIndex = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (hypothesisIndex !== -1) {
+                data.currentHypotheses[hypothesisIndex] = window.currentHypothesis;
+            }
+            
+            saveData(data);
+            
+            // スキップモードを解除
+            window.skipTicketMode = false;
+            
+            // 成功エフェクトを表示
+            dayCell.classList.remove('not-achieved');
+            dayCell.classList.add('achieved');
+            dayCell.style.transition = 'all 0.5s ease';
+            dayCell.style.transform = 'scale(1.2)';
+            dayCell.style.boxShadow = '0 0 20px var(--primary)';
+            
+            setTimeout(() => {
+                dayCell.style.transform = 'scale(1)';
+                dayCell.style.boxShadow = '';
+            }, 500);
+            
+            // 成功メッセージ
+            showNotification('✅ スキップチケットを使用しました！', 'success');
+            
+            // カレンダーを更新
+            updateCalendar();
+            
+            // 進捗情報を更新
+            updateProgressInfo();
         }
 
         // カレンダーを更新
@@ -1560,13 +1731,20 @@
                 
                 const dateKey = cellDate.toISOString().split('T')[0];
                 
-                if (cellDate > today) {
+                if (cellDate > today && !window.skipTicketMode) {
                     dayCell.classList.add('future');
                 } else if (window.currentHypothesis.achievements[dateKey]) {
                     dayCell.classList.add('achieved');
                 } else {
                     dayCell.classList.add('not-achieved');
-                    dayCell.onclick = () => toggleDayStatus(dateKey, dayCell);
+                    if (window.skipTicketMode) {
+                        // スキップモードでは未来の日付もクリック可能
+                        dayCell.style.cursor = 'pointer';
+                        dayCell.style.border = '2px dashed var(--primary)';
+                        dayCell.onclick = () => applySkipTicket(dateKey, dayCell);
+                    } else {
+                        dayCell.onclick = () => toggleDayStatus(dateKey, dayCell);
+                    }
                 }
                 
                 // 今日の日付の場合、クリック可能にする
@@ -1574,7 +1752,9 @@
                     if (!window.currentHypothesis.achievements[dateKey]) {
                         dayCell.classList.remove('future');
                         dayCell.classList.add('not-achieved');
-                        dayCell.onclick = () => toggleDayStatus(dateKey, dayCell);
+                        dayCell.onclick = window.skipTicketMode ? 
+                            () => applySkipTicket(dateKey, dayCell) : 
+                            () => toggleDayStatus(dateKey, dayCell);
                     }
                 }
                 
@@ -1847,7 +2027,6 @@
             document.getElementById('progress-view').style.display = 'none';
             document.getElementById('history-view').style.display = 'block';
             document.getElementById('stats-view').style.display = 'none';
-            document.getElementById('about-view').style.display = 'none';
             
             updateNavigation('history');
             
@@ -1904,7 +2083,6 @@
             document.getElementById('progress-view').style.display = 'none';
             document.getElementById('history-view').style.display = 'none';
             document.getElementById('stats-view').style.display = 'block';
-            document.getElementById('about-view').style.display = 'none';
             
             updateNavigation('stats');
             
@@ -1944,19 +2122,6 @@
             document.getElementById('total-days').textContent = totalDays;
         }
 
-        // アバウト画面を表示
-        function showAboutView() {
-            document.getElementById('home-view').style.display = 'none';
-            document.getElementById('new-hypothesis-view').style.display = 'none';
-            document.getElementById('shuffle-view').style.display = 'none';
-            document.getElementById('progress-view').style.display = 'none';
-            document.getElementById('history-view').style.display = 'none';
-            document.getElementById('stats-view').style.display = 'none';
-            document.getElementById('cards-view').style.display = 'none';
-            document.getElementById('about-view').style.display = 'block';
-            
-            updateNavigation('');
-        }
 
         // カード画面を表示
         function showCardsView() {
@@ -1966,7 +2131,6 @@
             document.getElementById('progress-view').style.display = 'none';
             document.getElementById('history-view').style.display = 'none';
             document.getElementById('stats-view').style.display = 'none';
-            document.getElementById('about-view').style.display = 'none';
             document.getElementById('cards-view').style.display = 'block';
             
             updateNavigation('cards');
@@ -2126,7 +2290,7 @@
             if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > minSwipeDistance) {
                 // シャッフル画面や進捗画面ではスワイプ無効
                 const currentView = getCurrentView();
-                if (currentView === 'shuffle' || currentView === 'progress' || currentView === 'about') {
+                if (currentView === 'shuffle' || currentView === 'progress') {
                     return;
                 }
                 
@@ -2148,7 +2312,6 @@
             if (document.getElementById('stats-view').style.display !== 'none') return 'stats';
             if (document.getElementById('shuffle-view').style.display !== 'none') return 'shuffle';
             if (document.getElementById('progress-view').style.display !== 'none') return 'progress';
-            if (document.getElementById('about-view').style.display !== 'none') return 'about';
             return 'home';
         }
 
@@ -2248,9 +2411,149 @@
             }, 1000);
         }
 
+        // デバッグ機能
+        function debugAchieveToday() {
+            if (!window.currentHypothesis) return;
+            
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const dateKey = today.toISOString().split('T')[0];
+            
+            window.currentHypothesis.achievements[dateKey] = true;
+            
+            // データを保存
+            const data = loadData();
+            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (index !== -1) {
+                data.currentHypotheses[index] = window.currentHypothesis;
+                saveData(data);
+            }
+            
+            updateCalendar();
+            updateProgressInfo();
+            showNotification('✅ 今日を達成にしました', 'success');
+        }
+        
+        function debugFailToday() {
+            if (!window.currentHypothesis) return;
+            
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const dateKey = today.toISOString().split('T')[0];
+            
+            delete window.currentHypothesis.achievements[dateKey];
+            
+            // データを保存
+            const data = loadData();
+            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (index !== -1) {
+                data.currentHypotheses[index] = window.currentHypothesis;
+                saveData(data);
+            }
+            
+            updateCalendar();
+            updateProgressInfo();
+            showNotification('❌ 今日を未達成にしました', 'error');
+        }
+        
+        function debugAchieveAllPast() {
+            if (!window.currentHypothesis) return;
+            
+            const startDate = new Date(window.currentHypothesis.startDate);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            // 開始日から今日までの全ての日を達成にする
+            const currentDate = new Date(startDate);
+            while (currentDate <= today) {
+                const dateKey = currentDate.toISOString().split('T')[0];
+                window.currentHypothesis.achievements[dateKey] = true;
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+            
+            // データを保存
+            const data = loadData();
+            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (index !== -1) {
+                data.currentHypotheses[index] = window.currentHypothesis;
+                saveData(data);
+            }
+            
+            updateCalendar();
+            updateProgressInfo();
+            showNotification('📅 過去全てを達成にしました', 'success');
+        }
+        
+        function debugSkipDays() {
+            if (!window.currentHypothesis) return;
+            
+            if (!confirm('仮説の開始日を3日前にずらします。よろしいですか？')) {
+                return;
+            }
+            
+            // 開始日を3日前にずらす
+            const startDate = new Date(window.currentHypothesis.startDate);
+            startDate.setDate(startDate.getDate() - 3);
+            window.currentHypothesis.startDate = startDate.toISOString();
+            
+            // データを保存
+            const data = loadData();
+            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (index !== -1) {
+                data.currentHypotheses[index] = window.currentHypothesis;
+                saveData(data);
+            }
+            
+            updateCalendar();
+            updateProgressInfo();
+            showNotification('⏩ 日付を3日進めました', 'success');
+        }
+        
+        function debugCompleteHypothesis() {
+            if (!window.currentHypothesis) return;
+            
+            if (!confirm('仮説を強制的に完了させます。よろしいですか？')) {
+                return;
+            }
+            
+            // 開始日を totalDays 日前にずらして期間を終了させる
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const newStartDate = new Date(today);
+            newStartDate.setDate(today.getDate() - window.currentHypothesis.totalDays + 1);
+            window.currentHypothesis.startDate = newStartDate.toISOString();
+            
+            // データを保存
+            const data = loadData();
+            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (index !== -1) {
+                data.currentHypotheses[index] = window.currentHypothesis;
+                saveData(data);
+            }
+            
+            updateCalendar();
+            updateProgressInfo();
+            checkCompletion();
+            showNotification('🏁 仮説を完了しました', 'success');
+        }
+        
+        // デバッグモードの有効化（URLパラメータで制御）
+        function checkDebugMode() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const debugMode = urlParams.get('debug') === 'true';
+            
+            if (debugMode) {
+                const debugPanel = document.getElementById('debug-panel');
+                if (debugPanel) {
+                    debugPanel.style.display = 'block';
+                }
+            }
+        }
+
         // 初期化
         showHomeView();
         setupSwipeListeners();
+        checkDebugMode();
         
         // モバイルデバイスの場合のみスワイプインジケーターを表示
         if ('ontouchstart' in window) {
