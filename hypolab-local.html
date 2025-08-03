@@ -1886,8 +1886,8 @@
                 progressFill.style.background = 'var(--gradient-3)';
             }
             
-            // 期間が終了したかチェック（最終日の翌日以降）
-            if (daysPassed > window.currentHypothesis.totalDays) {
+            // 期間が終了したかチェック（最終日以降）
+            if (daysPassed >= window.currentHypothesis.totalDays) {
                 document.getElementById('completion-options').style.display = 'block';
                 
                 // カード獲得処理（まだ獲得していない場合）
@@ -2604,11 +2604,11 @@
                 return;
             }
             
-            // 開始日を totalDays+1 日前にずらして期間を終了させる（最終日の翌日にする）
+            // 開始日を totalDays 日前にずらして期間を終了させる（最終日にする）
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             const newStartDate = new Date(today);
-            newStartDate.setDate(today.getDate() - window.currentHypothesis.totalDays);
+            newStartDate.setDate(today.getDate() - window.currentHypothesis.totalDays + 1);
             window.currentHypothesis.startDate = newStartDate.toISOString();
             
             // データを保存
