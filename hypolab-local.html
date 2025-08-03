@@ -1679,13 +1679,18 @@
             
             // 達成状態にする
             window.currentHypothesis.achievements[dateKey] = true;
+            
+            // カードを消費
             data.cards.inventory[skipTicketIndex].used = true;
             data.cards.inventory[skipTicketIndex].usedDate = new Date().toISOString();
             
-            // 現在の仮説を更新
+            // 現在の仮説を更新（achievementsが存在しない場合は初期化）
             const hypothesisIndex = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
             if (hypothesisIndex !== -1) {
-                data.currentHypotheses[hypothesisIndex] = window.currentHypothesis;
+                if (!data.currentHypotheses[hypothesisIndex].achievements) {
+                    data.currentHypotheses[hypothesisIndex].achievements = {};
+                }
+                data.currentHypotheses[hypothesisIndex].achievements[dateKey] = true;
             }
             
             saveData(data);
@@ -1874,6 +1879,56 @@
             // 期間が終了したかチェック
             if (daysPassed >= window.currentHypothesis.totalDays) {
                 document.getElementById('completion-options').style.display = 'block';
+                
+                // カード獲得処理（まだ獲得していない場合）
+                if (!window.currentHypothesis.cardsAcquired) {
+                    const data = loadData();
+                    const hypothesisIndex = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+                    
+                    if (hypothesisIndex !== -1) {
+                        // 最終的な達成率を計算
+                        const achievedDays = Object.keys(window.currentHypothesis.achievements || {}).length;
+                        const finalAchievementRate = Math.round((achievedDays / window.currentHypothesis.totalDays) * 100);
+                        
+                        // カード獲得処理
+                        const acquiredCards = getCardsBasedOnAchievement(finalAchievementRate);
+                        if (acquiredCards.length > 0) {
+                            acquiredCards.forEach(cardId => {
+                                const card = CARD_MASTER[cardId];
+                                if (card) {
+                                    if (card.type === 'reward') {
+                                        data.cards.inventory.push({
+                                            cardId: cardId,
+                                            acquiredDate: new Date().toISOString(),
+                                            used: false
+                                        });
+                                    } else if (card.type === 'penalty') {
+                                        data.cards.pendingPenalties.push({
+                                            cardId: cardId,
+                                            acquiredDate: new Date().toISOString()
+                                        });
+                                    }
+                                }
+                            });
+                            
+                            // カード獲得フラグを設定
+                            data.currentHypotheses[hypothesisIndex].cardsAcquired = true;
+                            window.currentHypothesis.cardsAcquired = true;
+                            
+                            saveData(data);
+                            
+                            // カード獲得演出を表示
+                            showCardAcquisition(acquiredCards, () => {
+                                // カード獲得後は何もしない
+                            });
+                        } else {
+                            // カードなしでもフラグは設定
+                            data.currentHypotheses[hypothesisIndex].cardsAcquired = true;
+                            window.currentHypothesis.cardsAcquired = true;
+                            saveData(data);
+                        }
+                    }
+                }
             } else {
                 document.getElementById('completion-options').style.display = 'none';
             }
@@ -1975,39 +2030,35 @@
                 // 現在のリストから削除
                 data.currentHypotheses.splice(index, 1);
                 
-                // カード獲得処理
-                const acquiredCards = getCardsBasedOnAchievement(hypothesis.finalAchievementRate);
-                if (acquiredCards.length > 0) {
-                    acquiredCards.forEach(cardId => {
-                        const card = CARD_MASTER[cardId];
-                        if (card) {
-                            if (card.type === 'reward') {
-                                data.cards.inventory.push({
-                                    cardId: cardId,
-                                    acquiredDate: new Date().toISOString(),
-                                    used: false
-                                });
-                            } else if (card.type === 'penalty') {
-                                data.cards.pendingPenalties.push({
-                                    cardId: cardId,
-                                    acquiredDate: new Date().toISOString()
-                                });
+                // カード獲得処理（すでに獲得していない場合のみ）
+                if (!hypothesis.cardsAcquired) {
+                    const acquiredCards = getCardsBasedOnAchievement(hypothesis.finalAchievementRate);
+                    if (acquiredCards.length > 0) {
+                        acquiredCards.forEach(cardId => {
+                            const card = CARD_MASTER[cardId];
+                            if (card) {
+                                if (card.type === 'reward') {
+                                    data.cards.inventory.push({
+                                        cardId: cardId,
+                                        acquiredDate: new Date().toISOString(),
+                                        used: false
+                                    });
+                                } else if (card.type === 'penalty') {
+                                    data.cards.pendingPenalties.push({
+                                        cardId: cardId,
+                                        acquiredDate: new Date().toISOString()
+                                    });
+                                }
                             }
-                        }
-                    });
+                        });
+                    }
                 }
                 
                 saveData(data);
                 
                 if (showHome) {
-                    if (acquiredCards.length > 0) {
-                        showCardAcquisition(acquiredCards, () => {
-                            showHomeView();
-                        });
-                    } else {
-                        alert('仮説の検証が完了しました！');
-                        showHomeView();
-                    }
+                    showNotification('✅ 仮説の検証が完了しました！', 'success');
+                    showHomeView();
                 }
             }
         }
