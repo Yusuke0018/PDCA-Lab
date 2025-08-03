@@ -1551,9 +1551,18 @@
         import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, where, orderBy, serverTimestamp, getDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
         import { getAuth, signInWithPopup, GoogleAuthProvider, signInAnonymously as firebaseSignInAnonymously, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 
+        // APIキーをローカルストレージから取得
+        const API_KEY_STORAGE_KEY = 'hypolab_firebase_api_key';
+        const apiKey = localStorage.getItem(API_KEY_STORAGE_KEY);
+        
+        // APIキーが設定されていない場合は設定画面にリダイレクト
+        if (!apiKey) {
+            window.location.href = 'setup.html';
+        }
+
         // Firebase設定
         const firebaseConfig = {
-            apiKey: "YOUR_API_KEY_HERE",
+            apiKey: apiKey || "YOUR_API_KEY_HERE",
             authDomain: "pdca-lab.firebaseapp.com",
             projectId: "pdca-lab",
             storageBucket: "pdca-lab.firebasestorage.app",
