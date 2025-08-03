@@ -501,6 +501,90 @@
             }
         }
 
+        /* カードスタイル */
+        .card-item {
+            background: var(--surface);
+            border: 2px solid var(--border);
+            border-radius: 16px;
+            padding: 16px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .card-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .card-item.reward {
+            border-color: var(--primary);
+        }
+
+        .card-item.penalty {
+            border-color: #ef4444;
+        }
+
+        .card-icon {
+            font-size: 36px;
+            margin-bottom: 8px;
+        }
+
+        .card-name {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .card-description {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .card-count {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: var(--primary);
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 12px;
+        }
+
+        @keyframes cardFlip {
+            0% {
+                transform: rotateY(0deg) scale(0.8);
+                opacity: 0;
+            }
+            50% {
+                transform: rotateY(180deg) scale(1.2);
+            }
+            100% {
+                transform: rotateY(360deg) scale(1);
+                opacity: 1;
+            }
+        }
+
+        .card-reveal {
+            animation: cardFlip 0.8s ease-out;
+        }
+
+        /* ペナルティエフェクト */
+        @keyframes penaltyShake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-10px); }
+            20%, 40%, 60%, 80% { transform: translateX(10px); }
+        }
+
+        .penalty-effect {
+            animation: penaltyShake 0.5s ease-out;
+            border: 3px solid #ef4444 !important;
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
+        }
+
         .day-cell.not-achieved {
             background: rgba(255, 255, 255, 0.05);
             color: var(--text-secondary);
@@ -895,6 +979,9 @@
             <button class="nav-btn" onclick="showStatsView()" data-view="stats">
                 📊 統計
             </button>
+            <button class="nav-btn" onclick="showCardsView()" data-view="cards">
+                🎴 カード
+            </button>
         </div>
         <!-- ページインジケーター -->
         <div class="page-indicator" style="position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px;">
@@ -902,6 +989,7 @@
             <span class="dot" data-page="1" style="width: 6px; height: 6px; background: var(--surface-light); border-radius: 50%; transition: all 0.3s;"></span>
             <span class="dot" data-page="2" style="width: 6px; height: 6px; background: var(--surface-light); border-radius: 50%; transition: all 0.3s;"></span>
             <span class="dot" data-page="3" style="width: 6px; height: 6px; background: var(--surface-light); border-radius: 50%; transition: all 0.3s;"></span>
+            <span class="dot" data-page="4" style="width: 6px; height: 6px; background: var(--surface-light); border-radius: 50%; transition: all 0.3s;"></span>
         </div>
     </nav>
 
@@ -1078,6 +1166,7 @@
                         <li>📊 進捗の可視化でモチベーション維持</li>
                         <li>🔒 完全ローカル保存でプライバシー保護</li>
                         <li>📱 モバイル対応でいつでもチェック</li>
+                        <li>🎴 カードシステムで楽しく継続</li>
                     </ul>
                     
                     <h3 style="color: var(--text-primary); margin: 24px 0 12px;">💡 使い方</h3>
@@ -1087,14 +1176,56 @@
                         <li>シャッフルで具体的な日数を決定</li>
                         <li>毎日の達成をカレンダーでチェック</li>
                         <li>期間終了後は継続/修正/完了を選択</li>
+                        <li>達成率に応じてカードを獲得！</li>
                     </ol>
                     
-                    <p style="margin-top: 24px; text-align: center; opacity: 0.7;">Version 1.0.0</p>
+                    <p style="margin-top: 24px; text-align: center; opacity: 0.7;">Version 1.1.0</p>
                 </div>
                 <button class="btn" onclick="showHomeView()" style="margin-top: 24px; width: 100%;">
                     ホームに戻る
                 </button>
             </div>
+        </div>
+
+        <!-- カード一覧画面 -->
+        <div id="cards-view" style="display: none;">
+            <div class="card">
+                <h2 style="margin-bottom: 24px;">🎴 カードコレクション</h2>
+                
+                <div style="margin-bottom: 24px;">
+                    <h3 style="font-size: 18px; margin-bottom: 12px; color: var(--primary);">📦 所持カード</h3>
+                    <div id="card-inventory" style="display: grid; gap: 12px;">
+                        <!-- 動的に生成 -->
+                    </div>
+                </div>
+                
+                <div style="margin-bottom: 24px;">
+                    <h3 style="font-size: 18px; margin-bottom: 12px; color: var(--secondary);">⚠️ ペナルティカード</h3>
+                    <div id="penalty-cards" style="display: grid; gap: 12px;">
+                        <!-- 動的に生成 -->
+                    </div>
+                </div>
+                
+                <div style="background: var(--background); padding: 16px; border-radius: 12px; margin-top: 24px;">
+                    <h4 style="font-size: 14px; margin-bottom: 8px; color: var(--text-secondary);">カード獲得条件</h4>
+                    <ul style="font-size: 14px; color: var(--text-secondary); margin-left: 20px;">
+                        <li>100%達成: 報酬カード2枚</li>
+                        <li>80-99%達成: 報酬カード1枚</li>
+                        <li>79%以下: ペナルティカード1枚</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- カード獲得モーダル -->
+    <div id="card-acquisition-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="text-align: center; max-width: 400px;">
+            <h2 style="margin-bottom: 24px;">🎉 カード獲得！</h2>
+            <div id="acquired-cards-container" style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px;">
+                <!-- 動的に生成 -->
+            </div>
+            <button class="btn" onclick="closeCardAcquisition()">確認</button>
         </div>
     </div>
 
@@ -1114,13 +1245,50 @@
         let currentHypothesis = null;
         let selectedDuration = null;
 
+        // カードマスターデータ
+        const CARD_MASTER = {
+            skip_ticket: {
+                id: 'skip_ticket',
+                type: 'reward',
+                name: 'スキップチケット',
+                description: '使った日を達成済みにできる',
+                icon: '⏭️',
+                rarity: 'common',
+                color: '#3b82f6'
+            },
+            extension_card: {
+                id: 'extension_card',
+                type: 'penalty',
+                name: '延長カード',
+                description: '次の仮説が3日間延長される',
+                icon: '⏰',
+                rarity: 'common',
+                color: '#ef4444'
+            }
+        };
+
         // データの読み込み
         function loadData() {
             const data = localStorage.getItem(STORAGE_KEY);
-            return data ? JSON.parse(data) : {
-                currentHypotheses: [],
-                completedHypotheses: []
-            };
+            if (!data) {
+                return {
+                    currentHypotheses: [],
+                    completedHypotheses: [],
+                    cards: {
+                        inventory: [],
+                        pendingPenalties: []
+                    }
+                };
+            }
+            const parsed = JSON.parse(data);
+            // 旧バージョンのデータ対応
+            if (!parsed.cards) {
+                parsed.cards = {
+                    inventory: [],
+                    pendingPenalties: []
+                };
+            }
+            return parsed;
         }
 
         // データの保存
@@ -1163,6 +1331,7 @@
             document.getElementById('progress-view').style.display = 'none';
             document.getElementById('history-view').style.display = 'none';
             document.getElementById('stats-view').style.display = 'none';
+            document.getElementById('cards-view').style.display = 'none';
             document.getElementById('about-view').style.display = 'none';
             
             updateNavigation('home');
@@ -1175,6 +1344,7 @@
             document.getElementById('new-hypothesis-view').style.display = 'block';
             document.getElementById('history-view').style.display = 'none';
             document.getElementById('stats-view').style.display = 'none';
+            document.getElementById('cards-view').style.display = 'none';
             document.getElementById('about-view').style.display = 'none';
             
             updateNavigation('new');
@@ -1218,9 +1388,61 @@
                 achievements: {}
             };
             
-            // シャッフル画面を表示
-            showShuffleView();
+            // ペナルティカードのチェック
+            const data = loadData();
+            if (data.cards.pendingPenalties.length > 0) {
+                // ペナルティカードを適用
+                applyPenaltyCards();
+            } else {
+                // シャッフル画面を表示
+                showShuffleView();
+            }
         }
+
+        // ペナルティカードを適用
+        function applyPenaltyCards() {
+            const data = loadData();
+            let hasExtension = false;
+            
+            // 延長カードの確認
+            data.cards.pendingPenalties.forEach(penalty => {
+                if (penalty.cardId === 'extension_card') {
+                    hasExtension = true;
+                }
+            });
+            
+            if (hasExtension) {
+                // ペナルティエフェクトを表示
+                const modal = document.createElement('div');
+                modal.className = 'modal';
+                modal.style.display = 'flex';
+                modal.innerHTML = `
+                    <div class="modal-content penalty-effect" style="text-align: center; max-width: 400px;">
+                        <h2 style="color: #ef4444; margin-bottom: 24px;">⚠️ ペナルティカード発動！</h2>
+                        <div class="card-item penalty" style="margin: 0 auto 24px; max-width: 250px;">
+                            <div class="card-icon">⏰</div>
+                            <div class="card-name">延長カード</div>
+                            <div class="card-description">検証期間が3日間延長されます</div>
+                        </div>
+                        <button class="btn" onclick="continuePenaltyApply()">確認</button>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+                
+                // 延長フラグを設定
+                window.pendingExtension = 3;
+                
+                // ペナルティカードを消費
+                data.cards.pendingPenalties = data.cards.pendingPenalties.filter(p => p.cardId !== 'extension_card');
+                saveData(data);
+            }
+        }
+
+        // ペナルティ適用後の処理
+        window.continuePenaltyApply = function() {
+            document.querySelector('.modal:last-child').remove();
+            showShuffleView();
+        };
 
         // シャッフル画面を表示
         function showShuffleView() {
@@ -1260,7 +1482,14 @@
                     clearInterval(shuffleInterval);
                     
                     // 最終的な日数を決定
-                    const finalDays = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+                    let finalDays = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+                    
+                    // ペナルティカードによる延長を適用
+                    if (window.pendingExtension) {
+                        finalDays += window.pendingExtension;
+                        window.pendingExtension = 0;
+                    }
+                    
                     currentHypothesis.totalDays = finalDays;
                     
                     setTimeout(() => {
@@ -1554,13 +1783,60 @@
                 // 現在のリストから削除
                 data.currentHypotheses.splice(index, 1);
                 
+                // カード獲得処理
+                const acquiredCards = getCardsBasedOnAchievement(hypothesis.finalAchievementRate);
+                if (acquiredCards.length > 0) {
+                    acquiredCards.forEach(cardId => {
+                        const card = CARD_MASTER[cardId];
+                        if (card) {
+                            if (card.type === 'reward') {
+                                data.cards.inventory.push({
+                                    cardId: cardId,
+                                    acquiredDate: new Date().toISOString(),
+                                    used: false
+                                });
+                            } else if (card.type === 'penalty') {
+                                data.cards.pendingPenalties.push({
+                                    cardId: cardId,
+                                    acquiredDate: new Date().toISOString()
+                                });
+                            }
+                        }
+                    });
+                }
+                
                 saveData(data);
                 
                 if (showHome) {
-                    alert('仮説の検証が完了しました！');
-                    showHomeView();
+                    if (acquiredCards.length > 0) {
+                        showCardAcquisition(acquiredCards, () => {
+                            showHomeView();
+                        });
+                    } else {
+                        alert('仮説の検証が完了しました！');
+                        showHomeView();
+                    }
                 }
             }
+        }
+
+        // 達成率に基づいてカードを取得
+        function getCardsBasedOnAchievement(achievementRate) {
+            const cards = [];
+            
+            if (achievementRate === 100) {
+                // 100%達成: 報酬カード2枚
+                cards.push('skip_ticket');
+                cards.push('skip_ticket');
+            } else if (achievementRate >= 80) {
+                // 80-99%達成: 報酬カード1枚
+                cards.push('skip_ticket');
+            } else {
+                // 79%以下: ペナルティカード1枚
+                cards.push('extension_card');
+            }
+            
+            return cards;
         }
 
         // 履歴画面を表示
@@ -1676,9 +1952,121 @@
             document.getElementById('progress-view').style.display = 'none';
             document.getElementById('history-view').style.display = 'none';
             document.getElementById('stats-view').style.display = 'none';
+            document.getElementById('cards-view').style.display = 'none';
             document.getElementById('about-view').style.display = 'block';
             
             updateNavigation('');
+        }
+
+        // カード画面を表示
+        function showCardsView() {
+            document.getElementById('home-view').style.display = 'none';
+            document.getElementById('new-hypothesis-view').style.display = 'none';
+            document.getElementById('shuffle-view').style.display = 'none';
+            document.getElementById('progress-view').style.display = 'none';
+            document.getElementById('history-view').style.display = 'none';
+            document.getElementById('stats-view').style.display = 'none';
+            document.getElementById('about-view').style.display = 'none';
+            document.getElementById('cards-view').style.display = 'block';
+            
+            updateNavigation('cards');
+            updateCardDisplay();
+        }
+
+        // カード表示を更新
+        function updateCardDisplay() {
+            const data = loadData();
+            const inventoryContainer = document.getElementById('card-inventory');
+            const penaltyContainer = document.getElementById('penalty-cards');
+            
+            // 所持カードを集計
+            const cardCounts = {};
+            data.cards.inventory.forEach(card => {
+                if (!card.used) {
+                    cardCounts[card.cardId] = (cardCounts[card.cardId] || 0) + 1;
+                }
+            });
+            
+            // 所持カード表示
+            inventoryContainer.innerHTML = '';
+            if (Object.keys(cardCounts).length === 0) {
+                inventoryContainer.innerHTML = '<p style="color: var(--text-secondary);">所持カードはありません</p>';
+            } else {
+                Object.entries(cardCounts).forEach(([cardId, count]) => {
+                    const card = CARD_MASTER[cardId];
+                    if (card) {
+                        const cardElement = createCardElement(card, count);
+                        inventoryContainer.appendChild(cardElement);
+                    }
+                });
+            }
+            
+            // ペナルティカード表示
+            penaltyContainer.innerHTML = '';
+            if (data.cards.pendingPenalties.length === 0) {
+                penaltyContainer.innerHTML = '<p style="color: var(--text-secondary);">ペナルティカードはありません</p>';
+            } else {
+                const penaltyCounts = {};
+                data.cards.pendingPenalties.forEach(penalty => {
+                    penaltyCounts[penalty.cardId] = (penaltyCounts[penalty.cardId] || 0) + 1;
+                });
+                
+                Object.entries(penaltyCounts).forEach(([cardId, count]) => {
+                    const card = CARD_MASTER[cardId];
+                    if (card) {
+                        const cardElement = createCardElement(card, count);
+                        penaltyContainer.appendChild(cardElement);
+                    }
+                });
+            }
+        }
+
+        // カード要素を作成
+        function createCardElement(card, count) {
+            const div = document.createElement('div');
+            div.className = `card-item ${card.type}`;
+            div.innerHTML = `
+                <div class="card-icon">${card.icon}</div>
+                <div class="card-name">${card.name}</div>
+                <div class="card-description">${card.description}</div>
+                ${count > 1 ? `<div class="card-count">×${count}</div>` : ''}
+            `;
+            return div;
+        }
+
+        // カード獲得表示
+        function showCardAcquisition(cardIds, callback) {
+            const modal = document.getElementById('card-acquisition-modal');
+            const container = document.getElementById('acquired-cards-container');
+            
+            container.innerHTML = '';
+            cardIds.forEach((cardId, index) => {
+                const card = CARD_MASTER[cardId];
+                if (card) {
+                    const cardDiv = document.createElement('div');
+                    cardDiv.className = `card-item ${card.type} card-reveal`;
+                    cardDiv.style.animationDelay = `${index * 0.3}s`;
+                    cardDiv.innerHTML = `
+                        <div class="card-icon">${card.icon}</div>
+                        <div class="card-name">${card.name}</div>
+                        <div class="card-description">${card.description}</div>
+                    `;
+                    container.appendChild(cardDiv);
+                }
+            });
+            
+            modal.style.display = 'flex';
+            
+            window.cardAcquisitionCallback = callback;
+        }
+
+        // カード獲得モーダルを閉じる
+        function closeCardAcquisition() {
+            document.getElementById('card-acquisition-modal').style.display = 'none';
+            if (window.cardAcquisitionCallback) {
+                window.cardAcquisitionCallback();
+                window.cardAcquisitionCallback = null;
+            }
         }
 
         // スワイプ機能
@@ -1687,12 +2075,13 @@
         let touchEndX = 0;
         let touchEndY = 0;
         let currentViewIndex = 0;
-        const views = ['home', 'new', 'history', 'stats'];
+        const views = ['home', 'new', 'history', 'stats', 'cards'];
         const viewElements = {
             'home': 'home-view',
             'new': 'new-hypothesis-view',
             'history': 'history-view',
-            'stats': 'stats-view'
+            'stats': 'stats-view',
+            'cards': 'cards-view'
         };
 
         // スワイプイベントの設定
@@ -1815,6 +2204,9 @@
                         break;
                     case 'stats':
                         showStatsView();
+                        break;
+                    case 'cards':
+                        showCardsView();
                         break;
                 }
                 
