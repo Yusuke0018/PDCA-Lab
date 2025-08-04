@@ -948,6 +948,166 @@
         .slide-in {
             animation: slideIn 0.5s ease-out;
         }
+        
+        /* カードエフェクトアニメーション */
+        @keyframes cardEffectAnimation {
+            0% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.5);
+            }
+            20% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1.1);
+            }
+            80% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.9);
+            }
+        }
+        
+        /* パルスアニメーション */
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+                box-shadow: 0 4px 20px rgba(245, 158, 11, 0.3);
+            }
+            50% {
+                transform: scale(1.05);
+                box-shadow: 0 4px 30px rgba(245, 158, 11, 0.5);
+            }
+            100% {
+                transform: scale(1);
+                box-shadow: 0 4px 20px rgba(245, 158, 11, 0.3);
+            }
+        }
+        
+        /* スキップモーダル */
+        .skip-modal {
+            background: var(--surface);
+            padding: 32px;
+            border-radius: 20px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+        }
+        
+        .skip-modal .modal-header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        
+        .skip-modal .modal-header h3 {
+            font-size: 24px;
+            margin-bottom: 12px;
+        }
+        
+        .skip-modal .modal-header p {
+            color: var(--text-secondary);
+            font-size: 16px;
+        }
+        
+        .skip-dates {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 10px 0;
+            margin-bottom: 24px;
+        }
+        
+        .date-button {
+            flex: 0 0 calc(50% - 5px);
+            padding: 12px;
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid #334155;
+            color: #e2e8f0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 16px;
+            font-weight: 500;
+        }
+        
+        .date-button:hover {
+            background: rgba(51, 65, 85, 0.5);
+            transform: translateY(-1px);
+        }
+        
+        .date-button.selected {
+            background: #10b981;
+            border-color: #10b981;
+            color: white;
+        }
+        
+        .modal-footer {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+        
+        .modal-footer .button {
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            font-size: 16px;
+        }
+        
+        .modal-footer .button.primary {
+            background: var(--primary);
+            color: white;
+        }
+        
+        .modal-footer .button.primary:hover:not(:disabled) {
+            background: #0ea567;
+            transform: translateY(-1px);
+        }
+        
+        .modal-footer .button.primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .modal-footer .button.secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+        
+        .modal-footer .button.secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+        
+        /* オーバーレイ */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+        }
+        
+        .overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
     </style>
 </head>
 <body>
@@ -1291,6 +1451,24 @@
                 rarity: 'common',
                 color: '#3b82f6'
             },
+            achievement_boost: {
+                id: 'achievement_boost',
+                type: 'reward',
+                name: '達成ブースト',
+                description: '任意の2日を達成済みにできる',
+                icon: '🌟',
+                rarity: 'rare',
+                color: '#10b981'
+            },
+            perfect_bonus: {
+                id: 'perfect_bonus',
+                type: 'reward',
+                name: 'パーフェクトボーナス',
+                description: '次の仮説で100%達成時、報酬カード2枚獲得',
+                icon: '🎯',
+                rarity: 'legendary',
+                color: '#f59e0b'
+            },
             extension_card: {
                 id: 'extension_card',
                 type: 'penalty',
@@ -1376,6 +1554,40 @@
             
             updateNavigation('home');
             updateCurrentHypothesisList();
+            updatePerfectBonusIndicator();
+        }
+        
+        // パーフェクトボーナスインジケーターを更新
+        function updatePerfectBonusIndicator() {
+            const data = loadData();
+            const hasActiveBonus = data.cards && data.cards.activeEffects && 
+                data.cards.activeEffects.some(effect => effect.cardId === 'perfect_bonus');
+            
+            // 既存のインジケーターを削除
+            const existingIndicator = document.getElementById('perfect-bonus-indicator');
+            if (existingIndicator) {
+                existingIndicator.remove();
+            }
+            
+            if (hasActiveBonus) {
+                const indicator = document.createElement('div');
+                indicator.id = 'perfect-bonus-indicator';
+                indicator.style.cssText = `
+                    position: fixed;
+                    top: 80px;
+                    right: 20px;
+                    background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+                    color: white;
+                    padding: 12px 24px;
+                    border-radius: 20px;
+                    font-weight: 600;
+                    box-shadow: 0 4px 20px rgba(245, 158, 11, 0.3);
+                    animation: pulse 2s infinite;
+                    z-index: 100;
+                `;
+                indicator.innerHTML = '🎯 パーフェクトボーナス適用中';
+                document.body.appendChild(indicator);
+            }
         }
 
         // 新規仮説作成画面を表示
@@ -1595,22 +1807,38 @@
             
             container.innerHTML = '';
             
-            // スキップチケットの数を数える
-            const skipTickets = data.cards.inventory.filter(card => card.cardId === 'skip_ticket' && !card.used);
+            // 使用可能なカードを集計
+            const usableCards = {};
+            data.cards.inventory.forEach(card => {
+                if (!card.used && CARD_MASTER[card.cardId] && CARD_MASTER[card.cardId].type === 'reward') {
+                    usableCards[card.cardId] = (usableCards[card.cardId] || 0) + 1;
+                }
+            });
             
-            if (skipTickets.length > 0) {
-                const card = CARD_MASTER['skip_ticket'];
-                const cardDiv = document.createElement('div');
-                cardDiv.className = 'card-item reward';
-                cardDiv.style.cursor = 'pointer';
-                cardDiv.innerHTML = `
-                    <div class="card-icon">${card.icon}</div>
-                    <div class="card-name">${card.name}</div>
-                    <div class="card-description">${card.description}</div>
-                    <div class="card-count">×${skipTickets.length}</div>
-                `;
-                cardDiv.onclick = () => useSkipTicket();
-                container.appendChild(cardDiv);
+            if (Object.keys(usableCards).length > 0) {
+                Object.entries(usableCards).forEach(([cardId, count]) => {
+                    const card = CARD_MASTER[cardId];
+                    const cardDiv = document.createElement('div');
+                    cardDiv.className = 'card-item reward';
+                    cardDiv.style.cursor = 'pointer';
+                    cardDiv.innerHTML = `
+                        <div class="card-icon">${card.icon}</div>
+                        <div class="card-name">${card.name}</div>
+                        <div class="card-description">${card.description}</div>
+                        <div class="card-count">×${count}</div>
+                    `;
+                    
+                    // カードタイプに応じて使用関数を分ける
+                    if (cardId === 'skip_ticket') {
+                        cardDiv.onclick = () => useSkipTicket();
+                    } else if (cardId === 'achievement_boost') {
+                        cardDiv.onclick = () => useAchievementBoost();
+                    } else if (cardId === 'perfect_bonus') {
+                        cardDiv.onclick = () => usePerfectBonus();
+                    }
+                    
+                    container.appendChild(cardDiv);
+                });
             } else {
                 container.innerHTML = '<p style="color: var(--text-secondary); text-align: center;">使用可能なカードがありません</p>';
             }
@@ -1653,6 +1881,216 @@
             
             // カレンダーを更新してスキップモードを反映
             updateCalendar();
+        }
+        
+        // 達成ブーストを使用
+        function useAchievementBoost() {
+            closeCardUseMenu();
+            
+            if (!window.currentHypothesis || window.currentHypothesis.completed) {
+                alert('進行中の仮説がありません');
+                return;
+            }
+            
+            const card = findAndRemoveCard('achievement_boost');
+            if (!card) {
+                alert('達成ブーストカードを持っていません');
+                return;
+            }
+            
+            // 達成ブースト選択画面を表示
+            showAchievementBoostSelection();
+            
+            saveData();
+            displayUserCards();
+        }
+        
+        function findAndRemoveCard(cardId) {
+            const data = loadData();
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === cardId && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                return null;
+            }
+            
+            // カードを使用済みにする
+            data.cards.inventory[cardIndex].used = true;
+            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            saveData(data);
+            
+            return data.cards.inventory[cardIndex];
+        }
+        
+        function showAchievementBoostSelection() {
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay active';
+            
+            const modal = document.createElement('div');
+            modal.className = 'skip-modal active';
+            modal.innerHTML = `
+                <div class="modal-header">
+                    <h3>🌟 達成ブースト</h3>
+                    <p>達成済みにする日を2日選択してください</p>
+                </div>
+                <div class="skip-dates" id="boost-dates">
+                    <!-- 日付ボタンが動的に追加される -->
+                </div>
+                <div class="modal-footer">
+                    <button class="button secondary" onclick="this.closest('.overlay').remove()">キャンセル</button>
+                    <button class="button primary" id="apply-boost" disabled>適用する</button>
+                </div>
+            `;
+            
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            
+            // 選択可能な日付を表示
+            const datesContainer = document.getElementById('boost-dates');
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const startDate = new Date(window.currentHypothesis.startDate);
+            const endDate = new Date(window.currentHypothesis.endDate);
+            
+            const selectedDates = new Set();
+            
+            // 日付ボタンを生成
+            for (let d = new Date(startDate); d <= endDate && d <= today; d.setDate(d.getDate() + 1)) {
+                const dateStr = d.toISOString().split('T')[0];
+                const achievements = window.currentHypothesis.achievements || {};
+                
+                // すでに達成済みの日はスキップ
+                if (achievements[dateStr]) continue;
+                
+                const dateButton = document.createElement('button');
+                dateButton.className = 'date-button';
+                dateButton.textContent = `${d.getMonth() + 1}月${d.getDate()}日`;
+                dateButton.dataset.date = dateStr;
+                
+                dateButton.onclick = function() {
+                    if (selectedDates.has(dateStr)) {
+                        selectedDates.delete(dateStr);
+                        this.classList.remove('selected');
+                    } else if (selectedDates.size < 2) {
+                        selectedDates.add(dateStr);
+                        this.classList.add('selected');
+                    }
+                    
+                    // 適用ボタンの有効/無効を切り替え
+                    document.getElementById('apply-boost').disabled = selectedDates.size !== 2;
+                };
+                
+                datesContainer.appendChild(dateButton);
+            }
+            
+            // 選択可能な日がない場合
+            if (datesContainer.children.length === 0) {
+                datesContainer.innerHTML = '<p style="text-align: center; color: #94a3b8;">達成可能な日がありません</p>';
+            }
+            
+            // 適用ボタンの処理
+            document.getElementById('apply-boost').onclick = function() {
+                applyAchievementBoost(Array.from(selectedDates));
+                overlay.remove();
+            };
+        }
+        
+        function applyAchievementBoost(dates) {
+            if (!window.currentHypothesis || dates.length !== 2) return;
+            
+            // 選択された2日を達成済みにする
+            if (!window.currentHypothesis.achievements) {
+                window.currentHypothesis.achievements = {};
+            }
+            
+            dates.forEach(dateStr => {
+                window.currentHypothesis.achievements[dateStr] = true;
+            });
+            
+            // データを保存
+            const data = loadData();
+            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (index !== -1) {
+                data.currentHypotheses[index] = window.currentHypothesis;
+                saveData(data);
+            }
+            
+            updateCalendar();
+            updateProgress();
+            
+            // エフェクトを表示
+            showCardEffect('達成ブースト発動！', '選択した2日が達成済みになりました', '#10b981');
+        }
+        
+        // カードエフェクトを表示
+        function showCardEffect(title, message, color) {
+            const effectDiv = document.createElement('div');
+            effectDiv.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: ${color};
+                color: white;
+                padding: 24px 48px;
+                border-radius: 20px;
+                font-size: 20px;
+                font-weight: 700;
+                z-index: 3000;
+                animation: cardEffectAnimation 3s ease-out;
+                text-align: center;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            `;
+            effectDiv.innerHTML = `
+                <h3 style="margin: 0 0 12px 0; font-size: 24px;">${title}</h3>
+                <p style="margin: 0; font-size: 16px; font-weight: 400;">${message}</p>
+            `;
+            
+            document.body.appendChild(effectDiv);
+            
+            setTimeout(() => effectDiv.remove(), 3000);
+        }
+        
+        // パーフェクトボーナスを使用
+        function usePerfectBonus() {
+            closeCardUseMenu();
+            
+            if (!confirm('パーフェクトボーナスを使用しますか？\n次の仮説で100%達成時、報酬カード2枚を獲得できます。')) {
+                return;
+            }
+            
+            const data = loadData();
+            
+            // カードを消費
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'perfect_bonus' && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                showNotification('⚠️ パーフェクトボーナスがありません', 'error');
+                return;
+            }
+            
+            // カードを使用済みにする
+            data.cards.inventory[cardIndex].used = true;
+            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            
+            // アクティブエフェクトに追加
+            if (!data.cards.activeEffects) {
+                data.cards.activeEffects = [];
+            }
+            
+            data.cards.activeEffects.push({
+                cardId: 'perfect_bonus',
+                activatedDate: new Date().toISOString(),
+                targetHypothesisId: null // 次の仮説に適用
+            });
+            
+            saveData(data);
+            
+            showNotification('🎯 パーフェクトボーナスが有効になりました！\n次の仮説で100%達成を目指しましょう！', 'success');
         }
         
         // スキップチケットを適用
@@ -2082,18 +2520,67 @@
         // 達成率に基づいてカードを取得
         function getCardsBasedOnAchievement(achievementRate) {
             const cards = [];
+            const data = loadData();
+            
+            // パーフェクトボーナスが有効かチェック
+            let hasPerfectBonus = false;
+            if (data.cards && data.cards.activeEffects) {
+                hasPerfectBonus = data.cards.activeEffects.some(effect => 
+                    effect.cardId === 'perfect_bonus' && !effect.targetHypothesisId
+                );
+            }
             
             if (achievementRate === 100) {
-                // 100%達成: 報酬カード2枚
-                cards.push('skip_ticket');
-                cards.push('skip_ticket');
+                // 100%達成: 報酬カード1枚（レアリティ高め）
+                const rand = Math.random();
+                if (rand < 0.1) {
+                    // 10%の確率でレジェンダリー
+                    cards.push('perfect_bonus');
+                } else if (rand < 0.4) {
+                    // 30%の確率でレア
+                    cards.push('achievement_boost');
+                } else {
+                    // 60%の確率でコモン
+                    cards.push('skip_ticket');
+                }
+                
+                // パーフェクトボーナスが有効な場合、追加で1枚獲得
+                if (hasPerfectBonus) {
+                    const rand2 = Math.random();
+                    if (rand2 < 0.1) {
+                        cards.push('perfect_bonus');
+                    } else if (rand2 < 0.4) {
+                        cards.push('achievement_boost');
+                    } else {
+                        cards.push('skip_ticket');
+                    }
+                    
+                    // パーフェクトボーナスを消費
+                    data.cards.activeEffects = data.cards.activeEffects.filter(effect =>
+                        effect.cardId !== 'perfect_bonus'
+                    );
+                    saveData(data);
+                    
+                    // エフェクトを表示
+                    setTimeout(() => {
+                        showCardEffect('パーフェクトボーナス発動！', '追加で報酬カードを1枚獲得！', '#f59e0b');
+                    }, 1000);
+                }
             } else if (achievementRate >= 80) {
-                // 80-99%達成: 報酬カード1枚
-                cards.push('skip_ticket');
-            } else {
-                // 79%以下: ペナルティカード1枚
+                // 80-99%達成: 報酬カード1枚（コモンまたはレア）
+                const rand = Math.random();
+                if (rand < 0.2) {
+                    // 20%の確率でレア
+                    cards.push('achievement_boost');
+                } else {
+                    // 80%の確率でコモン
+                    cards.push('skip_ticket');
+                }
+            } else if (achievementRate < 60) {
+                // 59%以下: ペナルティカード1枚
                 cards.push('extension_card');
             }
+            // 60-79%は何も獲得しない
             
             return cards;
         }
