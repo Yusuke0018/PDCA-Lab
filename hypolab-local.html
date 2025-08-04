@@ -1477,6 +1477,42 @@
                 icon: '⏰',
                 rarity: 'common',
                 color: '#ef4444'
+            },
+            hard_mode: {
+                id: 'hard_mode',
+                type: 'penalty',
+                name: 'ハードモード',
+                description: '次の仮説は達成率90%以上でないとカードを獲得できない',
+                icon: '⚡',
+                rarity: 'rare',
+                color: '#dc2626'
+            },
+            reset_risk: {
+                id: 'reset_risk',
+                type: 'penalty',
+                name: 'リセットリスク',
+                description: '3日連続で未達成だと全ての達成がリセットされる',
+                icon: '🔄',
+                rarity: 'rare',
+                color: '#dc2626'
+            },
+            short_term: {
+                id: 'short_term',
+                type: 'penalty',
+                name: '短期集中',
+                description: '次の仮説は必ず短期間（3-5日）になる',
+                icon: '⏱️',
+                rarity: 'common',
+                color: '#ef4444'
+            },
+            achievement_decrease: {
+                id: 'achievement_decrease',
+                type: 'penalty',
+                name: '達成率減少',
+                description: '最終達成率から10%引かれる',
+                icon: '📉',
+                rarity: 'common',
+                color: '#ef4444'
             }
         };
 
@@ -1555,6 +1591,83 @@
             updateNavigation('home');
             updateCurrentHypothesisList();
             updatePerfectBonusIndicator();
+            updatePenaltyIndicators();
+        }
+        
+        // ペナルティインジケーターを更新
+        function updatePenaltyIndicators() {
+            // 既存のインジケーターを削除
+            document.querySelectorAll('.penalty-indicator').forEach(el => el.remove());
+            
+            let indicatorTop = 130; // パーフェクトボーナスの下から開始
+            
+            // ハードモード
+            if (window.currentHypothesis && window.currentHypothesis.hardMode) {
+                const indicator = document.createElement('div');
+                indicator.className = 'penalty-indicator';
+                indicator.style.cssText = `
+                    position: fixed;
+                    top: ${indicatorTop}px;
+                    right: 20px;
+                    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+                    color: white;
+                    padding: 8px 16px;
+                    border-radius: 16px;
+                    font-weight: 600;
+                    font-size: 14px;
+                    box-shadow: 0 4px 20px rgba(220, 38, 38, 0.3);
+                    animation: pulse 2s infinite;
+                    z-index: 100;
+                `;
+                indicator.innerHTML = '⚡ ハードモード（90%以上必要）';
+                document.body.appendChild(indicator);
+                indicatorTop += 50;
+            }
+            
+            // リセットリスク
+            if (window.currentHypothesis && window.currentHypothesis.resetRisk) {
+                const indicator = document.createElement('div');
+                indicator.className = 'penalty-indicator';
+                indicator.style.cssText = `
+                    position: fixed;
+                    top: ${indicatorTop}px;
+                    right: 20px;
+                    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+                    color: white;
+                    padding: 8px 16px;
+                    border-radius: 16px;
+                    font-weight: 600;
+                    font-size: 14px;
+                    box-shadow: 0 4px 20px rgba(220, 38, 38, 0.3);
+                    animation: pulse 2s infinite;
+                    z-index: 100;
+                `;
+                indicator.innerHTML = '🔄 リセットリスク適用中';
+                document.body.appendChild(indicator);
+                indicatorTop += 50;
+            }
+            
+            // 達成率減少
+            if (window.currentHypothesis && window.currentHypothesis.achievementDecrease) {
+                const indicator = document.createElement('div');
+                indicator.className = 'penalty-indicator';
+                indicator.style.cssText = `
+                    position: fixed;
+                    top: ${indicatorTop}px;
+                    right: 20px;
+                    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+                    color: white;
+                    padding: 8px 16px;
+                    border-radius: 16px;
+                    font-weight: 600;
+                    font-size: 14px;
+                    box-shadow: 0 4px 20px rgba(239, 68, 68, 0.3);
+                    animation: pulse 2s infinite;
+                    z-index: 100;
+                `;
+                indicator.innerHTML = `📉 達成率-${window.currentHypothesis.achievementDecrease}%`;
+                document.body.appendChild(indicator);
+            }
         }
         
         // パーフェクトボーナスインジケーターを更新
@@ -1606,7 +1719,26 @@
             selectedDuration = null;
             document.querySelectorAll('.duration-option').forEach(opt => {
                 opt.classList.remove('selected');
+                opt.classList.remove('disabled');
+                opt.style.opacity = '1';
+                opt.onclick = function() { selectDuration(this.dataset.duration); };
             });
+            
+            // 短期集中ペナルティが有効な場合
+            if (window.shortTermOnly) {
+                // 中期間と長期間を無効化
+                ['medium', 'long'].forEach(duration => {
+                    const opt = document.querySelector(`[data-duration="${duration}"]`);
+                    if (opt) {
+                        opt.classList.add('disabled');
+                        opt.style.opacity = '0.5';
+                        opt.onclick = null;
+                    }
+                });
+                
+                // 警告メッセージを表示
+                showCardEffect('短期集中ペナルティ適用中！', '短期間（3-7日）のみ選択可能です', '#ef4444');
+            }
         }
 
         // 検証期間を選択
@@ -1622,6 +1754,12 @@
         function createHypothesis(event) {
             event.preventDefault();
             
+            // 短期集中ペナルティのチェック
+            if (window.shortTermOnly) {
+                selectedDuration = 'short';
+                window.shortTermOnly = false; // 効果を消費
+            }
+            
             if (!selectedDuration) {
                 alert('検証期間を選択してください');
                 return;
@@ -1636,8 +1774,17 @@
                 description: description,
                 duration: selectedDuration,
                 startDate: new Date().toISOString(),
-                achievements: {}
+                achievements: {},
+                // ペナルティ効果を記録
+                hardMode: window.hardModeActive || false,
+                resetRisk: window.resetRiskActive || false,
+                achievementDecrease: window.achievementDecrease || 0
             };
+            
+            // ペナルティ効果をリセット（一度使用したら消える）
+            window.hardModeActive = false;
+            window.resetRiskActive = false;
+            window.achievementDecrease = 0;
             
             // ペナルティカードのチェック
             const data = loadData();
@@ -1653,16 +1800,14 @@
         // ペナルティカードを適用
         function applyPenaltyCards() {
             const data = loadData();
-            let hasExtension = false;
+            const penalties = [];
             
-            // 延長カードの確認
+            // すべてのペナルティカードを収集
             data.cards.pendingPenalties.forEach(penalty => {
-                if (penalty.cardId === 'extension_card') {
-                    hasExtension = true;
-                }
+                penalties.push(penalty.cardId);
             });
             
-            if (hasExtension) {
+            if (penalties.length > 0) {
                 // ペナルティエフェクトを表示
                 const modal = document.createElement('div');
                 modal.className = 'modal';
@@ -1670,21 +1815,53 @@
                 modal.innerHTML = `
                     <div class="modal-content penalty-effect" style="text-align: center; max-width: 400px;">
                         <h2 style="color: #ef4444; margin-bottom: 24px;">⚠️ ペナルティカード発動！</h2>
-                        <div class="card-item penalty" style="margin: 0 auto 24px; max-width: 250px;">
-                            <div class="card-icon">⏰</div>
-                            <div class="card-name">延長カード</div>
-                            <div class="card-description">検証期間が3日間延長されます</div>
+                        <div id="penalty-cards-display" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px;">
                         </div>
                         <button class="btn" onclick="continuePenaltyApply()">確認</button>
                     </div>
                 `;
                 document.body.appendChild(modal);
                 
-                // 延長フラグを設定
-                window.pendingExtension = 3;
+                const penaltyDisplay = document.getElementById('penalty-cards-display');
+                
+                // ペナルティカードの効果を設定
+                penalties.forEach(penaltyId => {
+                    const card = CARD_MASTER[penaltyId];
+                    if (card) {
+                        const cardDiv = document.createElement('div');
+                        cardDiv.className = 'card-item penalty';
+                        cardDiv.style.margin = '0 auto';
+                        cardDiv.style.maxWidth = '250px';
+                        cardDiv.innerHTML = `
+                            <div class="card-icon">${card.icon}</div>
+                            <div class="card-name">${card.name}</div>
+                            <div class="card-description">${card.description}</div>
+                        `;
+                        penaltyDisplay.appendChild(cardDiv);
+                        
+                        // ペナルティ効果を適用
+                        switch(penaltyId) {
+                            case 'extension_card':
+                                window.pendingExtension = 3;
+                                break;
+                            case 'hard_mode':
+                                window.hardModeActive = true;
+                                break;
+                            case 'reset_risk':
+                                window.resetRiskActive = true;
+                                break;
+                            case 'short_term':
+                                window.shortTermOnly = true;
+                                break;
+                            case 'achievement_decrease':
+                                window.achievementDecrease = 10;
+                                break;
+                        }
+                    }
+                });
                 
                 // ペナルティカードを消費
-                data.cards.pendingPenalties = data.cards.pendingPenalties.filter(p => p.cardId !== 'extension_card');
+                data.cards.pendingPenalties = [];
                 saveData(data);
             }
         }
@@ -1784,6 +1961,14 @@
             
             // カード使用ボタンの表示/非表示
             updateCardUseButton();
+            
+            // リセットリスクのチェック
+            if (hypothesis.resetRisk) {
+                checkResetRisk();
+            }
+            
+            // ペナルティインジケーターを更新
+            updatePenaltyIndicators();
         }
 
         // カード使用ボタンの更新
@@ -2265,6 +2450,57 @@
             }
             
             updateProgress();
+            
+            // リセットリスクのチェック（翌日に実行）
+            if (window.currentHypothesis.resetRisk) {
+                setTimeout(() => checkResetRisk(), 100);
+            }
+        }
+        
+        // リセットリスクのチェック
+        function checkResetRisk() {
+            if (!window.currentHypothesis || !window.currentHypothesis.resetRisk) return;
+            
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            // 過去3日間の達成状況をチェック
+            let consecutiveFailures = 0;
+            for (let i = 1; i <= 3; i++) {
+                const checkDate = new Date(today);
+                checkDate.setDate(checkDate.getDate() - i);
+                const dateKey = checkDate.toISOString().split('T')[0];
+                
+                // その日が仮説期間内かチェック
+                const startDate = new Date(window.currentHypothesis.startDate);
+                startDate.setHours(0, 0, 0, 0);
+                
+                if (checkDate >= startDate && !window.currentHypothesis.achievements[dateKey]) {
+                    consecutiveFailures++;
+                } else {
+                    break; // 達成していれば連続失敗ではない
+                }
+            }
+            
+            // 3日連続で未達成の場合、全ての達成をリセット
+            if (consecutiveFailures >= 3) {
+                window.currentHypothesis.achievements = {};
+                
+                // データを保存
+                const data = loadData();
+                const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+                if (index !== -1) {
+                    data.currentHypotheses[index] = window.currentHypothesis;
+                    saveData(data);
+                }
+                
+                // エフェクトを表示
+                showCardEffect('リセットリスク発動！', '3日連続未達成により、全ての達成がリセットされました', '#dc2626');
+                
+                // カレンダーと進捗を更新
+                updateCalendar();
+                updateProgress();
+            }
         }
 
         // 達成アニメーション表示
@@ -2357,7 +2593,7 @@
                         const finalAchievementRate = Math.round((achievedDays / window.currentHypothesis.totalDays) * 100);
                         
                         // カード獲得処理
-                        const acquiredCards = getCardsBasedOnAchievement(finalAchievementRate);
+                        const acquiredCards = getCardsBasedOnAchievement(finalAchievementRate, window.currentHypothesis);
                         if (acquiredCards.length > 0) {
                             acquiredCards.forEach(cardId => {
                                 const card = CARD_MASTER[cardId];
@@ -2500,7 +2736,16 @@
                 
                 // 最終的な達成率を計算
                 const achievedDays = Object.keys(hypothesis.achievements || {}).length;
-                hypothesis.finalAchievementRate = Math.round((achievedDays / hypothesis.totalDays) * 100);
+                let finalRate = Math.round((achievedDays / hypothesis.totalDays) * 100);
+                
+                // 達成率減少ペナルティの適用
+                if (hypothesis.achievementDecrease) {
+                    finalRate = Math.max(0, finalRate - hypothesis.achievementDecrease);
+                    // エフェクトを表示
+                    showCardEffect('達成率減少発動！', `最終達成率から${hypothesis.achievementDecrease}%減少しました`, '#ef4444');
+                }
+                
+                hypothesis.finalAchievementRate = finalRate;
                 
                 // 完了リストに追加
                 data.completedHypotheses.push(hypothesis);
@@ -2518,9 +2763,14 @@
         }
 
         // 達成率に基づいてカードを取得
-        function getCardsBasedOnAchievement(achievementRate) {
+        function getCardsBasedOnAchievement(achievementRate, hypothesis) {
             const cards = [];
             const data = loadData();
+            
+            // ハードモードの場合、90%未満はカードなし
+            if (hypothesis && hypothesis.hardMode && achievementRate < 90) {
+                return cards; // 空の配列を返す
+            }
             
             // パーフェクトボーナスが有効かチェック
             let hasPerfectBonus = false;
@@ -2578,7 +2828,17 @@
                 }
             } else if (achievementRate < 60) {
                 // 59%以下: ペナルティカード1枚
-                cards.push('extension_card');
+                const rand = Math.random();
+                
+                if (rand < 0.4) {
+                    // 40%の確率でコモン
+                    const commonPenalties = ['extension_card', 'short_term', 'achievement_decrease'];
+                    cards.push(commonPenalties[Math.floor(Math.random() * commonPenalties.length)]);
+                } else {
+                    // 60%の確率でレア
+                    const rarePenalties = ['hard_mode', 'reset_risk'];
+                    cards.push(rarePenalties[Math.floor(Math.random() * rarePenalties.length)]);
+                }
             }
             // 60-79%は何も獲得しない
             
