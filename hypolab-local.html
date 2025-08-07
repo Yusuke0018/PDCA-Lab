@@ -1559,6 +1559,17 @@
         let currentHypothesis = null;
         let selectedDuration = null;
 
+        // HTMLエスケープ（XSS対策）
+        function escapeHTML(str) {
+            if (str == null) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
         // カードマスターデータ
         const CARD_MASTER = {
             skip_ticket: {
@@ -1881,6 +1892,11 @@
             // フォームをリセット
             document.getElementById('hypothesis-title').value = '';
             document.getElementById('hypothesis-description').value = '';
+            // 入力にフォーカス
+            const titleInput = document.getElementById('hypothesis-title');
+            if (titleInput) {
+                setTimeout(() => titleInput.focus(), 0);
+            }
             selectedDuration = null;
             document.querySelectorAll('.duration-option').forEach(opt => {
                 opt.classList.remove('selected');
@@ -1930,8 +1946,21 @@
                 return;
             }
             
-            const title = document.getElementById('hypothesis-title').value;
-            const description = document.getElementById('hypothesis-description').value;
+            const title = document.getElementById('hypothesis-title').value.trim();
+            const description = document.getElementById('hypothesis-description').value.trim();
+
+            if (!title || !description) {
+                alert('タイトルと詳細を入力してください');
+                return;
+            }
+            if (title.length > 100) {
+                alert('タイトルは100文字以内で入力してください');
+                return;
+            }
+            if (description.length > 1000) {
+                alert('詳細は1000文字以内で入力してください');
+                return;
+            }
             
             currentHypothesis = {
                 id: Date.now(),
@@ -2995,8 +3024,8 @@
                 const achievementRate = daysPassed > 0 ? Math.round((achievedDays / daysPassed) * 100) : 0;
                 
                 item.innerHTML = `
-                    <h3 class="hypothesis-title">${hypothesis.title}</h3>
-                    <p class="hypothesis-description">${hypothesis.description}</p>
+                    <h3 class="hypothesis-title">${escapeHTML(hypothesis.title)}</h3>
+                    <p class="hypothesis-description">${escapeHTML(hypothesis.description)}</p>
                     <div class="hypothesis-meta">
                         <div class="hypothesis-days">
                             📅 ${daysPassed}日目 / ${hypothesis.totalDays}日間
@@ -3234,7 +3263,7 @@
                 
                 item.innerHTML = `
                     <div class="history-info">
-                        <h4>${hypothesis.title}</h4>
+                        <h4>${escapeHTML(hypothesis.title)}</h4>
                         <div class="history-meta">
                             完了日: ${dateStr} | 期間: ${hypothesis.totalDays}日間
                         </div>
