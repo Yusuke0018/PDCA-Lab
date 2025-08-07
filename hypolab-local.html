@@ -1284,6 +1284,12 @@
                     <span id="achieved-days">達成: 0日</span>
                     <span id="remaining-days">残り: 0日</span>
                 </div>
+                
+                <!-- アクティブな効果の表示 -->
+                <div id="active-effects-display" style="margin-top: 16px; display: none;">
+                    <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px;">アクティブな効果:</div>
+                    <div id="active-effects-list" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
+                </div>
             </div>
 
             <!-- カード使用ボタン -->
@@ -1371,6 +1377,38 @@
                             color: white;
                         ">
                             📉 達成率-10%
+                        </button>
+                        <hr style="margin: 12px 0; border: 1px dashed #ef4444;">
+                        <h5 style="color: #ef4444; margin-bottom: 12px;">🆕 新カード</h5>
+                        <button onclick="debugAddCard('protect_shield')" class="btn" style="
+                            background: #10b981;
+                            color: white;
+                        ">
+                            🛡️ プロテクトシールド
+                        </button>
+                        <button onclick="debugAddCard('achievement_booster')" class="btn" style="
+                            background: #3b82f6;
+                            color: white;
+                        ">
+                            📈 達成率ブースター
+                        </button>
+                        <button onclick="debugAddCard('second_chance')" class="btn" style="
+                            background: #10b981;
+                            color: white;
+                        ">
+                            🎯 セカンドチャンス
+                        </button>
+                        <button onclick="debugApplyPenalty('chaos_vortex')" class="btn" style="
+                            background: #dc2626;
+                            color: white;
+                        ">
+                            🌀 混乱の渦
+                        </button>
+                        <button onclick="debugApplyPenalty('double_or_nothing')" class="btn" style="
+                            background: #dc2626;
+                            color: white;
+                        ">
+                            ⚠️ ダブルオアナッシング
                         </button>
                         <button onclick="debugClearAllCards()" class="btn" style="
                             background: #6b7280;
@@ -1594,6 +1632,52 @@
                 icon: '📉',
                 rarity: 'common',
                 color: '#ef4444'
+            },
+            // 新しいカード
+            protect_shield: {
+                id: 'protect_shield',
+                type: 'reward',
+                name: 'プロテクトシールド',
+                description: '次の仮説でペナルティカードを無効化する',
+                icon: '🛡️',
+                rarity: 'rare',
+                color: '#10b981'
+            },
+            achievement_booster: {
+                id: 'achievement_booster',
+                type: 'reward',
+                name: '達成率ブースター',
+                description: '最終達成率に+15%のボーナス',
+                icon: '📈',
+                rarity: 'common',
+                color: '#3b82f6'
+            },
+            chaos_vortex: {
+                id: 'chaos_vortex',
+                type: 'penalty',
+                name: '混乱の渦',
+                description: '達成/未達成がランダムで3日分入れ替わる',
+                icon: '🌀',
+                rarity: 'rare',
+                color: '#dc2626'
+            },
+            second_chance: {
+                id: 'second_chance',
+                type: 'reward',
+                name: 'セカンドチャンス',
+                description: '仮説終了後でも3日分追加で挑戦できる',
+                icon: '🎯',
+                rarity: 'rare',
+                color: '#10b981'
+            },
+            double_or_nothing: {
+                id: 'double_or_nothing',
+                type: 'penalty',
+                name: 'ダブルオアナッシング',
+                description: '次の仮説で100%達成しないとペナルティカード2枚',
+                icon: '⚠️',
+                rarity: 'rare',
+                color: '#dc2626'
             }
         };
 
@@ -1881,6 +1965,31 @@
         // ペナルティカードを適用
         function applyPenaltyCards() {
             const data = loadData();
+            
+            // プロテクトシールドが有効かチェック
+            let hasProtectShield = false;
+            if (data.cards && data.cards.activeEffects) {
+                const protectIndex = data.cards.activeEffects.findIndex(effect => 
+                    effect.cardId === 'protect_shield'
+                );
+                if (protectIndex !== -1) {
+                    hasProtectShield = true;
+                    // プロテクトシールドを消費
+                    data.cards.activeEffects.splice(protectIndex, 1);
+                    saveData(data);
+                    
+                    showCardEffect('プロテクトシールド発動！', 'ペナルティカードを無効化しました', '#10b981');
+                    
+                    // ペナルティカードをクリア
+                    data.cards.pendingPenalties = [];
+                    saveData(data);
+                    
+                    // シャッフル画面を表示
+                    setTimeout(() => showShuffleView(), 2000);
+                    return;
+                }
+            }
+            
             const penalties = [];
             
             // すべてのペナルティカードを収集
@@ -2101,6 +2210,12 @@
                         cardDiv.onclick = () => useAchievementBoost();
                     } else if (cardId === 'perfect_bonus') {
                         cardDiv.onclick = () => usePerfectBonus();
+                    } else if (cardId === 'protect_shield') {
+                        cardDiv.onclick = () => useProtectShield();
+                    } else if (cardId === 'achievement_booster') {
+                        cardDiv.onclick = () => useAchievementBooster();
+                    } else if (cardId === 'second_chance') {
+                        cardDiv.onclick = () => useSecondChance();
                     }
                     
                     container.appendChild(cardDiv);
@@ -2665,6 +2780,68 @@
                 progressFill.style.background = 'var(--gradient-3)';
             }
             
+            // アクティブな効果を表示
+            const data = loadData();
+            const activeEffectsDisplay = document.getElementById('active-effects-display');
+            const activeEffectsList = document.getElementById('active-effects-list');
+            
+            activeEffectsList.innerHTML = '';
+            let hasActiveEffects = false;
+            
+            // 達成ブースターのチェック
+            if (data.cards && data.cards.activeEffects) {
+                const achievementBooster = data.cards.activeEffects.find(effect => 
+                    effect.cardId === 'achievement_booster' && 
+                    (!effect.targetHypothesisId || effect.targetHypothesisId === window.currentHypothesis.id)
+                );
+                
+                if (achievementBooster) {
+                    hasActiveEffects = true;
+                    const effectElement = document.createElement('div');
+                    effectElement.style.cssText = 'background: rgba(16, 185, 129, 0.2); color: #10b981; padding: 4px 12px; border-radius: 16px; font-size: 12px; border: 1px solid #10b981;';
+                    effectElement.textContent = '🚀 達成ブースター (+10%)';
+                    activeEffectsList.appendChild(effectElement);
+                }
+            }
+            
+            // ハードモードのチェック
+            if (window.currentHypothesis.hardMode) {
+                hasActiveEffects = true;
+                const effectElement = document.createElement('div');
+                effectElement.style.cssText = 'background: rgba(239, 68, 68, 0.2); color: #ef4444; padding: 4px 12px; border-radius: 16px; font-size: 12px; border: 1px solid #ef4444;';
+                effectElement.textContent = '💀 ハードモード';
+                activeEffectsList.appendChild(effectElement);
+            }
+            
+            // 短期間縛りのチェック
+            if (window.currentHypothesis.shortTermOnly) {
+                hasActiveEffects = true;
+                const effectElement = document.createElement('div');
+                effectElement.style.cssText = 'background: rgba(239, 68, 68, 0.2); color: #ef4444; padding: 4px 12px; border-radius: 16px; font-size: 12px; border: 1px solid #ef4444;';
+                effectElement.textContent = '⏱️ 短期間縛り';
+                activeEffectsList.appendChild(effectElement);
+            }
+            
+            // 達成率減少のチェック
+            if (window.currentHypothesis.achievementDecrease) {
+                hasActiveEffects = true;
+                const effectElement = document.createElement('div');
+                effectElement.style.cssText = 'background: rgba(239, 68, 68, 0.2); color: #ef4444; padding: 4px 12px; border-radius: 16px; font-size: 12px; border: 1px solid #ef4444;';
+                effectElement.textContent = `📉 達成率減少 (-${window.currentHypothesis.achievementDecrease}%)`;
+                activeEffectsList.appendChild(effectElement);
+            }
+            
+            // リセットリスクのチェック
+            if (window.currentHypothesis.resetRisk) {
+                hasActiveEffects = true;
+                const effectElement = document.createElement('div');
+                effectElement.style.cssText = 'background: rgba(239, 68, 68, 0.2); color: #ef4444; padding: 4px 12px; border-radius: 16px; font-size: 12px; border: 1px solid #ef4444;';
+                effectElement.textContent = '🔄 リセットリスク';
+                activeEffectsList.appendChild(effectElement);
+            }
+            
+            activeEffectsDisplay.style.display = hasActiveEffects ? 'block' : 'none';
+            
             // 期間が終了したかチェック（最終日以降）
             if (daysPassed >= window.currentHypothesis.totalDays && !window.currentHypothesis.completed) {
                 // 完了報告ボタンを表示
@@ -2687,6 +2864,28 @@
                 // 最終的な達成率を計算
                 const achievedDays = Object.keys(hypothesis.achievements || {}).length;
                 let finalRate = Math.round((achievedDays / hypothesis.totalDays) * 100);
+                
+                // 達成ブースターが有効かチェック
+                let hasAchievementBooster = false;
+                if (data.cards && data.cards.activeEffects) {
+                    hasAchievementBooster = data.cards.activeEffects.some(effect => 
+                        effect.cardId === 'achievement_booster' && 
+                        (!effect.targetHypothesisId || effect.targetHypothesisId === hypothesis.id)
+                    );
+                }
+                
+                // 達成ブースターの効果を適用（10%ボーナス）
+                if (hasAchievementBooster) {
+                    finalRate = Math.min(100, finalRate + 10);
+                    // エフェクトを表示
+                    showCardEffect('達成ブースター発動！', '最終達成率に+10%のボーナス！', '#10b981');
+                    
+                    // 達成ブースターを消費
+                    data.cards.activeEffects = data.cards.activeEffects.filter(effect =>
+                        !(effect.cardId === 'achievement_booster' && 
+                          (!effect.targetHypothesisId || effect.targetHypothesisId === hypothesis.id))
+                    );
+                }
                 
                 // 達成率減少ペナルティの適用
                 if (hypothesis.achievementDecrease) {
@@ -2871,6 +3070,38 @@
                     }
                     
                     hypothesis.finalAchievementRate = finalRate;
+                }
+                
+                // ダブルオアナッシングが有効かチェック
+                let hasDoubleOrNothing = false;
+                if (data.cards && data.cards.activeEffects) {
+                    hasDoubleOrNothing = data.cards.activeEffects.some(effect => 
+                        effect.cardId === 'double_or_nothing'
+                    );
+                }
+                
+                // ダブルオアナッシングの効果を適用
+                if (hasDoubleOrNothing && hypothesis.finalAchievementRate < 100) {
+                    // 100%未満の場合はペナルティカードを2枚付与
+                    const penaltyCards = ['extension_card', 'short_term', 'achievement_decrease', 'hard_mode', 'reset_risk'];
+                    
+                    for (let i = 0; i < 2; i++) {
+                        const randomCard = penaltyCards[Math.floor(Math.random() * penaltyCards.length)];
+                        data.cards.pendingPenalties.push({
+                            cardId: randomCard,
+                            acquiredDate: new Date().toISOString()
+                        });
+                    }
+                    
+                    // ダブルオアナッシングを消費
+                    data.cards.activeEffects = data.cards.activeEffects.filter(effect =>
+                        effect.cardId !== 'double_or_nothing'
+                    );
+                    
+                    // エフェクトを表示
+                    setTimeout(() => {
+                        showCardEffect('ダブルオアナッシング発動！', '100%未満のため、ペナルティカードを2枚獲得...', '#ef4444');
+                    }, 500);
                 }
                 
                 // 完了リストに追加
@@ -3574,7 +3805,7 @@
         
         // デバッグ：ペナルティ効果を適用
         function debugApplyPenalty(penaltyId) {
-            if (!window.currentHypothesis) {
+            if (!window.currentHypothesis && penaltyId !== 'double_or_nothing') {
                 showNotification('⚠️ 進行中の仮説がありません', 'error');
                 return;
             }
@@ -3610,14 +3841,34 @@
                     updatePenaltyIndicators();
                     showCardEffect('達成率減少発動！', '最終達成率から10%減少します', '#ef4444');
                     break;
+                    
+                case 'chaos_vortex':
+                    // 混乱の渦を発動
+                    applyChaosVortex();
+                    break;
+                    
+                case 'double_or_nothing':
+                    // ダブルオアナッシングを設定
+                    window.doubleOrNothingActive = true;
+                    showCardEffect('ダブルオアナッシング発動！', '次の仮説で100%達成しないとペナルティカード2枚', '#dc2626');
+                    const data = loadData();
+                    if (!data.cards.activeEffects) data.cards.activeEffects = [];
+                    data.cards.activeEffects.push({
+                        cardId: 'double_or_nothing',
+                        activatedDate: new Date().toISOString()
+                    });
+                    saveData(data);
+                    break;
             }
             
-            // データを保存
-            const data = loadData();
-            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
-            if (index !== -1) {
-                data.currentHypotheses[index] = window.currentHypothesis;
-                saveData(data);
+            // データを保存（double_or_nothing以外）
+            if (window.currentHypothesis && penaltyId !== 'double_or_nothing') {
+                const data = loadData();
+                const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+                if (index !== -1) {
+                    data.currentHypotheses[index] = window.currentHypothesis;
+                    saveData(data);
+                }
             }
             
             showNotification(`⚠️ ${card.name}の効果を適用しました`, 'error');
@@ -3656,6 +3907,177 @@
             updatePenaltyIndicators();
             
             showNotification('🗑️ 全てのカードと効果をクリアしました', 'info');
+        }
+        
+        // 混乱の渦を適用
+        function applyChaosVortex() {
+            if (!window.currentHypothesis) return;
+            
+            const startDate = new Date(window.currentHypothesis.startDate);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            startDate.setHours(0, 0, 0, 0);
+            
+            // 現在までの日付リストを作成
+            const dates = [];
+            const currentDate = new Date(startDate);
+            while (currentDate <= today && dates.length < window.currentHypothesis.totalDays) {
+                dates.push(currentDate.toISOString().split('T')[0]);
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+            
+            // ランダムに3日を選択
+            const shuffledDates = [...dates].sort(() => Math.random() - 0.5).slice(0, 3);
+            
+            // 選択された日の達成状態を反転
+            shuffledDates.forEach(dateKey => {
+                if (window.currentHypothesis.achievements[dateKey]) {
+                    delete window.currentHypothesis.achievements[dateKey];
+                } else {
+                    window.currentHypothesis.achievements[dateKey] = true;
+                }
+            });
+            
+            updateCalendar();
+            updateProgress();
+            
+            showCardEffect('混乱の渦発動！', `${shuffledDates.length}日分の達成/未達成が入れ替わりました`, '#dc2626');
+        }
+        
+        // プロテクトシールドを使用
+        function useProtectShield() {
+            closeCardUseMenu();
+            
+            const data = loadData();
+            
+            // カードを消費
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'protect_shield' && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                showNotification('⚠️ プロテクトシールドがありません', 'error');
+                return;
+            }
+            
+            // カードを使用済みにする
+            data.cards.inventory[cardIndex].used = true;
+            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            
+            // アクティブエフェクトに追加
+            if (!data.cards.activeEffects) {
+                data.cards.activeEffects = [];
+            }
+            
+            data.cards.activeEffects.push({
+                cardId: 'protect_shield',
+                activatedDate: new Date().toISOString()
+            });
+            
+            saveData(data);
+            
+            showNotification('🛡️ プロテクトシールドが有効になりました！\n次の仮説でペナルティカードを無効化します', 'success');
+        }
+        
+        // 達成率ブースターを使用
+        function useAchievementBooster() {
+            closeCardUseMenu();
+            
+            if (!window.currentHypothesis || window.currentHypothesis.completed) {
+                showNotification('⚠️ 進行中の仮説がありません', 'error');
+                return;
+            }
+            
+            const data = loadData();
+            
+            // カードを消費
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'achievement_booster' && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                showNotification('⚠️ 達成率ブースターがありません', 'error');
+                return;
+            }
+            
+            // カードを使用済みにする
+            data.cards.inventory[cardIndex].used = true;
+            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            
+            // 現在の仮説に達成率ボーナスを追加
+            if (!window.currentHypothesis.achievementBonus) {
+                window.currentHypothesis.achievementBonus = 0;
+            }
+            window.currentHypothesis.achievementBonus += 15;
+            
+            // データを保存
+            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (index !== -1) {
+                data.currentHypotheses[index] = window.currentHypothesis;
+            }
+            
+            saveData(data);
+            
+            showCardEffect('達成率ブースター発動！', '最終達成率に+15%のボーナスが付与されます', '#3b82f6');
+        }
+        
+        // セカンドチャンスを使用
+        function useSecondChance() {
+            closeCardUseMenu();
+            
+            if (!window.currentHypothesis) {
+                showNotification('⚠️ 進行中の仮説がありません', 'error');
+                return;
+            }
+            
+            const startDate = new Date(window.currentHypothesis.startDate);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            startDate.setHours(0, 0, 0, 0);
+            
+            // 経過日数を計算
+            const timeDiff = today.getTime() - startDate.getTime();
+            const daysPassed = Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1);
+            
+            // まだ期間が終わっていない場合は使用不可
+            if (daysPassed < window.currentHypothesis.totalDays) {
+                showNotification('⚠️ セカンドチャンスは仮説終了後に使用できます', 'error');
+                return;
+            }
+            
+            const data = loadData();
+            
+            // カードを消費
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'second_chance' && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                showNotification('⚠️ セカンドチャンスがありません', 'error');
+                return;
+            }
+            
+            // カードを使用済みにする
+            data.cards.inventory[cardIndex].used = true;
+            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            
+            // 期間を3日延長
+            window.currentHypothesis.totalDays += 3;
+            window.currentHypothesis.secondChanceUsed = true;
+            
+            // データを保存
+            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (index !== -1) {
+                data.currentHypotheses[index] = window.currentHypothesis;
+            }
+            
+            saveData(data);
+            
+            // UIを更新
+            updateCalendar();
+            updateProgress();
+            
+            showCardEffect('セカンドチャンス発動！', '3日分の追加チャンスを獲得しました', '#10b981');
         }
         
         // 通知を表示
