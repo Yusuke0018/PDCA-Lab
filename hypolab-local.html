@@ -1108,6 +1108,29 @@
             opacity: 1;
             visibility: visible;
         }
+        
+        /* アニメーション */
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
     </style>
 </head>
 <body>
@@ -1309,8 +1332,16 @@
                 </div>
             </div>
 
-            <div class="completion-options" id="completion-options">
-                <h3>🎉 検証期間が終了しました！</h3>
+            <!-- 完了報告ボタン -->
+            <div id="completion-report-section" style="display: none; margin-bottom: 20px;">
+                <button class="btn" onclick="showCompletionOptions()" style="width: 100%; background: var(--gradient-1);">
+                    📝 完了報告する
+                </button>
+            </div>
+
+            <div class="completion-options" id="completion-options" style="display: none;">
+                <h3>🎉 検証が完了しました！</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 20px;">次のアクションを選択してください</p>
                 <div class="completion-buttons">
                     <button class="completion-btn" onclick="continueHypothesis()">
                         ➡️ 継続する
@@ -2356,9 +2387,7 @@
             
             // カレンダーを更新
             updateCalendar();
-            
-            // 進捗情報を更新
-            updateProgressInfo();
+            updateProgress();
         }
 
         // カレンダーを更新
@@ -2398,6 +2427,9 @@
                     dayCell.classList.add('future');
                 } else if (window.currentHypothesis.achievements[dateKey]) {
                     dayCell.classList.add('achieved');
+                    // 達成済みでもクリック可能にする（取り消しできるように）
+                    dayCell.style.cursor = 'pointer';
+                    dayCell.onclick = () => toggleDayStatus(dateKey, dayCell);
                 } else {
                     dayCell.classList.add('not-achieved');
                     if (window.skipTicketMode) {
@@ -2432,13 +2464,18 @@
         // 日の達成状態を切り替え
         function toggleDayStatus(dateKey, dayCell) {
             if (!window.currentHypothesis.achievements[dateKey]) {
+                // 達成状態にする
                 window.currentHypothesis.achievements[dateKey] = true;
                 dayCell.classList.remove('not-achieved');
                 dayCell.classList.add('achieved');
-                dayCell.onclick = null;
                 
                 // 達成アニメーションを表示
                 showAchievementAnimation();
+            } else {
+                // 達成を取り消す
+                delete window.currentHypothesis.achievements[dateKey];
+                dayCell.classList.remove('achieved');
+                dayCell.classList.add('not-achieved');
             }
             
             // データを保存
@@ -2579,11 +2616,21 @@
             }
             
             // 期間が終了したかチェック（最終日以降）
-            if (daysPassed >= window.currentHypothesis.totalDays) {
-                document.getElementById('completion-options').style.display = 'block';
+            if (daysPassed >= window.currentHypothesis.totalDays && !window.currentHypothesis.completed) {
+                // 完了報告ボタンを表示
+                document.getElementById('completion-report-section').style.display = 'block';
+                // 自動的に完了オプションは表示しない
+                document.getElementById('completion-options').style.display = 'none';
             } else {
+                document.getElementById('completion-report-section').style.display = 'none';
                 document.getElementById('completion-options').style.display = 'none';
             }
+        }
+
+        // 完了オプションを表示
+        function showCompletionOptions() {
+            document.getElementById('completion-report-section').style.display = 'none';
+            document.getElementById('completion-options').style.display = 'block';
         }
 
         // 現在の仮説リストを更新
@@ -3261,7 +3308,7 @@
             }
             
             updateCalendar();
-            updateProgressInfo();
+            updateProgress();
             showNotification('✅ 今日を達成にしました', 'success');
         }
         
@@ -3283,7 +3330,7 @@
             }
             
             updateCalendar();
-            updateProgressInfo();
+            updateProgress();
             showNotification('❌ 今日を未達成にしました', 'error');
         }
         
@@ -3311,7 +3358,7 @@
             }
             
             updateCalendar();
-            updateProgressInfo();
+            updateProgress();
             showNotification('📅 過去全てを達成にしました', 'success');
         }
         
@@ -3336,7 +3383,6 @@
             }
             
             updateCalendar();
-            updateProgressInfo();
             updateProgress();  // 即座に進捗を更新
             showNotification('⏩ 日付を3日進めました', 'success');
         }
@@ -3364,7 +3410,6 @@
             }
             
             updateCalendar();
-            updateProgressInfo();
             updateProgress();  // 即座に進捗を更新
             showNotification('🏁 仮説を完了状態にしました', 'success');
         }
@@ -3419,6 +3464,33 @@
                 }
                 showNotification('🛠️ デバッグモードを無効化しました', 'info');
             }
+        }
+
+        // 通知を表示
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
+                color: white;
+                padding: 16px 24px;
+                border-radius: 12px;
+                font-weight: 600;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+                z-index: 3000;
+                animation: slideIn 0.3s ease-out;
+                max-width: 300px;
+            `;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
         }
 
         // 初期化
