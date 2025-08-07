@@ -1328,6 +1328,56 @@
                         ">
                             🏁 仮説を完了する
                         </button>
+                        <hr style="margin: 16px 0; border: 1px dashed #ef4444;">
+                        <h5 style="color: #ef4444; margin-bottom: 12px;">🎴 カード効果テスト</h5>
+                        <button onclick="debugAddCard('skip_ticket')" class="btn" style="
+                            background: #3b82f6;
+                            color: white;
+                        ">
+                            ⏭️ スキップチケットを追加
+                        </button>
+                        <button onclick="debugAddCard('achievement_boost')" class="btn" style="
+                            background: #10b981;
+                            color: white;
+                        ">
+                            🌟 達成ブーストを追加
+                        </button>
+                        <button onclick="debugAddCard('perfect_bonus')" class="btn" style="
+                            background: #f59e0b;
+                            color: white;
+                        ">
+                            🎯 パーフェクトボーナスを追加
+                        </button>
+                        <button onclick="debugApplyPenalty('extension_card')" class="btn" style="
+                            background: #ef4444;
+                            color: white;
+                        ">
+                            ⏰ 延長カード（+3日）
+                        </button>
+                        <button onclick="debugApplyPenalty('hard_mode')" class="btn" style="
+                            background: #dc2626;
+                            color: white;
+                        ">
+                            ⚡ ハードモード（90%必要）
+                        </button>
+                        <button onclick="debugApplyPenalty('reset_risk')" class="btn" style="
+                            background: #dc2626;
+                            color: white;
+                        ">
+                            🔄 リセットリスク
+                        </button>
+                        <button onclick="debugApplyPenalty('achievement_decrease')" class="btn" style="
+                            background: #ef4444;
+                            color: white;
+                        ">
+                            📉 達成率-10%
+                        </button>
+                        <button onclick="debugClearAllCards()" class="btn" style="
+                            background: #6b7280;
+                            color: white;
+                        ">
+                            🗑️ 全カードクリア
+                        </button>
                     </div>
                 </div>
             </div>
@@ -3500,6 +3550,114 @@
             }
         }
 
+        // デバッグ：カードを追加
+        function debugAddCard(cardId) {
+            const data = loadData();
+            
+            data.cards.inventory.push({
+                cardId: cardId,
+                acquiredDate: new Date().toISOString(),
+                used: false
+            });
+            
+            saveData(data);
+            updateCardUseButton();
+            
+            const card = CARD_MASTER[cardId];
+            showNotification(`🎴 ${card.name}を追加しました`, 'success');
+            
+            // パーフェクトボーナスの場合は即座に有効化
+            if (cardId === 'perfect_bonus') {
+                updatePerfectBonusIndicator();
+            }
+        }
+        
+        // デバッグ：ペナルティ効果を適用
+        function debugApplyPenalty(penaltyId) {
+            if (!window.currentHypothesis) {
+                showNotification('⚠️ 進行中の仮説がありません', 'error');
+                return;
+            }
+            
+            const card = CARD_MASTER[penaltyId];
+            
+            switch(penaltyId) {
+                case 'extension_card':
+                    // 期間を延長
+                    window.currentHypothesis.totalDays += 3;
+                    updateCalendar();
+                    updateProgress();
+                    showCardEffect('延長カード発動！', '検証期間が3日延長されました', '#ef4444');
+                    break;
+                    
+                case 'hard_mode':
+                    // ハードモードを有効化
+                    window.currentHypothesis.hardMode = true;
+                    updatePenaltyIndicators();
+                    showCardEffect('ハードモード発動！', '90%以上の達成率が必要になりました', '#dc2626');
+                    break;
+                    
+                case 'reset_risk':
+                    // リセットリスクを有効化
+                    window.currentHypothesis.resetRisk = true;
+                    updatePenaltyIndicators();
+                    showCardEffect('リセットリスク発動！', '3日連続未達成で全てリセットされます', '#dc2626');
+                    break;
+                    
+                case 'achievement_decrease':
+                    // 達成率減少を設定
+                    window.currentHypothesis.achievementDecrease = 10;
+                    updatePenaltyIndicators();
+                    showCardEffect('達成率減少発動！', '最終達成率から10%減少します', '#ef4444');
+                    break;
+            }
+            
+            // データを保存
+            const data = loadData();
+            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (index !== -1) {
+                data.currentHypotheses[index] = window.currentHypothesis;
+                saveData(data);
+            }
+            
+            showNotification(`⚠️ ${card.name}の効果を適用しました`, 'error');
+        }
+        
+        // デバッグ：全カードをクリア
+        function debugClearAllCards() {
+            if (!confirm('全てのカードと効果をクリアします。よろしいですか？')) {
+                return;
+            }
+            
+            const data = loadData();
+            
+            // カードインベントリをクリア
+            data.cards.inventory = [];
+            data.cards.pendingPenalties = [];
+            data.cards.activeEffects = [];
+            
+            // 現在の仮説のペナルティ効果をクリア
+            if (window.currentHypothesis) {
+                window.currentHypothesis.hardMode = false;
+                window.currentHypothesis.resetRisk = false;
+                window.currentHypothesis.achievementDecrease = 0;
+                
+                const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+                if (index !== -1) {
+                    data.currentHypotheses[index] = window.currentHypothesis;
+                }
+            }
+            
+            saveData(data);
+            
+            // UIを更新
+            updateCardUseButton();
+            updatePerfectBonusIndicator();
+            updatePenaltyIndicators();
+            
+            showNotification('🗑️ 全てのカードと効果をクリアしました', 'info');
+        }
+        
         // 通知を表示
         function showNotification(message, type = 'info') {
             const notification = document.createElement('div');
