@@ -1972,13 +1972,16 @@
                 // ペナルティ効果を記録
                 hardMode: window.hardModeActive || false,
                 resetRisk: window.resetRiskActive || false,
-                achievementDecrease: window.achievementDecrease || 0
+                achievementDecrease: window.achievementDecrease || 0,
+                shortTermOnly: window.shortTermOnly || false
             };
             
             // ペナルティ効果をリセット（一度使用したら消える）
             window.hardModeActive = false;
             window.resetRiskActive = false;
             window.achievementDecrease = 0;
+            // shortTermOnly は現仮説に引き継いだためリセット
+            window.shortTermOnly = false;
             
             // ペナルティカードのチェック
             const data = loadData();
@@ -2109,7 +2112,15 @@
                 long: { min: 15, max: 30 }
             };
             
-            const range = durationRanges[currentHypothesis.duration];
+            // 短期集中ペナルティ適用時は短期レンジを3-5にする
+            let range = durationRanges[currentHypothesis.duration];
+            if (currentHypothesis.duration === 'short') {
+                if (currentHypothesis.shortTermOnly) {
+                    range = { min: 3, max: 5 };
+                } else {
+                    range = { min: 3, max: 7 };
+                }
+            }
             let shuffleCount = 0;
             const maxShuffles = 20;
             
@@ -2512,6 +2523,14 @@
                 showNotification('⚠️ すでに達成済みの日です', 'error');
                 return;
             }
+            // 未来日は不可
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const target = new Date(dateKey);
+            if (target > today) {
+                showNotification('⚠️ 未来日はスキップできません', 'error');
+                return;
+            }
             
             // スキップチケットを消費
             const data = loadData();
@@ -2627,10 +2646,14 @@
                 } else {
                     dayCell.classList.add('not-achieved');
                     if (window.skipTicketMode) {
-                        // スキップモードでは未来の日付もクリック可能
-                        dayCell.style.cursor = 'pointer';
-                        dayCell.style.border = '2px dashed var(--primary)';
-                        dayCell.onclick = () => applySkipTicket(dateKey, dayCell);
+                        // スキップモードでも過去と今日のみ選択可能
+                        if (cellDate <= today) {
+                            dayCell.style.cursor = 'pointer';
+                            dayCell.style.border = '2px dashed var(--primary)';
+                            dayCell.onclick = () => applySkipTicket(dateKey, dayCell);
+                        } else {
+                            dayCell.classList.add('future');
+                        }
                     } else {
                         dayCell.onclick = () => toggleDayStatus(dateKey, dayCell);
                     }
@@ -2828,7 +2851,7 @@
                     hasActiveEffects = true;
                     const effectElement = document.createElement('div');
                     effectElement.style.cssText = 'background: rgba(16, 185, 129, 0.2); color: #10b981; padding: 4px 12px; border-radius: 16px; font-size: 12px; border: 1px solid #10b981;';
-                    effectElement.textContent = '🚀 達成ブースター (+10%)';
+                    effectElement.textContent = '🚀 達成ブースター (+15%)';
                     activeEffectsList.appendChild(effectElement);
                 }
             }
@@ -2903,11 +2926,11 @@
                     );
                 }
                 
-                // 達成ブースターの効果を適用（10%ボーナス）
+                // 達成ブースターの効果を適用（15%ボーナス）
                 if (hasAchievementBooster) {
-                    finalRate = Math.min(100, finalRate + 10);
+                    finalRate = Math.min(100, finalRate + 15);
                     // エフェクトを表示
-                    showCardEffect('達成ブースター発動！', '最終達成率に+10%のボーナス！', '#10b981');
+                    showCardEffect('達成ブースター発動！', '最終達成率に+15%のボーナス！', '#10b981');
                     
                     // 達成ブースターを消費
                     data.cards.activeEffects = data.cards.activeEffects.filter(effect =>
@@ -3167,16 +3190,16 @@
             }
             
             if (achievementRate === 100) {
-                // 100%達成: 報酬カード1枚（レアリティ高め）
+                // 100%達成: レア以上50%（例: L15%, R35%, C50%）
                 const rand = Math.random();
-                if (rand < 0.1) {
-                    // 10%の確率でレジェンダリー
+                if (rand < 0.15) {
+                    // 15% レジェンダリー
                     cards.push('perfect_bonus');
-                } else if (rand < 0.4) {
-                    // 30%の確率でレア
+                } else if (rand < 0.50) {
+                    // 35% レア
                     cards.push('achievement_boost');
                 } else {
-                    // 60%の確率でコモン
+                    // 50% コモン
                     cards.push('skip_ticket');
                 }
                 
@@ -4033,16 +4056,18 @@
             data.cards.inventory[cardIndex].used = true;
             data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
             
-            // 現在の仮説に達成率ボーナスを追加
-            if (!window.currentHypothesis.achievementBonus) {
-                window.currentHypothesis.achievementBonus = 0;
-            }
-            window.currentHypothesis.achievementBonus += 15;
+            // アクティブエフェクトに追加（この仮説に紐づく）
+            if (!data.cards.activeEffects) data.cards.activeEffects = [];
+            data.cards.activeEffects.push({
+                cardId: 'achievement_booster',
+                activatedDate: new Date().toISOString(),
+                targetHypothesisId: window.currentHypothesis.id
+            });
             
             // データを保存
             const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
             if (index !== -1) {
-                data.currentHypotheses[index] = window.currentHypothesis;
+                // 仮説本体の変更は不要
             }
             
             saveData(data);
