@@ -2629,8 +2629,87 @@
 
         // 完了オプションを表示
         function showCompletionOptions() {
-            document.getElementById('completion-report-section').style.display = 'none';
-            document.getElementById('completion-options').style.display = 'block';
+            // カード獲得処理を先に実行
+            const data = loadData();
+            const hypothesis = window.currentHypothesis;
+            
+            if (!hypothesis.cardsAcquired) {
+                // 最終的な達成率を計算
+                const achievedDays = Object.keys(hypothesis.achievements || {}).length;
+                let finalRate = Math.round((achievedDays / hypothesis.totalDays) * 100);
+                
+                // 達成率減少ペナルティの適用
+                if (hypothesis.achievementDecrease) {
+                    finalRate = Math.max(0, finalRate - hypothesis.achievementDecrease);
+                    // エフェクトを表示
+                    showCardEffect('達成率減少発動！', `最終達成率から${hypothesis.achievementDecrease}%減少しました`, '#ef4444');
+                }
+                
+                hypothesis.finalAchievementRate = finalRate;
+                
+                // カード獲得処理
+                const acquiredCards = getCardsBasedOnAchievement(finalRate, hypothesis);
+                if (acquiredCards.length > 0) {
+                    acquiredCards.forEach(cardId => {
+                        const card = CARD_MASTER[cardId];
+                        if (card) {
+                            if (card.type === 'reward') {
+                                data.cards.inventory.push({
+                                    cardId: cardId,
+                                    acquiredDate: new Date().toISOString(),
+                                    used: false
+                                });
+                            } else if (card.type === 'penalty') {
+                                data.cards.pendingPenalties.push({
+                                    cardId: cardId,
+                                    acquiredDate: new Date().toISOString()
+                                });
+                            }
+                        }
+                    });
+                    
+                    // カード獲得フラグを設定
+                    hypothesis.cardsAcquired = true;
+                    window.currentHypothesis.cardsAcquired = true;
+                    
+                    // 現在の仮説を更新（カード獲得フラグを保存）
+                    const index = data.currentHypotheses.findIndex(h => h.id === hypothesis.id);
+                    if (index !== -1) {
+                        data.currentHypotheses[index].cardsAcquired = true;
+                        data.currentHypotheses[index].finalAchievementRate = finalRate;
+                    }
+                    
+                    saveData(data);
+                    
+                    // カード獲得演出を表示
+                    showCardAcquisition(acquiredCards, () => {
+                        // カード獲得演出後に完了オプションを表示
+                        document.getElementById('completion-report-section').style.display = 'none';
+                        document.getElementById('completion-options').style.display = 'block';
+                    });
+                } else {
+                    // カードなしでもフラグは設定
+                    hypothesis.cardsAcquired = true;
+                    window.currentHypothesis.cardsAcquired = true;
+                    
+                    // 現在の仮説を更新
+                    const index = data.currentHypotheses.findIndex(h => h.id === hypothesis.id);
+                    if (index !== -1) {
+                        data.currentHypotheses[index].cardsAcquired = true;
+                        data.currentHypotheses[index].finalAchievementRate = finalRate;
+                    }
+                    
+                    saveData(data);
+                    
+                    // カードなしの場合はそのまま完了オプションを表示
+                    document.getElementById('completion-report-section').style.display = 'none';
+                    document.getElementById('completion-options').style.display = 'block';
+                }
+            } else {
+                // すでにカードを獲得している場合はそのまま完了オプションを表示
+                document.getElementById('completion-report-section').style.display = 'none';
+                document.getElementById('completion-options').style.display = 'block';
+            }
         }
 
         // 現在の仮説リストを更新
@@ -2731,67 +2810,17 @@
                 const hypothesis = data.currentHypotheses[index];
                 hypothesis.completedDate = new Date().toISOString();
                 
-                // 最終的な達成率を計算
-                const achievedDays = Object.keys(hypothesis.achievements || {}).length;
-                let finalRate = Math.round((achievedDays / hypothesis.totalDays) * 100);
-                
-                // 達成率減少ペナルティの適用
-                if (hypothesis.achievementDecrease) {
-                    finalRate = Math.max(0, finalRate - hypothesis.achievementDecrease);
-                    // エフェクトを表示
-                    showCardEffect('達成率減少発動！', `最終達成率から${hypothesis.achievementDecrease}%減少しました`, '#ef4444');
-                }
-                
-                hypothesis.finalAchievementRate = finalRate;
-                
-                // カード獲得処理（まだ獲得していない場合）
-                if (!hypothesis.cardsAcquired) {
-                    const acquiredCards = getCardsBasedOnAchievement(finalRate, hypothesis);
-                    if (acquiredCards.length > 0) {
-                        acquiredCards.forEach(cardId => {
-                            const card = CARD_MASTER[cardId];
-                            if (card) {
-                                if (card.type === 'reward') {
-                                    data.cards.inventory.push({
-                                        cardId: cardId,
-                                        acquiredDate: new Date().toISOString(),
-                                        used: false
-                                    });
-                                } else if (card.type === 'penalty') {
-                                    data.cards.pendingPenalties.push({
-                                        cardId: cardId,
-                                        acquiredDate: new Date().toISOString()
-                                    });
-                                }
-                            }
-                        });
-                        
-                        // カード獲得フラグを設定
-                        hypothesis.cardsAcquired = true;
-                        
-                        // カード獲得演出を表示
-                        showCardAcquisition(acquiredCards, () => {
-                            // カード獲得演出後の処理
-                            if (showHome) {
-                                alert('✅ 仮説の検証が完了しました！');
-                                showHomeView();
-                            }
-                        });
-                    } else {
-                        // カードなしでもフラグは設定
-                        hypothesis.cardsAcquired = true;
-                        
-                        if (showHome) {
-                            showNotification('✅ 仮説の検証が完了しました！', 'success');
-                            showHomeView();
-                        }
+                // finalAchievementRateが設定されていない場合のみ計算（通常はshowCompletionOptionsで設定済み）
+                if (!hypothesis.finalAchievementRate && hypothesis.finalAchievementRate !== 0) {
+                    const achievedDays = Object.keys(hypothesis.achievements || {}).length;
+                    let finalRate = Math.round((achievedDays / hypothesis.totalDays) * 100);
+                    
+                    // 達成率減少ペナルティの適用
+                    if (hypothesis.achievementDecrease) {
+                        finalRate = Math.max(0, finalRate - hypothesis.achievementDecrease);
                     }
-                } else {
-                    // すでにカードを獲得している場合
-                    if (showHome) {
-                        showNotification('✅ 仮説の検証が完了しました！', 'success');
-                        showHomeView();
-                    }
+                    
+                    hypothesis.finalAchievementRate = finalRate;
                 }
                 
                 // 完了リストに追加
@@ -2801,6 +2830,11 @@
                 data.currentHypotheses.splice(index, 1);
                 
                 saveData(data);
+                
+                if (showHome) {
+                    showNotification('✅ 仮説の検証が完了しました！', 'success');
+                    showHomeView();
+                }
             }
         }
 
