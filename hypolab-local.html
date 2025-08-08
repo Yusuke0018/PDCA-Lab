@@ -2295,6 +2295,9 @@
             // 朝の1行宣言/IF-THEN
             renderAffirmationAndBenefit();
             renderIfThenPanel();
+
+            // 朝だけ自動でバナー（/モーダル）を展開
+            maybeAutoAffirmationPrompt();
         }
 
         // カード使用ボタンの更新
@@ -3148,6 +3151,60 @@
             if (idx !== -1) data.currentHypotheses[idx] = window.currentHypothesis;
             saveData(data);
             renderAffirmationAndBenefit();
+        }
+
+        // 朝だけ自動でバナー展開/モーダル提示
+        function maybeAutoAffirmationPrompt() {
+            if (!window.currentHypothesis) return;
+            const now = new Date();
+            const hour = now.getHours();
+            // 朝判定（5:00〜12:00）
+            const isMorning = hour >= 5 && hour < 12;
+            const todayKey = now.toISOString().split('T')[0];
+            const hyp = window.currentHypothesis;
+            const alreadyAffirmed = hyp.declarations && hyp.declarations[todayKey];
+            if (!isMorning || alreadyAffirmed) return;
+
+            const data = loadData();
+            data.meta = data.meta || {};
+            data.meta.affirmPrompt = data.meta.affirmPrompt || {};
+            const key = hyp.id + ':' + todayKey;
+            if (data.meta.affirmPrompt[key]) return; // 今日の催促は済み
+
+            // モーダルで強調表示
+            showMorningAffirmationModal(() => {
+                data.meta.affirmPrompt[key] = true;
+                saveData(data);
+            });
+        }
+
+        function showMorningAffirmationModal(onClose) {
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay active';
+            overlay.style.backdropFilter = 'blur(6px)';
+            const modal = document.createElement('div');
+            modal.className = 'skip-modal active';
+            modal.style.maxWidth = '520px';
+            modal.style.padding = '20px';
+            const benefitText = escapeHTML(window.currentHypothesis?.benefit || '（未設定）');
+            modal.innerHTML = `
+                <div class="modal-header">
+                    <h3>🗣️ 朝の1行宣言</h3>
+                    <p>この仮説を実証することで <strong>${benefitText}</strong> となる</p>
+                </div>
+                <div class="modal-footer" style="display:flex;gap:8px;">
+                    <button class="button secondary" id="affirm-later">後で</button>
+                    <button class="button primary" id="affirm-now">今すぐ宣言する</button>
+                </div>
+            `;
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            const close = () => { overlay.remove(); onClose && onClose(); };
+            document.getElementById('affirm-later').onclick = close;
+            document.getElementById('affirm-now').onclick = () => {
+                affirmToday();
+                close();
+            };
         }
 
         function renderIfThenPanel() {
