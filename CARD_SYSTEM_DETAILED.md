@@ -9,6 +9,7 @@
 ### カード取得条件
 仮説の検証期間終了時、達成率に応じてカードを獲得：
 - **100%達成**: 報酬カード1枚確定（レア以上50%）
+  - 現行実装の分布: レジェンダリー15% / レア35% / コモン50%
 - **80-99%達成**: 報酬カード1枚（レア20%、コモン80%）
 - **60-79%達成**: カード獲得なし
 - **0-59%達成**: ペナルティカード1枚
@@ -77,8 +78,8 @@
 ```
 
 **使用フロー**:
-1. カレンダーで未達成の日をタップ
-2. 「スキップチケットを使用」オプションが表示
+1. 進捗画面の「カードを使用」でスキップチケットを選択（スキップモードに切替）
+2. カレンダーで未達成の日をタップ
 3. 使用すると、その日が達成済みに変化
 4. 過去の日と今日のみ選択可能（未来は不可）
 
@@ -88,7 +89,7 @@
   "id": "reward_perfect_bonus",
   "type": "reward",
   "name": "パーフェクトボーナス",
-  "description": "次の仮説で100%達成時、報酬カードを2枚獲得",
+  "description": "次の仮説で100%達成時、報酬カードを通常1枚に加えて+1枚（合計2枚）",
   "rarity": "legendary",
   "effect": {
     "type": "next_perfect_reward",
@@ -111,12 +112,36 @@
 **使用フロー**:
 1. ホーム画面または新規仮説作成前に使用
 2. 次の仮説に「パーフェクトボーナス適用中」バッジが表示
-3. 100%達成時に通常の1枚に加えて追加で1枚獲得
+3. 100%達成時に通常の1枚に加えて追加で1枚獲得（合計2枚）
+
+#### 4. 🚀 達成率ブースター（Achievement Booster）
+```json
+{
+  "id": "reward_achievement_booster",
+  "type": "reward",
+  "name": "達成率ブースター",
+  "description": "最終達成率に+15%のボーナス",
+  "rarity": "common",
+  "effect": {
+    "type": "achievement_rate_bonus",
+    "value": 15,
+    "target": "current_hypothesis"
+  },
+  "constraints": {
+    "usable_when": "hypothesis_in_progress",
+    "stacks": false
+  },
+  "ui": {
+    "icon": "📈",
+    "color": "#3b82f6"
+  }
+}
+```
 4. 100%未達成の場合は効果消失
 
 ### ペナルティカード
 
-#### 4. ⏰ 延長カード（Extension Card）
+#### 5. ⏰ 延長カード（Extension Card）
 ```json
 {
   "id": "penalty_extension",
@@ -148,7 +173,7 @@
 3. シャッフル結果に自動的に3日追加
 4. カードは自動消費される
 
-#### 5. 🔒 ロックカード（Lock Card）
+#### 6. 🔒 ロックカード（Lock Card）
 ```json
 {
   "id": "penalty_minimum_lock",
@@ -179,6 +204,54 @@
 2. 「短期間」オプションがグレーアウト
 3. シャッフル範囲が7日以上に固定
 4. 警告メッセージ表示
+
+#### 7. 🌀 混乱の渦（Chaos Vortex）
+```json
+{
+  "id": "penalty_chaos_vortex",
+  "type": "penalty",
+  "name": "混乱の渦",
+  "description": "達成/未達成がランダムで3日分入れ替わる",
+  "rarity": "rare",
+  "effect": {
+    "type": "flip_random_days",
+    "value": 3,
+    "target": "current_hypothesis"
+  },
+  "constraints": {
+    "auto_apply": true,
+    "apply_when": "hypothesis_in_progress"
+  },
+  "ui": {
+    "icon": "🌀",
+    "color": "#dc2626"
+  }
+}
+```
+
+#### 8. ⚠️ ダブルオアナッシング（Double or Nothing）
+```json
+{
+  "id": "penalty_double_or_nothing",
+  "type": "penalty",
+  "name": "ダブルオアナッシング",
+  "description": "次の仮説で100%未達成ならペナルティカード2枚",
+  "rarity": "rare",
+  "effect": {
+    "type": "next_fail_penalty",
+    "value": 2,
+    "target": "next_hypothesis_completion"
+  },
+  "constraints": {
+    "auto_apply": true,
+    "apply_when": "hypothesis_completion"
+  },
+  "ui": {
+    "icon": "⚠️",
+    "color": "#dc2626"
+  }
+}
+```
 
 ## データ構造
 
