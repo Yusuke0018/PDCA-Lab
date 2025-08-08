@@ -3050,28 +3050,76 @@
         }
 
         function renderAffirmationAndBenefit() {
-            const panel = document.getElementById('affirmation-panel');
-            if (!panel || !window.currentHypothesis) return;
+            if (!window.currentHypothesis) return;
             const hyp = window.currentHypothesis;
             const todayKey = new Date().toISOString().split('T')[0];
             const affirmed = hyp.declarations && hyp.declarations[todayKey];
             const benefitText = escapeHTML(hyp.benefit || '（未設定）');
-            panel.innerHTML = `
-                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px;">
-                    <div style="flex:1;">
-                        <div style="font-weight:700;">🗣️ 朝の1行宣言</div>
-                        <div style="color: var(--text-secondary);">この仮説を実証することで <span style="color: var(--text-primary); font-weight:700;">${benefitText}</span> となる</div>
+
+            // Sticky 上部バナー（スマホで見やすい）
+            const progressView = document.getElementById('progress-view');
+            let banner = document.getElementById('affirmation-banner');
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.id = 'affirmation-banner';
+                progressView.insertBefore(banner, progressView.firstChild);
+            }
+            banner.style.cssText = [
+                'position: sticky',
+                'top: 0',
+                'z-index: 200',
+                'margin: -8px -8px 12px -8px',
+                'padding: 16px',
+                affirmed
+                  ? 'background: linear-gradient(135deg,#10b981 0%,#059669 100%)'
+                  : 'background: linear-gradient(135deg,#10b981 0%,#3b82f6 100%)',
+                'color:#fff',
+                'border-radius: 0 0 16px 16px',
+                'box-shadow: 0 6px 20px rgba(0,0,0,0.25)'
+            ].join(';');
+
+            if (!affirmed) {
+                banner.innerHTML = `
+                    <div style="display:flex;flex-direction:column;gap:10px;">
+                        <div style="font-size:14px;opacity:0.95;">🗣️ 今日の宣言</div>
+                        <div style="font-size:18px;line-height:1.35;font-weight:800;">この仮説を実証することで<br><span style=\"text-decoration:underline\">${benefitText}</span> となる</div>
+                        <button id="affirm-btn" class="btn" style="width:100%;padding:14px 16px;background:rgba(255,255,255,0.15);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,0.35);">
+                            ✅ 今日の宣言を記録する
+                        </button>
                     </div>
-                    <div>
-                        ${affirmed ? `<span style="color:#10b981;font-weight:700;">宣言済み</span>` : `<button class="btn" id="affirm-btn">宣言する</button>`}
-                        <button class="btn btn-secondary" id="edit-benefit-btn" style="margin-left:8px;">編集</button>
+                `;
+            } else {
+                banner.innerHTML = `
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                        <div style="font-weight:800;">✅ 今日の宣言 済み</div>
+                        <div style="font-size:12px;opacity:0.9;">${new Date().toLocaleDateString('ja-JP')}</div>
                     </div>
-                </div>
-            `;
+                `;
+            }
+
             const btn = document.getElementById('affirm-btn');
-            if (btn) btn.onclick = affirmToday;
-            const edit = document.getElementById('edit-benefit-btn');
-            if (edit) edit.onclick = editBenefit;
+            if (btn) btn.onclick = () => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                setTimeout(affirmToday, 120);
+            };
+
+            // カード内ミニパネル（編集用）
+            const panel = document.getElementById('affirmation-panel');
+            if (panel) {
+                panel.innerHTML = `
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px;">
+                        <div style="flex:1;">
+                            <div style="font-weight:700;color:var(--text-secondary);">朝の1行宣言</div>
+                            <div style="color: var(--text-secondary);">この仮説を実証することで <span style=\"color: var(--text-primary); font-weight:700;\">${benefitText}</span> となる</div>
+                        </div>
+                        <div>
+                            <button class="btn btn-secondary" id="edit-benefit-btn">編集</button>
+                        </div>
+                    </div>
+                `;
+                const edit = document.getElementById('edit-benefit-btn');
+                if (edit) edit.onclick = editBenefit;
+            }
         }
 
         function affirmToday() {
