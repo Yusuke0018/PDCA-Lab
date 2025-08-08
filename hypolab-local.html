@@ -1702,7 +1702,8 @@
                     cards: {
                         inventory: [],
                         pendingPenalties: []
-                    }
+                    },
+                    meta: {}
                 };
             }
             const parsed = JSON.parse(data);
@@ -1718,6 +1719,9 @@
             }
             if (!parsed.currentHypotheses) {
                 parsed.currentHypotheses = [];
+            }
+            if (!parsed.meta) {
+                parsed.meta = {};
             }
             return parsed;
         }
@@ -1768,6 +1772,25 @@
             updateCurrentHypothesisList();
             updatePerfectBonusIndicator();
             updatePenaltyIndicators();
+
+            // 前回デブリーフのミニバナー
+            const data = loadData();
+            const home = document.getElementById('home-view');
+            let banner = document.getElementById('last-debrief-banner');
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.id = 'last-debrief-banner';
+                banner.style.cssText = 'margin:12px 0;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text-secondary);';
+                home.insertBefore(banner, home.firstChild);
+            }
+            if (data.meta && data.meta.lastDebrief) {
+                const d = data.meta.lastDebrief;
+                const dt = new Date(d.at).toLocaleDateString('ja-JP');
+                banner.innerHTML = `📝 前回の気づき（${dt} / 満足度${d.score}/5）: <span style=\"color:var(--text-primary)\">${(d.note||'').replace(/</g,'&lt;')}</span>`;
+                banner.style.display = 'block';
+            } else {
+                banner.style.display = 'none';
+            }
         }
         
         // ペナルティインジケーターを更新
@@ -2199,6 +2222,9 @@
             
             // ペナルティインジケーターを更新
             updatePenaltyIndicators();
+
+            // ストリークとデイリークエストUIを更新
+            renderStreakAndQuest();
         }
 
         // カード使用ボタンの更新
@@ -2817,7 +2843,17 @@
             const achievementRate = daysPassed > 0 ? Math.round((achievedDays / daysPassed) * 100) : 0;
             
             // 進捗バーを更新
-            document.getElementById('achievement-rate').textContent = achievementRate + '%';
+            // デイリークエストの見た目ボーナス
+            let displayRate = achievementRate;
+            const q = window.currentHypothesis.dailyQuest;
+            const todayKey = new Date().toISOString().split('T')[0];
+            const hasQuestBonus = q && q.date === todayKey && q.completed;
+            if (hasQuestBonus) displayRate = Math.min(100, displayRate + 1);
+            const rateEl = document.getElementById('achievement-rate');
+            rateEl.textContent = displayRate + '%';
+            if (hasQuestBonus) {
+                rateEl.textContent += ' (+1%)';
+            }
             document.getElementById('progress-fill').style.width = achievementRate + '%';
             document.getElementById('achieved-days').textContent = `達成: ${achievedDays}日`;
             document.getElementById('remaining-days').textContent = `残り: ${window.currentHypothesis.totalDays - daysPassed}日`;
@@ -2904,6 +2940,104 @@
                 document.getElementById('completion-report-section').style.display = 'none';
                 document.getElementById('completion-options').style.display = 'none';
             }
+
+            // 進捗画面にストリーク表示を反映
+            const streak = computeStreak(window.currentHypothesis);
+            let streakEl = document.getElementById('streak-indicator');
+            if (!streakEl) {
+                streakEl = document.createElement('div');
+                streakEl.id = 'streak-indicator';
+                streakEl.style.cssText = 'margin-top:8px;color:#f59e0b;font-weight:700;';
+                const stats = document.querySelector('#progress-view .stats');
+                const container = stats || document.getElementById('progress-view');
+                container.appendChild(streakEl);
+            }
+            streakEl.textContent = `🔥 ストリーク: ${streak}日`;
+        }
+
+        // ストリーク（日次連続達成）を計算
+        function computeStreak(hyp) {
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            const start = new Date(hyp.startDate);
+            start.setHours(0,0,0,0);
+            let streak = 0;
+            const achievements = hyp.achievements || {};
+            for (let d = new Date(today); d >= start; d.setDate(d.getDate()-1)) {
+                const key = d.toISOString().split('T')[0];
+                if (achievements[key]) {
+                    streak += 1;
+                } else {
+                    // 今日より未来はスキップ、未達で打ち切り
+                    if (d > today) continue;
+                    break;
+                }
+            }
+            return streak;
+        }
+
+        // デイリークエストの取得/生成
+        function getOrCreateDailyQuest(hyp) {
+            const todayKey = new Date().toISOString().split('T')[0];
+            if (!hyp.dailyQuest || hyp.dailyQuest.date !== todayKey) {
+                const candidates = [
+                    '1分だけ準備する',
+                    '開始の障壁を1つ減らす',
+                    '今日の一言目標を書く',
+                    '開始BGMを流す',
+                    'タイマーをセットする'
+                ];
+                const text = candidates[Math.floor(Math.random()*candidates.length)];
+                hyp.dailyQuest = { date: todayKey, text, completed: false };
+                const data = loadData();
+                const idx = data.currentHypotheses.findIndex(h => h.id === hyp.id);
+                if (idx !== -1) { data.currentHypotheses[idx] = hyp; saveData(data); }
+            }
+            return hyp.dailyQuest;
+        }
+
+        // 進捗画面にストリークとデイリークエストを描画
+        function renderStreakAndQuest() {
+            if (!window.currentHypothesis) return;
+            const quest = getOrCreateDailyQuest(window.currentHypothesis);
+            let panel = document.getElementById('quest-panel');
+            if (!panel) {
+                panel = document.createElement('div');
+                panel.id = 'quest-panel';
+                panel.style.cssText = 'margin-top:12px;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--surface);';
+                const parent = document.getElementById('progress-view');
+                parent.appendChild(panel);
+            }
+            panel.innerHTML = `
+                <div style="display:flex;align-items:center;gap:12px;justify-content:space-between;">
+                    <div>
+                        <div style="font-weight:700;">🎯 デイリークエスト</div>
+                        <div style="color: var(--text-secondary);">${quest.text}</div>
+                    </div>
+                    <div>
+                        ${quest.completed ? '<span style="color:#10b981;font-weight:700;">達成済み</span>' : '<button id="complete-quest-btn" class="btn" style="padding:8px 12px;">完了</button>'}
+                    </div>
+                </div>
+                <div style="margin-top:8px;color:#94a3b8;font-size:12px;">完了で小さなエフェクトと+1%の見た目ボーナス</div>
+            `;
+            if (!quest.completed) {
+                const btn = document.getElementById('complete-quest-btn');
+                if (btn) btn.onclick = completeDailyQuest;
+            }
+        }
+
+        function completeDailyQuest() {
+            if (!window.currentHypothesis) return;
+            const quest = getOrCreateDailyQuest(window.currentHypothesis);
+            if (quest.completed) return;
+            quest.completed = true;
+            const data = loadData();
+            const idx = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (idx !== -1) { data.currentHypotheses[idx] = window.currentHypothesis; }
+            saveData(data);
+            if (navigator.vibrate) { navigator.vibrate([20, 60, 20]); }
+            showCardEffect('🎯 デイリークエスト達成！', '+1%ボーナス（表示のみ）', '#3b82f6');
+            renderStreakAndQuest();
         }
 
         // 完了オプションを表示
@@ -2984,9 +3118,8 @@
                     
                     // カード獲得演出を表示
                     showCardAcquisition(acquiredCards, () => {
-                        // カード獲得演出後に完了オプションを表示
-                        document.getElementById('completion-report-section').style.display = 'none';
-                        document.getElementById('completion-options').style.display = 'block';
+                        // カード獲得演出後にデブリーフ→完了オプション
+                        requestDebriefThenShowOptions();
                     });
                 } else {
                     // カードなしでもフラグは設定
@@ -3002,15 +3135,69 @@
                     
                     saveData(data);
                     
-                    // カードなしの場合はそのまま完了オプションを表示
-                    document.getElementById('completion-report-section').style.display = 'none';
-                    document.getElementById('completion-options').style.display = 'block';
+                    // カードなしの場合もデブリーフ→完了オプション
+                    requestDebriefThenShowOptions();
                 }
             } else {
                 // すでにカードを獲得している場合はそのまま完了オプションを表示
+                requestDebriefThenShowOptions();
+            }
+        }
+
+        // デブリーフを促してから完了オプションを表示
+        function requestDebriefThenShowOptions() {
+            const showOptions = () => {
                 document.getElementById('completion-report-section').style.display = 'none';
                 document.getElementById('completion-options').style.display = 'block';
+            };
+            if (!window.currentHypothesis.debrief) {
+                showDebriefModal(() => showOptions());
+            } else {
+                showOptions();
             }
+        }
+
+        // デブリーフ（満足度/一言）モーダル
+        function showDebriefModal(onDone) {
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay active';
+            const modal = document.createElement('div');
+            modal.className = 'skip-modal active';
+            modal.innerHTML = `
+                <div class="modal-header">
+                    <h3>📝 振り返り（30秒）</h3>
+                    <p>今回の検証を5段階で評価し、一言メモを残しましょう</p>
+                </div>
+                <div class="form-group" style="margin:12px 0;">
+                    <label>満足度（1-5）</label>
+                    <input id="debrief-score" type="number" min="1" max="5" value="4" style="width:80px;" />
+                </div>
+                <div class="form-group" style="margin:12px 0;">
+                    <label>一言メモ</label>
+                    <input id="debrief-note" type="text" placeholder="例: 朝イチがやりやすかった" />
+                </div>
+                <div class="modal-footer">
+                    <button class="button secondary" onclick="this.closest('.overlay').remove()">スキップ</button>
+                    <button id="debrief-save" class="button primary">保存して続行</button>
+                </div>
+            `;
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            document.getElementById('debrief-save').onclick = () => {
+                const score = Math.min(5, Math.max(1, parseInt(document.getElementById('debrief-score').value || '3', 10)));
+                const note = (document.getElementById('debrief-note').value || '').slice(0, 140);
+                const data = loadData();
+                const idx = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+                const payload = { score, note, at: new Date().toISOString() };
+                if (idx !== -1) {
+                    data.currentHypotheses[idx].debrief = payload;
+                }
+                if (!data.meta) data.meta = {};
+                data.meta.lastDebrief = payload;
+                saveData(data);
+                overlay.remove();
+                onDone && onDone();
+            };
         }
 
         // 現在の仮説リストを更新
