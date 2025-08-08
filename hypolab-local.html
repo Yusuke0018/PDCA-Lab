@@ -2867,6 +2867,9 @@
             } else {
                 progressFill.style.background = 'var(--gradient-3)';
             }
+
+            // サプライズ演出（7/14/21日目）
+            triggerSurpriseIfNeeded(window.currentHypothesis, daysPassed);
             
             // アクティブな効果を表示
             const data = loadData();
@@ -2888,6 +2891,21 @@
                     const effectElement = document.createElement('div');
                     effectElement.style.cssText = 'background: rgba(16, 185, 129, 0.2); color: #10b981; padding: 4px 12px; border-radius: 16px; font-size: 12px; border: 1px solid #10b981;';
                     effectElement.textContent = '🚀 達成ブースター (+15%)';
+                    activeEffectsList.appendChild(effectElement);
+                }
+            }
+
+            // サプライズブーストの表示
+            if (data.cards && data.cards.activeEffects) {
+                const surprise = data.cards.activeEffects.find(effect => 
+                    effect.cardId === 'surprise_boost' && 
+                    (!effect.targetHypothesisId || effect.targetHypothesisId === window.currentHypothesis.id)
+                );
+                if (surprise) {
+                    hasActiveEffects = true;
+                    const effectElement = document.createElement('div');
+                    effectElement.style.cssText = 'background: rgba(59, 130, 246, 0.2); color: #3b82f6; padding: 4px 12px; border-radius: 16px; font-size: 12px; border: 1px solid #3b82f6;';
+                    effectElement.textContent = '🎁 サプライズブースト（次の結果でレア率UP）';
                     activeEffectsList.appendChild(effectElement);
                 }
             }
@@ -3375,19 +3393,33 @@
                     effect.cardId === 'perfect_bonus' && !effect.targetHypothesisId
                 );
             }
+            // サプライズブーストが有効かチェック
+            let hasSurpriseBoost = false;
+            if (data.cards && data.cards.activeEffects) {
+                hasSurpriseBoost = data.cards.activeEffects.some(effect => 
+                    effect.cardId === 'surprise_boost' && (!effect.targetHypothesisId || effect.targetHypothesisId === hypothesis.id)
+                );
+            }
             
             if (achievementRate === 100) {
-                // 100%達成: レア以上50%（例: L15%, R35%, C50%）
+                // 100%達成: 基本 L15/R35/C50、サプライズ時 L25/R45/C30
                 const rand = Math.random();
-                if (rand < 0.15) {
-                    // 15% レジェンダリー
-                    cards.push('perfect_bonus');
-                } else if (rand < 0.50) {
-                    // 35% レア
-                    cards.push('achievement_boost');
+                if (hasSurpriseBoost) {
+                    if (rand < 0.25) {
+                        cards.push('perfect_bonus');
+                    } else if (rand < 0.70) {
+                        cards.push('achievement_boost');
+                    } else {
+                        cards.push('skip_ticket');
+                    }
                 } else {
-                    // 50% コモン
-                    cards.push('skip_ticket');
+                    if (rand < 0.15) {
+                        cards.push('perfect_bonus');
+                    } else if (rand < 0.50) {
+                        cards.push('achievement_boost');
+                    } else {
+                        cards.push('skip_ticket');
+                    }
                 }
                 
                 // パーフェクトボーナスが有効な場合、追加で1枚獲得
@@ -3413,14 +3445,20 @@
                     }, 1000);
                 }
             } else if (achievementRate >= 80) {
-                // 80-99%達成: 報酬カード1枚（コモンまたはレア）
+                // 80-99%達成: 基本 R20/C80、サプライズ時 R35/C65
                 const rand = Math.random();
-                if (rand < 0.2) {
-                    // 20%の確率でレア
-                    cards.push('achievement_boost');
+                if (hasSurpriseBoost) {
+                    if (rand < 0.35) {
+                        cards.push('achievement_boost');
+                    } else {
+                        cards.push('skip_ticket');
+                    }
                 } else {
-                    // 80%の確率でコモン
-                    cards.push('skip_ticket');
+                    if (rand < 0.2) {
+                        cards.push('achievement_boost');
+                    } else {
+                        cards.push('skip_ticket');
+                    }
                 }
             } else if (achievementRate < 60) {
                 // 59%以下: ペナルティカード1枚
@@ -3437,8 +3475,43 @@
                 }
             }
             // 60-79%は何も獲得しない
+            // サプライズブーストは結果確定時に消費
+            if (hasSurpriseBoost && data.cards && data.cards.activeEffects) {
+                data.cards.activeEffects = data.cards.activeEffects.filter(effect =>
+                    !(effect.cardId === 'surprise_boost' && (!effect.targetHypothesisId || effect.targetHypothesisId === hypothesis.id))
+                );
+                saveData(data);
+                setTimeout(() => {
+                    showCardEffect('🎁 サプライズブースト消費', '今回の抽選でレア率が上がりました', '#3b82f6');
+                }, 500);
+            }
             
             return cards;
+        }
+
+        // サプライズ演出（7/14/21日目で一度だけ発火）
+        function triggerSurpriseIfNeeded(hyp, daysPassed) {
+            if (!hyp) return;
+            const milestones = [7, 14, 21];
+            hyp.surpriseHits = hyp.surpriseHits || [];
+            if (!milestones.includes(daysPassed)) return;
+            if (hyp.surpriseHits.includes(daysPassed)) return;
+            hyp.surpriseHits.push(daysPassed);
+            const data = loadData();
+            // 効果をアクティブ化（この仮説に紐づけ）
+            if (!data.cards.activeEffects) data.cards.activeEffects = [];
+            data.cards.activeEffects.push({
+                cardId: 'surprise_boost',
+                activatedDate: new Date().toISOString(),
+                targetHypothesisId: hyp.id
+            });
+            // 保存
+            const idx = data.currentHypotheses.findIndex(h => h.id === hyp.id);
+            if (idx !== -1) data.currentHypotheses[idx] = hyp;
+            saveData(data);
+            // 演出
+            showCardEffect('🎉 サプライズ！', '次のカード抽選でレア率UP！', '#3b82f6');
+            if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
         }
 
         // 履歴画面を表示
