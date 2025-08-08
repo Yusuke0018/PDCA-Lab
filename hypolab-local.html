@@ -9,6 +9,9 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#0f172a">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="icon" href="/icons/icon.svg" sizes="any" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/icons/icon.svg">
     
     <style>
         /* リセット */
@@ -1552,6 +1555,13 @@
     </footer>
 
     <script>
+        // PWA: service worker 登録
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').catch(() => {});
+            });
+        }
+
         // ローカルストレージのキー
         const STORAGE_KEY = 'hypolab_local_data';
 
