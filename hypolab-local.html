@@ -1217,6 +1217,19 @@
                         <label for="hypothesis-description">仮説の詳細</label>
                         <textarea id="hypothesis-description" required placeholder="この仮説で何を検証したいか詳しく記述してください"></textarea>
                     </div>
+
+                    <div class="form-group">
+                        <label for="hypothesis-benefit">朝の1行宣言（⭕️に入れる言葉）</label>
+                        <input type="text" id="hypothesis-benefit" required placeholder="例: 集中力が上がる">
+                        <small style="color: var(--text-secondary);">宣言文: 「この仮説を実証することで（この入力）が実現する」</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>IF-THEN ルール</label>
+                        <div id="ifthen-list" style="display:grid; gap:8px; margin-bottom:8px;"></div>
+                        <button type="button" class="btn btn-secondary" onclick="addIfThenRow()">＋ IF-THEN を追加</button>
+                        <small style="color: var(--text-secondary); display:block; margin-top:6px;">形式: もし（トリガー）なら（行動）する</small>
+                    </div>
                     
                     <div class="form-group">
                         <label>検証期間を選択</label>
@@ -1273,6 +1286,7 @@
                 <h2 id="progress-hypothesis-title" style="margin-bottom: 8px;"></h2>
                 <p id="progress-hypothesis-description" style="color: var(--text-secondary); margin-bottom: 16px;"></p>
                 <div id="progress-days-info" style="margin-bottom: 24px; color: var(--text-secondary);"></div>
+                <div id="affirmation-panel"></div>
             </div>
 
             <div class="progress-container">
@@ -1294,6 +1308,9 @@
                     <div id="active-effects-list" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
                 </div>
             </div>
+
+            <!-- IF-THEN 表示/編集 -->
+            <div class="card" id="ifthen-panel" style="display: none;"></div>
 
             <!-- カード使用ボタン -->
             <div id="card-use-section" style="margin-bottom: 20px; display: none;">
@@ -1925,11 +1942,16 @@
             // フォームをリセット
             document.getElementById('hypothesis-title').value = '';
             document.getElementById('hypothesis-description').value = '';
+            const benefitEl = document.getElementById('hypothesis-benefit');
+            if (benefitEl) benefitEl.value = '';
             // 入力にフォーカス
             const titleInput = document.getElementById('hypothesis-title');
             if (titleInput) {
                 setTimeout(() => titleInput.focus(), 0);
             }
+            // IF-THEN初期行
+            const list = document.getElementById('ifthen-list');
+            if (list) { list.innerHTML = ''; addIfThenRow(); }
             selectedDuration = null;
             document.querySelectorAll('.duration-option').forEach(opt => {
                 opt.classList.remove('selected');
@@ -1964,6 +1986,22 @@
             document.querySelector(`[data-duration="${duration}"]`).classList.add('selected');
         }
 
+        // 新規作成フォーム: IF-THEN行追加
+        function addIfThenRow() {
+            const list = document.getElementById('ifthen-list');
+            if (!list) return;
+            const row = document.createElement('div');
+            row.className = 'ifthen-row';
+            row.style.cssText = 'display:flex; gap:8px; align-items:center;';
+            row.innerHTML = `
+                <input type="text" class="if-input" placeholder="もし（例: 朝アラームが鳴ったら）" style="flex:1;" />
+                <span style="color: var(--text-secondary);">→</span>
+                <input type="text" class="then-input" placeholder="なら（例: 1分だけ座る）" style="flex:1;" />
+                <button type="button" class="btn btn-secondary" onclick="this.parentElement.remove()">削除</button>
+            `;
+            list.appendChild(row);
+        }
+
         // 仮説を作成
         function createHypothesis(event) {
             event.preventDefault();
@@ -1981,6 +2019,7 @@
             
             const title = document.getElementById('hypothesis-title').value.trim();
             const description = document.getElementById('hypothesis-description').value.trim();
+            const benefit = (document.getElementById('hypothesis-benefit')?.value || '').trim();
 
             if (!title || !description) {
                 alert('タイトルと詳細を入力してください');
@@ -1994,7 +2033,21 @@
                 alert('詳細は1000文字以内で入力してください');
                 return;
             }
+            if (!benefit) {
+                alert('朝の1行宣言（期待する変化）を入力してください');
+                return;
+            }
             
+            // IF-THEN収集
+            const ifThen = [];
+            document.querySelectorAll('#ifthen-list .ifthen-row').forEach(row => {
+                const ifv = row.querySelector('.if-input')?.value.trim() || '';
+                const thenv = row.querySelector('.then-input')?.value.trim() || '';
+                if (ifv && thenv) {
+                    ifThen.push({ id: Date.now().toString() + Math.random(), if: ifv, then: thenv });
+                }
+            });
+
             currentHypothesis = {
                 id: Date.now(),
                 title: title,
@@ -2006,7 +2059,10 @@
                 hardMode: window.hardModeActive || false,
                 resetRisk: window.resetRiskActive || false,
                 achievementDecrease: window.achievementDecrease || 0,
-                shortTermOnly: window.shortTermOnly || false
+                shortTermOnly: window.shortTermOnly || false,
+                benefit: benefit,
+                ifThen: ifThen,
+                declarations: {}
             };
             
             // ペナルティ効果をリセット（一度使用したら消える）
@@ -2235,6 +2291,10 @@
 
             // ストリークとデイリークエストUIを更新
             renderStreakAndQuest();
+
+            // 朝の1行宣言/IF-THEN
+            renderAffirmationAndBenefit();
+            renderIfThenPanel();
         }
 
         // カード使用ボタンの更新
@@ -2659,6 +2719,7 @@
                 
                 const dayCell = document.createElement('div');
                 dayCell.className = 'day-cell';
+                dayCell.style.position = 'relative';
                 // 実際の日付を表示（月/日形式）
                 const displayMonth = cellDate.getMonth() + 1;
                 const displayDate = cellDate.getDate();
@@ -2666,6 +2727,13 @@
                 dayCell.dataset.day = i + 1;
                 
                 const dateKey = cellDate.toISOString().split('T')[0];
+                // 朝の宣言済みドット
+                if (window.currentHypothesis.declarations && window.currentHypothesis.declarations[dateKey]) {
+                    const dot = document.createElement('div');
+                    dot.style.cssText = 'position:absolute;top:6px;right:6px;color:#f59e0b;font-size:10px;';
+                    dot.textContent = '●';
+                    dayCell.appendChild(dot);
+                }
                 
                 if (cellDate > today && !window.skipTicketMode) {
                     dayCell.classList.add('future');
@@ -2976,6 +3044,133 @@
                 container.appendChild(streakEl);
             }
             streakEl.textContent = `🔥 ストリーク: ${streak}日`;
+
+            // 朝の1行宣言パネルを更新
+            renderAffirmationAndBenefit();
+        }
+
+        function renderAffirmationAndBenefit() {
+            const panel = document.getElementById('affirmation-panel');
+            if (!panel || !window.currentHypothesis) return;
+            const hyp = window.currentHypothesis;
+            const todayKey = new Date().toISOString().split('T')[0];
+            const affirmed = hyp.declarations && hyp.declarations[todayKey];
+            const benefitText = escapeHTML(hyp.benefit || '（未設定）');
+            panel.innerHTML = `
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px;">
+                    <div style="flex:1;">
+                        <div style="font-weight:700;">🗣️ 朝の1行宣言</div>
+                        <div style="color: var(--text-secondary);">この仮説を実証することで <span style="color: var(--text-primary); font-weight:700;">${benefitText}</span> となる</div>
+                    </div>
+                    <div>
+                        ${affirmed ? `<span style="color:#10b981;font-weight:700;">宣言済み</span>` : `<button class="btn" id="affirm-btn">宣言する</button>`}
+                        <button class="btn btn-secondary" id="edit-benefit-btn" style="margin-left:8px;">編集</button>
+                    </div>
+                </div>
+            `;
+            const btn = document.getElementById('affirm-btn');
+            if (btn) btn.onclick = affirmToday;
+            const edit = document.getElementById('edit-benefit-btn');
+            if (edit) edit.onclick = editBenefit;
+        }
+
+        function affirmToday() {
+            const todayKey = new Date().toISOString().split('T')[0];
+            if (!window.currentHypothesis.declarations) window.currentHypothesis.declarations = {};
+            window.currentHypothesis.declarations[todayKey] = { affirmed: true, at: new Date().toISOString() };
+            const data = loadData();
+            const idx = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (idx !== -1) data.currentHypotheses[idx] = window.currentHypothesis;
+            saveData(data);
+            if (navigator.vibrate) navigator.vibrate([20, 40]);
+            showNotification('🗣️ 今日の宣言を記録しました', 'success');
+            updateCalendar();
+            renderAffirmationAndBenefit();
+        }
+
+        function editBenefit() {
+            const current = window.currentHypothesis?.benefit || '';
+            const value = prompt('朝の1行宣言（期待する変化）を入力', current);
+            if (value == null) return;
+            const v = value.trim();
+            if (!v) return;
+            window.currentHypothesis.benefit = v.slice(0, 140);
+            const data = loadData();
+            const idx = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (idx !== -1) data.currentHypotheses[idx] = window.currentHypothesis;
+            saveData(data);
+            renderAffirmationAndBenefit();
+        }
+
+        function renderIfThenPanel() {
+            const panel = document.getElementById('ifthen-panel');
+            if (!panel || !window.currentHypothesis) return;
+            const list = window.currentHypothesis.ifThen || [];
+            panel.style.display = 'block';
+            const items = list.map((it, i) => `
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px; padding:8px 0; border-bottom:1px solid var(--border);">
+                    <div style="flex:1;">
+                        <div><strong>もし</strong> ${escapeHTML(it.if)}</div>
+                        <div><strong>なら</strong> ${escapeHTML(it.then)}</div>
+                    </div>
+                    <div>
+                        <button class="btn btn-secondary" onclick="editIfThen(${i})">編集</button>
+                        <button class="btn btn-secondary" onclick="deleteIfThen(${i})" style="margin-left:6px;">削除</button>
+                    </div>
+                </div>
+            `).join('');
+            panel.innerHTML = `
+                <h3 style="margin-bottom:12px;">🧠 IF-THEN ルール</h3>
+                ${items || '<div style="color: var(--text-secondary);">ルールはまだありません</div>'}
+                <div style="margin-top:12px;">
+                    <button class="btn" onclick="addIfThenInProgress()">＋ ルールを追加</button>
+                </div>
+            `;
+        }
+
+        window.addIfThenInProgress = function() {
+            const iff = prompt('もし（トリガー）を入力');
+            if (iff == null) return;
+            const thenv = prompt('なら（行動）を入力');
+            if (thenv == null) return;
+            const ifv = (iff||'').trim();
+            const tv = (thenv||'').trim();
+            if (!ifv || !tv) return;
+            window.currentHypothesis.ifThen = window.currentHypothesis.ifThen || [];
+            window.currentHypothesis.ifThen.push({ id: Date.now().toString()+Math.random(), if: ifv, then: tv });
+            const data = loadData();
+            const idx = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (idx !== -1) data.currentHypotheses[idx] = window.currentHypothesis;
+            saveData(data);
+            renderIfThenPanel();
+        }
+
+        window.editIfThen = function(index) {
+            const item = (window.currentHypothesis.ifThen || [])[index];
+            if (!item) return;
+            const iff = prompt('もし（トリガー）を修正', item.if);
+            if (iff == null) return;
+            const thenv = prompt('なら（行動）を修正', item.then);
+            if (thenv == null) return;
+            const ifv = (iff||'').trim();
+            const tv = (thenv||'').trim();
+            if (!ifv || !tv) return;
+            window.currentHypothesis.ifThen[index] = { ...item, if: ifv, then: tv };
+            const data = loadData();
+            const idx = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (idx !== -1) data.currentHypotheses[idx] = window.currentHypothesis;
+            saveData(data);
+            renderIfThenPanel();
+        }
+
+        window.deleteIfThen = function(index) {
+            if (!confirm('このルールを削除しますか？')) return;
+            (window.currentHypothesis.ifThen || []).splice(index, 1);
+            const data = loadData();
+            const idx = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (idx !== -1) data.currentHypotheses[idx] = window.currentHypothesis;
+            saveData(data);
+            renderIfThenPanel();
         }
 
         // ストリーク（日次連続達成）を計算
