@@ -2584,12 +2584,7 @@
             // 達成状態にする
             window.currentHypothesis.achievements[dateKey] = true;
             
-            // デバッグ用ログ
-            console.log('スキップチケット適用:', {
-                dateKey: dateKey,
-                achievements: window.currentHypothesis.achievements,
-                hypothesisId: window.currentHypothesis.id
-            });
+            // スキップ適用ログ（開発用）
             
             // カードを消費
             data.cards.inventory[skipTicketIndex].used = true;
@@ -3302,15 +3297,12 @@
 
         // 仮説を完了
         function completeHypothesis(showHome = true) {
-            console.log('completeHypothesis called', {
-                showHome: showHome,
-                currentHypothesis: window.currentHypothesis
-            });
+            // completeHypothesis
             
             const data = loadData();
             const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
             
-            console.log('Found hypothesis at index:', index);
+            // index for current hypothesis
             
             if (index !== -1) {
                 const hypothesis = data.currentHypotheses[index];
