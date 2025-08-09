@@ -1611,6 +1611,8 @@
     <script src="js/calendar.js"></script>
     <script src="js/stats.js"></script>
     <script src="js/cards.js"></script>
+    <script src="js/effects.js"></script>
+    <script src="js/debrief.js"></script>
     <script>
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
@@ -2562,7 +2564,7 @@
             showCardEffect('達成ブースト発動！', '選択した2日が達成済みになりました', '#10b981');
         }
         
-        // カードエフェクトを表示
+        // カードエフェクトは js/effects.js へ分割済み
         function showCardEffect(title, message, color) {
             const effectDiv = document.createElement('div');
             effectDiv.style.cssText = `
@@ -2987,6 +2989,7 @@
         // （削除）旧デイリークエスト機能は強度（Intensity）へ置換済み
 
         // 完了オプションを表示
+        // 完了フローは js/debrief.js へ分割済み
         function showCompletionOptions() {
             // カード獲得処理を先に実行
             const data = loadData();
@@ -3091,7 +3094,7 @@
         }
 
         // デブリーフを促してから完了オプションを表示
-        function requestDebriefThenShowOptions() {
+        function requestDebriefThenShowOptions() // -> js/debrief.js {
             const showOptions = () => {
                 document.getElementById('completion-report-section').style.display = 'none';
                 document.getElementById('completion-options').style.display = 'block';
@@ -3104,7 +3107,7 @@
         }
 
         // デブリーフ（満足度/一言）モーダル
-        function showDebriefModal(onDone) {
+        function showDebriefModal(onDone) // -> js/debrief.js {
             const overlay = document.createElement('div');
             overlay.className = 'overlay active';
             const modal = document.createElement('div');
@@ -3276,7 +3279,7 @@
         }
 
         // 仮説を完了
-        function completeHypothesis(showHome = true) {
+        function completeHypothesis(showHome = true) // -> js/debrief.js {
             // completeHypothesis
             
             const data = loadData();
@@ -3349,7 +3352,7 @@
         }
 
         // 達成率に基づいてカードを取得
-        function getCardsBasedOnAchievement(achievementRate, hypothesis) {
+        function getCardsBasedOnAchievement(achievementRate, hypothesis) // -> js/effects.js {
             const cards = [];
             const data = loadData();
             
