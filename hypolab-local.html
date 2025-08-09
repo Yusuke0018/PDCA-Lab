@@ -3212,7 +3212,7 @@
                     </div>
                 </div>
                 <div style=\"margin-top:8px;color:#94a3b8;font-size:12px;\">
-                    達成日の重み付けに倍率(0.8/1.0/1.2)を適用し、表示達成率は全日数を分母に計算します。${todayAchieved ? '' : '（未達成日のため選択は無効）'}
+                    達成日に設定した強度倍率を重みとして適用し、表示達成率は全日数を分母に計算します。
                 </div>
             `;
 
@@ -3229,18 +3229,6 @@
             const b1 = document.getElementById('intensity-opt-1');
             const b2 = document.getElementById('intensity-opt-2');
             const be = document.getElementById('intensity-edit');
-            if (todayAchieved) {
-                if (b0) b0.onclick = () => set(opt0.mult);
-                if (b1) b1.onclick = () => set(opt1.mult);
-                if (b2) b2.onclick = () => set(opt2.mult);
-            } else {
-                [b0, b1, b2].forEach(btn => {
-                    if (btn) {
-                        btn.style.opacity = '0.6';
-                        btn.style.pointerEvents = 'none';
-                    }
-                });
-            }
             if (be) be.onclick = () => editIntensityOptions();
 
             // すべての日で強度選択を有効化（未達成日でも選択可能に）
