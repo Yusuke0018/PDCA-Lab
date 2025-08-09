@@ -2734,6 +2734,12 @@
                 dayCell.dataset.day = i + 1;
                 
                 const dateKey = cellDate.toISOString().split('T')[0];
+                // 強度バッジ（設定時）
+                const mult = Number((window.currentHypothesis.intensity || {})[dateKey] ?? 1.0);
+                const multBadge = document.createElement('div');
+                multBadge.style.cssText = 'position:absolute;bottom:6px;right:6px;font-size:10px;color:#94a3b8;';
+                multBadge.textContent = `×${mult.toFixed(1)}`;
+                dayCell.appendChild(multBadge);
                 // 朝の宣言済みドット
                 if (window.currentHypothesis.declarations && window.currentHypothesis.declarations[dateKey]) {
                     const dot = document.createElement('div');
@@ -2776,12 +2782,95 @@
                     }
                 }
                 
+                // 長押し（または右クリック）でその日の強度を編集
+                if (cellDate <= today) {
+                    attachLongPress(dayCell, () => openIntensityPicker(dateKey));
+                    dayCell.addEventListener('contextmenu', (e) => {
+                        e.preventDefault();
+                        openIntensityPicker(dateKey);
+                    });
+                }
                 calendarGrid.appendChild(dayCell);
             }
             
             // 期間情報を更新
             document.getElementById('progress-days-info').textContent = 
                 `検証期間: ${daysPassed}日目 / ${window.currentHypothesis.totalDays}日間`;
+        }
+
+        // 長押し検出ユーティリティ
+        function attachLongPress(element, onLongPress, delay = 500) {
+            let timer = null;
+            let longPressed = false;
+            const start = (e) => {
+                longPressed = false;
+                timer = setTimeout(() => { longPressed = true; onLongPress(); }, delay);
+            };
+            const cancel = () => { if (timer) clearTimeout(timer); };
+            element.addEventListener('touchstart', start, { passive: true });
+            element.addEventListener('touchend', cancel, { passive: true });
+            element.addEventListener('touchmove', cancel, { passive: true });
+            element.addEventListener('mousedown', start);
+            element.addEventListener('mouseup', cancel);
+            element.addEventListener('mouseleave', cancel);
+        }
+
+        // 強度選択モーダル（過去日/当日用）
+        function openIntensityPicker(dateKey) {
+            if (!window.currentHypothesis) return;
+            const hyp = window.currentHypothesis;
+            hyp.intensity = hyp.intensity || {};
+            hyp.intensityOptions = hyp.intensityOptions || [
+                { label: '軽め', mult: 0.8 },
+                { label: '基本', mult: 1.0 },
+                { label: '高強度', mult: 1.2 },
+            ];
+            const opts = hyp.intensityOptions;
+            const current = Number(hyp.intensity[dateKey] ?? 1.0);
+
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay active';
+            overlay.style.backdropFilter = 'blur(6px)';
+            const modal = document.createElement('div');
+            modal.className = 'skip-modal active';
+            modal.style.maxWidth = '480px';
+            modal.style.padding = '20px';
+            const title = new Date(dateKey).toLocaleDateString('ja-JP');
+            const esc = (s) => (typeof escapeHTML === 'function' ? escapeHTML(String(s)) : String(s));
+            const btnCss = (active) => `padding:10px 12px;border-radius:10px;border:2px solid ${active ? '#10b981' : '#334155'};background:${active ? 'rgba(16,185,129,0.15)' : 'rgba(30,41,59,0.5)'};color:#e2e8f0;cursor:pointer;`;
+            modal.innerHTML = `
+                <div class="modal-header" style="margin-bottom:16px;">
+                    <h3>💪 強度を選択 (${esc(title)})</h3>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    ${opts.map((o, idx) => `
+                        <button data-idx="${idx}" style="${btnCss(current===Number(o.mult))}">${esc(o.label)} (×${Number(o.mult).toFixed(1)})</button>
+                    `).join('')}
+                </div>
+                <div class="modal-footer" style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;">
+                    <button class="button secondary" id="intensity-cancel">閉じる</button>
+                </div>
+            `;
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+
+            modal.querySelectorAll('button[data-idx]').forEach(btn => {
+                btn.onclick = () => {
+                    const idx = Number(btn.getAttribute('data-idx'));
+                    const mult = Number(opts[idx].mult);
+                    hyp.intensity[dateKey] = mult;
+                    const data = loadData();
+                    const i = data.currentHypotheses.findIndex(h => h.id === hyp.id);
+                    if (i !== -1) data.currentHypotheses[i] = hyp;
+                    saveData(data);
+                    document.body.removeChild(overlay);
+                    updateCalendar();
+                    updateProgress();
+                };
+            });
+            document.getElementById('intensity-cancel').onclick = () => {
+                document.body.removeChild(overlay);
+            };
         }
 
         // 日の達成状態を切り替え
