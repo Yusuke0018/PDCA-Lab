@@ -1607,6 +1607,7 @@
     </footer>
 
     <script src="js/utils.js"></script>
+    <script src="js/navigation.js"></script>
     <script src="js/calendar.js"></script>
     <script src="js/stats.js"></script>
     <script src="js/cards.js"></script>
@@ -1796,33 +1797,7 @@
         function saveData(data) {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
         }
-
-        // ナビゲーションを更新
-        function updateNavigation(activeView) {
-            document.querySelectorAll('.nav-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            const activeBtn = document.querySelector(`[data-view="${activeView}"]`);
-            if (activeBtn) {
-                activeBtn.classList.add('active');
-            }
-            
-            // ページインジケーターを更新
-            const viewIndex = views.indexOf(activeView);
-            if (viewIndex !== -1) {
-                document.querySelectorAll('.dot').forEach((dot, index) => {
-                    if (index === viewIndex) {
-                        dot.style.background = 'var(--primary)';
-                        dot.style.width = '8px';
-                        dot.style.height = '8px';
-                    } else {
-                        dot.style.background = 'var(--surface-light)';
-                        dot.style.width = '6px';
-                        dot.style.height = '6px';
-                    }
-                });
-            }
-        }
+        // ナビゲーション/スワイプは js/navigation.js に分割済み
 
         // ホーム画面を表示
         function showHomeView() {
@@ -2988,6 +2963,7 @@
         }
 
         // ストリーク（日次連続達成）を計算
+        // computeStreak は js/navigation.js に分割済み
         function computeStreak(hyp) {
             const today = new Date();
             today.setHours(0,0,0,0);
@@ -3583,6 +3559,7 @@
 
         // カード表示系は js/cards.js に分割済み（updateCardDisplay, createCardElement, showCardAcquisition, closeCardAcquisition）
 
+        // スワイプ機能は js/navigation.js に分割済み
         // スワイプ機能
         let touchStartX = 0;
         let touchStartY = 0;
