@@ -988,6 +988,10 @@
         // 進捗トラッキング画面を表示
         function showTrackingScreen() {
             if (!window.currentHypothesis) return;
+            // モバイル戻るボタン対策：トラッキング画面に入るときに履歴を積む
+            try {
+                history.pushState({ view: 'tracking', hypothesisId: window.currentHypothesis.id }, '');
+            } catch (e) { /* noop */ }
 
             showScreen('tracking-screen');
             
@@ -999,6 +1003,20 @@
             generateCalendar();
             updateProgress();
         }
+
+        // --- 戻るボタン（popstate）対策 ---
+        // 初期状態を履歴に設定
+        try {
+            history.replaceState({ view: 'base' }, '');
+        } catch (e) { /* noop */ }
+
+        // 物理戻るでトラッキング画面からダッシュボードへ戻す
+        window.addEventListener('popstate', () => {
+            const trackingActive = document.getElementById('tracking-screen')?.classList.contains('active');
+            if (trackingActive) {
+                showScreen('dashboard-screen');
+            }
+        });
 
         // カレンダー生成
         function generateCalendar() {
