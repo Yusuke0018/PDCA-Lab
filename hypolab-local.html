@@ -1608,6 +1608,7 @@
 
     <script src="js/utils.js"></script>
     <script src="js/stats.js"></script>
+    <script src="js/cards.js"></script>
     <script>
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
@@ -4137,101 +4138,7 @@
             updateCardDisplay();
         }
 
-        // カード表示を更新
-        function updateCardDisplay() {
-            const data = loadData();
-            const inventoryContainer = document.getElementById('card-inventory');
-            const penaltyContainer = document.getElementById('penalty-cards');
-            
-            // 所持カードを集計
-            const cardCounts = {};
-            data.cards.inventory.forEach(card => {
-                if (!card.used) {
-                    cardCounts[card.cardId] = (cardCounts[card.cardId] || 0) + 1;
-                }
-            });
-            
-            // 所持カード表示
-            inventoryContainer.innerHTML = '';
-            if (Object.keys(cardCounts).length === 0) {
-                inventoryContainer.innerHTML = '<p style="color: var(--text-secondary);">所持カードはありません</p>';
-            } else {
-                Object.entries(cardCounts).forEach(([cardId, count]) => {
-                    const card = CARD_MASTER[cardId];
-                    if (card) {
-                        const cardElement = createCardElement(card, count);
-                        inventoryContainer.appendChild(cardElement);
-                    }
-                });
-            }
-            
-            // ペナルティカード表示
-            penaltyContainer.innerHTML = '';
-            if (data.cards.pendingPenalties.length === 0) {
-                penaltyContainer.innerHTML = '<p style="color: var(--text-secondary);">ペナルティカードはありません</p>';
-            } else {
-                const penaltyCounts = {};
-                data.cards.pendingPenalties.forEach(penalty => {
-                    penaltyCounts[penalty.cardId] = (penaltyCounts[penalty.cardId] || 0) + 1;
-                });
-                
-                Object.entries(penaltyCounts).forEach(([cardId, count]) => {
-                    const card = CARD_MASTER[cardId];
-                    if (card) {
-                        const cardElement = createCardElement(card, count);
-                        penaltyContainer.appendChild(cardElement);
-                    }
-                });
-            }
-        }
-
-        // カード要素を作成
-        function createCardElement(card, count) {
-            const div = document.createElement('div');
-            div.className = `card-item ${card.type}`;
-            div.innerHTML = `
-                <div class="card-icon">${card.icon}</div>
-                <div class="card-name">${card.name}</div>
-                <div class="card-description">${card.description}</div>
-                ${count > 1 ? `<div class="card-count">×${count}</div>` : ''}
-            `;
-            return div;
-        }
-
-        // カード獲得表示
-        function showCardAcquisition(cardIds, callback) {
-            const modal = document.getElementById('card-acquisition-modal');
-            const container = document.getElementById('acquired-cards-container');
-            
-            container.innerHTML = '';
-            cardIds.forEach((cardId, index) => {
-                const card = CARD_MASTER[cardId];
-                if (card) {
-                    const cardDiv = document.createElement('div');
-                    cardDiv.className = `card-item ${card.type} card-reveal`;
-                    cardDiv.style.animationDelay = `${index * 0.3}s`;
-                    cardDiv.innerHTML = `
-                        <div class="card-icon">${card.icon}</div>
-                        <div class="card-name">${card.name}</div>
-                        <div class="card-description">${card.description}</div>
-                    `;
-                    container.appendChild(cardDiv);
-                }
-            });
-            
-            modal.style.display = 'flex';
-            
-            window.cardAcquisitionCallback = callback;
-        }
-
-        // カード獲得モーダルを閉じる
-        function closeCardAcquisition() {
-            document.getElementById('card-acquisition-modal').style.display = 'none';
-            if (window.cardAcquisitionCallback) {
-                window.cardAcquisitionCallback();
-                window.cardAcquisitionCallback = null;
-            }
-        }
+        // カード表示系は js/cards.js に分割済み（updateCardDisplay, createCardElement, showCardAcquisition, closeCardAcquisition）
 
         // スワイプ機能
         let touchStartX = 0;
