@@ -1509,8 +1509,35 @@
                         <div class="stat-label" style="color: var(--text-secondary); margin-top: 8px;">重み付き達成日数（合計）</div>
                     </div>
                 </div>
-                <div class="achievement-chart" id="achievement-chart">
-                    <!-- チャートをここに表示 -->
+                <div class="achievement-chart" id="achievement-chart" style="display:grid; gap:16px;">
+                    <div class="card" style="background: var(--background);">
+                        <h3 style="margin-bottom:8px;">📈 直近の日次達成推移</h3>
+                        <div style="display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap;">
+                            <div>
+                                <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;">直近7日</div>
+                                <svg id="sparkline-7" width="280" height="48" viewBox="0 0 280 48"></svg>
+                            </div>
+                            <div>
+                                <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;">直近30日</div>
+                                <svg id="sparkline-30" width="280" height="48" viewBox="0 0 280 48"></svg>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card" style="background: var(--background);">
+                        <h3 style="margin-bottom:8px;">🧩 強度ラベル使用割合</h3>
+                        <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
+                            <svg id="donut-intensity" width="160" height="160" viewBox="0 0 160 160"></svg>
+                            <div id="donut-legend" style="display:grid; gap:6px; font-size:12px;"></div>
+                        </div>
+                    </div>
+                    <div class="card" style="background: var(--background);">
+                        <h3 style="margin-bottom:8px;">🔥 ストリーク</h3>
+                        <div id="streak-stats" style="display:flex; gap:16px; font-weight:700;"></div>
+                    </div>
+                    <div class="card" style="background: var(--background);">
+                        <h3 style="margin-bottom:8px;">🏆 仮説ランキング</h3>
+                        <div id="ranking-list" style="display:grid; gap:8px;"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -4159,6 +4186,165 @@
             const wa = document.getElementById('weighted-achieved');
             if (odr) odr.textContent = overallDailyRate + '%';
             if (wa) wa.textContent = (Math.round(weightedAchieved * 10) / 10).toString();
+
+            // 直近日次達成率（7/30日）のスパークライン描画
+            const drawSparkline = (id, days) => {
+                const svg = document.getElementById(id);
+                if (!svg) return;
+                const w = svg.viewBox.baseVal.width || 280;
+                const h = svg.viewBox.baseVal.height || 48;
+                const start = new Date(today);
+                start.setDate(today.getDate() - days + 1);
+                // 各日の日次達成率（重み/その日に期間内の仮説数）
+                const values = [];
+                for (let d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
+                    const key = d.toISOString().split('T')[0];
+                    let active = 0;
+                    let sum = 0;
+                    all.forEach(h => {
+                        const s = new Date(h.startDate); s.setHours(0,0,0,0);
+                        const tEnd = new Date(s); tEnd.setDate(s.getDate() + (h.totalDays||0) - 1);
+                        const e = h.completedDate ? new Date(h.completedDate) : today;
+                        e.setHours(0,0,0,0);
+                        const last = tEnd < e ? tEnd : e;
+                        if (d >= s && d <= last) {
+                            active += 1;
+                            if ((h.achievements||{})[key]) {
+                                sum += Number((h.intensity||{})[key] ?? 1.0);
+                            }
+                        }
+                    });
+                    const rate = active > 0 ? Math.min(100, Math.floor((sum / active) * 100)) : 0;
+                    values.push(rate);
+                }
+                const max = 100; // パーセント上限
+                const stepX = w / Math.max(1, values.length - 1);
+                const pts = values.map((v, i) => {
+                    const x = i * stepX;
+                    const y = h - (v / max) * (h - 8) - 4; // 上下マージン
+                    return `${x},${y}`;
+                }).join(' ');
+                svg.innerHTML = `
+                    <polyline fill="none" stroke="#10b981" stroke-width="2" points="${pts}" />
+                    <line x1="0" y1="${h-1}" x2="${w}" y2="${h-1}" stroke="rgba(148,163,184,0.3)" stroke-width="1" />
+                `;
+            };
+            drawSparkline('sparkline-7', 7);
+            drawSparkline('sparkline-30', 30);
+
+            // 強度ラベル使用割合のドーナツ
+            const labelCounts = {};
+            const toFixed1 = (n) => (Math.round(Number(n) * 10) / 10).toFixed(1);
+            all.forEach(h => {
+                const opts = (h.intensityOptions && h.intensityOptions.length===3) ? h.intensityOptions : [
+                    { label:'軽め', mult:0.8 },{ label:'基本', mult:1.0 },{ label:'高強度', mult:1.2 }
+                ];
+                const mapMultToLabel = (m) => {
+                    const f = opts.find(o => toFixed1(o.mult) === toFixed1(m));
+                    return f ? f.label : 'その他';
+                };
+                Object.keys(h.achievements||{}).forEach(key => {
+                    const m = Number((h.intensity||{})[key] ?? 1.0);
+                    const label = mapMultToLabel(m);
+                    labelCounts[label] = (labelCounts[label]||0) + 1;
+                });
+            });
+            const donut = document.getElementById('donut-intensity');
+            const legend = document.getElementById('donut-legend');
+            if (donut && legend) {
+                const total = Object.values(labelCounts).reduce((a,b)=>a+b,0) || 1;
+                const entries = Object.entries(labelCounts);
+                // SVGドーナツ描画
+                const cx=80, cy=80, r=60, sw=20;
+                let acc=0;
+                const colors = ['#10b981','#3b82f6','#f59e0b','#ef4444','#8b5cf6'];
+                donut.innerHTML='';
+                legend.innerHTML='';
+                entries.forEach(([label,count], idx)=>{
+                    const frac = count/total;
+                    const start = acc * 2*Math.PI - Math.PI/2;
+                    const end = (acc+frac) * 2*Math.PI - Math.PI/2;
+                    acc += frac;
+                    const large = (end-start) > Math.PI ? 1 : 0;
+                    const x1 = cx + r*Math.cos(start), y1 = cy + r*Math.sin(start);
+                    const x2 = cx + r*Math.cos(end),   y2 = cy + r*Math.sin(end);
+                    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+                    const d = `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`;
+                    path.setAttribute('d', d);
+                    path.setAttribute('fill','none');
+                    path.setAttribute('stroke', colors[idx%colors.length]);
+                    path.setAttribute('stroke-width', String(sw));
+                    donut.appendChild(path);
+                    // 凡例
+                    const row = document.createElement('div');
+                    row.innerHTML = `<span style="display:inline-block;width:10px;height:10px;background:${colors[idx%colors.length]};border-radius:2px;margin-right:6px;"></span>${escapeHTML(label)}: ${(Math.round(frac*100))}% (${count})`;
+                    legend.appendChild(row);
+                });
+                // 中央白ヌキ
+                const hole = document.createElementNS('http://www.w3.org/2000/svg','circle');
+                hole.setAttribute('cx', String(cx)); hole.setAttribute('cy', String(cy)); hole.setAttribute('r', String(r-sw/2));
+                hole.setAttribute('fill', 'var(--background)');
+                donut.appendChild(hole);
+            }
+
+            // 全仮説横断ストリーク（任意の仮説で達成があれば達成日とみなす）
+            const dateMap = {};
+            all.forEach(h => {
+                Object.keys(h.achievements||{}).forEach(k => { dateMap[k] = true; });
+            });
+            const keys = Object.keys(dateMap).sort();
+            let longest=0, current=0;
+            // longest: 連続最大
+            let prev=null;
+            keys.forEach(k=>{
+                const d = new Date(k);
+                d.setHours(0,0,0,0);
+                if (prev){
+                    const diff = (d - prev)/(1000*60*60*24);
+                    current = (diff===1) ? (current+1) : 1;
+                } else {
+                    current = 1;
+                }
+                if (current>longest) longest=current;
+                prev = d;
+            });
+            // current: 今日から遡って
+            let cur=0; const d0=new Date(today);
+            for (let d=new Date(d0); ; d.setDate(d.getDate()-1)){
+                const k=d.toISOString().split('T')[0];
+                if (dateMap[k]) cur+=1; else break;
+                if (d < new Date(keys[0]||today)) break; // 安全
+            }
+            const streakDiv = document.getElementById('streak-stats');
+            if (streakDiv){
+                streakDiv.innerHTML = `
+                    <div>現在: <span style="color:#10b981;">${cur}日</span></div>
+                    <div>最長: <span style="color:#3b82f6;">${longest}日</span></div>
+                `;
+            }
+
+            // 仮説ランキング（達成率Top5）
+            const ranking = all.map(h=>{
+                const s = new Date(h.startDate); s.setHours(0,0,0,0);
+                const intensity = h.intensity||{};
+                let weighted=0;
+                for (let i=0;i<(h.totalDays||0);i++){
+                    const d=new Date(s); d.setDate(s.getDate()+i);
+                    const k=d.toISOString().split('T')[0];
+                    if ((h.achievements||{})[k]) weighted += Number(intensity[k] ?? 1.0);
+                }
+                const rate = (h.totalDays||0)>0 ? Math.floor(Math.min(100,(weighted/(h.totalDays))*100)) : 0;
+                return { id:h.id, title:h.title, rate, totalDays:h.totalDays||0 };
+            }).sort((a,b)=> b.rate - a.rate).slice(0,5);
+            const rankDiv = document.getElementById('ranking-list');
+            if (rankDiv){
+                rankDiv.innerHTML = ranking.map((r,idx)=>`
+                    <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;padding:8px;border:1px solid var(--border);border-radius:10px;">
+                        <div><span style="font-weight:800;">#${idx+1}</span> ${escapeHTML(r.title||'Untitled')}</div>
+                        <div style="color:var(--text-secondary);">${r.totalDays}日 / <span style="color:#10b981;font-weight:700;">${r.rate}%</span></div>
+                    </div>
+                `).join('');
+            }
         }
 
 
