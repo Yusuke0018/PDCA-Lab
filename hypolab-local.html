@@ -2735,23 +2735,34 @@
             updateCalendar();
             updateProgress();
 
-            // スキップで達成にした日も強度が未設定なら設定を促す
+            // スキップで達成にした日も強度を設定
             try {
                 const hyp = window.currentHypothesis;
                 hyp.intensity = hyp.intensity || {};
                 if (hyp.intensity[dateKey] == null) {
-                    const start = new Date(hyp.startDate); start.setHours(0,0,0,0);
-                    let last = null;
-                    for (let d = new Date(new Date(dateKey)); d >= start; d.setDate(d.getDate()-1)) {
-                        const k = d.toISOString().split('T')[0];
-                        if (hyp.intensity[k] != null) { last = Number(hyp.intensity[k]); break; }
+                    const todayKey = new Date().toISOString().split('T')[0];
+                    if (dateKey === todayKey) {
+                        // 今日: 現在の選択値を適用
+                        const sel = Number(hyp.intensity[todayKey] ?? 1.0);
+                        hyp.intensity[dateKey] = sel;
+                        const data2 = loadData();
+                        const idx2 = data2.currentHypotheses.findIndex(h => h.id === hyp.id);
+                        if (idx2 !== -1) { data2.currentHypotheses[idx2] = hyp; saveData(data2); }
+                    } else {
+                        // 過去: 直近の設定値を初期値にしてモーダルで編集
+                        const start = new Date(hyp.startDate); start.setHours(0,0,0,0);
+                        let last = null;
+                        for (let d = new Date(new Date(dateKey)); d >= start; d.setDate(d.getDate()-1)) {
+                            const k = d.toISOString().split('T')[0];
+                            if (hyp.intensity[k] != null) { last = Number(hyp.intensity[k]); break; }
+                        }
+                        if (last == null) last = 1.0;
+                        hyp.intensity[dateKey] = last;
+                        const data2 = loadData();
+                        const idx2 = data2.currentHypotheses.findIndex(h => h.id === hyp.id);
+                        if (idx2 !== -1) { data2.currentHypotheses[idx2] = hyp; saveData(data2); }
+                        setTimeout(() => openIntensityPicker(dateKey), 0);
                     }
-                    if (last == null) last = 1.0;
-                    hyp.intensity[dateKey] = last;
-                    const data2 = loadData();
-                    const idx2 = data2.currentHypotheses.findIndex(h => h.id === hyp.id);
-                    if (idx2 !== -1) { data2.currentHypotheses[idx2] = hyp; saveData(data2); }
-                    setTimeout(() => openIntensityPicker(dateKey), 0);
                 }
             } catch (e) { console.warn('Intensity defaulting (skip) failed', e); }
         }
@@ -2947,21 +2958,28 @@
                 // 達成アニメーションを表示
                 showAchievementAnimation();
 
-                // 強度が未設定なら直近の強度を初期値に設定し、選択モーダルを開く
+                // 強度設定: 今日の達成なら「今日の強度」パネルの選択値を適用
                 try {
                     const hyp = window.currentHypothesis;
                     hyp.intensity = hyp.intensity || {};
                     if (hyp.intensity[dateKey] == null) {
-                        const start = new Date(hyp.startDate); start.setHours(0,0,0,0);
-                        let last = null;
-                        for (let d = new Date(new Date(dateKey)); d >= start; d.setDate(d.getDate()-1)) {
-                            const k = d.toISOString().split('T')[0];
-                            if (hyp.intensity[k] != null) { last = Number(hyp.intensity[k]); break; }
+                        const todayKey = new Date().toISOString().split('T')[0];
+                        if (dateKey === todayKey) {
+                            // 今日: 現在の選択値をそのまま適用
+                            const sel = Number(hyp.intensity[todayKey] ?? 1.0);
+                            hyp.intensity[dateKey] = sel;
+                        } else {
+                            // 過去: 直近の設定済み強度を初期値にしてモーダルで編集
+                            const start = new Date(hyp.startDate); start.setHours(0,0,0,0);
+                            let last = null;
+                            for (let d = new Date(new Date(dateKey)); d >= start; d.setDate(d.getDate()-1)) {
+                                const k = d.toISOString().split('T')[0];
+                                if (hyp.intensity[k] != null) { last = Number(hyp.intensity[k]); break; }
+                            }
+                            if (last == null) last = 1.0;
+                            hyp.intensity[dateKey] = last;
+                            setTimeout(() => openIntensityPicker(dateKey), 0);
                         }
-                        if (last == null) last = 1.0; // 既定はB相当
-                        hyp.intensity[dateKey] = last;
-                        // 保存はこの後のセーブ処理に任せる
-                        setTimeout(() => openIntensityPicker(dateKey), 0);
                     }
                 } catch (e) { console.warn('Intensity defaulting failed', e); }
             } else {
