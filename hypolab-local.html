@@ -3723,9 +3723,19 @@
                     Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1),
                     hypothesis.totalDays
                 );
-                
-                const achievedDays = Object.keys(hypothesis.achievements || {}).length;
-                const achievementRate = daysPassed > 0 ? Math.round((achievedDays / daysPassed) * 100) : 0;
+                // 表示達成率: 達成日の強度倍率合計 ÷ 全日数 × 100（小数点切り捨て）
+                const intensity = hypothesis.intensity || {};
+                let weightedAchieved = 0;
+                for (let i = 0; i < hypothesis.totalDays; i++) {
+                    const d = new Date(startDate);
+                    d.setDate(startDate.getDate() + i);
+                    const key = d.toISOString().split('T')[0];
+                    if (hypothesis.achievements && hypothesis.achievements[key]) {
+                        const mult = Number(intensity[key] ?? 1.0);
+                        weightedAchieved += mult;
+                    }
+                }
+                const displayRate = Math.min(100, Math.floor((weightedAchieved / hypothesis.totalDays) * 100));
                 
                 item.innerHTML = `
                     <h3 class="hypothesis-title">${escapeHTML(hypothesis.title)}</h3>
@@ -3735,7 +3745,7 @@
                             📅 ${daysPassed}日目 / ${hypothesis.totalDays}日間
                         </div>
                         <div class="hypothesis-progress">
-                            ✨ 達成率: ${achievementRate}%
+                            ✨ 達成率: ${displayRate}%
                         </div>
                     </div>
                 `;
