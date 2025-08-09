@@ -2293,8 +2293,8 @@
             // ペナルティインジケーターを更新
             updatePenaltyIndicators();
 
-            // ストリークとデイリークエストUIを更新
-            renderStreakAndQuest();
+            // ストリークと強度（Intensity）UIを更新
+            renderIntensityPanel();
 
             // 朝の1行宣言/IF-THEN
             renderAffirmationAndBenefit();
@@ -2922,19 +2922,23 @@
             const achievedDays = Object.keys(window.currentHypothesis.achievements).length;
             const achievementRate = daysPassed > 0 ? Math.round((achievedDays / daysPassed) * 100) : 0;
             
-            // 進捗バーを更新
-            // デイリークエストの見た目ボーナス
-            let displayRate = achievementRate;
-            const q = window.currentHypothesis.dailyQuest;
+            // 表示用の達成率: 全日数を分母に、各達成日の強度倍率を適用した合計を分子に
             const todayKey = new Date().toISOString().split('T')[0];
-            const hasQuestBonus = q && q.date === todayKey && q.completed;
-            if (hasQuestBonus) displayRate = Math.min(100, displayRate + 1);
+            const intensity = window.currentHypothesis.intensity || {};
+            let weightedAchieved = 0;
+            for (let i = 0; i < window.currentHypothesis.totalDays; i++) {
+                const d = new Date(startDate);
+                d.setDate(startDate.getDate() + i);
+                const key = d.toISOString().split('T')[0];
+                const isAchieved = !!(window.currentHypothesis.achievements || {})[key];
+                if (!isAchieved) continue;
+                const mult = Number(intensity[key] ?? 1.0);
+                weightedAchieved += mult;
+            }
+            const displayRate = Math.min(100, Math.floor((weightedAchieved / window.currentHypothesis.totalDays) * 100));
             const rateEl = document.getElementById('achievement-rate');
             rateEl.textContent = displayRate + '%';
-            if (hasQuestBonus) {
-                rateEl.textContent += ' (+1%)';
-            }
-            document.getElementById('progress-fill').style.width = achievementRate + '%';
+            document.getElementById('progress-fill').style.width = Math.min(100, Math.floor(achievementRate)) + '%';
             document.getElementById('achieved-days').textContent = `達成: ${achievedDays}日`;
             document.getElementById('remaining-days').textContent = `残り: ${window.currentHypothesis.totalDays - daysPassed}日`;
             
@@ -3054,6 +3058,62 @@
 
             // 朝の1行宣言パネルを更新
             renderAffirmationAndBenefit();
+        }
+
+        // 強度（Intensity）パネル
+        function renderIntensityPanel() {
+            if (!window.currentHypothesis) return;
+            const hyp = window.currentHypothesis;
+            hyp.intensity = hyp.intensity || {};
+            const todayKey = new Date().toISOString().split('T')[0];
+            const selected = Number(hyp.intensity[todayKey] ?? 1.0);
+
+            let panel = document.getElementById('intensity-panel');
+            if (!panel) {
+                panel = document.createElement('div');
+                panel.id = 'intensity-panel';
+                panel.style.cssText = 'margin-top:12px;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--surface);';
+                const parent = document.getElementById('progress-view');
+                parent.appendChild(panel);
+            }
+
+            const btnStyle = (active) => `
+                padding:8px 12px;border-radius:10px;border:1px solid ${active ? 'var(--primary)' : 'var(--border)'};
+                background:${active ? 'rgba(16,185,129,0.15)' : 'transparent'};color:${active ? 'var(--text-primary)' : 'var(--text-secondary)'};
+                cursor:pointer;`
+
+            panel.innerHTML = `
+                <div style=\"display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;\">
+                    <div>
+                        <div style=\"font-weight:700;\">💪 今日の強度</div>
+                        <div style=\"color: var(--text-secondary);font-size:12px;\">例: 英単語なら 1個/3個/5個以上</div>
+                    </div>
+                    <div style=\"display:flex;gap:8px;\">
+                        <button id=\"intensity-08\" style=\"${btnStyle(selected===0.8)}\">1つ (×0.8)</button>
+                        <button id=\"intensity-10\" style=\"${btnStyle(selected===1.0)}\">3つ (×1.0)</button>
+                        <button id=\"intensity-12\" style=\"${btnStyle(selected===1.2)}\">5つ以上 (×1.2)</button>
+                    </div>
+                </div>
+                <div style=\"margin-top:8px;color:#94a3b8;font-size:12px;\">
+                    達成日の重み付けに倍率を適用し、表示達成率は全日数を分母に計算します。
+                </div>
+            `;
+
+            const set = (m) => {
+                hyp.intensity[todayKey] = m;
+                const data = loadData();
+                const idx = data.currentHypotheses.findIndex(h => h.id === hyp.id);
+                if (idx !== -1) data.currentHypotheses[idx] = hyp;
+                saveData(data);
+                renderIntensityPanel();
+                updateProgress();
+            };
+            const b08 = document.getElementById('intensity-08');
+            const b10 = document.getElementById('intensity-10');
+            const b12 = document.getElementById('intensity-12');
+            if (b08) b08.onclick = () => set(0.8);
+            if (b10) b10.onclick = () => set(1.0);
+            if (b12) b12.onclick = () => set(1.2);
         }
 
         function renderAffirmationAndBenefit() {
