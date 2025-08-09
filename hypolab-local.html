@@ -3242,6 +3242,17 @@
                 });
             }
             if (be) be.onclick = () => editIntensityOptions();
+
+            // すべての日で強度選択を有効化（未達成日でも選択可能に）
+            [b0, b1, b2].forEach(btn => {
+                if (btn) {
+                    btn.style.opacity = '';
+                    btn.style.pointerEvents = 'auto';
+                }
+            });
+            if (b0) b0.onclick = () => set(opt0.mult);
+            if (b1) b1.onclick = () => set(opt1.mult);
+            if (b2) b2.onclick = () => set(opt2.mult);
         }
 
         // 強度ラベル/倍率の編集（シンプルなプロンプトUI）
