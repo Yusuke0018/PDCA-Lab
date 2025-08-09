@@ -34,6 +34,8 @@ cd PDCA-Lab
      # http://localhost:8080/hypolab-local.html を開く
      ```
 
+> 注意: 旧バージョンのページ（`hypolab.html`, `hypothesis-tracker*.html`, `setup.html` など）は `archive/` 配下へ退避しました。現行のエントリポイントは `hypolab-local.html` です。
+
 ## 🎴 カード要約
 
 - 取得条件:
