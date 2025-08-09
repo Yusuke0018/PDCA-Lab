@@ -2804,7 +2804,15 @@
                 const mult = Number((window.currentHypothesis.intensity || {})[dateKey] ?? 1.0);
                 const multBadge = document.createElement('div');
                 multBadge.style.cssText = 'position:absolute;bottom:6px;right:6px;font-size:10px;color:#94a3b8;';
-                multBadge.textContent = `×${mult.toFixed(1)}`;
+                // A/B/Cへ変換（倍率の小→大で C/B/A）
+                const optsCal = (window.currentHypothesis.intensityOptions && window.currentHypothesis.intensityOptions.length===3)
+                    ? window.currentHypothesis.intensityOptions
+                    : [{label:'軽め',mult:0.8},{label:'基本',mult:1.0},{label:'高強度',mult:1.2}];
+                const toFixed1Cal = (n) => (Math.round(Number(n)*10)/10).toFixed(1);
+                const sortedCal = [...optsCal].sort((a,b)=>Number(a.mult)-Number(b.mult));
+                const idxCal = sortedCal.findIndex(o => toFixed1Cal(o.mult) === toFixed1Cal(mult));
+                const gradeCal = idxCal===2 ? 'A' : (idxCal===1 ? 'B' : 'C');
+                multBadge.textContent = gradeCal;
                 dayCell.appendChild(multBadge);
                 // 朝の宣言済みドット
                 if (window.currentHypothesis.declarations && window.currentHypothesis.declarations[dateKey]) {
