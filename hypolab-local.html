@@ -2735,34 +2735,8 @@
             updateCalendar();
             updateProgress();
 
-            // スキップで達成にした日も強度を設定
-            try {
-                const hyp = window.currentHypothesis;
-                hyp.intensity = hyp.intensity || {};
-                const todayKey = new Date().toISOString().split('T')[0];
-                if (dateKey === todayKey) {
-                    // 今日: 現在の選択値を常に適用
-                    const sel = Number(hyp.intensity[todayKey] ?? 1.0);
-                    hyp.intensity[dateKey] = sel;
-                    const data2 = loadData();
-                    const idx2 = data2.currentHypotheses.findIndex(h => h.id === hyp.id);
-                    if (idx2 !== -1) { data2.currentHypotheses[idx2] = hyp; saveData(data2); }
-                } else if (hyp.intensity[dateKey] == null) {
-                    // 過去: 直近の設定値を初期値にしてモーダルで編集
-                    const start = new Date(hyp.startDate); start.setHours(0,0,0,0);
-                    let last = null;
-                    for (let d = new Date(new Date(dateKey)); d >= start; d.setDate(d.getDate()-1)) {
-                        const k = d.toISOString().split('T')[0];
-                        if (hyp.intensity[k] != null) { last = Number(hyp.intensity[k]); break; }
-                    }
-                    if (last == null) last = 1.0;
-                    hyp.intensity[dateKey] = last;
-                    const data2 = loadData();
-                    const idx2 = data2.currentHypotheses.findIndex(h => h.id === hyp.id);
-                    if (idx2 !== -1) { data2.currentHypotheses[idx2] = hyp; saveData(data2); }
-                    setTimeout(() => openIntensityPicker(dateKey), 0);
-                }
-            } catch (e) { console.warn('Intensity defaulting (skip) failed', e); }
+            // スキップ達成後も強度選択モーダルを表示（今日/過去とも）
+            try { setTimeout(() => openIntensityPicker(dateKey), 0); } catch (_e) {}
         }
 
         // カレンダーを更新
@@ -2964,28 +2938,8 @@
                 // 達成アニメーションを表示
                 showAchievementAnimation();
 
-                // 強度設定: 今日の達成なら「今日の強度」パネルの選択値を適用
-                try {
-                    const hyp = window.currentHypothesis;
-                    hyp.intensity = hyp.intensity || {};
-                    const todayKey = new Date().toISOString().split('T')[0];
-                    if (dateKey === todayKey) {
-                        // 今日: 現在の選択値を常に適用（既存値があっても上書き）
-                        const sel = Number(hyp.intensity[todayKey] ?? 1.0);
-                        hyp.intensity[dateKey] = sel;
-                    } else if (hyp.intensity[dateKey] == null) {
-                        // 過去: 直近の設定済み強度を初期値にしてモーダルで編集
-                        const start = new Date(hyp.startDate); start.setHours(0,0,0,0);
-                        let last = null;
-                        for (let d = new Date(new Date(dateKey)); d >= start; d.setDate(d.getDate()-1)) {
-                            const k = d.toISOString().split('T')[0];
-                            if (hyp.intensity[k] != null) { last = Number(hyp.intensity[k]); break; }
-                        }
-                        if (last == null) last = 1.0;
-                        hyp.intensity[dateKey] = last;
-                        setTimeout(() => openIntensityPicker(dateKey), 0);
-                    }
-                } catch (e) { console.warn('Intensity defaulting failed', e); }
+                // 達成直後に強度選択モーダルを表示（今日/過去とも）
+                try { setTimeout(() => openIntensityPicker(dateKey), 0); } catch (_e) {}
             } else {
                 // 達成を取り消す
                 delete window.currentHypothesis.achievements[dateKey];
@@ -3302,13 +3256,13 @@
             panel.innerHTML = `
                 <div style=\"display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;\">
                     <div style=\"display:flex;flex-direction:column;gap:4px;\">
-                        <div style=\"font-weight:700;\">💪 今日の強度</div>
-                        <div style=\"color: var(--text-secondary);font-size:12px;\">各仮説ごとに3つの強度ラベルを編集できます</div>
+                        <div style=\"font-weight:700;\">💪 今日の強度（目安・選択不可）</div>
+                        <div style=\"color: var(--text-secondary);font-size:12px;\">ラベルは［編集］で変更可。強度の選択は達成後に行います。</div>
                     </div>
                     <div style=\"display:flex;gap:8px;align-items:center;\">
-                        <button id=\"intensity-opt-0\" style=\"${btnStyle(selected===opt0.mult)}\">${label0} (×${opt0.mult})</button>
-                        <button id=\"intensity-opt-1\" style=\"${btnStyle(selected===opt1.mult)}\">${label1} (×${opt1.mult})</button>
-                        <button id=\"intensity-opt-2\" style=\"${btnStyle(selected===opt2.mult)}\">${label2} (×${opt2.mult})</button>
+                        <span style=\"${btnStyle(selected===opt0.mult)};pointer-events:none;\">${label0} (×${opt0.mult})</span>
+                        <span style=\"${btnStyle(selected===opt1.mult)};pointer-events:none;\">${label1} (×${opt1.mult})</span>
+                        <span style=\"${btnStyle(selected===opt2.mult)};pointer-events:none;\">${label2} (×${opt2.mult})</span>
                         <button id=\"intensity-edit\" class=\"btn btn-secondary\" style=\"margin-left:8px;padding:8px 12px;\">編集</button>
                     </div>
                 </div>
@@ -3316,34 +3270,8 @@
                     達成日に設定した強度倍率を重みとして適用し、表示達成率は全日数を分母に計算します。
                 </div>
             `;
-
-            const set = (m) => {
-                hyp.intensity[todayKey] = m;
-                const data = loadData();
-                const idx = data.currentHypotheses.findIndex(h => h.id === hyp.id);
-                if (idx !== -1) data.currentHypotheses[idx] = hyp;
-                saveData(data);
-                renderIntensityPanel();
-                updateProgress();
-                // カレンダーの当日バッジ（A/B/C）も即時反映
-                try { updateCalendar(); } catch (_e) {}
-            };
-            const b0 = document.getElementById('intensity-opt-0');
-            const b1 = document.getElementById('intensity-opt-1');
-            const b2 = document.getElementById('intensity-opt-2');
             const be = document.getElementById('intensity-edit');
             if (be) be.onclick = () => editIntensityOptions();
-
-            // すべての日で強度選択を有効化（未達成日でも選択可能に）
-            [b0, b1, b2].forEach(btn => {
-                if (btn) {
-                    btn.style.opacity = '';
-                    btn.style.pointerEvents = 'auto';
-                }
-            });
-            if (b0) b0.onclick = () => set(opt0.mult);
-            if (b1) b1.onclick = () => set(opt1.mult);
-            if (b2) b2.onclick = () => set(opt2.mult);
         }
 
         // 強度ラベル/倍率の編集（シンプルなプロンプトUI）
