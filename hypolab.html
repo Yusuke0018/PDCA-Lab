@@ -2163,7 +2163,11 @@
         // 進捗トラッキング画面を表示
         function showTrackingScreen() {
             if (!window.currentHypothesis) return;
-
+            // モバイル戻るボタン対策：トラッキング画面に入るときに履歴を積む
+            try {
+                history.pushState({ view: 'tracking', hypothesisId: window.currentHypothesis.id }, '');
+            } catch (e) { /* noop */ }
+            
             showScreen('tracking-screen');
             
             // 仮説情報を表示
@@ -2192,6 +2196,20 @@
                 document.getElementById('complete-btn').style.display = 'block';
             }
         }
+        
+        // --- 戻るボタン（popstate）対策 ---
+        // 初期状態を履歴に設定
+        try {
+            history.replaceState({ view: 'base' }, '');
+        } catch (e) { /* noop */ }
+
+        // 物理戻るでトラッキング画面からダッシュボードへ戻す
+        window.addEventListener('popstate', () => {
+            const active = document.querySelector('.screen.active');
+            if (active && active.id === 'tracking-screen') {
+                showScreen('dashboard-screen');
+            }
+        });
 
         // 完了オプションを表示
         window.showCompletionOptions = function() {

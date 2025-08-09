@@ -2259,6 +2259,10 @@
 
         // 進捗画面を表示
         function showProgressView(hypothesisId) {
+            // モバイルの戻るボタン対策: 進捗ビューに入るタイミングで履歴を積む
+            try {
+                history.pushState({ view: 'progress', hypothesisId }, '');
+            } catch (e) { /* noop */ }
             const data = loadData();
             const hypothesis = data.currentHypotheses.find(h => h.id === hypothesisId);
             
@@ -4725,6 +4729,19 @@
 
         // 初期化
         showHomeView();
+        // 履歴初期化（ホームを現在の状態として記録）
+        try {
+            history.replaceState({ view: 'home' }, '');
+        } catch (e) { /* noop */ }
+
+        // 物理戻るボタン（popstate）でホームへ戻す
+        window.addEventListener('popstate', (event) => {
+            const state = event.state || {};
+            if (state.view === 'home' || !state.view) {
+                // 仮説の中身（progress）などから戻る → ホーム表示
+                showHomeView();
+            }
+        });
         setupSwipeListeners();
         checkDebugMode();
         
