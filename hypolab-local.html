@@ -3781,6 +3781,14 @@
                     { label: '高強度', mult: 1.2 },
                 ];
                 const toFixed1 = (n) => (Math.round(Number(n) * 10) / 10).toFixed(1);
+                // A/B/C 表示用に倍率の小→大で C/B/A を割り当て
+                const sortedOpts = [...opts].sort((a,b)=>Number(a.mult)-Number(b.mult));
+                const gradeForMult = (m) => {
+                    const fixed = toFixed1(m);
+                    const idx = sortedOpts.findIndex(o => toFixed1(o.mult) === fixed);
+                    if (idx === -1) return null;
+                    return idx === 2 ? 'A' : (idx === 1 ? 'B' : 'C');
+                };
                 const badges = [];
                 for (let k = 0; k < 3; k++) {
                     const d = new Date(today);
@@ -3790,8 +3798,8 @@
                     const key = d.toISOString().split('T')[0];
                     const mult = Number((intensity || {})[key] ?? 1.0);
                     const ach = !!((hypothesis.achievements || {})[key]);
-                    const opt = opts.find(o => toFixed1(o.mult) === toFixed1(mult));
-                    const labelText = opt ? opt.label : `×${toFixed1(mult)}`;
+                    const grade = gradeForMult(mult) || 'A';
+                    const labelText = grade;
                     const style = ach
                         ? 'background: rgba(16,185,129,0.15); border:1px solid #10b981; color:#10b981;'
                         : 'background: rgba(148,163,184,0.15); border:1px solid #475569; color:#94a3b8;';
@@ -4232,20 +4240,24 @@
             drawSparkline('sparkline-7', 7);
             drawSparkline('sparkline-30', 30);
 
-            // 強度ラベル使用割合のドーナツ
+            // 強度ラベル使用割合のドーナツ（表示は A/B/C）
             const labelCounts = {};
             const toFixed1 = (n) => (Math.round(Number(n) * 10) / 10).toFixed(1);
             all.forEach(h => {
                 const opts = (h.intensityOptions && h.intensityOptions.length===3) ? h.intensityOptions : [
                     { label:'軽め', mult:0.8 },{ label:'基本', mult:1.0 },{ label:'高強度', mult:1.2 }
                 ];
-                const mapMultToLabel = (m) => {
-                    const f = opts.find(o => toFixed1(o.mult) === toFixed1(m));
-                    return f ? f.label : 'その他';
+                // 倍率の小→大で C,B,A を付与
+                const sorted = [...opts].sort((a,b)=>Number(a.mult)-Number(b.mult));
+                const mapMultToGrade = (m) => {
+                    const fixed = toFixed1(m);
+                    const idx = sorted.findIndex(o => toFixed1(o.mult) === fixed);
+                    if (idx === -1) return 'その他';
+                    return idx === 2 ? 'A' : (idx === 1 ? 'B' : 'C');
                 };
                 Object.keys(h.achievements||{}).forEach(key => {
                     const m = Number((h.intensity||{})[key] ?? 1.0);
-                    const label = mapMultToLabel(m);
+                    const label = mapMultToGrade(m);
                     labelCounts[label] = (labelCounts[label]||0) + 1;
                 });
             });
