@@ -1494,11 +1494,19 @@
                     </div>
                     <div class="stat-card" style="background: var(--background); padding: 20px; border-radius: 12px; text-align: center;">
                         <div class="stat-value" id="avg-achievement" style="font-size: 36px; font-weight: 800; background: var(--gradient-2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">0%</div>
-                        <div class="stat-label" style="color: var(--text-secondary); margin-top: 8px;">平均達成率</div>
+                        <div class="stat-label" style="color: var(--text-secondary); margin-top: 8px;">平均達成率（仮説平均）</div>
                     </div>
                     <div class="stat-card" style="background: var(--background); padding: 20px; border-radius: 12px; text-align: center;">
                         <div class="stat-value" id="total-days" style="font-size: 36px; font-weight: 800; background: var(--gradient-3); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">0</div>
-                        <div class="stat-label" style="color: var(--text-secondary); margin-top: 8px;">総検証日数</div>
+                        <div class="stat-label" style="color: var(--text-secondary); margin-top: 8px;">総検証日数（ユニーク日）</div>
+                    </div>
+                    <div class="stat-card" style="background: var(--background); padding: 20px; border-radius: 12px; text-align: center;">
+                        <div class="stat-value" id="overall-daily-rate" style="font-size: 36px; font-weight: 800; background: var(--gradient-1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">0%</div>
+                        <div class="stat-label" style="color: var(--text-secondary); margin-top: 8px;">全体日次達成率（重み/日）</div>
+                    </div>
+                    <div class="stat-card" style="background: var(--background); padding: 20px; border-radius: 12px; text-align: center;">
+                        <div class="stat-value" id="weighted-achieved" style="font-size: 36px; font-weight: 800; background: var(--gradient-2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">0</div>
+                        <div class="stat-label" style="color: var(--text-secondary); margin-top: 8px;">重み付き達成日数（合計）</div>
                     </div>
                 </div>
                 <div class="achievement-chart" id="achievement-chart">
@@ -4095,43 +4103,62 @@
             
             const data = loadData();
             const totalHypotheses = data.currentHypotheses.length + data.completedHypotheses.length;
-            let totalAchievement = 0;
-            let totalDays = 0;
-            
-            // 現在の仮説の統計
-            data.currentHypotheses.forEach(hypothesis => {
-                const startDate = new Date(hypothesis.startDate);
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                
-                // 開始日を0時0分0秒に設定
-                startDate.setHours(0, 0, 0, 0);
-                
-                // 経過日数を計算（開始日を1日目として計算）
-                const timeDiff = today.getTime() - startDate.getTime();
+            let totalAchievement = 0; // 仮説平均用
+            let uniqueDates = new Set();
+            let weightedAchieved = 0; // 全体重み付き達成の合計
+
+            const today = new Date();
+            today.setHours(0,0,0,0);
+
+            const all = [...data.currentHypotheses, ...data.completedHypotheses];
+            all.forEach(hypothesis => {
+                const start = new Date(hypothesis.startDate);
+                start.setHours(0,0,0,0);
+                const theoreticalEnd = new Date(start);
+                theoreticalEnd.setDate(start.getDate() + (hypothesis.totalDays || 0) - 1);
+                const end = hypothesis.completedDate ? new Date(hypothesis.completedDate) : today;
+                end.setHours(0,0,0,0);
+                const last = theoreticalEnd < end ? theoreticalEnd : end;
+
+                // ユニーク日を収集
+                for (let d = new Date(start); d <= last; d.setDate(d.getDate() + 1)) {
+                    uniqueDates.add(d.toISOString().split('T')[0]);
+                }
+
+                // 重み付き達成の集計
+                const intensity = hypothesis.intensity || {};
+                const achievements = hypothesis.achievements || {};
+                Object.keys(achievements).forEach(key => {
+                    const kd = new Date(key);
+                    kd.setHours(0,0,0,0);
+                    if (kd >= start && kd <= last) {
+                        const mult = Number(intensity[key] ?? 1.0);
+                        weightedAchieved += mult;
+                    }
+                });
+
+                // 仮説ごとの平均達成率（表示用に継続）
+                const timeDiff = Math.min(last.getTime(), today.getTime()) - start.getTime();
                 const daysPassed = Math.min(
                     Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1),
-                    hypothesis.totalDays
+                    hypothesis.totalDays || 0
                 );
-                
-                const achievedDays = Object.keys(hypothesis.achievements || {}).length;
+                const achievedDays = Object.keys(achievements).length;
                 const achievementRate = daysPassed > 0 ? Math.round((achievedDays / daysPassed) * 100) : 0;
-                
                 totalAchievement += achievementRate;
-                totalDays += daysPassed;
             });
-            
-            // 完了した仮説の統計
-            data.completedHypotheses.forEach(hypothesis => {
-                totalAchievement += hypothesis.finalAchievementRate || 0;
-                totalDays += hypothesis.totalDays || 0;
-            });
-            
+
+            const totalDaysUnique = uniqueDates.size;
             const avgAchievement = totalHypotheses > 0 ? Math.round(totalAchievement / totalHypotheses) : 0;
-            
+            const overallDailyRate = totalDaysUnique > 0 ? Math.floor((weightedAchieved / totalDaysUnique) * 100) : 0;
+
             document.getElementById('total-hypotheses').textContent = totalHypotheses;
             document.getElementById('avg-achievement').textContent = avgAchievement + '%';
-            document.getElementById('total-days').textContent = totalDays;
+            document.getElementById('total-days').textContent = totalDaysUnique;
+            const odr = document.getElementById('overall-daily-rate');
+            const wa = document.getElementById('weighted-achieved');
+            if (odr) odr.textContent = overallDailyRate + '%';
+            if (wa) wa.textContent = (Math.round(weightedAchieved * 10) / 10).toString();
         }
 
 
