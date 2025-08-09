@@ -2837,7 +2837,8 @@
             modal.style.padding = '20px';
             const title = new Date(dateKey).toLocaleDateString('ja-JP');
             const esc = (s) => (typeof escapeHTML === 'function' ? escapeHTML(String(s)) : String(s));
-            const btnCss = (active) => `padding:10px 12px;border-radius:10px;border:2px solid ${active ? '#10b981' : '#334155'};background:${active ? 'rgba(16,185,129,0.15)' : 'rgba(30,41,59,0.5)'};color:#e2e8f0;cursor:pointer;`;
+            const isAchieved = !!((hyp.achievements || {})[dateKey]);
+            const btnCss = (active) => `padding:10px 12px;border-radius:10px;border:2px solid ${active ? '#10b981' : '#334155'};background:${active ? 'rgba(16,185,129,0.15)' : 'rgba(30,41,59,0.5)'};color:#e2e8f0;${isAchieved ? 'cursor:pointer;' : 'opacity:0.6;cursor:not-allowed;'}`;
             modal.innerHTML = `
                 <div class="modal-header" style="margin-bottom:16px;">
                     <h3>💪 強度を選択 (${esc(title)})</h3>
@@ -2854,20 +2855,27 @@
             overlay.appendChild(modal);
             document.body.appendChild(overlay);
 
-            modal.querySelectorAll('button[data-idx]').forEach(btn => {
-                btn.onclick = () => {
-                    const idx = Number(btn.getAttribute('data-idx'));
-                    const mult = Number(opts[idx].mult);
-                    hyp.intensity[dateKey] = mult;
-                    const data = loadData();
-                    const i = data.currentHypotheses.findIndex(h => h.id === hyp.id);
-                    if (i !== -1) data.currentHypotheses[i] = hyp;
-                    saveData(data);
-                    document.body.removeChild(overlay);
-                    updateCalendar();
-                    updateProgress();
-                };
-            });
+            if (isAchieved) {
+                modal.querySelectorAll('button[data-idx]').forEach(btn => {
+                    btn.onclick = () => {
+                        const idx = Number(btn.getAttribute('data-idx'));
+                        const mult = Number(opts[idx].mult);
+                        hyp.intensity[dateKey] = mult;
+                        const data = loadData();
+                        const i = data.currentHypotheses.findIndex(h => h.id === hyp.id);
+                        if (i !== -1) data.currentHypotheses[i] = hyp;
+                        saveData(data);
+                        document.body.removeChild(overlay);
+                        updateCalendar();
+                        updateProgress();
+                    };
+                });
+            } else {
+                const info = document.createElement('div');
+                info.style.cssText = 'margin-top:12px;color:#94a3b8;font-size:12px;';
+                info.textContent = '未達成日の強度は変更できません。先に達成を記録してください。';
+                modal.appendChild(info);
+            }
             document.getElementById('intensity-cancel').onclick = () => {
                 document.body.removeChild(overlay);
             };
@@ -3156,6 +3164,7 @@
             hyp.intensity = hyp.intensity || {};
             const todayKey = new Date().toISOString().split('T')[0];
             const selected = Number(hyp.intensity[todayKey] ?? 1.0);
+            const todayAchieved = !!(hyp.achievements || {})[todayKey];
             // 強度オプション（ラベル＋倍率）を仮説ごとに保持
             if (!hyp.intensityOptions || !Array.isArray(hyp.intensityOptions) || hyp.intensityOptions.length !== 3) {
                 hyp.intensityOptions = [
@@ -3203,7 +3212,7 @@
                     </div>
                 </div>
                 <div style=\"margin-top:8px;color:#94a3b8;font-size:12px;\">
-                    達成日の重み付けに倍率(0.8/1.0/1.2)を適用し、表示達成率は全日数を分母に計算します。
+                    達成日の重み付けに倍率(0.8/1.0/1.2)を適用し、表示達成率は全日数を分母に計算します。${todayAchieved ? '' : '（未達成日のため選択は無効）'}
                 </div>
             `;
 
@@ -3220,9 +3229,18 @@
             const b1 = document.getElementById('intensity-opt-1');
             const b2 = document.getElementById('intensity-opt-2');
             const be = document.getElementById('intensity-edit');
-            if (b0) b0.onclick = () => set(opt0.mult);
-            if (b1) b1.onclick = () => set(opt1.mult);
-            if (b2) b2.onclick = () => set(opt2.mult);
+            if (todayAchieved) {
+                if (b0) b0.onclick = () => set(opt0.mult);
+                if (b1) b1.onclick = () => set(opt1.mult);
+                if (b2) b2.onclick = () => set(opt2.mult);
+            } else {
+                [b0, b1, b2].forEach(btn => {
+                    if (btn) {
+                        btn.style.opacity = '0.6';
+                        btn.style.pointerEvents = 'none';
+                    }
+                });
+            }
             if (be) be.onclick = () => editIntensityOptions();
         }
 
@@ -3498,69 +3516,7 @@
             return streak;
         }
 
-        // デイリークエストの取得/生成
-        function getOrCreateDailyQuest(hyp) {
-            const todayKey = new Date().toISOString().split('T')[0];
-            if (!hyp.dailyQuest || hyp.dailyQuest.date !== todayKey) {
-                const candidates = [
-                    '1分だけ準備する',
-                    '開始の障壁を1つ減らす',
-                    '今日の一言目標を書く',
-                    '開始BGMを流す',
-                    'タイマーをセットする'
-                ];
-                const text = candidates[Math.floor(Math.random()*candidates.length)];
-                hyp.dailyQuest = { date: todayKey, text, completed: false };
-                const data = loadData();
-                const idx = data.currentHypotheses.findIndex(h => h.id === hyp.id);
-                if (idx !== -1) { data.currentHypotheses[idx] = hyp; saveData(data); }
-            }
-            return hyp.dailyQuest;
-        }
-
-        // 進捗画面にストリークとデイリークエストを描画
-        function renderStreakAndQuest() {
-            if (!window.currentHypothesis) return;
-            const quest = getOrCreateDailyQuest(window.currentHypothesis);
-            let panel = document.getElementById('quest-panel');
-            if (!panel) {
-                panel = document.createElement('div');
-                panel.id = 'quest-panel';
-                panel.style.cssText = 'margin-top:12px;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--surface);';
-                const parent = document.getElementById('progress-view');
-                parent.appendChild(panel);
-            }
-            panel.innerHTML = `
-                <div style="display:flex;align-items:center;gap:12px;justify-content:space-between;">
-                    <div>
-                        <div style="font-weight:700;">🎯 デイリークエスト</div>
-                        <div style="color: var(--text-secondary);">${quest.text}</div>
-                    </div>
-                    <div>
-                        ${quest.completed ? '<span style="color:#10b981;font-weight:700;">達成済み</span>' : '<button id="complete-quest-btn" class="btn" style="padding:8px 12px;">完了</button>'}
-                    </div>
-                </div>
-                <div style="margin-top:8px;color:#94a3b8;font-size:12px;">完了で小さなエフェクトと+1%の見た目ボーナス</div>
-            `;
-            if (!quest.completed) {
-                const btn = document.getElementById('complete-quest-btn');
-                if (btn) btn.onclick = completeDailyQuest;
-            }
-        }
-
-        function completeDailyQuest() {
-            if (!window.currentHypothesis) return;
-            const quest = getOrCreateDailyQuest(window.currentHypothesis);
-            if (quest.completed) return;
-            quest.completed = true;
-            const data = loadData();
-            const idx = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
-            if (idx !== -1) { data.currentHypotheses[idx] = window.currentHypothesis; }
-            saveData(data);
-            if (navigator.vibrate) { navigator.vibrate([20, 60, 20]); }
-            showCardEffect('🎯 デイリークエスト達成！', '+1%ボーナス（表示のみ）', '#3b82f6');
-            renderStreakAndQuest();
-        }
+        // （削除）旧デイリークエスト機能は強度（Intensity）へ置換済み
 
         // 完了オプションを表示
         function showCompletionOptions() {
