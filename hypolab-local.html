@@ -1248,6 +1248,29 @@
                             </div>
                         </div>
                     </div>
+
+                    <div class="form-group">
+                        <label>実施頻度を選択</label>
+                        <div style="display:flex; gap:8px; flex-wrap: wrap;">
+                            <label style="display:flex; align-items:center; gap:6px; background: var(--surface); border:1px solid var(--border); padding:8px 12px; border-radius:10px;">
+                                <input type="radio" name="freq" value="daily" checked>
+                                毎日
+                            </label>
+                            <label style="display:flex; align-items:center; gap:6px; background: var(--surface); border:1px solid var(--border); padding:8px 12px; border-radius:10px;">
+                                <input type="radio" name="freq" value="every2days">
+                                2日に1回
+                            </label>
+                            <label style="display:flex; align-items:center; gap:6px; background: var(--surface); border:1px solid var(--border); padding:8px 12px; border-radius:10px;">
+                                <input type="radio" name="freq" value="week1">
+                                週1回
+                            </label>
+                            <label style="display:flex; align-items:center; gap:6px; background: var(--surface); border:1px solid var(--border); padding:8px 12px; border-radius:10px;">
+                                <input type="radio" name="freq" value="week2">
+                                週2回
+                            </label>
+                        </div>
+                        <small style="color: var(--text-secondary); display:block; margin-top:6px;">頻度に応じて達成率の計算と対象日が変わります</small>
+                    </div>
                     
                     <div class="form-group">
                         <button type="submit" class="btn">
@@ -1640,6 +1663,96 @@
             const m = String(d.getMonth() + 1).padStart(2, '0');
             const day = String(d.getDate()).padStart(2, '0');
             return `${y}-${m}-${day}`;
+        }
+
+        // YYYY-MM-DDキーからローカル日付オブジェクトを生成
+        function dateFromKeyLocal(key) {
+            const [y, m, d] = key.split('-').map(Number);
+            return new Date(y, (m - 1), d);
+        }
+
+        // 週の開始（日曜始まり）を返す
+        function weekStartLocal(date) {
+            const d = new Date(date);
+            d.setHours(0, 0, 0, 0);
+            const day = d.getDay(); // 0:Sun
+            const start = new Date(d);
+            start.setDate(d.getDate() - day);
+            start.setHours(0,0,0,0);
+            return start;
+        }
+
+        // 指定日が達成対象日か（頻度設定）
+        function isEligibleDate(hyp, date) {
+            if (!hyp || !hyp.frequency || hyp.frequency.mode === 'daily') return true;
+            const start = new Date(hyp.startDate); start.setHours(0,0,0,0);
+            const d = new Date(date); d.setHours(0,0,0,0);
+            if (d < start) return false;
+            if (hyp.frequency.mode === 'every_n_days') {
+                const diff = Math.floor((d - start) / (1000*60*60*24));
+                const n = Math.max(1, Number(hyp.frequency.n || 1));
+                return diff % n === 0;
+            }
+            // per_week は任意日を達成可
+            return true;
+        }
+
+        // 週内の達成数を数える（指定日の属する週）
+        function achievedCountInWeek(hyp, date) {
+            const start = weekStartLocal(date);
+            const end = new Date(start); end.setDate(start.getDate() + 6); end.setHours(0,0,0,0);
+            const achievements = hyp.achievements || {};
+            let count = 0;
+            for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                const k = dateKeyLocal(d);
+                if (achievements[k]) count++;
+            }
+            return count;
+        }
+
+        // 期間内の必要達成回数（単位）を算出
+        function requiredUnitsUntil(hyp, start, end) {
+            if (!hyp.frequency || hyp.frequency.mode === 'daily' || hyp.frequency.mode === 'every_n_days') {
+                let denom = 0;
+                for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                    if (isEligibleDate(hyp, d)) denom++;
+                }
+                return denom;
+            }
+            // per_week
+            const per = Math.max(1, Number(hyp.frequency.perWeek || hyp.frequency.perWeekCount || 1));
+            let denom = 0;
+            let cur = weekStartLocal(start);
+            const lastWeekStart = weekStartLocal(end);
+            while (cur <= lastWeekStart) {
+                denom += per;
+                cur.setDate(cur.getDate() + 7);
+            }
+            return denom;
+        }
+
+        // 期間内の実績達成回数（単位）を算出
+        function achievedUnitsUntil(hyp, start, end) {
+            const achievements = hyp.achievements || {};
+            if (!hyp.frequency || hyp.frequency.mode === 'daily' || hyp.frequency.mode === 'every_n_days') {
+                let num = 0;
+                for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                    const k = dateKeyLocal(d);
+                    if (isEligibleDate(hyp, d) && achievements[k]) num++;
+                }
+                return num;
+            }
+            // per_week: 週ごとに上限をかけて合算
+            const per = Math.max(1, Number(hyp.frequency.perWeek || hyp.frequency.perWeekCount || 1));
+            let num = 0;
+            let cur = weekStartLocal(start);
+            const lastWeekStart = weekStartLocal(end);
+            while (cur <= lastWeekStart) {
+                const count = achievedCountInWeek(hyp, cur);
+                num += Math.min(per, count);
+                cur.setDate(cur.getDate() + 7);
+            }
+            return num;
         }
 
         // カードマスターデータ
@@ -2109,6 +2222,18 @@
                 ifThen: ifThen,
                 declarations: {}
             };
+
+            // 実施頻度の設定
+            const freq = document.querySelector('input[name="freq"]:checked')?.value || 'daily';
+            if (freq === 'daily') {
+                currentHypothesis.frequency = { mode: 'daily' };
+            } else if (freq === 'every2days') {
+                currentHypothesis.frequency = { mode: 'every_n_days', n: 2 };
+            } else if (freq === 'week1') {
+                currentHypothesis.frequency = { mode: 'per_week', perWeek: 1 };
+            } else if (freq === 'week2') {
+                currentHypothesis.frequency = { mode: 'per_week', perWeek: 2 };
+            }
             
             // ペナルティ効果をリセット（一度使用したら消える）
             window.hardModeActive = false;
@@ -2792,6 +2917,9 @@
                     dot.textContent = '●';
                     dayCell.appendChild(dot);
                 }
+
+                // 頻度に基づく対象日判定
+                const eligible = isEligibleDate(window.currentHypothesis, cellDate);
                 
                 if (cellDate > today && !window.skipTicketMode) {
                     dayCell.classList.add('future');
@@ -2802,7 +2930,11 @@
                     dayCell.onclick = () => toggleDayStatus(dateKey, dayCell);
                 } else {
                     dayCell.classList.add('not-achieved');
-                    if (window.skipTicketMode) {
+                    if (!eligible && (!window.currentHypothesis.frequency || window.currentHypothesis.frequency.mode !== 'per_week')) {
+                        // 非対象日は操作不可（週次モードは例外）
+                        dayCell.style.opacity = '0.5';
+                        dayCell.style.filter = 'grayscale(0.6)';
+                    } else if (window.skipTicketMode) {
                         // スキップモードでも過去と今日のみ選択可能
                         if (cellDate <= today) {
                             dayCell.style.cursor = 'pointer';
@@ -2812,7 +2944,10 @@
                             dayCell.classList.add('future');
                         }
                     } else {
-                        dayCell.onclick = () => toggleDayStatus(dateKey, dayCell);
+                        if (eligible || (window.currentHypothesis.frequency && window.currentHypothesis.frequency.mode === 'per_week')) {
+                            dayCell.onclick = () => toggleDayStatus(dateKey, dayCell);
+                            dayCell.style.cursor = 'pointer';
+                        }
                     }
                 }
                 
@@ -2821,9 +2956,12 @@
                     if (!window.currentHypothesis.achievements[dateKey]) {
                         dayCell.classList.remove('future');
                         dayCell.classList.add('not-achieved');
-                        dayCell.onclick = window.skipTicketMode ? 
-                            () => applySkipTicket(dateKey, dayCell) : 
-                            () => toggleDayStatus(dateKey, dayCell);
+                        if (eligible || (window.currentHypothesis.frequency && window.currentHypothesis.frequency.mode === 'per_week')) {
+                            dayCell.onclick = window.skipTicketMode ? 
+                                () => applySkipTicket(dateKey, dayCell) : 
+                                () => toggleDayStatus(dateKey, dayCell);
+                            dayCell.style.cursor = 'pointer';
+                        }
                     }
                 }
                 
@@ -2839,8 +2977,20 @@
             }
             
             // 期間情報を更新
-            document.getElementById('progress-days-info').textContent = 
-                `検証期間: ${daysPassed}日目 / ${window.currentHypothesis.totalDays}日間`;
+            let info = `検証期間: ${daysPassed}日目 / ${window.currentHypothesis.totalDays}日間`;
+            if (window.currentHypothesis.frequency) {
+                if (window.currentHypothesis.frequency.mode === 'every_n_days') {
+                    info += `　（頻度: ${window.currentHypothesis.frequency.n || 2}日に1回）`;
+                } else if (window.currentHypothesis.frequency.mode === 'per_week') {
+                    const per = Math.max(1, Number(window.currentHypothesis.frequency.perWeek || window.currentHypothesis.frequency.perWeekCount || 1));
+                    // 今週の状況
+                    const now = new Date(); now.setHours(0,0,0,0);
+                    const weekStart = weekStartLocal(now);
+                    const cnt = achievedCountInWeek(window.currentHypothesis, weekStart);
+                    info += `　（頻度: 週${per}回／今週: ${cnt}/${per}）`;
+                }
+            }
+            document.getElementById('progress-days-info').textContent = info;
         }
 
         // 長押し検出ユーティリティ
@@ -2928,6 +3078,21 @@
 
         // 日の達成状態を切り替え
         function toggleDayStatus(dateKey, dayCell) {
+            const hyp = window.currentHypothesis;
+            const d = dateFromKeyLocal(dateKey);
+            // 頻度制約チェック
+            if (hyp.frequency && hyp.frequency.mode === 'every_n_days' && !isEligibleDate(hyp, d)) {
+                showNotification('この日は対象日ではありません（2日に1回など）', 'error');
+                return;
+            }
+            if (hyp.frequency && hyp.frequency.mode === 'per_week' && !hyp.achievements[dateKey]) {
+                const per = Math.max(1, Number(hyp.frequency.perWeek || hyp.frequency.perWeekCount || 1));
+                const cnt = achievedCountInWeek(hyp, d);
+                if (cnt >= per) {
+                    showNotification('今週の目標回数は達成済みです', 'info');
+                    return;
+                }
+            }
             if (!window.currentHypothesis.achievements[dateKey]) {
                 // 達成状態にする
                 window.currentHypothesis.achievements[dateKey] = true;
@@ -3061,27 +3226,39 @@
                 window.currentHypothesis.totalDays
             );
             
-            const achievedDays = Object.keys(window.currentHypothesis.achievements).length;
-            const achievementRate = daysPassed > 0 ? Math.round((achievedDays / daysPassed) * 100) : 0;
-            
-            // 表示用の達成率: 全日数を分母に、各達成日の強度倍率を適用した合計を分子に
-            const todayKey = dateKeyLocal(new Date());
-            const intensity = window.currentHypothesis.intensity || {};
-            let weightedAchieved = 0;
-            for (let i = 0; i < window.currentHypothesis.totalDays; i++) {
-                const d = new Date(startDate);
-                d.setDate(startDate.getDate() + i);
-                const key = dateKeyLocal(d);
-                const isAchieved = !!(window.currentHypothesis.achievements || {})[key];
-                if (!isAchieved) continue;
-                const mult = Number(intensity[key] ?? 1.0);
-                weightedAchieved += mult;
+            // 頻度に応じた分母・分子
+            const endForProgress = new Date(Math.min(today.getTime(), (new Date(startDate)).setDate(startDate.getDate() + window.currentHypothesis.totalDays - 1)));
+            const denom = requiredUnitsUntil(window.currentHypothesis, startDate, today);
+            const achievedUnits = achievedUnitsUntil(window.currentHypothesis, startDate, today);
+            const achievementRate = denom > 0 ? Math.round((achievedUnits / denom) * 100) : 0;
+
+            // 表示用の達成率
+            let displayRate = achievementRate;
+            if (!window.currentHypothesis.frequency || window.currentHypothesis.frequency.mode !== 'per_week') {
+                // 日次/隔日では強度を加味（対象日のみ）
+                const intensity = window.currentHypothesis.intensity || {};
+                let weighted = 0; let eligibleCount = 0;
+                for (let i = 0; i < window.currentHypothesis.totalDays; i++) {
+                    const d = new Date(startDate); d.setDate(startDate.getDate() + i);
+                    if (d > today) break;
+                    if (!isEligibleDate(window.currentHypothesis, d)) continue;
+                    eligibleCount++;
+                    const key = dateKeyLocal(d);
+                    if ((window.currentHypothesis.achievements||{})[key]) {
+                        const mult = Number(intensity[key] ?? 1.0);
+                        weighted += mult;
+                    }
+                }
+                displayRate = eligibleCount > 0 ? Math.min(100, Math.floor((weighted / eligibleCount) * 100)) : achievementRate;
             }
-            const displayRate = Math.min(100, Math.floor((weightedAchieved / window.currentHypothesis.totalDays) * 100));
             const rateEl = document.getElementById('achievement-rate');
             rateEl.textContent = displayRate + '%';
             document.getElementById('progress-fill').style.width = Math.min(100, Math.floor(achievementRate)) + '%';
-            document.getElementById('achieved-days').textContent = `達成: ${achievedDays}日`;
+            if (window.currentHypothesis.frequency && window.currentHypothesis.frequency.mode === 'per_week') {
+                document.getElementById('achieved-days').textContent = `達成: ${achievedUnits}回`;
+            } else {
+                document.getElementById('achieved-days').textContent = `達成: ${achievedUnits}日`;
+            }
             document.getElementById('remaining-days').textContent = `残り: ${window.currentHypothesis.totalDays - daysPassed}日`;
             
             // 達成率に応じてグラデーションを変更
