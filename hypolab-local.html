@@ -1258,43 +1258,67 @@
         /* ===== モバイル最適化（統計ビュー） ===== */
         @media (max-width: 480px) {
             .stats-grid { 
-                grid-template-columns: 1fr !important; 
-                gap: 8px !important; 
+                grid-template-columns: 1fr 1fr !important; 
+                gap: 6px !important; 
             }
             .stat-value { 
-                font-size: 24px !important; 
+                font-size: 18px !important; 
             }
             .stat-label {
-                font-size: 12px !important;
+                font-size: 10px !important;
             }
             .stat-card {
-                padding: 12px !important;
+                padding: 8px !important;
             }
             .stat-panel {
-                padding: 12px !important;
+                padding: 8px !important;
             }
             .stat-panel h3 {
-                font-size: 16px !important;
-                margin-bottom: 8px !important;
+                font-size: 13px !important;
+                margin-bottom: 6px !important;
             }
             #stats-view .btn {
-                font-size: 12px !important;
-                padding: 8px 12px !important;
+                font-size: 10px !important;
+                padding: 6px 8px !important;
+            }
+            #stats-view {
+                padding: 4px !important;
+            }
+            #stats-view .card {
+                padding: 8px !important;
+                margin: 0 !important;
             }
             #donut-intensity {
-                width: 120px !important;
-                height: 120px !important;
+                width: 80px !important;
+                height: 80px !important;
+            }
+            #donut-legend {
+                font-size: 9px !important;
             }
             #weekday-stats {
                 grid-template-columns: repeat(7, 1fr) !important;
-                gap: 4px !important;
+                gap: 2px !important;
             }
             .achievement-chart {
-                gap: 12px !important;
+                gap: 6px !important;
             }
             #badge-collection {
-                grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)) !important;
-                gap: 8px !important;
+                grid-template-columns: repeat(3, 1fr) !important;
+                gap: 4px !important;
+            }
+            #badge-collection .badge-item {
+                font-size: 10px !important;
+                padding: 4px !important;
+            }
+            #achievement-level-distribution > div {
+                margin-bottom: 6px !important;
+            }
+            #achievement-level-distribution .stage-name {
+                font-size: 10px !important;
+            }
+            #ranking-list .ranking-item {
+                font-size: 11px !important;
+                padding: 6px !important;
             }
             #weekday-stats {
                 grid-template-columns: none !important;
