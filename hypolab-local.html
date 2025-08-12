@@ -1332,18 +1332,18 @@
                     
                     <div class="form-group">
                         <label>検証期間を選択</label>
-                        <div class="duration-selector">
+                        <div class="duration-selector" id="duration-selector">
                             <div class="duration-option" onclick="selectDuration('short')" data-duration="short">
                                 <h3>短期間</h3>
-                                <p>3〜7日</p>
+                                <p id="duration-short-text">3〜7日</p>
                             </div>
                             <div class="duration-option" onclick="selectDuration('medium')" data-duration="medium">
                                 <h3>中期間</h3>
-                                <p>8〜14日</p>
+                                <p id="duration-medium-text">8〜14日</p>
                             </div>
                             <div class="duration-option" onclick="selectDuration('long')" data-duration="long">
                                 <h3>長期間</h3>
-                                <p>15〜30日</p>
+                                <p id="duration-long-text">15〜30日</p>
                             </div>
                         </div>
                     </div>
@@ -2222,6 +2222,9 @@
                     } else if (this.value === 'weekdays') {
                         weekdaysSelector.style.display = 'block';
                     }
+                    
+                    // 期間表示を更新
+                    updateDurationDisplay(this.value);
                 });
             });
             
@@ -2229,6 +2232,27 @@
             document.getElementById('freq-daily').checked = true;
         }
 
+        // 頻度に応じて期間表示を更新
+        function updateDurationDisplay(frequencyType) {
+            const shortText = document.getElementById('duration-short-text');
+            const mediumText = document.getElementById('duration-medium-text');
+            const longText = document.getElementById('duration-long-text');
+            
+            if (!shortText || !mediumText || !longText) return;
+            
+            if (frequencyType === 'weekly' || frequencyType === 'weekdays') {
+                // 週単位で表示
+                shortText.textContent = '2〜4週間';
+                mediumText.textContent = '5〜7週間';
+                longText.textContent = '8〜10週間';
+            } else {
+                // 日単位で表示（毎日の場合）
+                shortText.textContent = '3〜7日';
+                mediumText.textContent = '8〜14日';
+                longText.textContent = '15〜30日';
+            }
+        }
+        
         // 検証期間を選択
         function selectDuration(duration) {
             selectedDuration = duration;
@@ -2466,28 +2490,51 @@
             shuffleResult.style.display = 'none';
             
             // シャッフルアニメーション
-            const durationRanges = {
-                short: { min: 3, max: 7 },
-                medium: { min: 8, max: 14 },
-                long: { min: 15, max: 30 }
-            };
+            // 頻度設定に応じて日数か週数かを決定
+            let durationRanges;
+            let isWeekMode = false;
             
-            // 短期集中ペナルティ適用時は短期レンジを3-5にする
+            if (currentHypothesis.frequency && 
+                (currentHypothesis.frequency.type === 'weekly' || currentHypothesis.frequency.type === 'weekdays')) {
+                // 週単位モード（週●回または特定曜日の場合）
+                isWeekMode = true;
+                durationRanges = {
+                    short: { min: 2, max: 4 },   // 2〜4週間（14〜28日）
+                    medium: { min: 5, max: 7 },   // 5〜7週間（35〜49日）
+                    long: { min: 8, max: 10 }     // 8〜10週間（56〜70日）
+                };
+            } else {
+                // 日単位モード（毎日の場合）
+                durationRanges = {
+                    short: { min: 3, max: 7 },
+                    medium: { min: 8, max: 14 },
+                    long: { min: 15, max: 30 }
+                };
+            }
+            
+            // 短期集中ペナルティ適用時は短期レンジを調整
             let range = durationRanges[currentHypothesis.duration];
-            if (currentHypothesis.duration === 'short') {
-                if (currentHypothesis.shortTermOnly) {
-                    range = { min: 3, max: 5 };
+            if (currentHypothesis.duration === 'short' && currentHypothesis.shortTermOnly) {
+                if (isWeekMode) {
+                    range = { min: 2, max: 2 };  // 2週間固定
                 } else {
-                    range = { min: 3, max: 7 };
+                    range = { min: 3, max: 5 };  // 3-5日
                 }
             }
             let shuffleCount = 0;
             const maxShuffles = 20;
             
             const shuffleInterval = setInterval(() => {
-                const randomDays = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+                const randomValue = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
                 const shuffleNumber = document.getElementById('shuffle-number');
-                shuffleNumber.textContent = randomDays;
+                
+                // 週モードの場合は週数と日数を両方表示
+                if (isWeekMode) {
+                    const days = randomValue * 7;
+                    shuffleNumber.innerHTML = `<span style="font-size: 48px;">${randomValue}</span><span style="font-size: 24px;">週間</span><br><span style="font-size: 18px; color: var(--text-secondary);">(${days}日間)</span>`;
+                } else {
+                    shuffleNumber.textContent = randomValue;
+                }
                 shuffleNumber.classList.add('shuffling');
                 
                 setTimeout(() => {
@@ -2499,8 +2546,18 @@
                 if (shuffleCount >= maxShuffles) {
                     clearInterval(shuffleInterval);
                     
-                    // 最終的な日数を決定
-                    let finalDays = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+                    // 最終的な値を決定
+                    let finalValue = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+                    let finalDays;
+                    
+                    if (isWeekMode) {
+                        // 週モードの場合は週数を日数に変換
+                        finalDays = finalValue * 7;
+                        const shuffleNumber = document.getElementById('shuffle-number');
+                        shuffleNumber.innerHTML = `<span style="font-size: 48px;">${finalValue}</span><span style="font-size: 24px;">週間</span><br><span style="font-size: 18px; color: var(--text-secondary);">(${finalDays}日間)</span>`;
+                    } else {
+                        finalDays = finalValue;
+                    }
                     
                     // ペナルティカードによる延長を適用
                     if (window.pendingExtension) {
@@ -3018,13 +3075,14 @@
             const weeklyAchievements = new Map(); // weekNumber -> {achieved: count, required: count, canAchieve: count}
             const frequency = window.currentHypothesis.frequency;
             
-            // 週の始まりを月曜日に設定（0=日曜、1=月曜）
+            // 検証開始日からの週番号を取得（開始日から7日ごとに1週間）
             function getWeekNumber(date) {
                 const d = new Date(date);
                 d.setHours(0, 0, 0, 0);
-                const firstDay = new Date(d.getFullYear(), 0, 1);
-                const days = Math.floor((d - firstDay) / (24 * 60 * 60 * 1000));
-                return Math.ceil((days + firstDay.getDay() + 1) / 7);
+                const start = new Date(startDate);
+                start.setHours(0, 0, 0, 0);
+                const days = Math.floor((d - start) / (24 * 60 * 60 * 1000));
+                return Math.floor(days / 7) + 1;  // 1週目から開始
             }
             
             // 週●回の場合、先に各週の達成状況を計算
@@ -3074,7 +3132,7 @@
                         const progressPercent = Math.min(100, (weekData.achieved / weekData.required) * 100);
                         
                         weekInfo.innerHTML = `
-                            <span>第${i / 7 + 1 | 0}週</span>
+                            <span>第${weekNum}週</span>
                             <div class="progress">
                                 <span>${weekData.achieved}/${weekData.required}回</span>
                                 <div class="progress-bar">
@@ -3316,7 +3374,7 @@
                 // 日付から週番号を取得
                 const [year, month, day] = dateKey.split('-').map(Number);
                 const date = new Date(year, month - 1, day);
-                const weekNum = getWeekNumber(date);
+                const weekNum = getWeekNumber(date, window.currentHypothesis.startDate);
                 
                 // この週の達成状況を確認
                 let weekAchieved = 0;
@@ -3371,13 +3429,14 @@
             }
         }
         
-        // 週番号を取得する関数（グローバルに定義）
-        function getWeekNumber(date) {
+        // 週番号を取得する関数（グローバルに定義） - 検証開始日基準
+        function getWeekNumber(date, startDate) {
             const d = new Date(date);
             d.setHours(0, 0, 0, 0);
-            const firstDay = new Date(d.getFullYear(), 0, 1);
-            const days = Math.floor((d - firstDay) / (24 * 60 * 60 * 1000));
-            return Math.ceil((days + firstDay.getDay() + 1) / 7);
+            const start = new Date(startDate || window.currentHypothesis.startDate);
+            start.setHours(0, 0, 0, 0);
+            const days = Math.floor((d - start) / (24 * 60 * 60 * 1000));
+            return Math.floor(days / 7) + 1;  // 1週目から開始
         }
         
         // リセットリスクのチェック
