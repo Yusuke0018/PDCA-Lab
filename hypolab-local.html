@@ -1688,10 +1688,6 @@
                         <div class="stat-label" style="color: var(--text-secondary); margin-top: 8px;">総検証日数（ユニーク日）</div>
                     </div>
                     <div class="stat-card" style="background: var(--background); padding: 20px; border-radius: 12px; text-align: center;">
-                        <div class="stat-value" id="overall-daily-rate" style="font-size: 36px; font-weight: 800; background: var(--gradient-1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">0%</div>
-                        <div class="stat-label" style="color: var(--text-secondary); margin-top: 8px;">全体日次達成率（重み/日）</div>
-                    </div>
-                    <div class="stat-card" style="background: var(--background); padding: 20px; border-radius: 12px; text-align: center;">
                         <div class="stat-value" id="weighted-achieved" style="font-size: 36px; font-weight: 800; background: var(--gradient-2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">0</div>
                         <div class="stat-label" style="color: var(--text-secondary); margin-top: 8px;">重み付き達成日数（合計）</div>
                     </div>
@@ -4799,14 +4795,10 @@
 
             const totalDaysUnique = uniqueDates.size;
             const avgAchievement = totalHypotheses > 0 ? Math.round(totalAchievement / totalHypotheses) : 0;
-            const overallDailyRate = totalDaysUnique > 0 ? Math.floor((weightedAchieved / totalDaysUnique) * 100) : 0;
-
             document.getElementById('total-hypotheses').textContent = totalHypotheses;
             document.getElementById('avg-achievement').textContent = avgAchievement + '%';
             document.getElementById('total-days').textContent = totalDaysUnique;
-            const odr = document.getElementById('overall-daily-rate');
             const wa = document.getElementById('weighted-achieved');
-            if (odr) odr.textContent = overallDailyRate + '%';
             if (wa) wa.textContent = (Math.round(weightedAchieved * 10) / 10).toString();
 
             // 直近日次達成率（7/30日）のスパークライン描画
