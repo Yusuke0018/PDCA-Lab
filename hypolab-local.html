@@ -1718,7 +1718,7 @@
                         </div>
                     </div>
                     <div class="card" style="background: var(--background);">
-                        <h3 style="margin-bottom:8px;">🔥 ストリーク</h3>
+                        <h3 style="margin-bottom:8px;">🔥 連続達成日数</h3>
                         <div id="streak-stats" style="display:flex; gap:16px; font-weight:700;"></div>
                     </div>
                     <div class="card" style="background: var(--background);">
@@ -3788,7 +3788,7 @@
                 const container = stats || document.getElementById('progress-view');
                 container.appendChild(streakEl);
             }
-            streakEl.textContent = `🔥 ストリーク: ${streak}日`;
+            streakEl.textContent = `🔥 連続達成日数: ${streak}日`;
 
             // 朝の1行宣言パネルを更新
             renderAffirmationAndBenefit();
@@ -4161,7 +4161,7 @@
             renderIfThenPanel();
         }
 
-        // ストリーク（日次連続達成）を計算
+        // 連続達成日数を計算
         function computeStreak(hyp) {
             const today = new Date();
             today.setHours(0,0,0,0);
@@ -4854,20 +4854,14 @@
             drawSparkline('sparkline-7', 7);
             drawSparkline('sparkline-30', 30);
 
-            // 強度ラベル使用割合のドーナツ
+            // 強度ラベル使用割合のドーナツ（A/B/C分類）
             const labelCounts = {};
             const toFixed1 = (n) => (Math.round(Number(n) * 10) / 10).toFixed(1);
             all.forEach(h => {
-                const opts = (h.intensityOptions && h.intensityOptions.length===3) ? h.intensityOptions : [
-                    { label:'軽め', mult:0.8 },{ label:'基本', mult:1.0 },{ label:'高強度', mult:1.2 }
-                ];
-                const mapMultToLabel = (m) => {
-                    const f = opts.find(o => toFixed1(o.mult) === toFixed1(m));
-                    return f ? f.label : 'その他';
-                };
                 Object.keys(h.achievements||{}).forEach(key => {
                     const m = Number((h.intensity||{})[key] ?? 1.0);
-                    const label = mapMultToLabel(m);
+                    // 強度値に基づいてA/B/Cに分類
+                    const label = m === 0.8 ? 'A' : m === 1.2 ? 'C' : 'B';
                     labelCounts[label] = (labelCounts[label]||0) + 1;
                 });
             });
@@ -4909,7 +4903,7 @@
                 donut.appendChild(hole);
             }
 
-            // 全仮説横断ストリーク（任意の仮説で達成があれば達成日とみなす）
+            // 全仮説横断連続達成日数（任意の仮説で達成があれば達成日とみなす）
             const dateMap = {};
             all.forEach(h => {
                 Object.keys(h.achievements||{}).forEach(k => { dateMap[k] = true; });
@@ -4940,8 +4934,8 @@
             const streakDiv = document.getElementById('streak-stats');
             if (streakDiv){
                 streakDiv.innerHTML = `
-                    <div>現在: <span style="color:#10b981;">${cur}日</span></div>
-                    <div>最長: <span style="color:#3b82f6;">${longest}日</span></div>
+                    <div>現在の連続: <span style="color:#10b981;">${cur}日</span></div>
+                    <div>最長記録: <span style="color:#3b82f6;">${longest}日</span></div>
                 `;
             }
 
