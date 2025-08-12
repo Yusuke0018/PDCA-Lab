@@ -155,7 +155,7 @@
         .container {
             flex: 1;
             /* 上部の余白をなくしてナビ直下に揃える */
-            padding: 0 20px 20px;
+            padding: 16px 20px 20px;
             max-width: 1200px;
             margin: 0 auto;
             width: 100%;
@@ -166,7 +166,6 @@
             background: var(--surface);
             border-radius: 20px;
             padding: 24px;
-            margin-top: 0;
             margin-bottom: 20px;
             border: 1px solid var(--border);
             position: relative;
@@ -961,7 +960,7 @@
         /* レスポンシブ */
         @media (max-width: 768px) {
             .container {
-                padding: 0 12px 100px; /* 上部パディングを0に、フッター分の余白は維持 */
+                padding: 16px 12px 100px; /* 適切な上部パディング、フッター分の余白は維持 */
             }
             
             .card {
@@ -1310,7 +1309,7 @@
     <div class="container">
         <!-- ホーム画面 -->
         <div id="home-view">
-            <div class="card" style="margin-top: 0;">
+            <div class="card">
                 <h2 style="margin-bottom: 16px;">現在の習慣</h2>
                 <div id="current-hypothesis-list" class="hypothesis-list">
                     <!-- 動的に生成 -->
@@ -1323,7 +1322,7 @@
 
         <!-- 新規習慣作成画面 -->
         <div id="new-hypothesis-view" style="display: none;">
-            <div class="card" style="margin-top: 0;">
+            <div class="card">
                 <h2 style="margin-bottom: 24px;">新規習慣立案</h2>
                 <form onsubmit="createHypothesis(event)">
                     <div class="form-group">
@@ -1685,7 +1684,7 @@
 
         <!-- 履歴画面 -->
         <div id="history-view" style="display: none;">
-            <div class="card" style="margin-top: 0;">
+            <div class="card">
                 <h2 style="margin-bottom: 24px;">完了した習慣</h2>
                 <div id="history-list">
                     <!-- 動的に生成 -->
@@ -1695,7 +1694,7 @@
 
         <!-- 統計画面 -->
         <div id="stats-view" style="display: none;">
-            <div class="card" style="margin-top: 0;">
+            <div class="card">
                 <h2 style="margin-bottom: 24px;">📊 統計データ</h2>
                 <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
                     <div class="stat-card" style="background: var(--background); padding: 20px; border-radius: 12px; text-align: center;">
@@ -1759,7 +1758,7 @@
 
         <!-- カード一覧画面 -->
         <div id="cards-view" style="display: none;">
-            <div class="card" style="margin-top: 0;">
+            <div class="card">
                 <h2 style="margin-bottom: 24px;">🎴 カードコレクション</h2>
                 
                 <div style="margin-bottom: 24px;">
