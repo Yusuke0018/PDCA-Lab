@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-    <title>HypoLab - 仮説検証プラットフォーム（ローカル版）</title>
+    <title>HypoLab - 習慣トラッカー（ローカル版）</title>
     
     <!-- PWA対応 -->
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -219,7 +219,7 @@
             box-shadow: 0 10px 30px rgba(71, 85, 105, 0.3);
         }
 
-        /* 仮説リスト */
+        /* 習慣リスト */
         .hypothesis-list {
             display: grid;
             gap: 16px;
@@ -1279,7 +1279,7 @@
                 🏠 ホーム
             </button>
             <button class="nav-btn" onclick="showNewHypothesisView()" data-view="new">
-                ➕ 新規仮説
+                ➕ 新規習慣
             </button>
             <button class="nav-btn" onclick="showHistoryView()" data-view="history">
                 📚 履歴
@@ -1306,35 +1306,35 @@
         <!-- ホーム画面 -->
         <div id="home-view">
             <div class="card">
-                <h2 style="margin-bottom: 16px;">現在の仮説</h2>
+                <h2 style="margin-bottom: 16px;">現在の習慣</h2>
                 <div id="current-hypothesis-list" class="hypothesis-list">
                     <!-- 動的に生成 -->
                 </div>
                 <button class="btn" onclick="showNewHypothesisView()" style="margin-top: 16px;">
-                    ➕ 新規仮説立案
+                    ➕ 新規習慣立案
                 </button>
             </div>
         </div>
 
-        <!-- 新規仮説作成画面 -->
+        <!-- 新規習慣作成画面 -->
         <div id="new-hypothesis-view" style="display: none;">
             <div class="card">
-                <h2 style="margin-bottom: 24px;">新規仮説立案</h2>
+                <h2 style="margin-bottom: 24px;">新規習慣立案</h2>
                 <form onsubmit="createHypothesis(event)">
                     <div class="form-group">
-                        <label for="hypothesis-title">仮説タイトル</label>
-                        <input type="text" id="hypothesis-title" required placeholder="例: 毎日10分の瞑想">
+                        <label for="hypothesis-title">習慣タイトル</label>
+                        <input type="text" id="hypothesis-title" required placeholder="例: 毎日10分の瞑想" autocomplete="off" autocorrect="off" spellcheck="false">
                     </div>
                     
                     <div class="form-group">
-                        <label for="hypothesis-description">仮説の詳細</label>
-                        <textarea id="hypothesis-description" required placeholder="この仮説で何を検証したいか詳しく記述してください"></textarea>
+                        <label for="hypothesis-description">習慣の詳細</label>
+                        <textarea id="hypothesis-description" required placeholder="この習慣で何を検証したいか詳しく記述してください"></textarea>
                     </div>
 
                     <div class="form-group">
                         <label for="hypothesis-benefit">朝の1行宣言（⭕️に入れる言葉）</label>
                         <input type="text" id="hypothesis-benefit" required placeholder="例: 集中力が上がる">
-                        <small style="color: var(--text-secondary);">宣言文: 「この仮説を実証することで（この入力）が実現する」</small>
+                        <small style="color: var(--text-secondary);">宣言文: 「この習慣を実証することで（この入力）が実現する」</small>
                     </div>
 
                     <div class="form-group">
@@ -1539,7 +1539,7 @@
                             background: #8b5cf6;
                             color: white;
                         ">
-                            🏁 仮説を完了する
+                            🏁 習慣を完了する
                         </button>
                         <hr style="margin: 16px 0; border: 1px dashed #ef4444;">
                         <h5 style="color: #ef4444; margin-bottom: 12px;">🎴 カード効果テスト</h5>
@@ -1663,7 +1663,7 @@
         <!-- 履歴画面 -->
         <div id="history-view" style="display: none;">
             <div class="card">
-                <h2 style="margin-bottom: 24px;">完了した仮説</h2>
+                <h2 style="margin-bottom: 24px;">完了した習慣</h2>
                 <div id="history-list">
                     <!-- 動的に生成 -->
                 </div>
@@ -1677,11 +1677,11 @@
                 <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
                     <div class="stat-card" style="background: var(--background); padding: 20px; border-radius: 12px; text-align: center;">
                         <div class="stat-value" id="total-hypotheses" style="font-size: 36px; font-weight: 800; background: var(--gradient-1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">0</div>
-                        <div class="stat-label" style="color: var(--text-secondary); margin-top: 8px;">総仮説数</div>
+                        <div class="stat-label" style="color: var(--text-secondary); margin-top: 8px;">総習慣数</div>
                     </div>
                     <div class="stat-card" style="background: var(--background); padding: 20px; border-radius: 12px; text-align: center;">
                         <div class="stat-value" id="avg-achievement" style="font-size: 36px; font-weight: 800; background: var(--gradient-2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">0%</div>
-                        <div class="stat-label" style="color: var(--text-secondary); margin-top: 8px;">平均達成率（仮説平均）</div>
+                        <div class="stat-label" style="color: var(--text-secondary); margin-top: 8px;">平均達成率（習慣平均）</div>
                     </div>
                     <div class="stat-card" style="background: var(--background); padding: 20px; border-radius: 12px; text-align: center;">
                         <div class="stat-value" id="total-days" style="font-size: 36px; font-weight: 800; background: var(--gradient-3); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">0</div>
@@ -1713,7 +1713,7 @@
                         <div id="streak-stats" style="display:flex; gap:16px; font-weight:700;"></div>
                     </div>
                     <div class="card" style="background: var(--background);">
-                        <h3 style="margin-bottom:8px;">🏆 仮説ランキング</h3>
+                        <h3 style="margin-bottom:8px;">🏆 習慣ランキング</h3>
                         <div id="ranking-list" style="display:grid; gap:8px;"></div>
                     </div>
                     <div class="card" style="background: var(--background);">
@@ -1792,7 +1792,7 @@
     <!-- フッター -->
     <footer style="background: var(--surface); border-top: 1px solid var(--border); padding: 20px; margin-top: auto;">
         <div style="max-width: 1200px; margin: 0 auto; text-align: center; color: var(--text-secondary); font-size: 14px;">
-            <p>© 2025 HypoLab - 仮説検証プラットフォーム</p>
+            <p>© 2025 HypoLab - 習慣検証プラットフォーム</p>
             <p style="margin-top: 8px; opacity: 0.7;">すべてのデータはブラウザ内に保存されます</p>
         </div>
     </footer>
@@ -1808,7 +1808,7 @@
         // ローカルストレージのキー
         const STORAGE_KEY = 'hypolab_local_data';
 
-        // 現在の仮説
+        // 現在の習慣
         let currentHypothesis = null;
         let selectedDuration = null;
 
@@ -1857,7 +1857,7 @@
                 id: 'perfect_bonus',
                 type: 'reward',
                 name: 'パーフェクトボーナス',
-                description: '次の仮説で100%達成時、報酬カード2枚獲得',
+                description: '次の習慣で100%達成時、報酬カード2枚獲得',
                 icon: '🎯',
                 rarity: 'legendary',
                 color: '#f59e0b'
@@ -1866,7 +1866,7 @@
                 id: 'extension_card',
                 type: 'penalty',
                 name: '延長カード',
-                description: '次の仮説が3日間延長される',
+                description: '次の習慣が3日間延長される',
                 icon: '⏰',
                 rarity: 'common',
                 color: '#ef4444'
@@ -1875,7 +1875,7 @@
                 id: 'hard_mode',
                 type: 'penalty',
                 name: 'ハードモード',
-                description: '次の仮説は達成率90%以上でないとカードを獲得できない',
+                description: '次の習慣は達成率90%以上でないとカードを獲得できない',
                 icon: '⚡',
                 rarity: 'rare',
                 color: '#dc2626'
@@ -1893,7 +1893,7 @@
                 id: 'short_term',
                 type: 'penalty',
                 name: '短期集中',
-                description: '次の仮説は必ず短期間（3-5日）になる',
+                description: '次の習慣は必ず短期間（3-5日）になる',
                 icon: '⏱️',
                 rarity: 'common',
                 color: '#ef4444'
@@ -1912,7 +1912,7 @@
                 id: 'protect_shield',
                 type: 'reward',
                 name: 'プロテクトシールド',
-                description: '次の仮説でペナルティカードを無効化する',
+                description: '次の習慣でペナルティカードを無効化する',
                 icon: '🛡️',
                 rarity: 'rare',
                 color: '#10b981'
@@ -1939,7 +1939,7 @@
                 id: 'second_chance',
                 type: 'reward',
                 name: 'セカンドチャンス',
-                description: '仮説終了後でも3日分追加で挑戦できる',
+                description: '習慣終了後でも3日分追加で挑戦できる',
                 icon: '🎯',
                 rarity: 'rare',
                 color: '#10b981'
@@ -1948,7 +1948,7 @@
                 id: 'double_or_nothing',
                 type: 'penalty',
                 name: 'ダブルオアナッシング',
-                description: '次の仮説で100%達成しないとペナルティカード2枚',
+                description: '次の習慣で100%達成しないとペナルティカード2枚',
                 icon: '⚠️',
                 rarity: 'rare',
                 color: '#dc2626'
@@ -2165,7 +2165,7 @@
             }
         }
 
-        // 新規仮説作成画面を表示
+        // 新規習慣作成画面を表示
         function showNewHypothesisView() {
             document.getElementById('home-view').style.display = 'none';
             document.getElementById('new-hypothesis-view').style.display = 'block';
@@ -2296,7 +2296,7 @@
             list.appendChild(row);
         }
 
-        // 仮説を作成
+        // 習慣を作成
         function createHypothesis(event) {
             event.preventDefault();
             
@@ -2382,7 +2382,7 @@
             window.hardModeActive = false;
             window.resetRiskActive = false;
             window.achievementDecrease = 0;
-            // shortTermOnly は現仮説に引き継いだためリセット
+            // shortTermOnly は現習慣に引き継いだためリセット
             window.shortTermOnly = false;
             
             // ペナルティカードのチェック
@@ -2594,7 +2594,7 @@
             }, 150);
         }
 
-        // 仮説を開始
+        // 習慣を開始
         function startHypothesis() {
             const data = loadData();
             data.currentHypotheses.push(currentHypothesis);
@@ -2620,7 +2620,7 @@
             document.getElementById('shuffle-view').style.display = 'none';
             document.getElementById('progress-view').style.display = 'block';
             
-            // 仮説情報を表示
+            // 習慣情報を表示
             document.getElementById('progress-hypothesis-title').textContent = hypothesis.title;
             document.getElementById('progress-hypothesis-description').textContent = hypothesis.description;
             
@@ -2785,7 +2785,7 @@
             closeCardUseMenu();
             
             if (!window.currentHypothesis || window.currentHypothesis.completed) {
-                alert('進行中の仮説がありません');
+                alert('進行中の習慣がありません');
                 return;
             }
             
@@ -2954,7 +2954,7 @@
         function usePerfectBonus() {
             closeCardUseMenu();
             
-            if (!confirm('パーフェクトボーナスを使用しますか？\n次の仮説で100%達成時、報酬カード2枚を獲得できます。')) {
+            if (!confirm('パーフェクトボーナスを使用しますか？\n次の習慣で100%達成時、報酬カード2枚を獲得できます。')) {
                 return;
             }
             
@@ -2982,12 +2982,12 @@
             data.cards.activeEffects.push({
                 cardId: 'perfect_bonus',
                 activatedDate: new Date().toISOString(),
-                targetHypothesisId: null // 次の仮説に適用
+                targetHypothesisId: null // 次の習慣に適用
             });
             
             saveData(data);
             
-            showNotification('🎯 パーフェクトボーナスが有効になりました！\n次の仮説で100%達成を目指しましょう！', 'success');
+            showNotification('🎯 パーフェクトボーナスが有効になりました！\n次の習慣で100%達成を目指しましょう！', 'success');
         }
         
         // スキップチケットを適用
@@ -3040,7 +3040,7 @@
             data.cards.inventory[skipTicketIndex].used = true;
             data.cards.inventory[skipTicketIndex].usedDate = new Date().toISOString();
             
-            // 現在の仮説を更新
+            // 現在の習慣を更新
             const hypothesisIndex = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
             if (hypothesisIndex !== -1) {
                 if (!data.currentHypotheses[hypothesisIndex].achievements) {
@@ -3358,7 +3358,7 @@
             element.addEventListener('mouseleave', cancel);
         }
         
-        // 仮説の削除確認
+        // 習慣の削除確認
         function confirmDeleteHypothesis(hypothesisId) {
             const data = loadData();
             const hypothesis = data.currentHypotheses.find(h => h.id === hypothesisId);
@@ -3372,17 +3372,17 @@
             }
         }
         
-        // 仮説を削除
+        // 習慣を削除
         function deleteHypothesis(hypothesisId) {
             const data = loadData();
             const index = data.currentHypotheses.findIndex(h => h.id === hypothesisId);
             
             if (index === -1) return;
             
-            // 削除される仮説を記録（必要に応じて履歴に追加）
+            // 削除される習慣を記録（必要に応じて履歴に追加）
             const deletedHypothesis = data.currentHypotheses[index];
             
-            // 仮説を削除
+            // 習慣を削除
             data.currentHypotheses.splice(index, 1);
             
             // データを保存
@@ -3391,7 +3391,7 @@
             // 通知を表示
             showNotification(`✅ 「${deletedHypothesis.title}」を削除しました`, 'success');
             
-            // 現在の仮説が削除された場合はホーム画面に戻る
+            // 現在の習慣が削除された場合はホーム画面に戻る
             if (window.currentHypothesis && window.currentHypothesis.id === hypothesisId) {
                 window.currentHypothesis = null;
                 showHomeView();
@@ -3560,7 +3560,7 @@
                 checkDate.setDate(checkDate.getDate() - i);
                 const dateKey = dateKeyLocal(checkDate);
                 
-                // その日が仮説期間内かチェック
+                // その日が習慣期間内かチェック
                 const startDate = new Date(window.currentHypothesis.startDate);
                 startDate.setHours(0, 0, 0, 0);
                 
@@ -3819,7 +3819,7 @@
             renderAffirmationAndBenefit();
         }
 
-        // 強度（Intensity）パネル（各仮説ごとにラベル3種を編集可能）
+        // 強度（Intensity）パネル（各習慣ごとにラベル3種を編集可能）
         function renderIntensityPanel() {
             if (!window.currentHypothesis) return;
             const hyp = window.currentHypothesis;
@@ -3827,7 +3827,7 @@
             const todayKey = dateKeyLocal(new Date());
             const selected = Number(hyp.intensity[todayKey] ?? 1.0);
             const todayAchieved = !!(hyp.achievements || {})[todayKey];
-            // 強度オプション（ラベル＋倍率）を仮説ごとに保持
+            // 強度オプション（ラベル＋倍率）を習慣ごとに保持
             if (!hyp.intensityOptions || !Array.isArray(hyp.intensityOptions) || hyp.intensityOptions.length !== 3) {
                 hyp.intensityOptions = [
                     { label: '軽め', mult: 0.8 },
@@ -3864,7 +3864,7 @@
                 <div style=\"display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;\">
                     <div style=\"display:flex;flex-direction:column;gap:4px;\">
                         <div style=\"font-weight:700;\">💪 今日の強度</div>
-                        <div style=\"color: var(--text-secondary);font-size:12px;\">各仮説ごとに3つの強度ラベルを編集できます</div>
+                        <div style=\"color: var(--text-secondary);font-size:12px;\">各習慣ごとに3つの強度ラベルを編集できます</div>
                     </div>
                     <div style=\"display:flex;gap:8px;align-items:center;\">
                         <button id=\"intensity-opt-0\" style=\"${btnStyle(selected===opt0.mult)}\">${label0} (×${opt0.mult})</button>
@@ -3993,7 +3993,7 @@
                 banner.innerHTML = `
                     <div style="display:flex;flex-direction:column;gap:10px;">
                         <div style="font-size:14px;opacity:0.95;">🗣️ 今日の宣言</div>
-                        <div style="font-size:18px;line-height:1.35;font-weight:800;">この仮説を実証することで<br><span style=\"text-decoration:underline\">${benefitText}</span> となる</div>
+                        <div style="font-size:18px;line-height:1.35;font-weight:800;">この習慣を実証することで<br><span style=\"text-decoration:underline\">${benefitText}</span> となる</div>
                         <button id="affirm-btn" class="btn" style="width:100%;padding:14px 16px;background:rgba(255,255,255,0.15);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,0.35);">
                             ✅ 今日の宣言を記録する
                         </button>
@@ -4021,7 +4021,7 @@
                     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px;">
                         <div style="flex:1;">
                             <div style="font-weight:700;color:var(--text-secondary);">朝の1行宣言</div>
-                            <div style="color: var(--text-secondary);">この仮説を実証することで <span style=\"color: var(--text-primary); font-weight:700;\">${benefitText}</span> となる</div>
+                            <div style="color: var(--text-secondary);">この習慣を実証することで <span style=\"color: var(--text-primary); font-weight:700;\">${benefitText}</span> となる</div>
                         </div>
                         <div>
                             <button class="btn btn-secondary" id="edit-benefit-btn">編集</button>
@@ -4098,7 +4098,7 @@
             modal.innerHTML = `
                 <div class="modal-header">
                     <h3>🗣️ 朝の1行宣言</h3>
-                    <p>この仮説を実証することで <strong>${benefitText}</strong> となる</p>
+                    <p>この習慣を実証することで <strong>${benefitText}</strong> となる</p>
                 </div>
                 <div class="modal-footer" style="display:flex;gap:8px;">
                     <button class="button secondary" id="affirm-later">後で</button>
@@ -4538,7 +4538,7 @@
                     hypothesis.cardsAcquired = true;
                     window.currentHypothesis.cardsAcquired = true;
                     
-                    // 現在の仮説を更新（カード獲得フラグを保存）
+                    // 現在の習慣を更新（カード獲得フラグを保存）
                     const index = data.currentHypotheses.findIndex(h => h.id === hypothesis.id);
                     if (index !== -1) {
                         data.currentHypotheses[index].cardsAcquired = true;
@@ -4557,7 +4557,7 @@
                     hypothesis.cardsAcquired = true;
                     window.currentHypothesis.cardsAcquired = true;
                     
-                    // 現在の仮説を更新
+                    // 現在の習慣を更新
                     const index = data.currentHypotheses.findIndex(h => h.id === hypothesis.id);
                     if (index !== -1) {
                         data.currentHypotheses[index].cardsAcquired = true;
@@ -4631,14 +4631,14 @@
             };
         }
 
-        // 現在の仮説リストを更新
+        // 現在の習慣リストを更新
         function updateCurrentHypothesisList() {
             const data = loadData();
             const listContainer = document.getElementById('current-hypothesis-list');
             listContainer.innerHTML = '';
             
             if (data.currentHypotheses.length === 0) {
-                listContainer.innerHTML = '<p style="color: var(--text-secondary);">現在進行中の仮説はありません</p>';
+                listContainer.innerHTML = '<p style="color: var(--text-secondary);">現在進行中の習慣はありません</p>';
                 return;
             }
             
@@ -4744,7 +4744,7 @@
             });
         }
 
-        // 仮説を継続
+        // 習慣を継続
         function continueHypothesis() {
             // 継続オプションを表示するモーダル
             const overlay = document.createElement('div');
@@ -5016,7 +5016,7 @@
             }
         }
 
-        // 仮説を完了
+        // 習慣を完了
         function completeHypothesis(showHome = true) {
             // completeHypothesis
             
@@ -5083,7 +5083,7 @@
                 saveData(data);
                 
                 if (showHome) {
-                    showNotification('✅ 仮説の検証が完了しました！', 'success');
+                    showNotification('✅ 習慣の検証が完了しました！', 'success');
                     showHomeView();
                 }
             }
@@ -5211,7 +5211,7 @@
             if (hyp.surpriseHits.includes(daysPassed)) return;
             hyp.surpriseHits.push(daysPassed);
             const data = loadData();
-            // 効果をアクティブ化（この仮説に紐づけ）
+            // 効果をアクティブ化（この習慣に紐づけ）
             if (!data.cards.activeEffects) data.cards.activeEffects = [];
             data.cards.activeEffects.push({
                 cardId: 'surprise_boost',
@@ -5243,7 +5243,7 @@
             historyList.innerHTML = '';
             
             if (data.completedHypotheses.length === 0) {
-                historyList.innerHTML = '<p style="color: var(--text-secondary);">完了した仮説はまだありません</p>';
+                historyList.innerHTML = '<p style="color: var(--text-secondary);">完了した習慣はまだありません</p>';
                 return;
             }
             
@@ -5296,7 +5296,7 @@
             
             const data = loadData();
             const totalHypotheses = data.currentHypotheses.length + data.completedHypotheses.length;
-            let totalAchievement = 0; // 仮説平均用
+            let totalAchievement = 0; // 習慣平均用
             let uniqueDates = new Set();
             let weightedAchieved = 0; // 全体重み付き達成の合計
 
@@ -5330,7 +5330,7 @@
                     }
                 });
 
-                // 仮説ごとの平均達成率（表示用に継続）
+                // 習慣ごとの平均達成率（表示用に継続）
                 const timeDiff = Math.min(last.getTime(), today.getTime()) - start.getTime();
                 const daysPassed = Math.min(
                     Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1),
@@ -5469,7 +5469,7 @@
                 stageDistribution[stage] = 0;
             });
             
-            // 各仮説のステージを計算
+            // 各習慣のステージを計算
             all.forEach(h => {
                 const stage = calculateHabitStage(h);
                 if (stage) {
@@ -5611,7 +5611,7 @@
                 donut.appendChild(hole);
             }
 
-            // 全仮説横断連続達成日数（任意の仮説で達成があれば達成日とみなす）
+            // 全習慣横断連続達成日数（任意の習慣で達成があれば達成日とみなす）
             const dateMap = {};
             all.forEach(h => {
                 Object.keys(h.achievements||{}).forEach(k => { dateMap[k] = true; });
@@ -5647,7 +5647,7 @@
                 `;
             }
 
-            // 仮説ランキング（達成率Top5）
+            // 習慣ランキング（達成率Top5）
             const ranking = all.map(h=>{
                 const s = new Date(h.startDate); s.setHours(0,0,0,0);
                 const intensity = h.intensity||{};
@@ -6259,7 +6259,7 @@
         function debugSkipDays() {
             if (!window.currentHypothesis) return;
             
-            if (!confirm('仮説の開始日を3日前にずらします。よろしいですか？')) {
+            if (!confirm('習慣の開始日を3日前にずらします。よろしいですか？')) {
                 return;
             }
             
@@ -6284,7 +6284,7 @@
         function debugCompleteHypothesis() {
             if (!window.currentHypothesis) return;
             
-            if (!confirm('仮説を強制的に完了させます。よろしいですか？')) {
+            if (!confirm('習慣を強制的に完了させます。よろしいですか？')) {
                 return;
             }
             
@@ -6305,7 +6305,7 @@
             
             updateCalendar();
             updateProgress();  // 即座に進捗を更新
-            showNotification('🏁 仮説を完了状態にしました', 'success');
+            showNotification('🏁 習慣を完了状態にしました', 'success');
         }
         
         // デバッグモードの有効化（URLパラメータまたはローカルストレージで制御）
@@ -6385,7 +6385,7 @@
         // デバッグ：ペナルティ効果を適用
         function debugApplyPenalty(penaltyId) {
             if (!window.currentHypothesis && penaltyId !== 'double_or_nothing') {
-                showNotification('⚠️ 進行中の仮説がありません', 'error');
+                showNotification('⚠️ 進行中の習慣がありません', 'error');
                 return;
             }
             
@@ -6429,7 +6429,7 @@
                 case 'double_or_nothing':
                     // ダブルオアナッシングを設定
                     window.doubleOrNothingActive = true;
-                    showCardEffect('ダブルオアナッシング発動！', '次の仮説で100%達成しないとペナルティカード2枚', '#dc2626');
+                    showCardEffect('ダブルオアナッシング発動！', '次の習慣で100%達成しないとペナルティカード2枚', '#dc2626');
                     const data = loadData();
                     if (!data.cards.activeEffects) data.cards.activeEffects = [];
                     data.cards.activeEffects.push({
@@ -6466,7 +6466,7 @@
             data.cards.pendingPenalties = [];
             data.cards.activeEffects = [];
             
-            // 現在の仮説のペナルティ効果をクリア
+            // 現在の習慣のペナルティ効果をクリア
             if (window.currentHypothesis) {
                 window.currentHypothesis.hardMode = false;
                 window.currentHypothesis.resetRisk = false;
@@ -6555,7 +6555,7 @@
             
             saveData(data);
             
-            showNotification('🛡️ プロテクトシールドが有効になりました！\n次の仮説でペナルティカードを無効化します', 'success');
+            showNotification('🛡️ プロテクトシールドが有効になりました！\n次の習慣でペナルティカードを無効化します', 'success');
         }
         
         // 達成率ブースターを使用
@@ -6563,7 +6563,7 @@
             closeCardUseMenu();
             
             if (!window.currentHypothesis || window.currentHypothesis.completed) {
-                showNotification('⚠️ 進行中の仮説がありません', 'error');
+                showNotification('⚠️ 進行中の習慣がありません', 'error');
                 return;
             }
             
@@ -6583,7 +6583,7 @@
             data.cards.inventory[cardIndex].used = true;
             data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
             
-            // アクティブエフェクトに追加（この仮説に紐づく）
+            // アクティブエフェクトに追加（この習慣に紐づく）
             if (!data.cards.activeEffects) data.cards.activeEffects = [];
             data.cards.activeEffects.push({
                 cardId: 'achievement_booster',
@@ -6594,7 +6594,7 @@
             // データを保存
             const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
             if (index !== -1) {
-                // 仮説本体の変更は不要
+                // 習慣本体の変更は不要
             }
             
             saveData(data);
@@ -6607,7 +6607,7 @@
             closeCardUseMenu();
             
             if (!window.currentHypothesis) {
-                showNotification('⚠️ 進行中の仮説がありません', 'error');
+                showNotification('⚠️ 進行中の習慣がありません', 'error');
                 return;
             }
             
@@ -6622,7 +6622,7 @@
             
             // まだ期間が終わっていない場合は使用不可
             if (daysPassed < window.currentHypothesis.totalDays) {
-                showNotification('⚠️ セカンドチャンスは仮説終了後に使用できます', 'error');
+                showNotification('⚠️ セカンドチャンスは習慣終了後に使用できます', 'error');
                 return;
             }
             
@@ -6699,7 +6699,7 @@
         window.addEventListener('popstate', (event) => {
             const state = event.state || {};
             if (state.view === 'home' || !state.view) {
-                // 仮説の中身（progress）などから戻る → ホーム表示
+                // 習慣の中身（progress）などから戻る → ホーム表示
                 showHomeView();
             }
         });
