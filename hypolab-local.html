@@ -1632,6 +1632,16 @@
                 .replace(/'/g, '&#39;');
         }
 
+        // ローカルタイムのYYYY-MM-DDキーを生成（UTCズレ防止）
+        function dateKeyLocal(date) {
+            const d = new Date(date);
+            d.setHours(0, 0, 0, 0);
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
         // カードマスターデータ
         const CARD_MASTER = {
             skip_ticket: {
@@ -2517,7 +2527,7 @@
             
             // 日付ボタンを生成
             for (let d = new Date(startDate); d <= endDate && d <= today; d.setDate(d.getDate() + 1)) {
-                const dateStr = d.toISOString().split('T')[0];
+                const dateStr = dateKeyLocal(d);
                 const achievements = window.currentHypothesis.achievements || {};
                 
                 // すでに達成済みの日はスキップ
@@ -2768,7 +2778,7 @@
                 dayCell.innerHTML = `<small>${displayMonth}/${displayDate}</small><br>${i + 1}`;
                 dayCell.dataset.day = i + 1;
                 
-                const dateKey = cellDate.toISOString().split('T')[0];
+                const dateKey = dateKeyLocal(cellDate);
                 // 強度バッジ（設定時）
                 const mult = Number((window.currentHypothesis.intensity || {})[dateKey] ?? 1.0);
                 const multBadge = document.createElement('div');
@@ -2961,7 +2971,7 @@
             for (let i = 1; i <= 3; i++) {
                 const checkDate = new Date(today);
                 checkDate.setDate(checkDate.getDate() - i);
-                const dateKey = checkDate.toISOString().split('T')[0];
+                const dateKey = dateKeyLocal(checkDate);
                 
                 // その日が仮説期間内かチェック
                 const startDate = new Date(window.currentHypothesis.startDate);
@@ -3055,13 +3065,13 @@
             const achievementRate = daysPassed > 0 ? Math.round((achievedDays / daysPassed) * 100) : 0;
             
             // 表示用の達成率: 全日数を分母に、各達成日の強度倍率を適用した合計を分子に
-            const todayKey = new Date().toISOString().split('T')[0];
+            const todayKey = dateKeyLocal(new Date());
             const intensity = window.currentHypothesis.intensity || {};
             let weightedAchieved = 0;
             for (let i = 0; i < window.currentHypothesis.totalDays; i++) {
                 const d = new Date(startDate);
                 d.setDate(startDate.getDate() + i);
-                const key = d.toISOString().split('T')[0];
+                const key = dateKeyLocal(d);
                 const isAchieved = !!(window.currentHypothesis.achievements || {})[key];
                 if (!isAchieved) continue;
                 const mult = Number(intensity[key] ?? 1.0);
@@ -3197,7 +3207,7 @@
             if (!window.currentHypothesis) return;
             const hyp = window.currentHypothesis;
             hyp.intensity = hyp.intensity || {};
-            const todayKey = new Date().toISOString().split('T')[0];
+            const todayKey = dateKeyLocal(new Date());
             const selected = Number(hyp.intensity[todayKey] ?? 1.0);
             const todayAchieved = !!(hyp.achievements || {})[todayKey];
             // 強度オプション（ラベル＋倍率）を仮説ごとに保持
@@ -3323,7 +3333,20 @@
         function renderAffirmationAndBenefit() {
             if (!window.currentHypothesis) return;
             const hyp = window.currentHypothesis;
-            const todayKey = new Date().toISOString().split('T')[0];
+            const todayKey = dateKeyLocal(new Date());
+            // 互換対応: 旧実装でUTCキーに保存された本日の宣言をローカルキーへ移行
+            if (hyp.declarations && !hyp.declarations[todayKey]) {
+                const utcKey = new Date().toISOString().split('T')[0];
+                if (hyp.declarations[utcKey]) {
+                    hyp.declarations[todayKey] = hyp.declarations[utcKey];
+                    const data = loadData();
+                    const idx = data.currentHypotheses.findIndex(h => h.id === hyp.id);
+                    if (idx !== -1) {
+                        data.currentHypotheses[idx] = hyp;
+                        saveData(data);
+                    }
+                }
+            }
             const affirmed = hyp.declarations && hyp.declarations[todayKey];
             const benefitText = escapeHTML(hyp.benefit || '（未設定）');
 
@@ -3394,7 +3417,7 @@
         }
 
         function affirmToday() {
-            const todayKey = new Date().toISOString().split('T')[0];
+            const todayKey = dateKeyLocal(new Date());
             if (!window.currentHypothesis.declarations) window.currentHypothesis.declarations = {};
             window.currentHypothesis.declarations[todayKey] = { affirmed: true, at: new Date().toISOString() };
             const data = loadData();
@@ -3428,7 +3451,7 @@
             const hour = now.getHours();
             // 朝判定（5:00〜12:00）
             const isMorning = hour >= 5 && hour < 12;
-            const todayKey = now.toISOString().split('T')[0];
+            const todayKey = dateKeyLocal(now);
             const hyp = window.currentHypothesis;
             const alreadyAffirmed = hyp.declarations && hyp.declarations[todayKey];
             if (!isMorning || alreadyAffirmed) return;
@@ -3555,7 +3578,7 @@
             let streak = 0;
             const achievements = hyp.achievements || {};
             for (let d = new Date(today); d >= start; d.setDate(d.getDate()-1)) {
-                const key = d.toISOString().split('T')[0];
+                const key = dateKeyLocal(d);
                 if (achievements[key]) {
                     streak += 1;
                 } else {
@@ -3764,7 +3787,7 @@
                 for (let i = 0; i < hypothesis.totalDays; i++) {
                     const d = new Date(startDate);
                     d.setDate(startDate.getDate() + i);
-                    const key = d.toISOString().split('T')[0];
+                    const key = dateKeyLocal(d);
                     if (hypothesis.achievements && hypothesis.achievements[key]) {
                         const mult = Number(intensity[key] ?? 1.0);
                         weightedAchieved += mult;
@@ -3787,7 +3810,7 @@
                     d.setHours(0,0,0,0);
                     d.setDate(d.getDate() - k);
                     if (d < startDate || d > endDate) continue;
-                    const key = d.toISOString().split('T')[0];
+                    const key = dateKeyLocal(d);
                     const mult = Number((intensity || {})[key] ?? 1.0);
                     const ach = !!((hypothesis.achievements || {})[key]);
                     const opt = opts.find(o => toFixed1(o.mult) === toFixed1(mult));
@@ -4149,7 +4172,7 @@
 
                 // ユニーク日を収集
                 for (let d = new Date(start); d <= last; d.setDate(d.getDate() + 1)) {
-                    uniqueDates.add(d.toISOString().split('T')[0]);
+                    uniqueDates.add(dateKeyLocal(d));
                 }
 
                 // 重み付き達成の集計
@@ -4198,7 +4221,7 @@
                 // 各日の日次達成率（重み/その日に期間内の仮説数）
                 const values = [];
                 for (let d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
-                    const key = d.toISOString().split('T')[0];
+                    const key = dateKeyLocal(d);
                     let active = 0;
                     let sum = 0;
                     all.forEach(h => {
@@ -4311,7 +4334,7 @@
             // current: 今日から遡って
             let cur=0; const d0=new Date(today);
             for (let d=new Date(d0); ; d.setDate(d.getDate()-1)){
-                const k=d.toISOString().split('T')[0];
+                const k=dateKeyLocal(d);
                 if (dateMap[k]) cur+=1; else break;
                 if (d < new Date(keys[0]||today)) break; // 安全
             }
@@ -4330,7 +4353,7 @@
                 let weighted=0;
                 for (let i=0;i<(h.totalDays||0);i++){
                     const d=new Date(s); d.setDate(s.getDate()+i);
-                    const k=d.toISOString().split('T')[0];
+                    const k=dateKeyLocal(d);
                     if ((h.achievements||{})[k]) weighted += Number(intensity[k] ?? 1.0);
                 }
                 const rate = (h.totalDays||0)>0 ? Math.floor(Math.min(100,(weighted/(h.totalDays))*100)) : 0;
@@ -4647,7 +4670,7 @@
             
             const today = new Date();
             today.setHours(0, 0, 0, 0);
-            const dateKey = today.toISOString().split('T')[0];
+            const dateKey = dateKeyLocal(today);
             
             window.currentHypothesis.achievements[dateKey] = true;
             
@@ -4669,7 +4692,7 @@
             
             const today = new Date();
             today.setHours(0, 0, 0, 0);
-            const dateKey = today.toISOString().split('T')[0];
+            const dateKey = dateKeyLocal(today);
             
             delete window.currentHypothesis.achievements[dateKey];
             
@@ -4696,7 +4719,7 @@
             // 開始日から今日までの全ての日を達成にする
             const currentDate = new Date(startDate);
             while (currentDate <= today) {
-                const dateKey = currentDate.toISOString().split('T')[0];
+                const dateKey = dateKeyLocal(currentDate);
                 window.currentHypothesis.achievements[dateKey] = true;
                 currentDate.setDate(currentDate.getDate() + 1);
             }
@@ -4959,7 +4982,7 @@
             const dates = [];
             const currentDate = new Date(startDate);
             while (currentDate <= today && dates.length < window.currentHypothesis.totalDays) {
-                dates.push(currentDate.toISOString().split('T')[0]);
+                dates.push(dateKeyLocal(currentDate));
                 currentDate.setDate(currentDate.getDate() + 1);
             }
             
