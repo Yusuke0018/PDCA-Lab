@@ -155,7 +155,7 @@
         .container {
             flex: 1;
             /* 上部の余白をなくしてナビ直下に揃える */
-            padding: 16px 20px 20px;
+            padding: 0 20px 20px;
             max-width: 1200px;
             margin: 0 auto;
             width: 100%;
@@ -960,7 +960,7 @@
         /* レスポンシブ */
         @media (max-width: 768px) {
             .container {
-                padding: 16px 12px 100px; /* 適切な上部パディング、フッター分の余白は維持 */
+                padding: 0 12px 100px; /* 上部パディングを削除、フッター分の余白は維持 */
             }
             
             .card {
@@ -1684,8 +1684,8 @@
 
         <!-- 履歴画面 -->
         <div id="history-view" style="display: none;">
-            <div class="card">
-                <h2 style="margin-bottom: 24px;">完了した習慣</h2>
+            <div class="card" style="margin-top: 0;">
+                <h2 style="margin-bottom: 24px; margin-top: 0;">完了した習慣</h2>
                 <div id="history-list">
                     <!-- 動的に生成 -->
                 </div>
@@ -1694,8 +1694,8 @@
 
         <!-- 統計画面 -->
         <div id="stats-view" style="display: none;">
-            <div class="card">
-                <h2 style="margin-bottom: 16px;">📊 統計データ</h2>
+            <div class="card" style="margin-top: 0;">
+                <h2 style="margin-bottom: 16px; margin-top: 0;">📊 統計データ</h2>
                 <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px;">
                     <div class="stat-card" style="background: var(--background); padding: 16px; border-radius: 12px; text-align: center;">
                         <div class="stat-value" id="total-hypotheses" style="font-size: 32px; font-weight: 800; background: var(--gradient-1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">0</div>
@@ -1758,8 +1758,8 @@
 
         <!-- カード一覧画面 -->
         <div id="cards-view" style="display: none;">
-            <div class="card">
-                <h2 style="margin-bottom: 24px;">🎴 カードコレクション</h2>
+            <div class="card" style="margin-top: 0;">
+                <h2 style="margin-bottom: 24px; margin-top: 0;">🎴 カードコレクション</h2>
                 
                 <div style="margin-bottom: 24px;">
                     <h3 style="font-size: 18px; margin-bottom: 12px; color: var(--primary);">📦 所持カード</h3>
