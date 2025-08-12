@@ -1296,8 +1296,11 @@
             #stats-view {
                 padding: 4px !important;
                 overflow-x: hidden !important;
+                overflow-y: auto !important;
                 width: 100% !important;
                 box-sizing: border-box !important;
+                -webkit-overflow-scrolling: touch !important;
+                touch-action: pan-y !important;
             }
             #stats-view .card {
                 padding: 8px !important;
@@ -6226,14 +6229,14 @@
             container.addEventListener('touchstart', (e) => {
                 if (!isSwipeEnabled) return;
                 
-                // 統計画面やカード画面でスクロール可能な要素上の場合はスワイプを無効化
+                // カード画面でのみスクロール可能な要素上の場合はスワイプを無効化
+                // 統計画面ではスワイプを常に有効にする
                 const currentView = getCurrentView();
-                if (currentView === 'stats' || currentView === 'cards') {
+                if (currentView === 'cards') {
                     const target = e.target;
-                    const statsView = target.closest('#stats-view');
                     const cardsView = target.closest('#cards-view');
                     
-                    if (statsView || cardsView) {
+                    if (cardsView) {
                         // スクロール可能な要素かチェック
                         const scrollableParent = findScrollableParent(target);
                         if (scrollableParent && scrollableParent.scrollHeight > scrollableParent.clientHeight) {
@@ -6250,20 +6253,35 @@
             }, { passive: true });
             
             container.addEventListener('touchmove', (e) => {
-                if (!isSwipeEnabled || scrolling) return;
+                if (!isSwipeEnabled) return;
+                
+                // 統計画面ではscrollingフラグを無視
+                const currentView = getCurrentView();
+                if (currentView !== 'stats' && scrolling) return;
                 
                 const diffX = Math.abs(e.changedTouches[0].screenX - touchStartX);
                 const diffY = Math.abs(e.changedTouches[0].screenY - touchStartY);
                 
-                // 縦方向の動きが大きい場合はスクロールとみなす
-                if (diffY > diffX && diffY > 10) {
-                    scrolling = true;
-                    return;
-                }
-                
-                // 横方向の動きが大きい場合はスワイプとみなす
-                if (diffX > diffY && diffX > 10) {
-                    isSwiping = true;
+                // 統計画面では横方向の動きを優先してスワイプとみなす
+                const currentView = getCurrentView();
+                if (currentView === 'stats') {
+                    // 統計画面では横方向の動きが少しでもあればスワイプとみなす
+                    if (diffX > 30 && diffX > diffY * 0.5) {
+                        isSwiping = true;
+                        e.preventDefault(); // スクロールを防ぐ
+                    }
+                } else {
+                    // 他の画面では通常の判定
+                    // 縦方向の動きが大きい場合はスクロールとみなす
+                    if (diffY > diffX && diffY > 10) {
+                        scrolling = true;
+                        return;
+                    }
+                    
+                    // 横方向の動きが大きい場合はスワイプとみなす
+                    if (diffX > diffY && diffX > 10) {
+                        isSwiping = true;
+                    }
                 }
             }, { passive: true });
 
@@ -6284,6 +6302,11 @@
         
         // スクロール可能な親要素を探す
         function findScrollableParent(element) {
+            // 統計画面では常にnullを返してスワイプを優先
+            if (getCurrentView() === 'stats') {
+                return null;
+            }
+            
             let parent = element;
             while (parent && parent !== document.body) {
                 const style = window.getComputedStyle(parent);
