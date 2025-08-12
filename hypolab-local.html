@@ -2121,7 +2121,11 @@
             // 入力にフォーカス
             const titleInput = document.getElementById('hypothesis-title');
             if (titleInput) {
-                setTimeout(() => titleInput.focus(), 0);
+                // モバイルでキーボードが自動表示されないよう、フォーカスはタッチデバイスでは行わない
+                const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+                if (!isTouch) {
+                    setTimeout(() => titleInput.focus({ preventScroll: true }), 0);
+                }
             }
             // IF-THEN初期行
             const list = document.getElementById('ifthen-list');
