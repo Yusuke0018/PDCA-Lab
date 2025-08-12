@@ -2045,6 +2045,7 @@
 
         // ホーム画面を表示
         function showHomeView() {
+            resetScrollToTop();
             document.getElementById('home-view').style.display = 'block';
             document.getElementById('new-hypothesis-view').style.display = 'none';
             document.getElementById('shuffle-view').style.display = 'none';
@@ -2189,6 +2190,7 @@
 
         // 新規習慣作成画面を表示
         function showNewHypothesisView() {
+            resetScrollToTop();
             document.getElementById('home-view').style.display = 'none';
             document.getElementById('new-hypothesis-view').style.display = 'block';
             document.getElementById('history-view').style.display = 'none';
@@ -2520,6 +2522,7 @@
 
         // シャッフル画面を表示
         function showShuffleView() {
+            resetScrollToTop();
             document.getElementById('new-hypothesis-view').style.display = 'none';
             document.getElementById('shuffle-view').style.display = 'block';
             
@@ -2627,6 +2630,7 @@
 
         // 進捗画面を表示
         function showProgressView(hypothesisId) {
+            resetScrollToTop();
             // モバイルの戻るボタン対策: 進捗ビューに入るタイミングで履歴を積む
             try {
                 history.pushState({ view: 'progress', hypothesisId }, '');
@@ -5254,6 +5258,7 @@
 
         // 履歴画面を表示
         function showHistoryView() {
+            resetScrollToTop();
             document.getElementById('home-view').style.display = 'none';
             document.getElementById('new-hypothesis-view').style.display = 'none';
             document.getElementById('shuffle-view').style.display = 'none';
@@ -5310,6 +5315,7 @@
 
         // 統計画面を表示
         function showStatsView() {
+            resetScrollToTop();
             document.getElementById('home-view').style.display = 'none';
             document.getElementById('new-hypothesis-view').style.display = 'none';
             document.getElementById('shuffle-view').style.display = 'none';
@@ -5917,6 +5923,7 @@
 
         // カード画面を表示
         function showCardsView() {
+            resetScrollToTop();
             document.getElementById('home-view').style.display = 'none';
             document.getElementById('new-hypothesis-view').style.display = 'none';
             document.getElementById('shuffle-view').style.display = 'none';
@@ -6207,6 +6214,22 @@
                     indicator.style.opacity = '0';
                 }, 3000);
             }, 1000);
+        }
+
+        // ビュー切替時にスクロールをトップへ揃える
+        function resetScrollToTop() {
+            try {
+                // まず window スクロールをリセット
+                window.scrollTo({ top: 0, behavior: 'auto' });
+                // 念のためドキュメントルートにも適用（iOS/Safari 対策）
+                const el = document.scrollingElement || document.documentElement;
+                el.scrollTop = 0;
+                document.body.scrollTop = 0;
+            } catch (_) {
+                // フォールバック
+                document.documentElement.scrollTop = 0;
+                document.body.scrollTop = 0;
+            }
         }
 
         // デバッグ機能
