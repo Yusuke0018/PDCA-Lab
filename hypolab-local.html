@@ -2632,7 +2632,11 @@
             const endDate = new Date(startDate);
             endDate.setDate(startDate.getDate() + hypothesis.totalDays - 1);
             
-            daysInfo.innerHTML = `📅 ${startDate.toLocaleDateString('ja-JP')} 〜 ${endDate.toLocaleDateString('ja-JP')} | ${frequencyText}`;
+            // 習慣モードかどうかチェック
+            const habitModeLabel = hypothesis.habitMode ? ' | 🌟 習慣モード' : '';
+            const unlimitedLabel = hypothesis.isUnlimited ? ' | ♾️ 無期限' : '';
+            
+            daysInfo.innerHTML = `📅 ${startDate.toLocaleDateString('ja-JP')} 〜 ${hypothesis.isUnlimited ? '無期限' : endDate.toLocaleDateString('ja-JP')} | ${frequencyText}${habitModeLabel}${unlimitedLabel}`;
             
             // カレンダーを更新
             updateCalendar();
@@ -3071,10 +3075,13 @@
             
             // 経過日数を計算（開始日を1日目として計算）
             const timeDiff = today.getTime() - startDate.getTime();
-            const daysPassed = Math.min(
-                Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1),
-                window.currentHypothesis.totalDays
-            );
+            // 無期限の場合は実際の経過日数を使用
+            const daysPassed = window.currentHypothesis.isUnlimited 
+                ? Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1)
+                : Math.min(
+                    Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1),
+                    window.currentHypothesis.totalDays
+                );
             
             // 週ごとの達成状況を追跡（週●回の場合）
             const weeklyAchievements = new Map(); // weekNumber -> {achieved: count, required: count, canAchieve: count}
@@ -3617,10 +3624,13 @@
             
             // 経過日数を計算（開始日を1日目として計算）
             const timeDiff = today.getTime() - startDate.getTime();
-            const daysPassed = Math.min(
-                Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1),
-                window.currentHypothesis.totalDays
-            );
+            // 無期限の場合は実際の経過日数を使用
+            const daysPassed = window.currentHypothesis.isUnlimited 
+                ? Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1)
+                : Math.min(
+                    Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1),
+                    window.currentHypothesis.totalDays
+                );
             
             // 頻度に応じて目標日数を計算
             let targetDays = daysPassed;
@@ -3665,7 +3675,11 @@
             rateEl.textContent = displayRate + '%';
             document.getElementById('progress-fill').style.width = Math.min(100, Math.floor(achievementRate)) + '%';
             document.getElementById('achieved-days').textContent = `達成: ${achievedDays}日`;
-            document.getElementById('remaining-days').textContent = `残り: ${window.currentHypothesis.totalDays - daysPassed}日`;
+            // 無期限の場合は残り日数を表示しない
+            const remainingText = window.currentHypothesis.isUnlimited 
+                ? '継続中' 
+                : `残り: ${window.currentHypothesis.totalDays - daysPassed}日`;
+            document.getElementById('remaining-days').textContent = remainingText;
             
             // 達成率に応じてグラデーションを変更
             const progressFill = document.getElementById('progress-fill');
@@ -3758,7 +3772,8 @@
             activeEffectsDisplay.style.display = hasActiveEffects ? 'block' : 'none';
             
             // 期間が終了したかチェック（最終日以降）
-            if (daysPassed >= window.currentHypothesis.totalDays && !window.currentHypothesis.completed) {
+            // 無期限の場合は完了報告ボタンを表示しない
+            if (!window.currentHypothesis.isUnlimited && daysPassed >= window.currentHypothesis.totalDays && !window.currentHypothesis.completed) {
                 // 完了報告ボタンを表示
                 document.getElementById('completion-report-section').style.display = 'block';
                 // 自動的に完了オプションは表示しない
@@ -4152,8 +4167,8 @@
             renderIfThenPanel();
         }
 
-        // 連続達成日数を計算
-        function computeStreak(hyp) {
+        // 連続達成日数を計算（グローバル関数）
+        window.computeStreak = function(hyp) {
             const today = new Date();
             today.setHours(0,0,0,0);
             const start = new Date(hyp.startDate);
@@ -4171,6 +4186,110 @@
                 }
             }
             return streak;
+        }
+        
+        // 習慣成長ステージの計算関数（グローバル関数）
+        window.calculateHabitStage = function(hypothesis) {
+            if (!hypothesis || !hypothesis.achievements) return null;
+            
+            const start = new Date(hypothesis.startDate);
+            start.setHours(0, 0, 0, 0);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            // 達成日数の計算
+            const achievedDays = Object.keys(hypothesis.achievements).length;
+            
+            // 連続達成日数の計算
+            const streak = window.computeStreak(hypothesis);
+            
+            // 週単位での達成数を計算（週◯回や特定曜日の場合）
+            let achievedWeeks = 0;
+            if (hypothesis.frequency && (hypothesis.frequency.type === 'weekly' || hypothesis.frequency.type === 'weekdays')) {
+                const weeks = Math.ceil((today - start) / (7 * 24 * 60 * 60 * 1000));
+                for (let w = 0; w < weeks; w++) {
+                    const weekStart = new Date(start);
+                    weekStart.setDate(start.getDate() + w * 7);
+                    const weekEnd = new Date(weekStart);
+                    weekEnd.setDate(weekStart.getDate() + 6);
+                    
+                    let weekAchievements = 0;
+                    for (let d = new Date(weekStart); d <= weekEnd && d <= today; d.setDate(d.getDate() + 1)) {
+                        const key = dateKeyLocal(d);
+                        if (hypothesis.achievements[key]) weekAchievements++;
+                    }
+                    
+                    if (hypothesis.frequency.type === 'weekly' && weekAchievements >= hypothesis.frequency.count) {
+                        achievedWeeks++;
+                    } else if (hypothesis.frequency.type === 'weekdays') {
+                        const targetDaysInWeek = hypothesis.frequency.weekdays.filter(wd => {
+                            for (let d = new Date(weekStart); d <= weekEnd && d <= today; d.setDate(d.getDate() + 1)) {
+                                if (d.getDay() === wd) return true;
+                            }
+                            return false;
+                        }).length;
+                        if (targetDaysInWeek > 0 && weekAchievements >= targetDaysInWeek * 0.8) {
+                            achievedWeeks++;
+                        }
+                    }
+                }
+            }
+            
+            // 基本スコアの計算
+            let baseScore = achievedDays;
+            if (hypothesis.frequency) {
+                if (hypothesis.frequency.type === 'weekly' || hypothesis.frequency.type === 'weekdays') {
+                    baseScore = achievedWeeks * 7; // 週単位を日数換算
+                }
+            }
+            
+            // 連続ボーナスの計算（1.0～2.0）
+            let continuityBonus = 1.0;
+            if (streak >= 90) {
+                continuityBonus = 2.0;
+            } else if (streak >= 60) {
+                continuityBonus = 1.7;
+            } else if (streak >= 30) {
+                continuityBonus = 1.5;
+            } else if (streak >= 14) {
+                continuityBonus = 1.3;
+            } else if (streak >= 7) {
+                continuityBonus = 1.1;
+            }
+            
+            // 途切れペナルティ
+            const totalDays = Math.floor((today - start) / (24 * 60 * 60 * 1000)) + 1;
+            const achievementRate = achievedDays / totalDays;
+            if (achievementRate < 0.5 && totalDays > 7) {
+                continuityBonus *= 0.8;
+            }
+            
+            // 最終スコア
+            const finalScore = Math.floor(baseScore * continuityBonus);
+            
+            // ステージ判定
+            const stages = [
+                { name: '🌱 種まき期', minScore: 0, maxScore: 7, color: '#6b7280', description: '習慣の種を植えた段階' },
+                { name: '🌿 発芽期', minScore: 8, maxScore: 14, color: '#10b981', description: '小さな芽が出てきた' },
+                { name: '🍀 成長期', minScore: 15, maxScore: 30, color: '#3b82f6', description: '葉が増えて成長中' },
+                { name: '🌳 定着期', minScore: 31, maxScore: 60, color: '#8b5cf6', description: 'しっかりとした木に成長' },
+                { name: '🌸 開花期', minScore: 61, maxScore: 90, color: '#f59e0b', description: '花が咲き始める' },
+                { name: '🍎 収穫期', minScore: 91, maxScore: 120, color: '#ef4444', description: '実がなり収穫できる' },
+                { name: '👑 黄金の習慣', minScore: 121, maxScore: 999999, color: '#fbbf24', description: '完全に身についた習慣' }
+            ];
+            
+            // 特別条件：連続90日以上かつ達成率90%以上で黄金の習慣
+            if (streak >= 90 && achievementRate >= 0.9) {
+                return { ...stages[6], score: finalScore, streak, achievementRate: Math.round(achievementRate * 100) };
+            }
+            
+            for (const stage of stages) {
+                if (finalScore >= stage.minScore && finalScore <= stage.maxScore) {
+                    return { ...stage, score: finalScore, streak, achievementRate: Math.round(achievementRate * 100) };
+                }
+            }
+            
+            return { ...stages[0], score: finalScore, streak, achievementRate: Math.round(achievementRate * 100) };
         }
 
         // （削除）旧デイリークエスト機能は強度（Intensity）へ置換済み
@@ -4358,6 +4477,9 @@
                     confirmDeleteHypothesis(hypothesis.id);
                 });
                 
+                // 習慣成長ステージを計算
+                const stage = window.calculateHabitStage(hypothesis);
+                
                 const startDate = new Date(hypothesis.startDate);
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
@@ -4414,6 +4536,20 @@
                 item.innerHTML = `
                     <h3 class="hypothesis-title">${escapeHTML(hypothesis.title)}</h3>
                     <p class="hypothesis-description">${escapeHTML(hypothesis.description)}</p>
+                    ${stage ? `
+                        <div style="margin: 12px 0; padding: 10px; background: linear-gradient(135deg, ${stage.color}15, ${stage.color}08); border-radius: 8px; border-left: 3px solid ${stage.color};">
+                            <div style="font-size: 14px; font-weight: 600; color: ${stage.color}; margin-bottom: 4px;">
+                                ${stage.name}
+                            </div>
+                            <div style="font-size: 11px; color: var(--text-secondary);">
+                                ${stage.description} (スコア: ${stage.score}点)
+                            </div>
+                            <div style="display: flex; gap: 12px; margin-top: 6px; font-size: 11px;">
+                                <span style="color: #10b981;">🔥 連続${stage.streak}日</span>
+                                <span style="color: #3b82f6;">📊 達成率${stage.achievementRate}%</span>
+                            </div>
+                        </div>
+                    ` : ''}
                     <div class="hypothesis-meta">
                         <div class="hypothesis-days">
                             📅 ${daysPassed}日目 / ${hypothesis.totalDays}日間
@@ -4433,34 +4569,274 @@
 
         // 仮説を継続
         function continueHypothesis() {
+            // 継続オプションを表示するモーダル
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay active';
+            const modal = document.createElement('div');
+            modal.className = 'skip-modal active';
+            modal.innerHTML = `
+                <div class="modal-header">
+                    <h3>🌱 習慣として継続</h3>
+                    <p>この習慣を継続しますか？</p>
+                </div>
+                <div class="form-group" style="margin: 20px 0;">
+                    <label>継続期間</label>
+                    <select id="continue-duration" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
+                        <option value="30">30日間</option>
+                        <option value="60">60日間</option>
+                        <option value="90" selected>90日間（黄金の習慣まで）</option>
+                        <option value="180">180日間（半年）</option>
+                        <option value="365">365日間（1年）</option>
+                        <option value="unlimited">無期限</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin: 20px 0;">
+                    <label>
+                        <input type="checkbox" id="continue-keep-records" checked> 
+                        これまでの記録を引き継ぐ
+                    </label>
+                </div>
+                <div class="form-group" style="margin: 20px 0;">
+                    <label>
+                        <input type="checkbox" id="continue-as-habit" checked> 
+                        習慣モードで継続（黄金の習慣を目指す）
+                    </label>
+                </div>
+                <div style="padding: 12px; background: var(--surface); border-radius: 8px; margin: 16px 0;">
+                    <p style="font-size: 12px; color: var(--text-secondary); margin: 0;">
+                        💡 習慣モードでは、成長ステージが表示され、継続的な達成により「黄金の習慣」を目指します。
+                        記録を引き継ぐと、現在のステージとストリークが保持されます。
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button class="button secondary" onclick="this.closest('.overlay').remove()">キャンセル</button>
+                    <button class="button primary" onclick="confirmContinueHypothesis()">継続する</button>
+                </div>
+            `;
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+        }
+        
+        // 継続を確定
+        function confirmContinueHypothesis() {
             const data = loadData();
             const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
             
             if (index !== -1) {
-                // 期間を延長
-                const additionalDays = 7; // 1週間延長
-                data.currentHypotheses[index].totalDays += additionalDays;
+                const durationSelect = document.getElementById('continue-duration');
+                const keepRecords = document.getElementById('continue-keep-records').checked;
+                const asHabit = document.getElementById('continue-as-habit').checked;
+                const duration = durationSelect.value;
+                
+                // 期間を設定
+                if (duration === 'unlimited') {
+                    // 無期限の場合は大きな数値を設定（10年）
+                    data.currentHypotheses[index].totalDays = 3650;
+                    data.currentHypotheses[index].isUnlimited = true;
+                } else {
+                    const additionalDays = parseInt(duration);
+                    if (keepRecords) {
+                        // 記録を引き継ぐ場合は現在の期間に追加
+                        data.currentHypotheses[index].totalDays += additionalDays;
+                    } else {
+                        // 記録をリセットする場合
+                        data.currentHypotheses[index].totalDays = additionalDays;
+                        data.currentHypotheses[index].achievements = {};
+                        data.currentHypotheses[index].intensity = {};
+                        data.currentHypotheses[index].startDate = new Date().toISOString();
+                        // ステージもリセット
+                        delete data.currentHypotheses[index].currentStage;
+                    }
+                }
+                
+                // 習慣モードフラグを設定
+                data.currentHypotheses[index].habitMode = asHabit;
+                data.currentHypotheses[index].continuedAt = new Date().toISOString();
+                data.currentHypotheses[index].isContinuation = true;
+                
+                // カード獲得フラグをリセット（新しい期間でカードを獲得できるように）
+                delete data.currentHypotheses[index].cardsAcquired;
+                delete data.currentHypotheses[index].finalAchievementRate;
+                
                 saveData(data);
                 
                 window.currentHypothesis = data.currentHypotheses[index];
                 updateCalendar();
                 updateProgress();
                 
-                alert(`検証期間を${additionalDays}日間延長しました！`);
+                // モーダルを閉じる
+                document.querySelector('.overlay').remove();
+                
+                // 完了オプションを非表示にして、通常の進捗画面に戻る
+                document.getElementById('completion-options').style.display = 'none';
+                document.getElementById('completion-report-section').style.display = 'none';
+                
+                // 成功メッセージ
+                const message = duration === 'unlimited' 
+                    ? '✨ 習慣として無期限で継続します！'
+                    : `✨ 習慣として${duration}日間継続します！`;
+                showNotification(message, 'success');
+                
+                // 習慣モードの場合、現在のステージを表示
+                if (asHabit) {
+                    const stage = window.calculateHabitStage(window.currentHypothesis);
+                    if (stage) {
+                        setTimeout(() => {
+                            showCardEffect(
+                                `現在のステージ: ${stage.name}`,
+                                stage.description,
+                                stage.color
+                            );
+                        }, 1000);
+                    }
+                }
             }
         }
 
         // 修正して継続
         function modifyAndContinue() {
-            // 新規作成画面に移動（現在の仮説をベースに）
-            document.getElementById('progress-view').style.display = 'none';
-            document.getElementById('new-hypothesis-view').style.display = 'block';
+            // 修正オプションを表示するモーダル
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay active';
+            const modal = document.createElement('div');
+            modal.className = 'skip-modal active';
+            modal.style.width = '90%';
+            modal.style.maxWidth = '500px';
+            modal.innerHTML = `
+                <div class="modal-header">
+                    <h3>✏️ 習慣内容を修正して継続</h3>
+                    <p>習慣の内容を調整できます</p>
+                </div>
+                <div class="form-group" style="margin: 20px 0;">
+                    <label>習慣名</label>
+                    <input type="text" id="modify-title" value="${window.currentHypothesis.title}" 
+                           style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
+                </div>
+                <div class="form-group" style="margin: 20px 0;">
+                    <label>説明</label>
+                    <textarea id="modify-description" rows="3" 
+                              style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border);">${window.currentHypothesis.description}</textarea>
+                </div>
+                <div class="form-group" style="margin: 20px 0;">
+                    <label>継続期間</label>
+                    <select id="modify-duration" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
+                        <option value="30">30日間</option>
+                        <option value="60">60日間</option>
+                        <option value="90" selected>90日間（黄金の習慣まで）</option>
+                        <option value="180">180日間（半年）</option>
+                        <option value="365">365日間（1年）</option>
+                        <option value="unlimited">無期限</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin: 20px 0;">
+                    <label>
+                        <input type="checkbox" id="modify-keep-records" checked> 
+                        これまでの記録を引き継ぐ
+                    </label>
+                </div>
+                <div style="padding: 12px; background: var(--surface); border-radius: 8px; margin: 16px 0;">
+                    <p style="font-size: 12px; color: var(--text-secondary); margin: 0;">
+                        💡 習慣の内容を変更しても、これまでの達成記録とステージは保持されます。
+                        新しい目標に向けて、現在の進捗から継続できます。
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button class="button secondary" onclick="this.closest('.overlay').remove()">キャンセル</button>
+                    <button class="button primary" onclick="confirmModifyAndContinue()">変更して継続</button>
+                </div>
+            `;
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+        }
+        
+        // 修正して継続を確定
+        function confirmModifyAndContinue() {
+            const data = loadData();
+            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
             
-            document.getElementById('hypothesis-title').value = window.currentHypothesis.title;
-            document.getElementById('hypothesis-description').value = window.currentHypothesis.description;
-            
-            // 現在の仮説を完了扱いにする
-            completeHypothesis(false);
+            if (index !== -1) {
+                const newTitle = document.getElementById('modify-title').value.trim();
+                const newDescription = document.getElementById('modify-description').value.trim();
+                const duration = document.getElementById('modify-duration').value;
+                const keepRecords = document.getElementById('modify-keep-records').checked;
+                
+                if (!newTitle) {
+                    alert('習慣名を入力してください');
+                    return;
+                }
+                
+                // タイトルと説明を更新
+                data.currentHypotheses[index].title = newTitle;
+                data.currentHypotheses[index].description = newDescription;
+                
+                // 修正履歴を記録
+                if (!data.currentHypotheses[index].modificationHistory) {
+                    data.currentHypotheses[index].modificationHistory = [];
+                }
+                data.currentHypotheses[index].modificationHistory.push({
+                    date: new Date().toISOString(),
+                    previousTitle: window.currentHypothesis.title,
+                    previousDescription: window.currentHypothesis.description,
+                    newTitle: newTitle,
+                    newDescription: newDescription
+                });
+                
+                // 期間を設定
+                if (duration === 'unlimited') {
+                    data.currentHypotheses[index].totalDays = 3650;
+                    data.currentHypotheses[index].isUnlimited = true;
+                } else {
+                    const additionalDays = parseInt(duration);
+                    if (keepRecords) {
+                        // 記録を引き継ぐ場合は現在の期間に追加
+                        data.currentHypotheses[index].totalDays += additionalDays;
+                    } else {
+                        // 記録をリセットする場合
+                        data.currentHypotheses[index].totalDays = additionalDays;
+                        data.currentHypotheses[index].achievements = {};
+                        data.currentHypotheses[index].intensity = {};
+                        data.currentHypotheses[index].startDate = new Date().toISOString();
+                        delete data.currentHypotheses[index].currentStage;
+                    }
+                }
+                
+                // 習慣モードと継続フラグを設定
+                data.currentHypotheses[index].habitMode = true;
+                data.currentHypotheses[index].modifiedAt = new Date().toISOString();
+                data.currentHypotheses[index].isContinuation = true;
+                
+                // カード獲得フラグをリセット
+                delete data.currentHypotheses[index].cardsAcquired;
+                delete data.currentHypotheses[index].finalAchievementRate;
+                
+                saveData(data);
+                
+                window.currentHypothesis = data.currentHypotheses[index];
+                updateCalendar();
+                updateProgress();
+                
+                // モーダルを閉じる
+                document.querySelector('.overlay').remove();
+                
+                // 完了オプションを非表示にして、通常の進捗画面に戻る
+                document.getElementById('completion-options').style.display = 'none';
+                document.getElementById('completion-report-section').style.display = 'none';
+                
+                // 成功メッセージ
+                showNotification(`✨ 「${newTitle}」として継続します！`, 'success');
+                
+                // 現在のステージを表示
+                const stage = window.calculateHabitStage(window.currentHypothesis);
+                if (stage) {
+                    setTimeout(() => {
+                        showCardEffect(
+                            `現在のステージ: ${stage.name}`,
+                            stage.description,
+                            stage.color
+                        );
+                    }, 1000);
+                }
+            }
         }
 
         // 仮説を完了
@@ -4796,64 +5172,161 @@
             const wa = document.getElementById('weighted-achieved');
             if (wa) wa.textContent = (Math.round(weightedAchieved * 10) / 10).toString();
 
-            // 達成率レベル分布（ゲーミフィケーション風）
-            const achievementLevels = {
-                'SS (100%)': { min: 100, max: 100, color: '#fbbf24', emoji: '👑' },
-                'S (90-99%)': { min: 90, max: 99, color: '#10b981', emoji: '🏆' },
-                'A (80-89%)': { min: 80, max: 89, color: '#3b82f6', emoji: '⭐' },
-                'B (60-79%)': { min: 60, max: 79, color: '#8b5cf6', emoji: '💪' },
-                'C (40-59%)': { min: 40, max: 59, color: '#f59e0b', emoji: '🔥' },
-                'D (20-39%)': { min: 20, max: 39, color: '#ef4444', emoji: '⚡' },
-                'E (0-19%)': { min: 0, max: 19, color: '#6b7280', emoji: '🌱' }
-            };
-            
-            const levelCounts = {};
-            Object.keys(achievementLevels).forEach(level => {
-                levelCounts[level] = 0;
-            });
-            
-            // 各仮説の達成率を計算してレベルに分類
-            all.forEach(h => {
-                const start = new Date(h.startDate);
-                start.setHours(0, 0, 0, 0);
-                const end = h.completedDate ? new Date(h.completedDate) : new Date();
-                end.setHours(0, 0, 0, 0);
-                const periodEnd = new Date(start);
-                periodEnd.setDate(start.getDate() + h.totalDays - 1);
-                const actualEnd = end < periodEnd ? end : periodEnd;
+            // 習慣成長ステージの計算関数
+            function calculateHabitStage(hypothesis) {
+                if (!hypothesis || !hypothesis.achievements) return null;
                 
-                let targetDays = 0;
-                for (let d = new Date(start); d <= actualEnd && d <= today; d.setDate(d.getDate() + 1)) {
-                    targetDays++;
+                const start = new Date(hypothesis.startDate);
+                start.setHours(0, 0, 0, 0);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                
+                // 達成日数の計算
+                const achievedDays = Object.keys(hypothesis.achievements).length;
+                
+                // 連続達成日数の計算
+                const streak = computeStreak(hypothesis);
+                
+                // 週単位での達成数を計算（週◯回や特定曜日の場合）
+                let achievedWeeks = 0;
+                if (hypothesis.frequency && (hypothesis.frequency.type === 'weekly' || hypothesis.frequency.type === 'weekdays')) {
+                    const weeks = Math.ceil((today - start) / (7 * 24 * 60 * 60 * 1000));
+                    for (let w = 0; w < weeks; w++) {
+                        const weekStart = new Date(start);
+                        weekStart.setDate(start.getDate() + w * 7);
+                        const weekEnd = new Date(weekStart);
+                        weekEnd.setDate(weekStart.getDate() + 6);
+                        
+                        let weekAchievements = 0;
+                        for (let d = new Date(weekStart); d <= weekEnd && d <= today; d.setDate(d.getDate() + 1)) {
+                            const key = dateKeyLocal(d);
+                            if (hypothesis.achievements[key]) weekAchievements++;
+                        }
+                        
+                        if (hypothesis.frequency.type === 'weekly' && weekAchievements >= hypothesis.frequency.count) {
+                            achievedWeeks++;
+                        } else if (hypothesis.frequency.type === 'weekdays') {
+                            const targetDaysInWeek = hypothesis.frequency.weekdays.filter(wd => {
+                                for (let d = new Date(weekStart); d <= weekEnd && d <= today; d.setDate(d.getDate() + 1)) {
+                                    if (d.getDay() === wd) return true;
+                                }
+                                return false;
+                            }).length;
+                            if (targetDaysInWeek > 0 && weekAchievements >= targetDaysInWeek * 0.8) {
+                                achievedWeeks++;
+                            }
+                        }
+                    }
                 }
                 
-                const achievedDays = Object.keys(h.achievements || {}).length;
-                const rate = targetDays > 0 ? Math.round((achievedDays / targetDays) * 100) : 0;
-                
-                // レベルに分類
-                for (const [level, range] of Object.entries(achievementLevels)) {
-                    if (rate >= range.min && rate <= range.max) {
-                        levelCounts[level]++;
-                        break;
+                // 基本スコアの計算
+                let baseScore = achievedDays;
+                if (hypothesis.frequency) {
+                    if (hypothesis.frequency.type === 'weekly' || hypothesis.frequency.type === 'weekdays') {
+                        baseScore = achievedWeeks * 7; // 週単位を日数換算
                     }
+                }
+                
+                // 連続ボーナスの計算（1.0～2.0）
+                let continuityBonus = 1.0;
+                if (streak >= 90) {
+                    continuityBonus = 2.0;
+                } else if (streak >= 60) {
+                    continuityBonus = 1.7;
+                } else if (streak >= 30) {
+                    continuityBonus = 1.5;
+                } else if (streak >= 14) {
+                    continuityBonus = 1.3;
+                } else if (streak >= 7) {
+                    continuityBonus = 1.1;
+                }
+                
+                // 途切れペナルティ
+                const totalDays = Math.floor((today - start) / (24 * 60 * 60 * 1000)) + 1;
+                const achievementRate = achievedDays / totalDays;
+                if (achievementRate < 0.5 && totalDays > 7) {
+                    continuityBonus *= 0.8;
+                }
+                
+                // 最終スコア
+                const finalScore = Math.floor(baseScore * continuityBonus);
+                
+                // ステージ判定
+                const stages = [
+                    { name: '🌱 種まき期', minScore: 0, maxScore: 7, color: '#6b7280', description: '習慣の種を植えた段階' },
+                    { name: '🌿 発芽期', minScore: 8, maxScore: 14, color: '#10b981', description: '小さな芽が出てきた' },
+                    { name: '🍀 成長期', minScore: 15, maxScore: 30, color: '#3b82f6', description: '葉が増えて成長中' },
+                    { name: '🌳 定着期', minScore: 31, maxScore: 60, color: '#8b5cf6', description: 'しっかりとした木に成長' },
+                    { name: '🌸 開花期', minScore: 61, maxScore: 90, color: '#f59e0b', description: '花が咲き始める' },
+                    { name: '🍎 収穫期', minScore: 91, maxScore: 120, color: '#ef4444', description: '実がなり収穫できる' },
+                    { name: '👑 黄金の習慣', minScore: 121, maxScore: 999999, color: '#fbbf24', description: '完全に身についた習慣' }
+                ];
+                
+                // 特別条件：連続90日以上かつ達成率90%以上で黄金の習慣
+                if (streak >= 90 && achievementRate >= 0.9) {
+                    return stages[6]; // 黄金の習慣
+                }
+                
+                for (const stage of stages) {
+                    if (finalScore >= stage.minScore && finalScore <= stage.maxScore) {
+                        return { ...stage, score: finalScore, streak, achievementRate: Math.round(achievementRate * 100) };
+                    }
+                }
+                
+                return stages[0]; // デフォルトは種まき期
+            }
+            
+            // 習慣成長ステージ分布
+            const stageDistribution = {};
+            const stages = [
+                '🌱 種まき期',
+                '🌿 発芽期',
+                '🍀 成長期',
+                '🌳 定着期',
+                '🌸 開花期',
+                '🍎 収穫期',
+                '👑 黄金の習慣'
+            ];
+            
+            stages.forEach(stage => {
+                stageDistribution[stage] = 0;
+            });
+            
+            // 各仮説のステージを計算
+            all.forEach(h => {
+                const stage = calculateHabitStage(h);
+                if (stage) {
+                    stageDistribution[stage.name]++;
                 }
             });
             
             const levelDiv = document.getElementById('achievement-level-distribution');
             if (levelDiv) {
                 levelDiv.innerHTML = '';
-                const maxCount = Math.max(...Object.values(levelCounts), 1);
+                const maxCount = Math.max(...Object.values(stageDistribution), 1);
                 
-                Object.entries(achievementLevels).forEach(([level, config]) => {
-                    const count = levelCounts[level];
+                const stageConfigs = {
+                    '🌱 種まき期': { color: '#6b7280', description: '習慣の種を植えた段階' },
+                    '🌿 発芽期': { color: '#10b981', description: '小さな芽が出てきた' },
+                    '🍀 成長期': { color: '#3b82f6', description: '葉が増えて成長中' },
+                    '🌳 定着期': { color: '#8b5cf6', description: 'しっかりとした木に成長' },
+                    '🌸 開花期': { color: '#f59e0b', description: '花が咲き始める' },
+                    '🍎 収穫期': { color: '#ef4444', description: '実がなり収穫できる' },
+                    '👑 黄金の習慣': { color: '#fbbf24', description: '完全に身についた習慣' }
+                };
+                
+                stages.forEach(stageName => {
+                    const count = stageDistribution[stageName];
+                    const config = stageConfigs[stageName];
                     const percentage = all.length > 0 ? Math.round((count / all.length) * 100) : 0;
-                    const barWidth = (count / maxCount) * 100;
+                    const barWidth = maxCount > 0 ? (count / maxCount) * 100 : 0;
                     
                     const row = document.createElement('div');
                     row.innerHTML = `
-                        <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
-                            <div style="width:100px; font-size:12px; font-weight:600;">
-                                ${config.emoji} ${level}
+                        <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+                            <div style="width:140px;">
+                                <div style="font-size:13px; font-weight:600;">${stageName}</div>
+                                <div style="font-size:10px; color:var(--text-secondary); margin-top:2px;">${config.description}</div>
                             </div>
                             <div style="flex:1; background:rgba(148,163,184,0.1); border-radius:4px; height:28px; position:relative;">
                                 <div style="position:absolute; left:0; top:0; height:100%; background:${config.color}; border-radius:4px; width:${barWidth}%; transition:width 0.3s;"></div>
@@ -4865,21 +5338,6 @@
                     `;
                     levelDiv.appendChild(row);
                 });
-                
-                // 平均レベルの表示
-                const totalCount = Object.values(levelCounts).reduce((a, b) => a + b, 0);
-                if (totalCount > 0) {
-                    const avgDiv = document.createElement('div');
-                    avgDiv.style.cssText = 'margin-top:12px; padding-top:12px; border-top:1px solid rgba(148,163,184,0.2); text-align:center; font-size:12px; color:var(--text-secondary);';
-                    
-                    // 最も多いレベルを見つける
-                    const mostCommonLevel = Object.entries(levelCounts).reduce((a, b) => 
-                        b[1] > a[1] ? b : a
-                    );
-                    
-                    avgDiv.innerHTML = `最頻レベル: <strong style="color:${achievementLevels[mostCommonLevel[0]].color};">${achievementLevels[mostCommonLevel[0]].emoji} ${mostCommonLevel[0]}</strong>`;
-                    levelDiv.appendChild(avgDiv);
-                }
             }
 
             // 曜日別達成率の計算と表示
