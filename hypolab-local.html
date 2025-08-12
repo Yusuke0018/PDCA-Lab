@@ -2150,6 +2150,7 @@
 
         // ホーム画面を表示
         function showHomeView() {
+            console.log('HypoLab: showHomeView開始');
             resetScrollToTop();
             document.getElementById('home-view').style.display = 'block';
             document.getElementById('new-hypothesis-view').style.display = 'none';
@@ -2159,10 +2160,26 @@
             document.getElementById('stats-view').style.display = 'none';
             document.getElementById('cards-view').style.display = 'none';
             
+            console.log('HypoLab: ナビゲーション更新');
             updateNavigation('home');
-            updateCurrentHypothesisList();
-            updatePerfectBonusIndicator();
-            updatePenaltyIndicators();
+            console.log('HypoLab: 習慣リスト更新');
+            try {
+                updateCurrentHypothesisList();
+            } catch (e) {
+                console.error('HypoLab: 習慣リスト更新エラー', e);
+            }
+            
+            console.log('HypoLab: ボーナス表示更新');
+            try {
+                if (typeof updatePerfectBonusIndicator === 'function') {
+                    updatePerfectBonusIndicator();
+                }
+                if (typeof updatePenaltyIndicators === 'function') {
+                    updatePenaltyIndicators();
+                }
+            } catch (e) {
+                console.error('HypoLab: ボーナス表示更新エラー', e);
+            }
 
             // 前回デブリーフのミニバナー
             const data = loadData();
@@ -4776,19 +4793,29 @@
 
         // 現在の習慣リストを更新
         function updateCurrentHypothesisList() {
+            console.log('HypoLab: updateCurrentHypothesisList開始');
             const data = loadData();
+            console.log('HypoLab: ロードしたデータ:', data);
             const listContainer = document.getElementById('current-hypothesis-list');
+            if (!listContainer) {
+                console.error('HypoLab: current-hypothesis-listが見つかりません');
+                return;
+            }
             listContainer.innerHTML = '';
             
             if (data.currentHypotheses.length === 0) {
+                console.log('HypoLab: 習慣データが0件です');
                 listContainer.innerHTML = '<p style="color: var(--text-secondary);">現在進行中の習慣はありません</p>';
                 return;
             }
             
+            console.log('HypoLab: 習慣データ件数:', data.currentHypotheses.length);
+            
             // 日付が変わったら宣言状態をチェック
             const todayKey = dateKeyLocal(new Date());
             
-            data.currentHypotheses.forEach(hypothesis => {
+            data.currentHypotheses.forEach((hypothesis, index) => {
+                console.log(`HypoLab: 習慣${index + 1}を処理中:`, hypothesis.title);
                 const item = document.createElement('div');
                 item.className = 'hypothesis-item';
                 item.onclick = () => showProgressView(hypothesis.id);
@@ -4801,7 +4828,12 @@
                 });
                 
                 // 習慣成長ステージを計算
-                const stage = window.calculateHabitStage(hypothesis);
+                let stage = null;
+                try {
+                    stage = window.calculateHabitStage ? window.calculateHabitStage(hypothesis) : null;
+                } catch (e) {
+                    console.error('HypoLab: ステージ計算エラー', e);
+                }
                 
                 const startDate = new Date(hypothesis.startDate);
                 const today = new Date();
@@ -7045,19 +7077,19 @@
         }
         
         function initializeApp() {
-            // 各種UIコンポーネントの初期化
-            updateCardInventory();
-            updateCardEffects();
-            renderStats();
-            updateCardList();
+            console.log('HypoLab: 初期化開始');
             
-            // ホーム画面を表示
+            // ホーム画面を表示（これが習慣リストも更新する）
             showHomeView();
             
             // 履歴初期化（ホームを現在の状態として記録）
             try {
                 history.replaceState({ view: 'home' }, '');
-            } catch (e) { /* noop */ }
+            } catch (e) { 
+                console.error('HypoLab: 履歴の初期化に失敗', e);
+            }
+            
+            console.log('HypoLab: 初期化完了');
         }
 
         // 物理戻るボタン（popstate）でホームへ戻す
