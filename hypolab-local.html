@@ -1323,17 +1323,17 @@
                 <form onsubmit="createHypothesis(event)">
                     <div class="form-group">
                         <label for="hypothesis-title">習慣タイトル</label>
-                        <input type="text" id="hypothesis-title" required placeholder="例: 毎日10分の瞑想" autocomplete="off" autocorrect="off" spellcheck="false">
+                        <input type="text" id="hypothesis-title" required placeholder="例: 毎日10分の瞑想" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
                     </div>
                     
                     <div class="form-group">
                         <label for="hypothesis-description">習慣の詳細</label>
-                        <textarea id="hypothesis-description" required placeholder="この習慣で何を検証したいか詳しく記述してください"></textarea>
+                        <textarea id="hypothesis-description" required placeholder="この習慣で何を実現したいか詳しく記述してください" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
                     </div>
 
                     <div class="form-group">
                         <label for="hypothesis-benefit">朝の1行宣言（⭕️に入れる言葉）</label>
-                        <input type="text" id="hypothesis-benefit" required placeholder="例: 集中力が上がる">
+                        <input type="text" id="hypothesis-benefit" required placeholder="例: 集中力が上がる" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
                         <small style="color: var(--text-secondary);">宣言文: 「この習慣を実証することで（この入力）が実現する」</small>
                     </div>
 
@@ -1679,7 +1679,7 @@
         </div>
 
         <!-- 履歴画面 -->
-        <div id="history-view" style="display: none;">
+        <div id="history-view" style="display: none; padding-top: 60px;">
             <div class="card">
                 <h2 style="margin-bottom: 24px;">完了した習慣</h2>
                 <div id="history-list">
@@ -1689,7 +1689,7 @@
         </div>
 
         <!-- 統計画面 -->
-        <div id="stats-view" style="display: none;">
+        <div id="stats-view" style="display: none; padding-top: 60px;">
             <div class="card">
                 <h2 style="margin-bottom: 24px;">📊 統計データ</h2>
                 <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
@@ -1753,7 +1753,7 @@
 
 
         <!-- カード一覧画面 -->
-        <div id="cards-view" style="display: none;">
+        <div id="cards-view" style="display: none; padding-top: 60px;">
             <div class="card">
                 <h2 style="margin-bottom: 24px;">🎴 カードコレクション</h2>
                 
