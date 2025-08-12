@@ -1776,52 +1776,52 @@
             <div class="card" style="margin-top: 0;">
                 <h2 style="margin-bottom: 16px; margin-top: 0;">📊 統計データ</h2>
                 <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px;">
-                    <div class="stat-card" style="background: var(--background); padding: 16px; border-radius: 12px; text-align: center;">
+                    <div class="stat-card" style="background: var(--background); padding: 12px; border-radius: 8px; text-align: center;">
                         <div class="stat-value" id="total-hypotheses" style="font-size: 32px; font-weight: 800; background: var(--gradient-1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">0</div>
                         <div class="stat-label" style="color: var(--text-secondary); margin-top: 8px;">総習慣数</div>
                     </div>
-                    <div class="stat-card" style="background: var(--background); padding: 16px; border-radius: 12px; text-align: center;">
+                    <div class="stat-card" style="background: var(--background); padding: 12px; border-radius: 8px; text-align: center;">
                         <div class="stat-value" id="avg-achievement" style="font-size: 32px; font-weight: 800; background: var(--gradient-2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">0%</div>
                         <div class="stat-label" style="color: var(--text-secondary); margin-top: 8px;">平均達成率（習慣平均）</div>
                     </div>
-                    <div class="stat-card" style="background: var(--background); padding: 16px; border-radius: 12px; text-align: center;">
+                    <div class="stat-card" style="background: var(--background); padding: 12px; border-radius: 8px; text-align: center;">
                         <div class="stat-value" id="total-days" style="font-size: 32px; font-weight: 800; background: var(--gradient-3); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">0</div>
                         <div class="stat-label" style="color: var(--text-secondary); margin-top: 8px;">総検証日数（ユニーク日）</div>
                     </div>
-                    <div class="stat-card" style="background: var(--background); padding: 16px; border-radius: 12px; text-align: center;">
+                    <div class="stat-card" style="background: var(--background); padding: 12px; border-radius: 8px; text-align: center;">
                         <div class="stat-value" id="weighted-achieved" style="font-size: 32px; font-weight: 800; background: var(--gradient-2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">0</div>
                         <div class="stat-label" style="color: var(--text-secondary); margin-top: 8px;">重み付き達成日数（合計）</div>
                     </div>
                 </div>
                 <div class="achievement-chart" id="achievement-chart" style="display:grid; gap:16px;">
-                    <div class="stat-panel" style="background: var(--background); padding: 16px; border-radius: 12px;">
+                    <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
                         <h3 style="margin-bottom:8px;">⏰ 曜日別達成率</h3>
                         <div id="weekday-stats" style="display:grid; grid-template-columns: repeat(7, 1fr); gap:8px; margin-top:12px;"></div>
                     </div>
-                    <div class="stat-panel" style="background: var(--background); padding: 16px; border-radius: 12px;">
+                    <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
                         <h3 style="margin-bottom:8px;">🎮 達成率レベル分布</h3>
                         <div id="achievement-level-distribution" style="display:grid; gap:8px; margin-top:12px;"></div>
                     </div>
-                    <div class="stat-panel" style="background: var(--background); padding: 16px; border-radius: 12px;">
+                    <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
                         <h3 style="margin-bottom:8px;">🧩 強度ラベル使用割合</h3>
                         <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; justify-content:center;">
                             <svg id="donut-intensity" width="160" height="160" viewBox="0 0 160 160" style="flex-shrink: 0;"></svg>
                             <div id="donut-legend" style="display:grid; gap:6px; font-size:12px; min-width: 100px;"></div>
                         </div>
                     </div>
-                    <div class="stat-panel" style="background: var(--background); padding: 16px; border-radius: 12px;">
+                    <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
                         <h3 style="margin-bottom:8px;">🔥 連続達成日数</h3>
                         <div id="streak-stats" style="display:flex; gap:16px; font-weight:700;"></div>
                     </div>
-                    <div class="stat-panel" style="background: var(--background); padding: 16px; border-radius: 12px;">
+                    <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
                         <h3 style="margin-bottom:8px;">🏆 習慣ランキング</h3>
                         <div id="ranking-list" style="display:grid; gap:8px;"></div>
                     </div>
-                    <div class="stat-panel" style="background: var(--background); padding: 16px; border-radius: 12px;">
+                    <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
                         <h3 style="margin-bottom:8px;">🏆 獲得バッジ</h3>
                         <div id="badge-collection" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap:12px; margin-top:12px;"></div>
                     </div>
-                    <div class="stat-panel" style="background: var(--background); padding: 16px; border-radius: 12px;">
+                    <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
                         <h3 style="margin-bottom:8px;">📈 習慣レポート</h3>
                         <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 16px;">
                             <button class="btn btn-secondary" onclick="showMonthlyReport()">📅 月次</button>
