@@ -1544,41 +1544,7 @@
                 </button>
             </div>
 
-            <!-- アウトプット入力セクション -->
-            <div class="card" style="margin-bottom: 20px;">
-                <h3 style="margin-bottom: 16px; font-size: 18px;">📝 今日のアウトプット</h3>
-                <div style="display: flex; gap: 12px; margin-bottom: 12px;">
-                    <textarea id="daily-output" placeholder="今日の学び、気づき、成果などを記録..." 
-                        style="flex: 1; min-height: 80px; padding: 12px; border-radius: 8px; 
-                        background: var(--surface-light); border: 1px solid var(--border); 
-                        color: var(--text-primary); resize: vertical;"></textarea>
-                </div>
-                <button onclick="saveOutput()" class="btn" style="background: var(--gradient-1); color: white; width: 100%;">
-                    💾 アウトプットを保存
-                </button>
-                <div id="output-history" style="margin-top: 16px; display: none;">
-                    <h4 style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px;">過去のアウトプット</h4>
-                    <div id="output-list" style="max-height: 200px; overflow-y: auto;"></div>
-                </div>
-            </div>
-            
-            <!-- インプット入力セクション -->
-            <div class="card" style="margin-bottom: 20px;">
-                <h3 style="margin-bottom: 16px; font-size: 18px;">📚 今日のインプット</h3>
-                <div style="display: flex; gap: 12px; margin-bottom: 12px;">
-                    <textarea id="daily-input" placeholder="読書・視聴・学習などのインプットを記録..."
-                        style="flex: 1; min-height: 80px; padding: 12px; border-radius: 8px;
-                        background: var(--surface-light); border: 1px solid var(--border);
-                        color: var(--text-primary); resize: vertical;"></textarea>
-                </div>
-                <button onclick="saveInput()" class="btn" style="background: var(--secondary); color: white; width: 100%;">
-                    📥 インプットを保存
-                </button>
-                <div id="input-history" style="margin-top: 16px; display: none;">
-                    <h4 style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px;">過去のインプット</h4>
-                    <div id="input-list" style="max-height: 200px; overflow-y: auto;"></div>
-                </div>
-            </div>
+            <!-- メモ入力（アウトプット/インプット）はデータ入出力と混同を避けるため削除 -->
             
             <!-- デバッグモード -->
             <div id="debug-panel" style="margin-top: 24px; margin-bottom: 24px; display: none;">
@@ -1796,10 +1762,12 @@
                     </div>
                     <div class="stat-panel" style="background: var(--background); padding: 16px; border-radius: 12px;">
                         <h3 style="margin-bottom:8px;">📈 習慣レポート</h3>
-                        <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+                        <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
                             <button class="btn btn-secondary" onclick="showMonthlyReport()" style="flex: 1;">📅 月次</button>
                             <button class="btn btn-secondary" onclick="showYearlyReport()" style="flex: 1;">📊 年次</button>
-                            <button class="btn btn-secondary" onclick="exportHabitData()" style="flex: 1;">📥 エクスポート</button>
+                            <button class="btn btn-secondary" onclick="exportHabitData()" style="flex: 1;">📤 エクスポート</button>
+                            <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()" style="flex: 1;">📥 インポート</button>
+                            <input id="import-file" type="file" accept="application/json,.json" style="display:none" onchange="handleImportFile(event)">
                         </div>
                         <div id="report-container" style="display: none; padding: 16px; background: var(--surface); border-radius: 12px; margin-top: 12px;"></div>
                     </div>
@@ -2729,11 +2697,9 @@
             
             daysInfo.innerHTML = `📅 ${startDate.toLocaleDateString('ja-JP')} 〜 ${hypothesis.isUnlimited ? '無期限' : endDate.toLocaleDateString('ja-JP')} | ${frequencyText}${habitModeLabel}${unlimitedLabel}`;
             
-            // カレンダー/進捗・メモ表示を更新
+            // カレンダー/進捗 表示を更新
             updateCalendar();
             updateProgress();
-            updateOutputHistory();
-            updateInputHistory();
             
             // カード使用ボタンの表示/非表示
             updateCardUseButton();
@@ -2756,8 +2722,7 @@
             // 朝だけ自動でバナー（/モーダル）を展開
             maybeAutoAffirmationPrompt();
             
-            // アウトプット履歴を更新
-            updateOutputHistory();
+            // 追加のUI更新があればここで実行
         }
 
         // カード使用ボタンの更新
@@ -5974,6 +5939,63 @@
             showNotification('📥 データをエクスポートしました', 'success');
         }
 
+        // データのインポート
+        function handleImportFile(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+                try {
+                    const json = JSON.parse(reader.result);
+                    const normalized = normalizeImportedData(json);
+                    if (!normalized) {
+                        showNotification('⚠️ サポートされていないファイル形式です', 'error');
+                        return;
+                    }
+                    if (!confirm('現在のデータをインポートデータで上書きします。よろしいですか？\n（必要なら先にエクスポートでバックアップを保存してください）')) {
+                        return;
+                    }
+                    saveData(normalized);
+                    showNotification('✅ データをインポートしました', 'success');
+                    // UIをリフレッシュ
+                    showHomeView();
+                } catch (e) {
+                    console.error(e);
+                    showNotification('⚠️ インポート中にエラーが発生しました', 'error');
+                } finally {
+                    // 同じファイルを続けて選択できるように値をリセット
+                    event.target.value = '';
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // インポートデータの正規化
+        function normalizeImportedData(src) {
+            if (!src || typeof src !== 'object') return null;
+            // 既存ストレージ形式（そのまま）
+            if (Array.isArray(src.currentHypotheses) || Array.isArray(src.completedHypotheses)) {
+                return {
+                    currentHypotheses: src.currentHypotheses || [],
+                    completedHypotheses: src.completedHypotheses || [],
+                    cards: src.cards || { inventory: [], pendingPenalties: [] },
+                    badges: src.badges || {},
+                    meta: src.meta || {}
+                };
+            }
+            // エクスポート形式からの変換
+            if (Array.isArray(src.currentHabits) || Array.isArray(src.completedHabits)) {
+                return {
+                    currentHypotheses: src.currentHabits || [],
+                    completedHypotheses: src.completedHabits || [],
+                    cards: src.cards || { inventory: [], pendingPenalties: [] },
+                    badges: src.badges || {},
+                    meta: src.meta || {}
+                };
+            }
+            return null;
+        }
+
 
         // カード画面を表示
         function showCardsView() {
@@ -6818,96 +6840,8 @@
             }, 3000);
         }
 
-        // アウトプット機能（データモデルに合わせて保存/表示）
-        function saveOutput() {
-            const textarea = document.getElementById('daily-output');
-            const content = (textarea?.value || '').trim();
-            if (!content) { showNotification('⚠️ アウトプットを入力してください', 'error'); return; }
-            if (!window.currentHypothesis) { showNotification('⚠️ アクティブな習慣がありません', 'error'); return; }
-
-            const data = loadData();
-            const idx = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
-            if (idx === -1) { showNotification('⚠️ 習慣が見つかりません', 'error'); return; }
-
-            const today = new Date().toISOString().split('T')[0];
-            const hyp = data.currentHypotheses[idx];
-            if (!hyp.outputs) hyp.outputs = [];
-            hyp.outputs.push({ date: today, content, timestamp: new Date().toISOString() });
-            data.currentHypotheses[idx] = hyp;
-            saveData(data);
-            window.currentHypothesis = hyp;
-
-            if (textarea) textarea.value = '';
-            showNotification('✅ アウトプットを保存しました', 'success');
-            updateOutputHistory();
-        }
-
-        function updateOutputHistory() {
-            const historyDiv = document.getElementById('output-history');
-            const listDiv = document.getElementById('output-list');
-            if (!window.currentHypothesis || !historyDiv || !listDiv) return;
-            const arr = window.currentHypothesis.outputs || [];
-            if (!arr.length) { historyDiv.style.display = 'none'; return; }
-            const recent = arr.slice(-5).reverse();
-            listDiv.innerHTML = recent.map(o => {
-                const d = new Date(o.date);
-                const ds = `${d.getMonth() + 1}/${d.getDate()}`;
-                return `
-                    <div style="padding: 8px; margin-bottom: 8px; background: var(--surface); 
-                        border-radius: 8px; border-left: 3px solid var(--primary);">
-                        <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">${ds}</div>
-                        <div style="font-size: 14px; color: var(--text-primary); white-space: pre-wrap;">${escapeHTML(o.content)}</div>
-                    </div>
-                `;
-            }).join('');
-            historyDiv.style.display = 'block';
-        }
-
-        // インプット機能
-        function saveInput() {
-            const textarea = document.getElementById('daily-input');
-            const content = (textarea?.value || '').trim();
-            if (!content) { showNotification('⚠️ インプットを入力してください', 'error'); return; }
-            if (!window.currentHypothesis) { showNotification('⚠️ アクティブな習慣がありません', 'error'); return; }
-
-            const data = loadData();
-            const idx = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
-            if (idx === -1) { showNotification('⚠️ 習慣が見つかりません', 'error'); return; }
-
-            const today = new Date().toISOString().split('T')[0];
-            const hyp = data.currentHypotheses[idx];
-            if (!hyp.inputs) hyp.inputs = [];
-            hyp.inputs.push({ date: today, content, timestamp: new Date().toISOString() });
-            data.currentHypotheses[idx] = hyp;
-            saveData(data);
-            window.currentHypothesis = hyp;
-
-            if (textarea) textarea.value = '';
-            showNotification('✅ インプットを保存しました', 'success');
-            updateInputHistory();
-        }
-
-        function updateInputHistory() {
-            const historyDiv = document.getElementById('input-history');
-            const listDiv = document.getElementById('input-list');
-            if (!window.currentHypothesis || !historyDiv || !listDiv) return;
-            const arr = window.currentHypothesis.inputs || [];
-            if (!arr.length) { historyDiv.style.display = 'none'; return; }
-            const recent = arr.slice(-5).reverse();
-            listDiv.innerHTML = recent.map(o => {
-                const d = new Date(o.date);
-                const ds = `${d.getMonth() + 1}/${d.getDate()}`;
-                return `
-                    <div style="padding: 8px; margin-bottom: 8px; background: var(--surface); 
-                        border-radius: 8px; border-left: 3px solid var(--secondary);">
-                        <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">${ds}</div>
-                        <div style="font-size: 14px; color: var(--text-primary); white-space: pre-wrap;">${escapeHTML(o.content)}</div>
-                    </div>
-                `;
-            }).join('');
-            historyDiv.style.display = 'block';
-        }
-
+        // データのエクスポート（JSON）
+        
         // 初期化
         showHomeView();
         // 履歴初期化（ホームを現在の状態として記録）
