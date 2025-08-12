@@ -35,8 +35,10 @@
             --gradient-1: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
             --gradient-2: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
             --gradient-3: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
-            /* ヘッダーのおおよその高さ（ナビのsticky位置計算用） */
+            /* ヘッダーの高さ（JSで実測し更新） */
             --header-height: 56px;
+            /* セーフエリア（iOS notch対応） */
+            --safe-top: env(safe-area-inset-top, 0px);
         }
 
         /* 基本スタイル */
@@ -55,6 +57,7 @@
         .header {
             background: var(--surface);
             padding: 16px 20px;
+            padding-top: calc(16px + var(--safe-top));
             border-bottom: 1px solid var(--border);
             position: sticky;
             top: 0;
@@ -6215,6 +6218,33 @@
                 }, 3000);
             }, 1000);
         }
+
+        // ヘッダー高さを実測してCSS変数を更新（端末差でのズレ防止）
+        function updateHeaderHeightVar() {
+            const header = document.querySelector('.header');
+            if (!header) return;
+            const h = Math.ceil(header.getBoundingClientRect().height);
+            document.documentElement.style.setProperty('--header-height', h + 'px');
+        }
+
+        // 連続リサイズ時の負荷軽減
+        function debounce(fn, wait) {
+            let t;
+            return function(...args) {
+                clearTimeout(t);
+                t = setTimeout(() => fn.apply(this, args), wait);
+            };
+        }
+
+        // 初期化
+        window.addEventListener('load', () => {
+            updateHeaderHeightVar();
+            // レイアウト安定後にも再測定（フォント/アドレスバー反映）
+            setTimeout(updateHeaderHeightVar, 200);
+            setTimeout(updateHeaderHeightVar, 800);
+        });
+        window.addEventListener('resize', debounce(updateHeaderHeightVar, 120));
+        window.addEventListener('orientationchange', () => setTimeout(updateHeaderHeightVar, 100));
 
         // ビュー切替時にスクロールをトップへ揃える
         function resetScrollToTop() {
