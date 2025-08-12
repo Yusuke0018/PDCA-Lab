@@ -1261,7 +1261,8 @@
                 grid-template-columns: 1fr 1fr !important; 
                 gap: 4px !important; 
                 padding: 0 !important;
-                width: 100% !important;
+                width: calc(100% - 8px) !important;
+                margin: 0 4px !important;
                 box-sizing: border-box !important;
             }
             .stat-value { 
@@ -1317,8 +1318,16 @@
                 font-size: 9px !important;
             }
             #weekday-stats {
-                grid-template-columns: repeat(7, 1fr) !important;
+                display: flex !important;
+                flex-wrap: nowrap !important;
+                overflow-x: auto !important;
                 gap: 2px !important;
+                padding-bottom: 4px !important;
+                -webkit-overflow-scrolling: touch !important;
+            }
+            #weekday-stats > div {
+                flex: 0 0 40px !important;
+                min-width: 40px !important;
             }
             .achievement-chart {
                 gap: 6px !important;
@@ -1340,12 +1349,6 @@
             #ranking-list .ranking-item {
                 font-size: 11px !important;
                 padding: 6px !important;
-            }
-            #weekday-stats {
-                grid-template-columns: none !important;
-                grid-auto-flow: column !important;
-                grid-auto-columns: minmax(56px, 1fr) !important;
-                overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px;
             }
             #achievement-level-distribution { grid-template-columns: 1fr !important; }
             #badge-collection { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)) !important; gap: 8px !important; }
@@ -1796,7 +1799,7 @@
         <div id="stats-view" style="display: none;">
             <div class="card" style="margin-top: 0;">
                 <h2 style="margin-bottom: 16px; margin-top: 0;">📊 統計データ</h2>
-                <div class="stats-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 16px; overflow: hidden; width: 100%; box-sizing: border-box;">
+                <div class="stats-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 16px; overflow: hidden; width: calc(100% - 8px); margin: 0 4px 16px 4px; box-sizing: border-box;">
                     <div class="stat-card" style="background: var(--background); padding: 12px; border-radius: 8px; text-align: center; min-width: 0; overflow: hidden; box-sizing: border-box;">
                         <div class="stat-value" id="total-hypotheses" style="font-size: 28px; font-weight: 800; color: #6366f1;">0</div>
                         <div class="stat-label" style="color: var(--text-secondary); margin-top: 8px;">総習慣数</div>
@@ -1817,7 +1820,7 @@
                 <div class="achievement-chart" id="achievement-chart" style="display:grid; gap:16px;">
                     <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
                         <h3 style="margin-bottom:8px;">⏰ 曜日別達成率</h3>
-                        <div id="weekday-stats" style="display:grid; grid-template-columns: repeat(7, 1fr); gap:8px; margin-top:12px;"></div>
+                        <div id="weekday-stats" style="display:flex; gap:4px; margin-top:12px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch;"></div>
                     </div>
                     <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
                         <h3 style="margin-bottom:8px;">🎮 達成率レベル分布</h3>
@@ -4081,6 +4084,16 @@
             if (!window.currentHypothesis) return;
             const hyp = window.currentHypothesis;
             const todayKey = dateKeyLocal(new Date());
+            
+            // 日付が変わったら宣言状態をリセット
+            const lastCheckKey = 'lastAffirmationCheck';
+            const lastCheck = localStorage.getItem(lastCheckKey);
+            const currentDate = todayKey;
+            
+            if (lastCheck !== currentDate) {
+                // 日付が変わったので、今日の宣言がないことを確認
+                localStorage.setItem(lastCheckKey, currentDate);
+            }
             // 互換対応: 旧実装でUTCキーに保存された本日の宣言をローカルキーへ移行
             if (hyp.declarations && !hyp.declarations[todayKey]) {
                 const utcKey = new Date().toISOString().split('T')[0];
@@ -4772,6 +4785,9 @@
                 return;
             }
             
+            // 日付が変わったら宣言状態をチェック
+            const todayKey = dateKeyLocal(new Date());
+            
             data.currentHypotheses.forEach(hypothesis => {
                 const item = document.createElement('div');
                 item.className = 'hypothesis-item';
@@ -4868,6 +4884,17 @@
                     ${badges.length ? `<div class="hypothesis-intensity" style="margin-top:8px; color: var(--text-secondary); font-size:12px; display:flex; align-items:center; gap:6px;">
                         <span>💪 直近:</span> ${badges.join(' ')}
                     </div>` : ''}
+                    ${(() => {
+                        // 今日の宣言状態をチェック
+                        const todayKey = dateKeyLocal(new Date());
+                        const isAffirmed = hypothesis.declarations && hypothesis.declarations[todayKey];
+                        
+                        return `<div style="margin-top: 8px; padding: 6px 10px; background: ${isAffirmed ? 'rgba(16,185,129,0.1)' : 'rgba(245,158,11,0.1)'}; border-radius: 8px; display: flex; align-items: center; gap: 6px;">
+                            <span style="font-size: 12px; color: ${isAffirmed ? '#10b981' : '#f59e0b'};">
+                                ${isAffirmed ? '✅ 今日の宣言: 済' : '⏰ 今日の宣言: 未'}
+                            </span>
+                        </div>`;
+                    })()}
                 `;
                 
                 listContainer.appendChild(item);
