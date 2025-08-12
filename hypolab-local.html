@@ -1716,6 +1716,19 @@
                         <h3 style="margin-bottom:8px;">🏆 仮説ランキング</h3>
                         <div id="ranking-list" style="display:grid; gap:8px;"></div>
                     </div>
+                    <div class="card" style="background: var(--background);">
+                        <h3 style="margin-bottom:8px;">🏆 獲得バッジ</h3>
+                        <div id="badge-collection" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap:12px; margin-top:12px;"></div>
+                    </div>
+                    <div class="card" style="background: var(--background);">
+                        <h3 style="margin-bottom:8px;">📈 習慣レポート</h3>
+                        <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+                            <button class="btn btn-secondary" onclick="showMonthlyReport()" style="flex: 1;">📅 月次</button>
+                            <button class="btn btn-secondary" onclick="showYearlyReport()" style="flex: 1;">📊 年次</button>
+                            <button class="btn btn-secondary" onclick="exportHabitData()" style="flex: 1;">📥 エクスポート</button>
+                        </div>
+                        <div id="report-container" style="display: none; padding: 16px; background: var(--surface); border-radius: 12px; margin-top: 12px;"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -3511,10 +3524,16 @@
             updateProgress();
             updateCalendar(); // カレンダーを再描画して週の状況を更新
             
+            // バッジ獲得チェック
+            checkAndAwardBadges();
+            
             // リセットリスクのチェック（翌日に実行）
             if (window.currentHypothesis.resetRisk) {
                 setTimeout(() => checkResetRisk(), 100);
             }
+            
+            // ステージアップチェック
+            checkStageProgress();
         }
         
         // 週番号を取得する関数（グローバルに定義） - 検証開始日基準
@@ -4167,6 +4186,136 @@
             renderIfThenPanel();
         }
 
+        // バッジシステムの定義
+        const BADGE_DEFINITIONS = {
+            // 連続達成バッジ
+            streak_7: { name: '🔥 週間戦士', description: '7日連続達成', emoji: '🔥' },
+            streak_14: { name: '⚡ 2週間の炎', description: '14日連続達成', emoji: '⚡' },
+            streak_30: { name: '🌟 月間マスター', description: '30日連続達成', emoji: '🌟' },
+            streak_60: { name: '💎 ダイヤモンド', description: '60日連続達成', emoji: '💎' },
+            streak_90: { name: '👑 習慣の王', description: '90日連続達成', emoji: '👑' },
+            streak_365: { name: '🌈 年間達成者', description: '365日連続達成', emoji: '🌈' },
+            
+            // ステージ達成バッジ
+            stage_sprout: { name: '🌱 最初の一歩', description: '芽吹きステージ到達', emoji: '🌱' },
+            stage_growth: { name: '🌿 成長の証', description: '成長期ステージ到達', emoji: '🌿' },
+            stage_establishment: { name: '🌳 定着の証', description: '定着期ステージ到達', emoji: '🌳' },
+            stage_bloom: { name: '🌸 開花の証', description: '開花期ステージ到達', emoji: '🌸' },
+            stage_harvest: { name: '🍎 収穫の証', description: '収穫期ステージ到達', emoji: '🍎' },
+            stage_golden: { name: '👑 黄金達成', description: '黄金の習慣到達', emoji: '👑' },
+            
+            // 完璧達成バッジ
+            perfect_week: { name: '✨ 完璧な週', description: '1週間100%達成', emoji: '✨' },
+            perfect_month: { name: '🌟 完璧な月', description: '1ヶ月100%達成', emoji: '🌟' },
+            
+            // 復活バッジ
+            comeback: { name: '💪 復活の力', description: '3日以上の中断から復帰', emoji: '💪' },
+            
+            // 習慣数バッジ
+            multi_habit_3: { name: '🎯 マルチタスカー', description: '3つの習慣を同時進行', emoji: '🎯' },
+            multi_habit_5: { name: '🚀 習慣マスター', description: '5つの習慣を同時進行', emoji: '🚀' },
+            
+            // 特別バッジ
+            weekend_warrior: { name: '🎮 週末戦士', description: '土日の達成率90%以上', emoji: '🎮' }
+        };
+        
+        // バッジ獲得チェック
+        function checkAndAwardBadges() {
+            const data = loadData();
+            if (!data.badges) data.badges = {};
+            const newBadges = [];
+            
+            // 連続達成バッジのチェック
+            const allHypotheses = data.currentHypotheses.concat(data.completedHypotheses || []);
+            let maxStreak = 0;
+            allHypotheses.forEach(h => {
+                const streak = window.computeStreak(h);
+                if (streak > maxStreak) maxStreak = streak;
+            });
+            
+            const streakBadges = [
+                { id: 'streak_7', days: 7 },
+                { id: 'streak_14', days: 14 },
+                { id: 'streak_30', days: 30 },
+                { id: 'streak_60', days: 60 },
+                { id: 'streak_90', days: 90 },
+                { id: 'streak_365', days: 365 }
+            ];
+            
+            streakBadges.forEach(sb => {
+                if (maxStreak >= sb.days && !data.badges[sb.id]) {
+                    data.badges[sb.id] = { earnedAt: new Date().toISOString() };
+                    newBadges.push(sb.id);
+                }
+            });
+            
+            // ステージバッジのチェック
+            const stageMap = {
+                '芽吹き': 'stage_sprout',
+                '成長期': 'stage_growth',
+                '定着期': 'stage_establishment',
+                '開花期': 'stage_bloom',
+                '収穫期': 'stage_harvest',
+                '黄金の習慣': 'stage_golden'
+            };
+            
+            allHypotheses.forEach(h => {
+                const stage = window.calculateHabitStage(h);
+                if (stage && stageMap[stage.name] && !data.badges[stageMap[stage.name]]) {
+                    data.badges[stageMap[stage.name]] = { earnedAt: new Date().toISOString() };
+                    newBadges.push(stageMap[stage.name]);
+                }
+            });
+            
+            // 完璧な週のチェック
+            allHypotheses.forEach(h => {
+                if (!h.achievements) return;
+                const dates = Object.keys(h.achievements).sort();
+                for (let i = 0; i <= dates.length - 7; i++) {
+                    const weekDates = dates.slice(i, i + 7);
+                    if (weekDates.length === 7) {
+                        const firstDate = new Date(weekDates[0]);
+                        const lastDate = new Date(weekDates[6]);
+                        const dayDiff = (lastDate - firstDate) / (1000 * 60 * 60 * 24);
+                        if (dayDiff === 6 && !data.badges.perfect_week) {
+                            data.badges.perfect_week = { earnedAt: new Date().toISOString() };
+                            newBadges.push('perfect_week');
+                        }
+                    }
+                }
+            });
+            
+            // 複数習慣バッジ
+            if (data.currentHypotheses.length >= 3 && !data.badges.multi_habit_3) {
+                data.badges.multi_habit_3 = { earnedAt: new Date().toISOString() };
+                newBadges.push('multi_habit_3');
+            }
+            if (data.currentHypotheses.length >= 5 && !data.badges.multi_habit_5) {
+                data.badges.multi_habit_5 = { earnedAt: new Date().toISOString() };
+                newBadges.push('multi_habit_5');
+            }
+            
+            // 新しいバッジを通知
+            newBadges.forEach(badgeId => {
+                const badge = BADGE_DEFINITIONS[badgeId];
+                if (badge) {
+                    setTimeout(() => {
+                        showCardEffect(
+                            '🏆 バッジ獲得！',
+                            `${badge.name}\n${badge.description}`,
+                            '#fbbf24'
+                        );
+                    }, 500);
+                }
+            });
+            
+            if (newBadges.length > 0) {
+                saveData(data);
+            }
+            
+            return newBadges;
+        }
+        
         // 連続達成日数を計算（グローバル関数）
         window.computeStreak = function(hyp) {
             const today = new Date();
@@ -4186,6 +4335,34 @@
                 }
             }
             return streak;
+        }
+        
+        // ステージアップ通知
+        function checkStageProgress() {
+            const data = loadData();
+            if (!data.stageNotifications) data.stageNotifications = {};
+            
+            data.currentHypotheses.forEach(h => {
+                const stage = window.calculateHabitStage(h);
+                if (!stage) return;
+                
+                const notifKey = `${h.id}_${stage.name}`;
+                if (!data.stageNotifications[notifKey]) {
+                    // 新しいステージに到達
+                    data.stageNotifications[notifKey] = new Date().toISOString();
+                    
+                    // 種まき以外は通知
+                    if (stage.name !== '種まき') {
+                        showCardEffect(
+                            '🌱 ステージアップ！',
+                            `「${h.title}」が${stage.name}ステージに到達！\n${stage.description}`,
+                            stage.color
+                        );
+                    }
+                }
+            });
+            
+            saveData(data);
         }
         
         // 習慣成長ステージの計算関数（グローバル関数）
@@ -5492,6 +5669,224 @@
                     </div>
                 `).join('');
             }
+            
+            // バッジコレクションを表示
+            displayBadgeCollection();
+        }
+        
+        // バッジコレクションを表示
+        function displayBadgeCollection() {
+            const data = loadData();
+            const container = document.getElementById('badge-collection');
+            if (!container) return;
+            
+            container.innerHTML = '';
+            
+            // 獲得済みバッジを表示
+            Object.entries(BADGE_DEFINITIONS).forEach(([id, badge]) => {
+                const earned = data.badges && data.badges[id];
+                const badgeEl = document.createElement('div');
+                badgeEl.style.cssText = `
+                    text-align: center;
+                    padding: 12px;
+                    background: ${earned ? 'var(--gradient-1)' : 'var(--surface)'};
+                    border-radius: 12px;
+                    opacity: ${earned ? '1' : '0.3'};
+                    transition: all 0.3s;
+                    cursor: pointer;
+                `;
+                
+                badgeEl.innerHTML = `
+                    <div style="font-size: 32px; margin-bottom: 4px;">${badge.emoji}</div>
+                    <div style="font-size: 10px; font-weight: 600; color: ${earned ? 'white' : 'var(--text-secondary)'};">  
+                        ${badge.name.split(' ')[1] || badge.name}
+                    </div>
+                `;
+                
+                badgeEl.title = `${badge.name}\n${badge.description}${earned ? '\n獲得済み' : '\n未獲得'}`;
+                
+                if (earned) {
+                    badgeEl.onclick = () => {
+                        showNotification(`🏆 ${badge.name}\n${badge.description}`, 'success');
+                    };
+                }
+                
+                container.appendChild(badgeEl);
+            });
+        }
+        
+        // 月次レポートを表示
+        function showMonthlyReport() {
+            const data = loadData();
+            const container = document.getElementById('report-container');
+            const now = new Date();
+            const currentMonth = now.getMonth();
+            const currentYear = now.getFullYear();
+            
+            let report = `<h4>📅 ${currentYear}年${currentMonth + 1}月のレポート</h4>`;
+            
+            // 月間統計
+            let monthlyAchievements = 0;
+            let monthlyTotal = 0;
+            let habitsActive = 0;
+            
+            data.currentHypotheses.concat(data.completedHypotheses || []).forEach(h => {
+                const startDate = new Date(h.startDate);
+                const endDate = new Date(startDate);
+                endDate.setDate(startDate.getDate() + h.totalDays);
+                
+                // この月に活動した習慣
+                if (startDate <= now && endDate >= new Date(currentYear, currentMonth, 1)) {
+                    habitsActive++;
+                    
+                    // この月の達成をカウント
+                    for (let d = 1; d <= 31; d++) {
+                        const checkDate = new Date(currentYear, currentMonth, d);
+                        if (checkDate > now) break;
+                        if (checkDate >= startDate && checkDate <= endDate) {
+                            monthlyTotal++;
+                            const key = dateKeyLocal(checkDate);
+                            if (h.achievements && h.achievements[key]) {
+                                monthlyAchievements++;
+                            }
+                        }
+                    }
+                }
+            });
+            
+            const monthlyRate = monthlyTotal > 0 ? Math.round((monthlyAchievements / monthlyTotal) * 100) : 0;
+            
+            report += `
+                <div style="display: grid; gap: 12px; margin-top: 16px;">
+                    <div style="padding: 12px; background: var(--background); border-radius: 8px;">
+                        <div style="font-size: 24px; font-weight: 700; color: var(--primary);">${monthlyRate}%</div>
+                        <div style="font-size: 12px; color: var(--text-secondary);">月間達成率</div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+                        <div style="padding: 8px; background: var(--background); border-radius: 8px; text-align: center;">
+                            <div style="font-weight: 600;">${habitsActive}</div>
+                            <div style="font-size: 10px; color: var(--text-secondary);">活動中の習慣</div>
+                        </div>
+                        <div style="padding: 8px; background: var(--background); border-radius: 8px; text-align: center;">
+                            <div style="font-weight: 600;">${monthlyAchievements}</div>
+                            <div style="font-size: 10px; color: var(--text-secondary);">達成日数</div>
+                        </div>
+                        <div style="padding: 8px; background: var(--background); border-radius: 8px; text-align: center;">
+                            <div style="font-weight: 600;">${monthlyTotal - monthlyAchievements}</div>
+                            <div style="font-size: 10px; color: var(--text-secondary);">未達成日数</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            container.innerHTML = report;
+            container.style.display = 'block';
+        }
+        
+        // 年次レポートを表示
+        function showYearlyReport() {
+            const data = loadData();
+            const container = document.getElementById('report-container');
+            const currentYear = new Date().getFullYear();
+            
+            let report = `<h4>📊 ${currentYear}年のレポート</h4>`;
+            
+            // 月別統計
+            const monthlyStats = [];
+            for (let month = 0; month < 12; month++) {
+                let achievements = 0;
+                let total = 0;
+                
+                data.currentHypotheses.concat(data.completedHypotheses || []).forEach(h => {
+                    const startDate = new Date(h.startDate);
+                    const endDate = new Date(startDate);
+                    endDate.setDate(startDate.getDate() + h.totalDays);
+                    
+                    for (let d = 1; d <= 31; d++) {
+                        const checkDate = new Date(currentYear, month, d);
+                        if (checkDate > new Date()) break;
+                        if (checkDate >= startDate && checkDate <= endDate) {
+                            total++;
+                            const key = dateKeyLocal(checkDate);
+                            if (h.achievements && h.achievements[key]) {
+                                achievements++;
+                            }
+                        }
+                    }
+                });
+                
+                monthlyStats.push({
+                    month: month + 1,
+                    rate: total > 0 ? Math.round((achievements / total) * 100) : 0,
+                    achievements,
+                    total
+                });
+            }
+            
+            // 年間統計
+            const yearTotal = monthlyStats.reduce((sum, m) => sum + m.total, 0);
+            const yearAchievements = monthlyStats.reduce((sum, m) => sum + m.achievements, 0);
+            const yearRate = yearTotal > 0 ? Math.round((yearAchievements / yearTotal) * 100) : 0;
+            
+            report += `
+                <div style="padding: 16px; background: var(--gradient-1); border-radius: 12px; margin: 16px 0; text-align: center; color: white;">
+                    <div style="font-size: 36px; font-weight: 800;">${yearRate}%</div>
+                    <div style="font-size: 14px; opacity: 0.9;">年間達成率</div>
+                    <div style="margin-top: 8px; font-size: 12px; opacity: 0.8;">
+                        ${yearAchievements} / ${yearTotal} 日達成
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;">
+            `;
+            
+            monthlyStats.forEach(m => {
+                if (m.total > 0) {
+                    const color = m.rate >= 80 ? '#10b981' : m.rate >= 50 ? '#3b82f6' : '#ef4444';
+                    report += `
+                        <div style="padding: 8px; background: var(--background); border-radius: 8px; text-align: center;">
+                            <div style="font-size: 10px; color: var(--text-secondary);">${m.month}月</div>
+                            <div style="font-size: 16px; font-weight: 700; color: ${color};">${m.rate}%</div>
+                        </div>
+                    `;
+                }
+            });
+            
+            report += '</div>';
+            
+            container.innerHTML = report;
+            container.style.display = 'block';
+        }
+        
+        // 習慣データをエクスポート
+        function exportHabitData() {
+            const data = loadData();
+            const exportData = {
+                exportDate: new Date().toISOString(),
+                version: '1.0',
+                currentHabits: data.currentHypotheses,
+                completedHabits: data.completedHypotheses,
+                badges: data.badges,
+                cards: data.cards,
+                statistics: {
+                    totalHabits: data.currentHypotheses.length + data.completedHypotheses.length,
+                    activeHabits: data.currentHypotheses.length,
+                    completedHabits: data.completedHypotheses.length,
+                    totalBadges: Object.keys(data.badges || {}).length
+                }
+            };
+            
+            // JSONファイルとしてダウンロード
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `habit-data-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showNotification('📥 データをエクスポートしました', 'success');
         }
 
 
