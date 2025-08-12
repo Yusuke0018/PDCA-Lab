@@ -232,12 +232,26 @@
             border: 1px solid var(--border);
             transition: all 0.3s;
             cursor: pointer;
+            position: relative;
+            user-select: none;
         }
 
         .hypothesis-item:hover {
             transform: translateY(-2px);
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
             border-color: var(--primary);
+        }
+        
+        .hypothesis-item.deleting {
+            animation: pulse-delete 0.5s ease-in-out;
+            border-color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+        }
+        
+        @keyframes pulse-delete {
+            0% { transform: scale(1); }
+            50% { transform: scale(0.98); }
+            100% { transform: scale(1); }
         }
 
         .hypothesis-title {
@@ -3299,6 +3313,82 @@
             element.addEventListener('mouseup', cancel);
             element.addEventListener('mouseleave', cancel);
         }
+        
+        // 長押しで削除用のユーティリティ
+        function attachLongPressToDelete(element, hypothesisId, delay = 500) {
+            let timer = null;
+            let longPressed = false;
+            
+            const start = (e) => {
+                longPressed = false;
+                element.classList.add('deleting');
+                timer = setTimeout(() => { 
+                    longPressed = true; 
+                    element.classList.remove('deleting');
+                    confirmDeleteHypothesis(hypothesisId);
+                }, delay);
+            };
+            
+            const cancel = (e) => { 
+                if (timer) clearTimeout(timer);
+                element.classList.remove('deleting');
+                // 長押しが成功した場合は通常のクリックをキャンセル
+                if (longPressed) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+            };
+            
+            element.addEventListener('touchstart', start, { passive: true });
+            element.addEventListener('touchend', cancel, { passive: true });
+            element.addEventListener('touchmove', cancel, { passive: true });
+            element.addEventListener('mousedown', start);
+            element.addEventListener('mouseup', cancel);
+            element.addEventListener('mouseleave', cancel);
+        }
+        
+        // 仮説の削除確認
+        function confirmDeleteHypothesis(hypothesisId) {
+            const data = loadData();
+            const hypothesis = data.currentHypotheses.find(h => h.id === hypothesisId);
+            
+            if (!hypothesis) return;
+            
+            const message = `「${hypothesis.title}」を削除しますか？\n\nこの操作は取り消せません。`;
+            
+            if (confirm(message)) {
+                deleteHypothesis(hypothesisId);
+            }
+        }
+        
+        // 仮説を削除
+        function deleteHypothesis(hypothesisId) {
+            const data = loadData();
+            const index = data.currentHypotheses.findIndex(h => h.id === hypothesisId);
+            
+            if (index === -1) return;
+            
+            // 削除される仮説を記録（必要に応じて履歴に追加）
+            const deletedHypothesis = data.currentHypotheses[index];
+            
+            // 仮説を削除
+            data.currentHypotheses.splice(index, 1);
+            
+            // データを保存
+            saveData(data);
+            
+            // 通知を表示
+            showNotification(`✅ 「${deletedHypothesis.title}」を削除しました`, 'success');
+            
+            // 現在の仮説が削除された場合はホーム画面に戻る
+            if (window.currentHypothesis && window.currentHypothesis.id === hypothesisId) {
+                window.currentHypothesis = null;
+                showHomeView();
+            } else {
+                // ホーム画面を更新
+                updateCurrentHypothesisList();
+            }
+        }
 
         // 強度選択モーダル（過去日/当日用）
         function openIntensityPicker(dateKey) {
@@ -4269,6 +4359,13 @@
                 const item = document.createElement('div');
                 item.className = 'hypothesis-item';
                 item.onclick = () => showProgressView(hypothesis.id);
+                
+                // 長押し/右クリックで削除
+                attachLongPressToDelete(item, hypothesis.id);
+                item.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    confirmDeleteHypothesis(hypothesis.id);
+                });
                 
                 const startDate = new Date(hypothesis.startDate);
                 const today = new Date();
