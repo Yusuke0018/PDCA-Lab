@@ -1250,6 +1250,52 @@
                     </div>
                     
                     <div class="form-group">
+                        <label>実施頻度を選択</label>
+                        <div style="display: flex; flex-direction: column; gap: 12px;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="radio" name="frequency" value="daily" checked>
+                                <span>毎日</span>
+                            </label>
+                            
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="radio" name="frequency" value="weekly">
+                                <span>週に</span>
+                                <input type="number" id="weekly-count" min="1" max="7" value="3" style="width: 60px; margin: 0 4px;" disabled>
+                                <span>回</span>
+                            </label>
+                            
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="radio" name="frequency" value="weekdays">
+                                <span>特定の曜日</span>
+                            </label>
+                            
+                            <div id="weekdays-selector" style="display: none; margin-left: 28px; gap: 8px;">
+                                <label style="display: inline-flex; align-items: center; gap: 4px; margin-right: 12px;">
+                                    <input type="checkbox" name="weekday" value="1">月
+                                </label>
+                                <label style="display: inline-flex; align-items: center; gap: 4px; margin-right: 12px;">
+                                    <input type="checkbox" name="weekday" value="2">火
+                                </label>
+                                <label style="display: inline-flex; align-items: center; gap: 4px; margin-right: 12px;">
+                                    <input type="checkbox" name="weekday" value="3">水
+                                </label>
+                                <label style="display: inline-flex; align-items: center; gap: 4px; margin-right: 12px;">
+                                    <input type="checkbox" name="weekday" value="4">木
+                                </label>
+                                <label style="display: inline-flex; align-items: center; gap: 4px; margin-right: 12px;">
+                                    <input type="checkbox" name="weekday" value="5">金
+                                </label>
+                                <label style="display: inline-flex; align-items: center; gap: 4px; margin-right: 12px;">
+                                    <input type="checkbox" name="weekday" value="6">土
+                                </label>
+                                <label style="display: inline-flex; align-items: center; gap: 4px; margin-right: 12px;">
+                                    <input type="checkbox" name="weekday" value="0">日
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
                         <button type="submit" class="btn">
                             🎲 シャッフルして開始
                         </button>
@@ -2020,6 +2066,36 @@
                 // 警告メッセージを表示
                 showCardEffect('短期集中ペナルティ適用中！', '短期間（3-7日）のみ選択可能です', '#ef4444');
             }
+            
+            // 頻度設定UIの初期化
+            document.querySelectorAll('input[name="frequency"]').forEach(radio => {
+                radio.checked = radio.value === 'daily';
+            });
+            document.getElementById('weekly-count').disabled = true;
+            document.getElementById('weekdays-selector').style.display = 'none';
+            document.querySelectorAll('input[name="weekday"]').forEach(cb => {
+                cb.checked = false;
+            });
+            
+            // 頻度設定のイベントリスナー
+            document.querySelectorAll('input[name="frequency"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    const weeklyCount = document.getElementById('weekly-count');
+                    const weekdaysSelector = document.getElementById('weekdays-selector');
+                    
+                    // すべて無効化
+                    weeklyCount.disabled = true;
+                    weekdaysSelector.style.display = 'none';
+                    
+                    // 選択されたものだけ有効化
+                    if (this.value === 'weekly') {
+                        weeklyCount.disabled = false;
+                        weeklyCount.focus();
+                    } else if (this.value === 'weekdays') {
+                        weekdaysSelector.style.display = 'block';
+                    }
+                });
+            });
         }
 
         // 検証期間を選択
@@ -2093,6 +2169,24 @@
                 }
             });
 
+            // 頻度設定を取得
+            const frequencyType = document.querySelector('input[name="frequency"]:checked').value;
+            let frequencyData = { type: frequencyType };
+            
+            if (frequencyType === 'weekly') {
+                frequencyData.count = parseInt(document.getElementById('weekly-count').value);
+            } else if (frequencyType === 'weekdays') {
+                const selectedDays = [];
+                document.querySelectorAll('input[name="weekday"]:checked').forEach(cb => {
+                    selectedDays.push(parseInt(cb.value));
+                });
+                if (selectedDays.length === 0) {
+                    alert('少なくとも1つの曜日を選択してください');
+                    return;
+                }
+                frequencyData.weekdays = selectedDays;
+            }
+
             currentHypothesis = {
                 id: Date.now(),
                 title: title,
@@ -2107,7 +2201,8 @@
                 shortTermOnly: window.shortTermOnly || false,
                 benefit: benefit,
                 ifThen: ifThen,
-                declarations: {}
+                declarations: {},
+                frequency: frequencyData  // 頻度設定を追加
             };
             
             // ペナルティ効果をリセット（一度使用したら消える）
@@ -2322,6 +2417,29 @@
             // 仮説情報を表示
             document.getElementById('progress-hypothesis-title').textContent = hypothesis.title;
             document.getElementById('progress-hypothesis-description').textContent = hypothesis.description;
+            
+            // 頻度情報を表示
+            const daysInfo = document.getElementById('progress-days-info');
+            let frequencyText = '';
+            if (hypothesis.frequency) {
+                if (hypothesis.frequency.type === 'daily') {
+                    frequencyText = '毎日実施';
+                } else if (hypothesis.frequency.type === 'weekly') {
+                    frequencyText = `週${hypothesis.frequency.count}回実施`;
+                } else if (hypothesis.frequency.type === 'weekdays') {
+                    const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+                    const days = hypothesis.frequency.weekdays.map(d => dayNames[d]).join('・');
+                    frequencyText = `${days}曜日に実施`;
+                }
+            } else {
+                frequencyText = '毎日実施';  // デフォルト
+            }
+            
+            const startDate = new Date(hypothesis.startDate);
+            const endDate = new Date(startDate);
+            endDate.setDate(startDate.getDate() + hypothesis.totalDays - 1);
+            
+            daysInfo.innerHTML = `📅 ${startDate.toLocaleDateString('ja-JP')} 〜 ${endDate.toLocaleDateString('ja-JP')} | ${frequencyText}`;
             
             // カレンダーを更新
             updateCalendar();
@@ -2769,9 +2887,28 @@
                 const cellDate = new Date(startDate);
                 cellDate.setDate(startDate.getDate() + i);
                 
+                // 頻度に応じて対象日かどうかを判定
+                let isTargetDay = true;
+                const frequency = window.currentHypothesis.frequency;
+                
+                if (frequency) {
+                    if (frequency.type === 'weekdays') {
+                        // 特定曜日の場合：該当する曜日のみ対象
+                        isTargetDay = frequency.weekdays.includes(cellDate.getDay());
+                    }
+                    // weekly の場合は、週あたりの回数制限があるが、どの日でも達成可能
+                }
+                
                 const dayCell = document.createElement('div');
                 dayCell.className = 'day-cell';
                 dayCell.style.position = 'relative';
+                
+                // 対象外の日は薄く表示
+                if (!isTargetDay) {
+                    dayCell.style.opacity = '0.3';
+                    dayCell.style.background = 'var(--surface-dark)';
+                }
+                
                 // 実際の日付を表示（月/日形式）
                 const displayMonth = cellDate.getMonth() + 1;
                 const displayDate = cellDate.getDate();
@@ -2793,7 +2930,11 @@
                     dayCell.appendChild(dot);
                 }
                 
-                if (cellDate > today && !window.skipTicketMode) {
+                // 対象外の日はクリック不可
+                if (!isTargetDay) {
+                    dayCell.classList.add('not-target');
+                    dayCell.style.cursor = 'not-allowed';
+                } else if (cellDate > today && !window.skipTicketMode) {
                     dayCell.classList.add('future');
                 } else if (window.currentHypothesis.achievements[dateKey]) {
                     dayCell.classList.add('achieved');
@@ -2816,8 +2957,8 @@
                     }
                 }
                 
-                // 今日の日付の場合、クリック可能にする
-                if (cellDate.toDateString() === today.toDateString()) {
+                // 今日の日付の場合、対象日ならクリック可能にする
+                if (cellDate.toDateString() === today.toDateString() && isTargetDay) {
                     if (!window.currentHypothesis.achievements[dateKey]) {
                         dayCell.classList.remove('future');
                         dayCell.classList.add('not-achieved');
@@ -3061,8 +3202,30 @@
                 window.currentHypothesis.totalDays
             );
             
+            // 頻度に応じて目標日数を計算
+            let targetDays = daysPassed;
+            const frequency = window.currentHypothesis.frequency;
+            
+            if (frequency) {
+                if (frequency.type === 'weekly') {
+                    // 週単位の場合：経過週数 × 週あたりの回数
+                    const weeks = Math.ceil(daysPassed / 7);
+                    targetDays = Math.min(weeks * frequency.count, daysPassed);
+                } else if (frequency.type === 'weekdays') {
+                    // 特定曜日の場合：該当する曜日の数を数える
+                    targetDays = 0;
+                    for (let i = 0; i < daysPassed; i++) {
+                        const checkDate = new Date(startDate);
+                        checkDate.setDate(startDate.getDate() + i);
+                        if (frequency.weekdays.includes(checkDate.getDay())) {
+                            targetDays++;
+                        }
+                    }
+                }
+            }
+            
             const achievedDays = Object.keys(window.currentHypothesis.achievements).length;
-            const achievementRate = daysPassed > 0 ? Math.round((achievedDays / daysPassed) * 100) : 0;
+            const achievementRate = targetDays > 0 ? Math.round((achievedDays / targetDays) * 100) : 0;
             
             // 表示用の達成率: 全日数を分母に、各達成日の強度倍率を適用した合計を分子に
             const todayKey = dateKeyLocal(new Date());
