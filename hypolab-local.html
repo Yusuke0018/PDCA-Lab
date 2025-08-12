@@ -397,6 +397,41 @@
             grid-template-columns: repeat(7, minmax(40px, 1fr));
             gap: 8px;
             min-width: 320px;
+            position: relative;
+        }
+        
+        .week-info {
+            grid-column: 1 / -1;
+            padding: 6px 12px;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(59, 130, 246, 0.1));
+            border-radius: 8px;
+            margin: 4px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            font-weight: 600;
+            border: 1px solid var(--border);
+        }
+        
+        .week-info .progress {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .week-info .progress-bar {
+            width: 80px;
+            height: 6px;
+            background: var(--surface-dark);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        
+        .week-info .progress-fill {
+            height: 100%;
+            background: var(--gradient-1);
+            transition: width 0.3s ease;
         }
 
         @media (max-width: 640px) {
@@ -2979,20 +3014,99 @@
                 window.currentHypothesis.totalDays
             );
             
+            // 週ごとの達成状況を追跡（週●回の場合）
+            const weeklyAchievements = new Map(); // weekNumber -> {achieved: count, required: count, canAchieve: count}
+            const frequency = window.currentHypothesis.frequency;
+            
+            // 週の始まりを月曜日に設定（0=日曜、1=月曜）
+            function getWeekNumber(date) {
+                const d = new Date(date);
+                d.setHours(0, 0, 0, 0);
+                const firstDay = new Date(d.getFullYear(), 0, 1);
+                const days = Math.floor((d - firstDay) / (24 * 60 * 60 * 1000));
+                return Math.ceil((days + firstDay.getDay() + 1) / 7);
+            }
+            
+            // 週●回の場合、先に各週の達成状況を計算
+            if (frequency && frequency.type === 'weekly') {
+                for (let i = 0; i < window.currentHypothesis.totalDays; i++) {
+                    const cellDate = new Date(startDate);
+                    cellDate.setDate(startDate.getDate() + i);
+                    const weekNum = getWeekNumber(cellDate);
+                    const dateKey = dateKeyLocal(cellDate);
+                    
+                    if (!weeklyAchievements.has(weekNum)) {
+                        weeklyAchievements.set(weekNum, {
+                            achieved: 0,
+                            required: frequency.count || 3,
+                            canAchieve: 0,
+                            dates: []
+                        });
+                    }
+                    
+                    const weekData = weeklyAchievements.get(weekNum);
+                    weekData.dates.push(cellDate);
+                    
+                    if (window.currentHypothesis.achievements && window.currentHypothesis.achievements[dateKey]) {
+                        weekData.achieved++;
+                    }
+                    
+                    // 今日以前の日数をカウント
+                    if (cellDate <= today) {
+                        weekData.canAchieve++;
+                    }
+                }
+            }
+            
+            let lastWeekNum = -1;
+            
             for (let i = 0; i < window.currentHypothesis.totalDays; i++) {
                 const cellDate = new Date(startDate);
                 cellDate.setDate(startDate.getDate() + i);
+                const weekNum = getWeekNumber(cellDate);
+                
+                // 新しい週が始まったら週情報を表示（週●回の場合のみ）
+                if (frequency && frequency.type === 'weekly' && weekNum !== lastWeekNum) {
+                    const weekData = weeklyAchievements.get(weekNum);
+                    if (weekData) {
+                        const weekInfo = document.createElement('div');
+                        weekInfo.className = 'week-info';
+                        const progressPercent = Math.min(100, (weekData.achieved / weekData.required) * 100);
+                        
+                        weekInfo.innerHTML = `
+                            <span>第${i / 7 + 1 | 0}週</span>
+                            <div class="progress">
+                                <span>${weekData.achieved}/${weekData.required}回</span>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: ${progressPercent}%"></div>
+                                </div>
+                            </div>
+                        `;
+                        calendarGrid.appendChild(weekInfo);
+                    }
+                    lastWeekNum = weekNum;
+                }
                 
                 // 頻度に応じて対象日かどうかを判定
                 let isTargetDay = true;
-                const frequency = window.currentHypothesis.frequency;
+                let canClickToday = true;
                 
                 if (frequency) {
                     if (frequency.type === 'weekdays') {
                         // 特定曜日の場合：該当する曜日のみ対象
                         isTargetDay = frequency.weekdays.includes(cellDate.getDay());
+                    } else if (frequency.type === 'weekly') {
+                        // 週●回の場合：週の達成上限をチェック
+                        const weekData = weeklyAchievements.get(weekNum);
+                        if (weekData && weekData.achieved >= weekData.required) {
+                            const dateKey = dateKeyLocal(cellDate);
+                            // すでに達成済みの日は対象、それ以外は対象外
+                            if (!window.currentHypothesis.achievements || !window.currentHypothesis.achievements[dateKey]) {
+                                canClickToday = false;
+                            }
+                        }
                     }
-                    // weekly の場合は、週あたりの回数制限があるが、どの日でも達成可能
+                    // daily の場合はすべて対象
                 }
                 
                 const dayCell = document.createElement('div');
@@ -3000,7 +3114,7 @@
                 dayCell.style.position = 'relative';
                 
                 // 対象外の日は薄く表示
-                if (!isTargetDay) {
+                if (!isTargetDay || !canClickToday) {
                     dayCell.style.opacity = '0.3';
                     dayCell.style.background = 'var(--surface-dark)';
                 }
@@ -3008,8 +3122,17 @@
                 // 実際の日付を表示（月/日形式）
                 const displayMonth = cellDate.getMonth() + 1;
                 const displayDate = cellDate.getDate();
-                dayCell.innerHTML = `<small>${displayMonth}/${displayDate}</small><br>${i + 1}`;
+                const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][cellDate.getDay()];
+                dayCell.innerHTML = `<small style="font-size: 10px;">${displayMonth}/${displayDate}(${dayOfWeek})</small><br><span style="font-size: 18px; font-weight: bold;">${i + 1}</span>`;
                 dayCell.dataset.day = i + 1;
+                
+                // 特定曜日の場合、対象曜日を強調表示
+                if (frequency && frequency.type === 'weekdays') {
+                    if (isTargetDay) {
+                        dayCell.style.border = '2px solid var(--primary)';
+                        dayCell.style.boxShadow = '0 0 8px rgba(59, 130, 246, 0.2)';
+                    }
+                }
                 
                 const dateKey = dateKeyLocal(cellDate);
                 // 強度バッジ（設定時）
@@ -3027,9 +3150,17 @@
                 }
                 
                 // 対象外の日はクリック不可
-                if (!isTargetDay) {
+                if (!isTargetDay || !canClickToday) {
                     dayCell.classList.add('not-target');
                     dayCell.style.cursor = 'not-allowed';
+                    
+                    // 週●回で上限に達した場合の特別な表示
+                    if (frequency && frequency.type === 'weekly' && !canClickToday && isTargetDay) {
+                        const badge = document.createElement('div');
+                        badge.style.cssText = 'position:absolute;top:2px;left:2px;font-size:10px;color:#f59e0b;background:rgba(245,158,11,0.2);padding:2px 4px;border-radius:4px;';
+                        badge.textContent = '達成済';
+                        dayCell.appendChild(badge);
+                    }
                 } else if (cellDate > today && !window.skipTicketMode) {
                     dayCell.classList.add('future');
                 } else if (window.currentHypothesis.achievements[dateKey]) {
@@ -3041,7 +3172,7 @@
                     dayCell.classList.add('not-achieved');
                     if (window.skipTicketMode) {
                         // スキップモードでも過去と今日のみ選択可能
-                        if (cellDate <= today) {
+                        if (cellDate <= today && isTargetDay && canClickToday) {
                             dayCell.style.cursor = 'pointer';
                             dayCell.style.border = '2px dashed var(--primary)';
                             dayCell.onclick = () => applySkipTicket(dateKey, dayCell);
@@ -3049,12 +3180,14 @@
                             dayCell.classList.add('future');
                         }
                     } else {
-                        dayCell.onclick = () => toggleDayStatus(dateKey, dayCell);
+                        if (isTargetDay && canClickToday) {
+                            dayCell.onclick = () => toggleDayStatus(dateKey, dayCell);
+                        }
                     }
                 }
                 
                 // 今日の日付の場合、対象日ならクリック可能にする
-                if (cellDate.toDateString() === today.toDateString() && isTargetDay) {
+                if (cellDate.toDateString() === today.toDateString() && isTargetDay && canClickToday) {
                     if (!window.currentHypothesis.achievements[dateKey]) {
                         dayCell.classList.remove('future');
                         dayCell.classList.add('not-achieved');
@@ -3075,9 +3208,21 @@
                 calendarGrid.appendChild(dayCell);
             }
             
-            // 期間情報を更新
+            // 期間情報と頻度情報を更新
+            let frequencyInfo = '';
+            if (frequency) {
+                if (frequency.type === 'daily') {
+                    frequencyInfo = ' (毎日)';
+                } else if (frequency.type === 'weekly') {
+                    frequencyInfo = ` (週${frequency.count}回)`;
+                } else if (frequency.type === 'weekdays') {
+                    const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+                    const days = frequency.weekdays.map(d => dayNames[d]).join('・');
+                    frequencyInfo = ` (${days})`;
+                }
+            }
             document.getElementById('progress-days-info').textContent = 
-                `検証期間: ${daysPassed}日目 / ${window.currentHypothesis.totalDays}日間`;
+                `検証期間: ${daysPassed}日目 / ${window.currentHypothesis.totalDays}日間${frequencyInfo}`;
         }
 
         // 長押し検出ユーティリティ
@@ -3165,6 +3310,35 @@
 
         // 日の達成状態を切り替え
         function toggleDayStatus(dateKey, dayCell) {
+            // 週●回の制限チェック
+            const frequency = window.currentHypothesis.frequency;
+            if (frequency && frequency.type === 'weekly') {
+                // 日付から週番号を取得
+                const [year, month, day] = dateKey.split('-').map(Number);
+                const date = new Date(year, month - 1, day);
+                const weekNum = getWeekNumber(date);
+                
+                // この週の達成状況を確認
+                let weekAchieved = 0;
+                const startOfWeek = new Date(date);
+                startOfWeek.setDate(date.getDate() - date.getDay() + 1); // 月曜日
+                
+                for (let i = 0; i < 7; i++) {
+                    const checkDate = new Date(startOfWeek);
+                    checkDate.setDate(startOfWeek.getDate() + i);
+                    const checkKey = dateKeyLocal(checkDate);
+                    if (window.currentHypothesis.achievements && window.currentHypothesis.achievements[checkKey]) {
+                        weekAchieved++;
+                    }
+                }
+                
+                // 達成しようとしている場合、上限チェック
+                if (!window.currentHypothesis.achievements[dateKey] && weekAchieved >= frequency.count) {
+                    showNotification(`⚠️ 今週はすでに${frequency.count}回達成済みです`, 'warning');
+                    return;
+                }
+            }
+            
             if (!window.currentHypothesis.achievements[dateKey]) {
                 // 達成状態にする
                 window.currentHypothesis.achievements[dateKey] = true;
@@ -3189,11 +3363,21 @@
             }
             
             updateProgress();
+            updateCalendar(); // カレンダーを再描画して週の状況を更新
             
             // リセットリスクのチェック（翌日に実行）
             if (window.currentHypothesis.resetRisk) {
                 setTimeout(() => checkResetRisk(), 100);
             }
+        }
+        
+        // 週番号を取得する関数（グローバルに定義）
+        function getWeekNumber(date) {
+            const d = new Date(date);
+            d.setHours(0, 0, 0, 0);
+            const firstDay = new Date(d.getFullYear(), 0, 1);
+            const days = Math.floor((d - firstDay) / (24 * 60 * 60 * 1000));
+            return Math.ceil((days + firstDay.getDay() + 1) / 7);
         }
         
         // リセットリスクのチェック
