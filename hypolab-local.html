@@ -1685,7 +1685,7 @@
 
         <!-- 履歴画面 -->
         <div id="history-view" style="display: none;">
-            <div class="card" style="margin-top: 120px;">
+            <div class="card">
                 <h2 style="margin-bottom: 24px;">完了した習慣</h2>
                 <div id="history-list">
                     <!-- 動的に生成 -->
@@ -1695,7 +1695,7 @@
 
         <!-- 統計画面 -->
         <div id="stats-view" style="display: none;">
-            <div class="card" style="margin-top: 120px;">
+            <div class="card">
                 <h2 style="margin-bottom: 24px;">📊 統計データ</h2>
                 <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
                     <div class="stat-card" style="background: var(--background); padding: 20px; border-radius: 12px; text-align: center;">
@@ -1759,7 +1759,7 @@
 
         <!-- カード一覧画面 -->
         <div id="cards-view" style="display: none;">
-            <div class="card" style="margin-top: 120px;">
+            <div class="card">
                 <h2 style="margin-bottom: 24px;">🎴 カードコレクション</h2>
                 
                 <div style="margin-bottom: 24px;">
@@ -6047,7 +6047,8 @@
             let isSwipeEnabled = true;
             
             // フォーム要素でのスワイプを無効化
-            document.querySelectorAll('input, textarea, button').forEach(element => {
+            // 入力系のみスワイプ抑止（ボタンは許可）
+            document.querySelectorAll('input, textarea').forEach(element => {
                 element.addEventListener('touchstart', () => {
                     isSwipeEnabled = false;
                 }, { passive: true });
