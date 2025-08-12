@@ -1505,6 +1505,24 @@
                     🎴 カードを使用
                 </button>
             </div>
+
+            <!-- アウトプット入力セクション -->
+            <div class="card" style="margin-bottom: 20px;">
+                <h3 style="margin-bottom: 16px; font-size: 18px;">📝 今日のアウトプット</h3>
+                <div style="display: flex; gap: 12px; margin-bottom: 12px;">
+                    <textarea id="daily-output" placeholder="今日の学び、気づき、成果などを記録..." 
+                        style="flex: 1; min-height: 80px; padding: 12px; border-radius: 8px; 
+                        background: var(--surface-light); border: 1px solid var(--border); 
+                        color: var(--text-primary); resize: vertical;"></textarea>
+                </div>
+                <button onclick="saveOutput()" class="btn" style="background: var(--gradient-1); color: white; width: 100%;">
+                    💾 アウトプットを保存
+                </button>
+                <div id="output-history" style="margin-top: 16px; display: none;">
+                    <h4 style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px;">過去のアウトプット</h4>
+                    <div id="output-list" style="max-height: 200px; overflow-y: auto;"></div>
+                </div>
+            </div>
             
             <!-- デバッグモード -->
             <div id="debug-panel" style="margin-top: 24px; margin-bottom: 24px; display: none;">
@@ -2675,6 +2693,9 @@
 
             // 朝だけ自動でバナー（/モーダル）を展開
             maybeAutoAffirmationPrompt();
+            
+            // アウトプット履歴を更新
+            updateOutputHistory();
         }
 
         // カード使用ボタンの更新
@@ -6686,6 +6707,73 @@
                 notification.style.animation = 'slideOut 0.3s ease-out';
                 setTimeout(() => notification.remove(), 300);
             }, 3000);
+        }
+
+        // アウトプット機能
+        function saveOutput() {
+            const textarea = document.getElementById('daily-output');
+            const output = textarea.value.trim();
+            
+            if (!output) {
+                showNotification('⚠️ アウトプットを入力してください', 'error');
+                return;
+            }
+            
+            const currentHypothesis = hypotheses.find(h => h.isActive);
+            if (!currentHypothesis) {
+                showNotification('⚠️ アクティブな習慣がありません', 'error');
+                return;
+            }
+            
+            // アウトプットを保存
+            if (!currentHypothesis.outputs) {
+                currentHypothesis.outputs = [];
+            }
+            
+            const today = new Date().toISOString().split('T')[0];
+            currentHypothesis.outputs.push({
+                date: today,
+                content: output,
+                timestamp: new Date().toISOString()
+            });
+            
+            saveData();
+            textarea.value = '';
+            showNotification('✅ アウトプットを保存しました', 'success');
+            
+            // 履歴を更新
+            updateOutputHistory();
+        }
+        
+        function updateOutputHistory() {
+            const currentHypothesis = hypotheses.find(h => h.isActive);
+            if (!currentHypothesis || !currentHypothesis.outputs || currentHypothesis.outputs.length === 0) {
+                document.getElementById('output-history').style.display = 'none';
+                return;
+            }
+            
+            const historyDiv = document.getElementById('output-history');
+            const listDiv = document.getElementById('output-list');
+            
+            // 最新5件を表示
+            const recentOutputs = currentHypothesis.outputs.slice(-5).reverse();
+            listDiv.innerHTML = recentOutputs.map(output => {
+                const date = new Date(output.date);
+                const dateStr = `${date.getMonth() + 1}/${date.getDate()}`;
+                return `
+                    <div style="padding: 8px; margin-bottom: 8px; background: var(--surface); 
+                        border-radius: 8px; border-left: 3px solid var(--primary);">
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">
+                            ${dateStr}
+                        </div>
+                        <div style="font-size: 14px; color: var(--text-primary); white-space: pre-wrap;">
+                            ${output.content}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            historyDiv.style.display = 'block';
         }
 
         // 初期化
