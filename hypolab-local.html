@@ -7034,11 +7034,31 @@
         // データのエクスポート（JSON）
         
         // 初期化
-        showHomeView();
-        // 履歴初期化（ホームを現在の状態として記録）
-        try {
-            history.replaceState({ view: 'home' }, '');
-        } catch (e) { /* noop */ }
+        // DOMが読み込まれたら各種初期化処理を実行
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                initializeApp();
+            });
+        } else {
+            // すでにDOMが読み込まれている場合
+            initializeApp();
+        }
+        
+        function initializeApp() {
+            // 各種UIコンポーネントの初期化
+            updateCardInventory();
+            updateCardEffects();
+            renderStats();
+            updateCardList();
+            
+            // ホーム画面を表示
+            showHomeView();
+            
+            // 履歴初期化（ホームを現在の状態として記録）
+            try {
+                history.replaceState({ view: 'home' }, '');
+            } catch (e) { /* noop */ }
+        }
 
         // 物理戻るボタン（popstate）でホームへ戻す
         window.addEventListener('popstate', (event) => {
@@ -7048,12 +7068,26 @@
                 showHomeView();
             }
         });
-        setupSwipeListeners();
-        checkDebugMode();
         
-        // モバイルデバイスの場合のみスワイプインジケーターを表示
-        if ('ontouchstart' in window) {
-            addSwipeIndicator();
+        // 初期化関数内で呼び出されるように移動
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                setupSwipeListeners();
+                checkDebugMode();
+                
+                // モバイルデバイスの場合のみスワイプインジケーターを表示
+                if ('ontouchstart' in window) {
+                    addSwipeIndicator();
+                }
+            });
+        } else {
+            setupSwipeListeners();
+            checkDebugMode();
+            
+            // モバイルデバイスの場合のみスワイプインジケーターを表示
+            if ('ontouchstart' in window) {
+                addSwipeIndicator();
+            }
         }
 
         // モバイルのズーム抑止（ダブルタップ/ピンチ）
