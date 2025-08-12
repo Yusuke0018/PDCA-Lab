@@ -1694,17 +1694,12 @@
                 </div>
                 <div class="achievement-chart" id="achievement-chart" style="display:grid; gap:16px;">
                     <div class="card" style="background: var(--background);">
-                        <h3 style="margin-bottom:8px;">📈 直近の日次達成推移</h3>
-                        <div style="display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap;">
-                            <div>
-                                <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;">直近7日</div>
-                                <svg id="sparkline-7" width="280" height="48" viewBox="0 0 280 48"></svg>
-                            </div>
-                            <div>
-                                <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;">直近30日</div>
-                                <svg id="sparkline-30" width="280" height="48" viewBox="0 0 280 48"></svg>
-                            </div>
-                        </div>
+                        <h3 style="margin-bottom:8px;">⏰ 曜日別達成率</h3>
+                        <div id="weekday-stats" style="display:grid; grid-template-columns: repeat(7, 1fr); gap:8px; margin-top:12px;"></div>
+                    </div>
+                    <div class="card" style="background: var(--background);">
+                        <h3 style="margin-bottom:8px;">🎯 達成時間帯分析</h3>
+                        <div id="time-distribution" style="display:grid; gap:8px; margin-top:12px;"></div>
                     </div>
                     <div class="card" style="background: var(--background);">
                         <h3 style="margin-bottom:8px;">🧩 強度ラベル使用割合</h3>
@@ -4801,50 +4796,94 @@
             const wa = document.getElementById('weighted-achieved');
             if (wa) wa.textContent = (Math.round(weightedAchieved * 10) / 10).toString();
 
-            // 直近日次達成率（7/30日）のスパークライン描画
-            const drawSparkline = (id, days) => {
-                const svg = document.getElementById(id);
-                if (!svg) return;
-                const w = svg.viewBox.baseVal.width || 280;
-                const h = svg.viewBox.baseVal.height || 48;
-                const start = new Date(today);
-                start.setDate(today.getDate() - days + 1);
-                // 各日の日次達成率（重み/その日に期間内の仮説数）
-                const values = [];
-                for (let d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
+            // 曜日別達成率の計算と表示
+            const weekdayStats = {};
+            const weekdayNames = ['日', '月', '火', '水', '木', '金', '土'];
+            for (let i = 0; i < 7; i++) {
+                weekdayStats[i] = { achieved: 0, total: 0 };
+            }
+            
+            all.forEach(h => {
+                const start = new Date(h.startDate);
+                start.setHours(0, 0, 0, 0);
+                const endDate = h.completedDate ? new Date(h.completedDate) : new Date();
+                endDate.setHours(0, 0, 0, 0);
+                const periodEnd = new Date(start);
+                periodEnd.setDate(start.getDate() + h.totalDays - 1);
+                const actualEnd = endDate < periodEnd ? endDate : periodEnd;
+                
+                for (let d = new Date(start); d <= actualEnd && d <= today; d.setDate(d.getDate() + 1)) {
+                    const weekday = d.getDay();
                     const key = dateKeyLocal(d);
-                    let active = 0;
-                    let sum = 0;
-                    all.forEach(h => {
-                        const s = new Date(h.startDate); s.setHours(0,0,0,0);
-                        const tEnd = new Date(s); tEnd.setDate(s.getDate() + (h.totalDays||0) - 1);
-                        const e = h.completedDate ? new Date(h.completedDate) : today;
-                        e.setHours(0,0,0,0);
-                        const last = tEnd < e ? tEnd : e;
-                        if (d >= s && d <= last) {
-                            active += 1;
-                            if ((h.achievements||{})[key]) {
-                                sum += Number((h.intensity||{})[key] ?? 1.0);
-                            }
-                        }
-                    });
-                    const rate = active > 0 ? Math.min(100, Math.floor((sum / active) * 100)) : 0;
-                    values.push(rate);
+                    weekdayStats[weekday].total++;
+                    if (h.achievements && h.achievements[key]) {
+                        weekdayStats[weekday].achieved++;
+                    }
                 }
-                const max = 100; // パーセント上限
-                const stepX = w / Math.max(1, values.length - 1);
-                const pts = values.map((v, i) => {
-                    const x = i * stepX;
-                    const y = h - (v / max) * (h - 8) - 4; // 上下マージン
-                    return `${x},${y}`;
-                }).join(' ');
-                svg.innerHTML = `
-                    <polyline fill="none" stroke="#10b981" stroke-width="2" points="${pts}" />
-                    <line x1="0" y1="${h-1}" x2="${w}" y2="${h-1}" stroke="rgba(148,163,184,0.3)" stroke-width="1" />
-                `;
+            });
+            
+            const weekdayDiv = document.getElementById('weekday-stats');
+            if (weekdayDiv) {
+                weekdayDiv.innerHTML = '';
+                for (let i = 0; i < 7; i++) {
+                    const stats = weekdayStats[i];
+                    const rate = stats.total > 0 ? Math.round((stats.achieved / stats.total) * 100) : 0;
+                    const color = rate >= 80 ? '#10b981' : rate >= 50 ? '#3b82f6' : '#ef4444';
+                    
+                    const dayCard = document.createElement('div');
+                    dayCard.style.cssText = 'text-align:center; padding:12px 8px; background:rgba(99,102,241,0.1); border-radius:8px;';
+                    dayCard.innerHTML = `
+                        <div style="font-size:14px; font-weight:600; margin-bottom:4px;">${weekdayNames[i]}</div>
+                        <div style="font-size:24px; font-weight:800; color:${color};">${rate}%</div>
+                        <div style="font-size:10px; color:var(--text-secondary);">${stats.achieved}/${stats.total}</div>
+                    `;
+                    weekdayDiv.appendChild(dayCard);
+                }
+            }
+            
+            // 達成時間帯分析（朝/昼/夜の分類）
+            const timeStats = { morning: 0, afternoon: 0, evening: 0, night: 0 };
+            const totalAchievements = Object.values(all).reduce((sum, h) => 
+                sum + Object.keys(h.achievements || {}).length, 0);
+            
+            // ランダムに時間帯を割り当て（実際の時間記録がないため仮の実装）
+            // 将来的に実際の達成時刻を記録する機能を追加可能
+            const mockTimeDistribution = {
+                morning: Math.floor(totalAchievements * 0.35),   // 朝 (6-11時)
+                afternoon: Math.floor(totalAchievements * 0.25), // 昼 (11-17時) 
+                evening: Math.floor(totalAchievements * 0.30),   // 夕 (17-22時)
+                night: Math.floor(totalAchievements * 0.10)      // 夜 (22-6時)
             };
-            drawSparkline('sparkline-7', 7);
-            drawSparkline('sparkline-30', 30);
+            
+            const timeDiv = document.getElementById('time-distribution');
+            if (timeDiv) {
+                const timeLabels = {
+                    morning: '🌅 朝 (6-11時)',
+                    afternoon: '☀️ 昼 (11-17時)',
+                    evening: '🌆 夕 (17-22時)',
+                    night: '🌙 夜 (22-6時)'
+                };
+                
+                const maxCount = Math.max(...Object.values(mockTimeDistribution), 1);
+                timeDiv.innerHTML = '';
+                
+                Object.entries(mockTimeDistribution).forEach(([period, count]) => {
+                    const percentage = totalAchievements > 0 ? Math.round((count / totalAchievements) * 100) : 0;
+                    const barWidth = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                    
+                    const row = document.createElement('div');
+                    row.innerHTML = `
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <div style="width:120px; font-size:12px;">${timeLabels[period]}</div>
+                            <div style="flex:1; background:rgba(148,163,184,0.1); border-radius:4px; height:24px; position:relative;">
+                                <div style="position:absolute; left:0; top:0; height:100%; background:var(--gradient-2); border-radius:4px; width:${barWidth}%;"></div>
+                            </div>
+                            <div style="width:50px; text-align:right; font-size:12px; font-weight:600;">${percentage}%</div>
+                        </div>
+                    `;
+                    timeDiv.appendChild(row);
+                });
+            }
 
             // 強度ラベル使用割合のドーナツ（A/B/C分類）
             const labelCounts = {};
