@@ -1257,8 +1257,45 @@
 
         /* ===== モバイル最適化（統計ビュー） ===== */
         @media (max-width: 480px) {
-            .stats-grid { grid-template-columns: 1fr !important; gap: 8px !important; }
-            .stat-value { font-size: 26px !important; }
+            .stats-grid { 
+                grid-template-columns: 1fr !important; 
+                gap: 8px !important; 
+            }
+            .stat-value { 
+                font-size: 24px !important; 
+            }
+            .stat-label {
+                font-size: 12px !important;
+            }
+            .stat-card {
+                padding: 12px !important;
+            }
+            .stat-panel {
+                padding: 12px !important;
+            }
+            .stat-panel h3 {
+                font-size: 16px !important;
+                margin-bottom: 8px !important;
+            }
+            #stats-view .btn {
+                font-size: 12px !important;
+                padding: 8px 12px !important;
+            }
+            #donut-intensity {
+                width: 120px !important;
+                height: 120px !important;
+            }
+            #weekday-stats {
+                grid-template-columns: repeat(7, 1fr) !important;
+                gap: 4px !important;
+            }
+            .achievement-chart {
+                gap: 12px !important;
+            }
+            #badge-collection {
+                grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)) !important;
+                gap: 8px !important;
+            }
             #weekday-stats {
                 grid-template-columns: none !important;
                 grid-auto-flow: column !important;
@@ -1714,7 +1751,7 @@
         <div id="stats-view" style="display: none;">
             <div class="card" style="margin-top: 0;">
                 <h2 style="margin-bottom: 16px; margin-top: 0;">📊 統計データ</h2>
-                <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px;">
+                <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px;">
                     <div class="stat-card" style="background: var(--background); padding: 16px; border-radius: 12px; text-align: center;">
                         <div class="stat-value" id="total-hypotheses" style="font-size: 32px; font-weight: 800; background: var(--gradient-1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">0</div>
                         <div class="stat-label" style="color: var(--text-secondary); margin-top: 8px;">総習慣数</div>
@@ -1743,9 +1780,9 @@
                     </div>
                     <div class="stat-panel" style="background: var(--background); padding: 16px; border-radius: 12px;">
                         <h3 style="margin-bottom:8px;">🧩 強度ラベル使用割合</h3>
-                        <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
-                            <svg id="donut-intensity" width="160" height="160" viewBox="0 0 160 160"></svg>
-                            <div id="donut-legend" style="display:grid; gap:6px; font-size:12px;"></div>
+                        <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; justify-content:center;">
+                            <svg id="donut-intensity" width="160" height="160" viewBox="0 0 160 160" style="flex-shrink: 0;"></svg>
+                            <div id="donut-legend" style="display:grid; gap:6px; font-size:12px; min-width: 100px;"></div>
                         </div>
                     </div>
                     <div class="stat-panel" style="background: var(--background); padding: 16px; border-radius: 12px;">
@@ -1762,11 +1799,11 @@
                     </div>
                     <div class="stat-panel" style="background: var(--background); padding: 16px; border-radius: 12px;">
                         <h3 style="margin-bottom:8px;">📈 習慣レポート</h3>
-                        <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
-                            <button class="btn btn-secondary" onclick="showMonthlyReport()" style="flex: 1;">📅 月次</button>
-                            <button class="btn btn-secondary" onclick="showYearlyReport()" style="flex: 1;">📊 年次</button>
-                            <button class="btn btn-secondary" onclick="exportHabitData()" style="flex: 1;">📤 エクスポート</button>
-                            <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()" style="flex: 1;">📥 インポート</button>
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 16px;">
+                            <button class="btn btn-secondary" onclick="showMonthlyReport()">📅 月次</button>
+                            <button class="btn btn-secondary" onclick="showYearlyReport()">📊 年次</button>
+                            <button class="btn btn-secondary" onclick="exportHabitData()">📤 エクスポート</button>
+                            <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()">📥 インポート</button>
                             <input id="import-file" type="file" accept="application/json,.json" style="display:none" onchange="handleImportFile(event)">
                         </div>
                         <div id="report-container" style="display: none; padding: 16px; background: var(--surface); border-radius: 12px; margin-top: 12px;"></div>
@@ -6127,6 +6164,8 @@
         function setupSwipeListeners() {
             const container = document.querySelector('.container');
             let isSwipeEnabled = true;
+            let isSwiping = false;
+            let scrolling = false;
             
             // フォーム要素でのスワイプを無効化
             // 入力系のみスワイプ抑止（ボタンは許可）
@@ -6144,26 +6183,86 @@
             
             container.addEventListener('touchstart', (e) => {
                 if (!isSwipeEnabled) return;
+                
+                // 統計画面やカード画面でスクロール可能な要素上の場合はスワイプを無効化
+                const currentView = getCurrentView();
+                if (currentView === 'stats' || currentView === 'cards') {
+                    const target = e.target;
+                    const statsView = target.closest('#stats-view');
+                    const cardsView = target.closest('#cards-view');
+                    
+                    if (statsView || cardsView) {
+                        // スクロール可能な要素かチェック
+                        const scrollableParent = findScrollableParent(target);
+                        if (scrollableParent && scrollableParent.scrollHeight > scrollableParent.clientHeight) {
+                            scrolling = true;
+                            return;
+                        }
+                    }
+                }
+                
                 touchStartX = e.changedTouches[0].screenX;
                 touchStartY = e.changedTouches[0].screenY;
+                isSwiping = false;
+                scrolling = false;
+            }, { passive: true });
+            
+            container.addEventListener('touchmove', (e) => {
+                if (!isSwipeEnabled || scrolling) return;
+                
+                const diffX = Math.abs(e.changedTouches[0].screenX - touchStartX);
+                const diffY = Math.abs(e.changedTouches[0].screenY - touchStartY);
+                
+                // 縦方向の動きが大きい場合はスクロールとみなす
+                if (diffY > diffX && diffY > 10) {
+                    scrolling = true;
+                    return;
+                }
+                
+                // 横方向の動きが大きい場合はスワイプとみなす
+                if (diffX > diffY && diffX > 10) {
+                    isSwiping = true;
+                }
             }, { passive: true });
 
             container.addEventListener('touchend', (e) => {
-                if (!isSwipeEnabled) return;
+                if (!isSwipeEnabled || scrolling || !isSwiping) {
+                    scrolling = false;
+                    isSwiping = false;
+                    return;
+                }
+                
                 touchEndX = e.changedTouches[0].screenX;
                 touchEndY = e.changedTouches[0].screenY;
                 handleSwipe();
+                scrolling = false;
+                isSwiping = false;
             }, { passive: true });
+        }
+        
+        // スクロール可能な親要素を探す
+        function findScrollableParent(element) {
+            let parent = element;
+            while (parent && parent !== document.body) {
+                const style = window.getComputedStyle(parent);
+                if (style.overflowY === 'auto' || style.overflowY === 'scroll' || 
+                    parent.scrollHeight > parent.clientHeight) {
+                    return parent;
+                }
+                parent = parent.parentElement;
+            }
+            return null;
         }
 
         // スワイプ処理
         function handleSwipe() {
             const diffX = touchStartX - touchEndX;
             const diffY = touchStartY - touchEndY;
-            const minSwipeDistance = 50;
+            const minSwipeDistance = 80; // Androidで誤動作を防ぐため閾値を上げる
             
             // 水平スワイプのみを検出（垂直移動が少ない場合）
-            if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > minSwipeDistance) {
+            // 垂直移動が大きすぎる場合はスワイプとみなさない
+            if (Math.abs(diffX) > Math.abs(diffY) * 2 && Math.abs(diffX) > minSwipeDistance) {
                 // シャッフル画面や進捗画面ではスワイプ無効
                 const currentView = getCurrentView();
                 if (currentView === 'shuffle' || currentView === 'progress') {
