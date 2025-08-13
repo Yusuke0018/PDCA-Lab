@@ -1486,6 +1486,16 @@
                     </div>
 
                     <div class="form-group">
+                        <label for="hypothesis-category">カテゴリー</label>
+                        <select id="hypothesis-category" required>
+                            <option value="study">📚 勉強</option>
+                            <option value="exercise">💪 運動</option>
+                            <option value="reading">📖 読書</option>
+                            <option value="wellness">🧘 養生</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
                         <label for="hypothesis-benefit">朝の1行宣言（⭕️に入れる言葉）</label>
                         <input type="text" id="hypothesis-benefit" required placeholder="例: 集中力が上がる" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
                         <small style="color: var(--text-secondary);">宣言文: 「この習慣を実証することで（この入力）が実現する」</small>
@@ -4096,6 +4106,7 @@
             
             const title = document.getElementById('hypothesis-title').value.trim();
             const description = document.getElementById('hypothesis-description').value.trim();
+            const category = document.getElementById('hypothesis-category').value;
             const benefit = (document.getElementById('hypothesis-benefit')?.value || '').trim();
 
             if (!title || !description) {
@@ -4147,6 +4158,7 @@
                 id: Date.now(),
                 title: title,
                 description: description,
+                category: category,  // カテゴリーを追加
                 duration: selectedDuration,
                 startDate: new Date().toISOString(),
                 achievements: {},
@@ -6462,41 +6474,78 @@
             // 日付が変わったら宣言状態をチェック
             const todayKey = dateKeyLocal(new Date());
             
-            // 習慣を頻度別にグループ分け
-            const dailyHabits = [];
-            const weeklyHabits = [];
-            const specificDaysHabits = [];
+            // カテゴリー別にグループ分け
+            const categoryGroups = {
+                study: { title: '勉強', icon: '📚', habits: [], color: '#3b82f6' },
+                exercise: { title: '運動', icon: '💪', habits: [], color: '#ef4444' },
+                reading: { title: '読書', icon: '📖', habits: [], color: '#10b981' },
+                wellness: { title: '養生', icon: '🧘', habits: [], color: '#8b5cf6' }
+            };
             
+            // 習慣をカテゴリー別に分類
             data.currentHypotheses.forEach(hypothesis => {
-                // frequencyオブジェクトの構造に対応
-                if (!hypothesis.frequency || hypothesis.frequency.type === 'daily') {
-                    dailyHabits.push(hypothesis);
-                } else if (hypothesis.frequency.type === 'weekly') {
-                    weeklyHabits.push(hypothesis);
-                } else if (hypothesis.frequency.type === 'weekdays') {
-                    specificDaysHabits.push(hypothesis);
+                const category = hypothesis.category || 'wellness'; // デフォルトは養生
+                if (categoryGroups[category]) {
+                    categoryGroups[category].habits.push(hypothesis);
                 }
             });
             
-            // 頻度グループごとに表示
-            const createGroupSection = (title, icon, habits, description, borderColor) => {
-                if (habits.length === 0) return null;
+            // トグル状態を管理（LocalStorageから読み込み）
+            const toggleStates = JSON.parse(localStorage.getItem('categoryToggleStates') || '{}');
+            
+            // カテゴリーグループごとに表示
+            const createGroupSection = (categoryKey, categoryData) => {
+                if (categoryData.habits.length === 0) return null;
                 
                 const section = document.createElement('div');
-                section.style.cssText = 'margin-bottom: 24px;';
+                section.style.cssText = 'margin-bottom: 16px;';
                 
+                // ヘッダー（クリックでトグル）
                 const header = document.createElement('div');
-                header.style.cssText = `display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding: 10px 14px; background: linear-gradient(135deg, ${borderColor}10, ${borderColor}05); border-radius: 10px; border-left: 3px solid ${borderColor};`;
+                const isOpen = toggleStates[categoryKey] !== false; // デフォルトは開いた状態
+                header.style.cssText = `display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: linear-gradient(135deg, ${categoryData.color}15, ${categoryData.color}05); border-radius: 12px; border-left: 4px solid ${categoryData.color}; cursor: pointer; user-select: none; transition: all 0.2s;`;
                 header.innerHTML = `
-                    <span style="font-size: 20px;">${icon}</span>
-                    <span style="font-weight: 700; font-size: 15px; color: var(--text-primary);">${title}</span>
-                    <span style="font-size: 12px; color: var(--text-secondary); margin-left: auto; background: rgba(0,0,0,0.2); padding: 2px 8px; border-radius: 999px;">${description}</span>
+                    <span style="font-size: 20px;">${categoryData.icon}</span>
+                    <span style="font-weight: 700; font-size: 16px; color: var(--text-primary);">${categoryData.title}</span>
+                    <span style="font-size: 14px; color: var(--text-secondary); margin-left: 8px; background: ${categoryData.color}20; padding: 2px 10px; border-radius: 999px;">${categoryData.habits.length}個</span>
+                    <span style="margin-left: auto; font-size: 20px; transition: transform 0.3s;" id="toggle-${categoryKey}">${isOpen ? '▼' : '▶'}</span>
                 `;
-                section.appendChild(header);
                 
-                habits.forEach(hypothesis => {
-                    section.appendChild(createHypothesisItem(hypothesis, todayKey));
+                // コンテンツコンテナ
+                const contentContainer = document.createElement('div');
+                contentContainer.style.cssText = `overflow: hidden; transition: max-height 0.3s ease-out; max-height: ${isOpen ? '2000px' : '0'};`;
+                contentContainer.id = `content-${categoryKey}`;
+                
+                // 習慣アイテムを追加
+                const itemsWrapper = document.createElement('div');
+                itemsWrapper.style.cssText = 'padding: 8px 0;';
+                categoryData.habits.forEach(hypothesis => {
+                    itemsWrapper.appendChild(createHypothesisItem(hypothesis, todayKey));
                 });
+                contentContainer.appendChild(itemsWrapper);
+                
+                // クリックイベント
+                header.onclick = () => {
+                    const content = document.getElementById(`content-${categoryKey}`);
+                    const toggle = document.getElementById(`toggle-${categoryKey}`);
+                    const isCurrentlyOpen = content.style.maxHeight !== '0px';
+                    
+                    if (isCurrentlyOpen) {
+                        content.style.maxHeight = '0';
+                        toggle.textContent = '▶';
+                        toggleStates[categoryKey] = false;
+                    } else {
+                        content.style.maxHeight = '2000px';
+                        toggle.textContent = '▼';
+                        toggleStates[categoryKey] = true;
+                    }
+                    
+                    // トグル状態を保存
+                    localStorage.setItem('categoryToggleStates', JSON.stringify(toggleStates));
+                };
+                
+                section.appendChild(header);
+                section.appendChild(contentContainer);
                 
                 return section;
             };
@@ -6624,41 +6673,12 @@
                 return item;
             };
             
-            // 毎日の習慣
-            const dailySection = createGroupSection(
-                '毎日の習慣',
-                '🌅',
-                dailyHabits,
-                `${dailyHabits.length}個`,
-                '#10b981'
-            );
-            if (dailySection) listContainer.appendChild(dailySection);
+            // カテゴリーごとにセクションを作成して表示
+            Object.entries(categoryGroups).forEach(([categoryKey, categoryData]) => {
+                const section = createGroupSection(categoryKey, categoryData);
+                if (section) listContainer.appendChild(section);
+            });
             
-            // 週◯回の習慣
-            const weeklySection = createGroupSection(
-                '週◯回の習慣',
-                '📅',
-                weeklyHabits,
-                `${weeklyHabits.length}個`,
-                '#3b82f6'
-            );
-            if (weeklySection) listContainer.appendChild(weeklySection);
-            
-            // 特定曜日の習慣
-            const weekdayNames = ['日', '月', '火', '水', '木', '金', '土'];
-            const specificSection = createGroupSection(
-                '特定曜日の習慣',
-                '📆',
-                specificDaysHabits,
-                `${specificDaysHabits.length}個`,
-                '#8b5cf6'
-            );
-            if (specificSection) listContainer.appendChild(specificSection);
-            
-            // 習慣が0個の場合のメッセージ（通常はここに到達しない）
-            if (dailyHabits.length === 0 && weeklyHabits.length === 0 && specificDaysHabits.length === 0) {
-                listContainer.innerHTML = '<p style="color: var(--text-secondary);">現在進行中の習慣はありません</p>';
-            }
         }
 
         // 習慣を継続
