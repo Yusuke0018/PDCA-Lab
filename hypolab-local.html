@@ -4446,10 +4446,22 @@
             const habitModeLabel = hypothesis.habitMode ? ' | 🌟 習慣モード' : '';
             const unlimitedLabel = hypothesis.isUnlimited ? ' | ♾️ 無期限' : '';
             
+            // カテゴリ情報を取得
+            const categoryInfo = data.categoryMaster && data.categoryMaster[hypothesis.category] 
+                ? data.categoryMaster[hypothesis.category] 
+                : { name: 'その他', icon: '📝', color: '#6b7280' };
+            
             daysInfo.innerHTML = `
                 <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
                     <span>📅 ${startDate.toLocaleDateString('ja-JP')} 〜 ${hypothesis.isUnlimited ? '無期限' : endDate.toLocaleDateString('ja-JP')} | ${frequencyText}${habitModeLabel}${unlimitedLabel}</span>
-                    <button class="btn btn-secondary" onclick="editFrequencyType()" style="padding: 4px 12px; font-size: 12px;">🔄 頻度変更</button>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-secondary" onclick="editFrequencyType()" style="padding: 4px 12px; font-size: 12px;">🔄 頻度変更</button>
+                        <button class="btn btn-secondary" onclick="editHypothesisCategory()" style="padding: 4px 12px; font-size: 12px; display: flex; align-items: center; gap: 4px;">
+                            <span>${categoryInfo.icon}</span>
+                            <span>${categoryInfo.name}</span>
+                            <span>変更</span>
+                        </button>
+                    </div>
                 </div>
             `;
             
@@ -5727,6 +5739,130 @@
         }
 
         // 強度ラベル/倍率の編集（シンプルなプロンプトUI）
+        // カテゴリマスターを編集する関数
+        function editCategoryMaster() {
+            const data = loadData();
+            if (!data.categoryMaster) {
+                data.categoryMaster = {
+                    study: { name: '勉強', icon: '📚', color: '#3b82f6' },
+                    exercise: { name: '運動', icon: '💪', color: '#ef4444' },
+                    health: { name: '健康', icon: '🧘', color: '#10b981' },
+                    work: { name: '仕事', icon: '💼', color: '#f59e0b' },
+                    hobby: { name: '趣味', icon: '🎨', color: '#8b5cf6' },
+                    other: { name: 'その他', icon: '📝', color: '#6b7280' }
+                };
+            }
+            
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay active';
+            overlay.style.backdropFilter = 'blur(6px)';
+            
+            const modal = document.createElement('div');
+            modal.className = 'skip-modal active';
+            modal.style.maxWidth = '600px';
+            modal.style.padding = '20px';
+            modal.style.maxHeight = '80vh';
+            modal.style.overflowY = 'auto';
+            
+            modal.innerHTML = `
+                <div class="modal-header">
+                    <h3>⚙️ カテゴリの編集</h3>
+                    <p>カテゴリ名、アイコン、色をカスタマイズできます</p>
+                </div>
+                
+                <div style="margin: 20px 0;">
+                    ${Object.entries(data.categoryMaster).map(([key, cat]) => `
+                        <div style="margin-bottom: 16px; padding: 12px; background: rgba(30, 41, 59, 0.5); border-radius: 8px; border: 1px solid var(--border);">
+                            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                                <span style="font-size: 24px;" id="icon-preview-${key}">${cat.icon}</span>
+                                <span style="font-weight: 600; font-size: 16px;" id="name-preview-${key}">${cat.name}</span>
+                                <div style="width: 24px; height: 24px; border-radius: 50%; background: ${cat.color};" id="color-preview-${key}"></div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 80px 100px; gap: 8px;">
+                                <input type="text" id="name-${key}" value="${cat.name}" placeholder="カテゴリ名" style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface);">
+                                <input type="text" id="icon-${key}" value="${cat.icon}" placeholder="📝" style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); text-align: center;">
+                                <input type="color" id="color-${key}" value="${cat.color}" style="width: 100%; height: 32px; border-radius: 6px; border: 1px solid var(--border); cursor: pointer;">
+                            </div>
+                        </div>
+                    `).join('')}
+                    
+                    <button class="btn btn-secondary" onclick="addNewCategory()" style="width: 100%; margin-top: 12px; padding: 10px;">
+                        ➕ 新しいカテゴリを追加
+                    </button>
+                </div>
+                
+                <div class="modal-footer" style="display: flex; gap: 8px; justify-content: flex-end;">
+                    <button class="button secondary" id="cat-cancel">キャンセル</button>
+                    <button class="button primary" id="cat-save">保存</button>
+                </div>
+            `;
+            
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            
+            // リアルタイムプレビュー
+            Object.keys(data.categoryMaster).forEach(key => {
+                const nameInput = document.getElementById(`name-${key}`);
+                const iconInput = document.getElementById(`icon-${key}`);
+                const colorInput = document.getElementById(`color-${key}`);
+                
+                if (nameInput) nameInput.oninput = () => {
+                    document.getElementById(`name-preview-${key}`).textContent = nameInput.value || 'カテゴリ';
+                };
+                if (iconInput) iconInput.oninput = () => {
+                    document.getElementById(`icon-preview-${key}`).textContent = iconInput.value || '📝';
+                };
+                if (colorInput) colorInput.oninput = () => {
+                    document.getElementById(`color-preview-${key}`).style.background = colorInput.value;
+                };
+            });
+            
+            // キャンセル
+            document.getElementById('cat-cancel').onclick = () => overlay.remove();
+            
+            // 保存
+            document.getElementById('cat-save').onclick = () => {
+                Object.keys(data.categoryMaster).forEach(key => {
+                    const name = document.getElementById(`name-${key}`).value.trim();
+                    const icon = document.getElementById(`icon-${key}`).value.trim();
+                    const color = document.getElementById(`color-${key}`).value;
+                    
+                    if (name) data.categoryMaster[key].name = name;
+                    if (icon) data.categoryMaster[key].icon = icon;
+                    if (color) data.categoryMaster[key].color = color;
+                });
+                
+                saveData(data);
+                overlay.remove();
+                showNotification('カテゴリを更新しました', 'success');
+                updateCurrentHypothesisList();
+            };
+        }
+        
+        // 新しいカテゴリを追加
+        window.addNewCategory = function() {
+            const categoryKey = prompt('カテゴリのID（英数字）を入力してください');
+            if (!categoryKey || !/^[a-z0-9]+$/i.test(categoryKey)) {
+                showNotification('カテゴリIDは英数字で入力してください', 'error');
+                return;
+            }
+            
+            const data = loadData();
+            if (data.categoryMaster[categoryKey]) {
+                showNotification('そのIDはすでに存在します', 'error');
+                return;
+            }
+            
+            data.categoryMaster[categoryKey] = {
+                name: '新カテゴリ',
+                icon: '✨',
+                color: '#' + Math.floor(Math.random()*16777215).toString(16)
+            };
+            
+            saveData(data);
+            editCategoryMaster(); // モーダルを再表示
+        }
+        
         // 頻度タイプを変更する関数
         function editFrequencyType() {
             if (!window.currentHypothesis) return;
@@ -5871,6 +6007,91 @@
                 showNotification('頻度タイプを変更しました', 'success');
                 
                 // 進捗画面を再表示
+                showProgressView(window.currentHypothesis.id);
+            };
+        }
+        
+        // 習慣のカテゴリを変更
+        function editHypothesisCategory() {
+            if (!window.currentHypothesis) return;
+            
+            const data = loadData();
+            if (!data.categoryMaster) {
+                data.categoryMaster = {
+                    study: { name: '勉強', icon: '📚', color: '#3b82f6' },
+                    exercise: { name: '運動', icon: '💪', color: '#ef4444' },
+                    health: { name: '健康', icon: '🧘', color: '#10b981' },
+                    work: { name: '仕事', icon: '💼', color: '#f59e0b' },
+                    hobby: { name: '趣味', icon: '🎨', color: '#8b5cf6' },
+                    other: { name: 'その他', icon: '📝', color: '#6b7280' }
+                };
+            }
+            
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay active';
+            overlay.style.backdropFilter = 'blur(6px)';
+            
+            const modal = document.createElement('div');
+            modal.className = 'skip-modal active';
+            modal.style.maxWidth = '480px';
+            modal.style.padding = '20px';
+            
+            const currentCategory = window.currentHypothesis.category || 'other';
+            
+            modal.innerHTML = `
+                <div class="modal-header">
+                    <h3>🏷️ カテゴリの変更</h3>
+                    <p>この習慣のカテゴリを選択してください</p>
+                </div>
+                
+                <div style="margin: 20px 0; display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    ${Object.entries(data.categoryMaster).map(([key, cat]) => `
+                        <label style="display: flex; align-items: center; padding: 12px; background: rgba(30, 41, 59, 0.5); border: 2px solid ${currentCategory === key ? cat.color : 'var(--border)'}; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+                            <input type="radio" name="category" value="${key}" ${currentCategory === key ? 'checked' : ''} style="margin-right: 12px;">
+                            <span style="font-size: 20px; margin-right: 8px;">${cat.icon}</span>
+                            <span style="font-weight: 600;">${cat.name}</span>
+                        </label>
+                    `).join('')}
+                </div>
+                
+                <div class="modal-footer" style="display: flex; gap: 8px; justify-content: flex-end;">
+                    <button class="button secondary" id="cat-change-cancel">キャンセル</button>
+                    <button class="button primary" id="cat-change-save">変更</button>
+                </div>
+            `;
+            
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            
+            // ラジオボタンの変更イベント
+            modal.querySelectorAll('input[name="category"]').forEach(radio => {
+                radio.onchange = () => {
+                    modal.querySelectorAll('label').forEach(label => {
+                        if (label.querySelector('input[type="radio"]')) {
+                            const catKey = label.querySelector('input').value;
+                            const catInfo = data.categoryMaster[catKey];
+                            label.style.border = radio.value === catKey ? `2px solid ${catInfo.color}` : '2px solid var(--border)';
+                        }
+                    });
+                };
+            });
+            
+            // キャンセル
+            document.getElementById('cat-change-cancel').onclick = () => overlay.remove();
+            
+            // 保存
+            document.getElementById('cat-change-save').onclick = () => {
+                const selectedCategory = modal.querySelector('input[name="category"]:checked').value;
+                
+                window.currentHypothesis.category = selectedCategory;
+                const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+                if (index !== -1) {
+                    data.currentHypotheses[index].category = selectedCategory;
+                    saveData(data);
+                }
+                
+                overlay.remove();
+                showNotification('カテゴリを変更しました', 'success');
                 showProgressView(window.currentHypothesis.id);
             };
         }
@@ -6627,81 +6848,142 @@
             // 日付が変わったら宣言状態をチェック
             const todayKey = dateKeyLocal(new Date());
             
-            // 頻度タイプ別にグループ分け
+            // カテゴリーマスター（編集可能）
+            if (!data.categoryMaster) {
+                data.categoryMaster = {
+                    study: { name: '勉強', icon: '📚', color: '#3b82f6' },
+                    exercise: { name: '運動', icon: '💪', color: '#ef4444' },
+                    health: { name: '健康', icon: '🧘', color: '#10b981' },
+                    work: { name: '仕事', icon: '💼', color: '#f59e0b' },
+                    hobby: { name: '趣味', icon: '🎨', color: '#8b5cf6' },
+                    other: { name: 'その他', icon: '📝', color: '#6b7280' }
+                };
+                saveData(data);
+            }
+            
+            // 頻度タイプ別にグループ分け（大分類）
             const frequencyGroups = {
-                daily: { title: '毎日の習慣', icon: '☀️', habits: [], color: '#10b981' },
-                weekly: { title: '週N回の習慣', icon: '📅', habits: [], color: '#3b82f6' },
-                weekdays: { title: '曜日指定の習慣', icon: '📆', habits: [], color: '#8b5cf6' }
+                daily: { 
+                    title: '毎日の習慣', 
+                    icon: '☀️', 
+                    color: '#10b981',
+                    categories: {} // カテゴリ別にさらに分類
+                },
+                weekly: { 
+                    title: '週N回の習慣', 
+                    icon: '📅', 
+                    color: '#3b82f6',
+                    categories: {}
+                },
+                weekdays: { 
+                    title: '曜日指定の習慣', 
+                    icon: '📆', 
+                    color: '#8b5cf6',
+                    categories: {}
+                }
             };
             
-            // 習慣を頻度タイプ別に分類
+            // 習慣を頻度タイプ別、さらにカテゴリ別に分類
             data.currentHypotheses.forEach(hypothesis => {
                 let frequencyType = 'daily'; // デフォルトは毎日
                 if (hypothesis.frequency) {
                     frequencyType = hypothesis.frequency.type || 'daily';
                 }
+                
+                const category = hypothesis.category || 'other'; // デフォルトはその他
+                
                 if (frequencyGroups[frequencyType]) {
-                    frequencyGroups[frequencyType].habits.push(hypothesis);
+                    if (!frequencyGroups[frequencyType].categories[category]) {
+                        frequencyGroups[frequencyType].categories[category] = [];
+                    }
+                    frequencyGroups[frequencyType].categories[category].push(hypothesis);
                 }
             });
             
             // トグル状態を管理（LocalStorageから読み込み）
-            const toggleStates = JSON.parse(localStorage.getItem('frequencyToggleStates') || '{}');
+            const toggleStates = JSON.parse(localStorage.getItem('categoryToggleStates') || '{}');
             
-            // カテゴリーグループごとに表示
-            const createGroupSection = (categoryKey, categoryData) => {
-                if (categoryData.habits.length === 0) return null;
+            // 頻度グループごとに表示（大分類）
+            const createFrequencySection = (frequencyKey, frequencyData) => {
+                // この頻度タイプに習慣がない場合はスキップ
+                const hasHabits = Object.values(frequencyData.categories).some(habits => habits.length > 0);
+                if (!hasHabits) return null;
                 
                 const section = document.createElement('div');
-                section.style.cssText = 'margin-bottom: 16px;';
+                section.style.cssText = 'margin-bottom: 24px;';
                 
-                // ヘッダー（クリックでトグル）
-                const header = document.createElement('div');
-                const isOpen = toggleStates[categoryKey] !== false; // デフォルトは開いた状態
-                header.style.cssText = `display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: linear-gradient(135deg, ${categoryData.color}15, ${categoryData.color}05); border-radius: 12px; border-left: 4px solid ${categoryData.color}; cursor: pointer; user-select: none; transition: all 0.2s;`;
-                header.innerHTML = `
-                    <span style="font-size: 20px;">${categoryData.icon}</span>
-                    <span style="font-weight: 700; font-size: 16px; color: var(--text-primary);">${categoryData.title}</span>
-                    <span style="font-size: 14px; color: var(--text-secondary); margin-left: 8px; background: ${categoryData.color}20; padding: 2px 10px; border-radius: 999px;">${categoryData.habits.length}個</span>
-                    <span style="margin-left: auto; font-size: 20px; transition: transform 0.3s;" id="toggle-${categoryKey}">${isOpen ? '▼' : '▶'}</span>
+                // 頻度タイプのヘッダー（トグル不可、常に表示）
+                const frequencyHeader = document.createElement('div');
+                const totalCount = Object.values(frequencyData.categories).reduce((sum, habits) => sum + habits.length, 0);
+                frequencyHeader.style.cssText = `display: flex; align-items: center; gap: 8px; padding: 14px 16px; background: linear-gradient(135deg, ${frequencyData.color}20, ${frequencyData.color}10); border-radius: 12px; border: 2px solid ${frequencyData.color}; margin-bottom: 12px;`;
+                frequencyHeader.innerHTML = `
+                    <span style="font-size: 24px;">${frequencyData.icon}</span>
+                    <span style="font-weight: 700; font-size: 18px; color: var(--text-primary);">${frequencyData.title}</span>
+                    <span style="font-size: 14px; color: var(--text-secondary); margin-left: 8px; background: ${frequencyData.color}30; padding: 4px 12px; border-radius: 999px; font-weight: 600;">合計 ${totalCount}個</span>
                 `;
+                section.appendChild(frequencyHeader);
                 
-                // コンテンツコンテナ
-                const contentContainer = document.createElement('div');
-                contentContainer.style.cssText = `overflow: hidden; transition: max-height 0.3s ease-out; max-height: ${isOpen ? '2000px' : '0'};`;
-                contentContainer.id = `content-${categoryKey}`;
+                // カテゴリ別のセクションを作成（小分類）
+                const categoriesContainer = document.createElement('div');
+                categoriesContainer.style.cssText = 'margin-left: 20px;';
                 
-                // 習慣アイテムを追加
-                const itemsWrapper = document.createElement('div');
-                itemsWrapper.style.cssText = 'padding: 8px 0;';
-                categoryData.habits.forEach(hypothesis => {
-                    itemsWrapper.appendChild(createHypothesisItem(hypothesis, todayKey));
+                Object.entries(frequencyData.categories).forEach(([categoryKey, habits]) => {
+                    if (habits.length === 0) return;
+                    
+                    const categoryInfo = data.categoryMaster[categoryKey] || { name: categoryKey, icon: '📝', color: '#6b7280' };
+                    const categorySection = document.createElement('div');
+                    categorySection.style.cssText = 'margin-bottom: 12px;';
+                    
+                    // カテゴリヘッダー（トグル可能）
+                    const categoryHeader = document.createElement('div');
+                    const toggleKey = `${frequencyKey}-${categoryKey}`;
+                    const isOpen = toggleStates[toggleKey] !== false;
+                    
+                    categoryHeader.style.cssText = `display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: linear-gradient(135deg, ${categoryInfo.color}10, ${categoryInfo.color}05); border-radius: 10px; border-left: 3px solid ${categoryInfo.color}; cursor: pointer; user-select: none; transition: all 0.2s;`;
+                    categoryHeader.innerHTML = `
+                        <span style="font-size: 18px;">${categoryInfo.icon}</span>
+                        <span style="font-weight: 600; font-size: 15px; color: var(--text-primary);">${categoryInfo.name}</span>
+                        <span style="font-size: 12px; color: var(--text-secondary); margin-left: 6px; background: ${categoryInfo.color}20; padding: 2px 8px; border-radius: 999px;">${habits.length}個</span>
+                        <span style="margin-left: auto; font-size: 16px; transition: transform 0.3s;" id="toggle-${toggleKey}">${isOpen ? '▼' : '▶'}</span>
+                    `;
+                    
+                    // カテゴリコンテンツ
+                    const categoryContent = document.createElement('div');
+                    categoryContent.style.cssText = `overflow: hidden; transition: max-height 0.3s ease-out; max-height: ${isOpen ? '2000px' : '0'};`;
+                    categoryContent.id = `content-${toggleKey}`;
+                    
+                    const itemsWrapper = document.createElement('div');
+                    itemsWrapper.style.cssText = 'padding: 8px 0 8px 12px;';
+                    habits.forEach(hypothesis => {
+                        itemsWrapper.appendChild(createHypothesisItem(hypothesis, todayKey));
+                    });
+                    categoryContent.appendChild(itemsWrapper);
+                    
+                    // カテゴリのトグルイベント
+                    categoryHeader.onclick = () => {
+                        const content = document.getElementById(`content-${toggleKey}`);
+                        const toggle = document.getElementById(`toggle-${toggleKey}`);
+                        const isCurrentlyOpen = content.style.maxHeight !== '0px';
+                        
+                        if (isCurrentlyOpen) {
+                            content.style.maxHeight = '0';
+                            toggle.textContent = '▶';
+                            toggleStates[toggleKey] = false;
+                        } else {
+                            content.style.maxHeight = '2000px';
+                            toggle.textContent = '▼';
+                            toggleStates[toggleKey] = true;
+                        }
+                        
+                        localStorage.setItem('categoryToggleStates', JSON.stringify(toggleStates));
+                    };
+                    
+                    categorySection.appendChild(categoryHeader);
+                    categorySection.appendChild(categoryContent);
+                    categoriesContainer.appendChild(categorySection);
                 });
-                contentContainer.appendChild(itemsWrapper);
                 
-                // クリックイベント
-                header.onclick = () => {
-                    const content = document.getElementById(`content-${categoryKey}`);
-                    const toggle = document.getElementById(`toggle-${categoryKey}`);
-                    const isCurrentlyOpen = content.style.maxHeight !== '0px';
-                    
-                    if (isCurrentlyOpen) {
-                        content.style.maxHeight = '0';
-                        toggle.textContent = '▶';
-                        toggleStates[categoryKey] = false;
-                    } else {
-                        content.style.maxHeight = '2000px';
-                        toggle.textContent = '▼';
-                        toggleStates[categoryKey] = true;
-                    }
-                    
-                    // トグル状態を保存
-                    localStorage.setItem('frequencyToggleStates', JSON.stringify(toggleStates));
-                };
-                
-                section.appendChild(header);
-                section.appendChild(contentContainer);
-                
+                section.appendChild(categoriesContainer);
                 return section;
             };
             
@@ -6832,10 +7114,18 @@
             ['daily', 'weekly', 'weekdays'].forEach(frequencyKey => {
                 const frequencyData = frequencyGroups[frequencyKey];
                 if (frequencyData) {
-                    const section = createGroupSection(frequencyKey, frequencyData);
+                    const section = createFrequencySection(frequencyKey, frequencyData);
                     if (section) listContainer.appendChild(section);
                 }
             });
+            
+            // カテゴリ編集ボタンを追加
+            const editButton = document.createElement('button');
+            editButton.className = 'btn btn-secondary';
+            editButton.style.cssText = 'width: 100%; margin-top: 16px; padding: 12px; font-size: 14px;';
+            editButton.innerHTML = '⚙️ カテゴリを編集';
+            editButton.onclick = editCategoryMaster;
+            listContainer.appendChild(editButton);
             
         }
 
