@@ -2747,6 +2747,12 @@
             updateNavigation('points');
             updatePointsView();
             showRewardsTab(); // デフォルトで報酬タブを表示
+            
+            // ポイント画面ではヘッダーのポイント表示を再表示
+            const pointDisplay = document.getElementById('point-display');
+            if (pointDisplay) {
+                pointDisplay.style.display = 'flex';
+            }
         }
         
         // ポイント画面の更新
@@ -3070,12 +3076,19 @@
             document.getElementById('progress-view').style.display = 'none';
             document.getElementById('history-view').style.display = 'none';
             document.getElementById('stats-view').style.display = 'none';
+            document.getElementById('points-view').style.display = 'none';
             document.getElementById('cards-view').style.display = 'none';
             
             updateNavigation('home');
             updateCurrentHypothesisList();
             updatePerfectBonusIndicator();
             updatePenaltyIndicators();
+            
+            // ホーム画面ではヘッダーのポイント表示を再表示
+            const pointDisplay = document.getElementById('point-display');
+            if (pointDisplay) {
+                pointDisplay.style.display = 'flex';
+            }
 
             // 前回デブリーフのミニバナー
             const data = loadData();
@@ -3213,9 +3226,16 @@
             document.getElementById('new-hypothesis-view').style.display = 'block';
             document.getElementById('history-view').style.display = 'none';
             document.getElementById('stats-view').style.display = 'none';
+            document.getElementById('points-view').style.display = 'none';
             document.getElementById('cards-view').style.display = 'none';
             
             updateNavigation('new');
+            
+            // 新規作成画面ではヘッダーのポイント表示を再表示
+            const pointDisplay = document.getElementById('point-display');
+            if (pointDisplay) {
+                pointDisplay.style.display = 'flex';
+            }
             
             // フォームをリセット
             document.getElementById('hypothesis-title').value = '';
@@ -6412,8 +6432,16 @@
             document.getElementById('progress-view').style.display = 'none';
             document.getElementById('history-view').style.display = 'block';
             document.getElementById('stats-view').style.display = 'none';
+            document.getElementById('points-view').style.display = 'none';
+            document.getElementById('cards-view').style.display = 'none';
             
             updateNavigation('history');
+            
+            // 履歴画面ではヘッダーのポイント表示を再表示
+            const pointDisplay = document.getElementById('point-display');
+            if (pointDisplay) {
+                pointDisplay.style.display = 'flex';
+            }
             
             const data = loadData();
             const historyList = document.getElementById('history-list');
@@ -6469,8 +6497,16 @@
             document.getElementById('progress-view').style.display = 'none';
             document.getElementById('history-view').style.display = 'none';
             document.getElementById('stats-view').style.display = 'block';
+            document.getElementById('points-view').style.display = 'none';
+            document.getElementById('cards-view').style.display = 'none';
             
             updateNavigation('stats');
+            
+            // 統計画面ではヘッダーのポイント表示を再表示
+            const pointDisplay = document.getElementById('point-display');
+            if (pointDisplay) {
+                pointDisplay.style.display = 'flex';
+            }
             
             const data = loadData();
             const totalHypotheses = data.currentHypotheses.length + data.completedHypotheses.length;
@@ -7137,10 +7173,17 @@
             document.getElementById('progress-view').style.display = 'none';
             document.getElementById('history-view').style.display = 'none';
             document.getElementById('stats-view').style.display = 'none';
+            document.getElementById('points-view').style.display = 'none';
             document.getElementById('cards-view').style.display = 'block';
             
             updateNavigation('cards');
             updateCardDisplay();
+            
+            // カード画面ではヘッダーのポイント表示を非表示
+            const pointDisplay = document.getElementById('point-display');
+            if (pointDisplay) {
+                pointDisplay.style.display = 'none';
+            }
         }
 
         // カード表示を更新
