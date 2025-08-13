@@ -5654,6 +5654,62 @@
 
             // 朝の1行宣言パネルを更新
             renderAffirmationAndBenefit();
+            
+            // カテゴリ変更パネルを表示
+            renderCategoryPanel();
+        }
+
+        // カテゴリ変更パネルを表示する関数
+        function renderCategoryPanel() {
+            if (!window.currentHypothesis) return;
+            const hyp = window.currentHypothesis;
+            const data = loadData();
+            
+            // カテゴリマスターの初期化
+            if (!data.categoryMaster) {
+                data.categoryMaster = {
+                    study: { name: '勉強', icon: '📚', color: '#3b82f6' },
+                    exercise: { name: '運動', icon: '💪', color: '#ef4444' },
+                    health: { name: '健康', icon: '🧘', color: '#10b981' },
+                    work: { name: '仕事', icon: '💼', color: '#f59e0b' },
+                    hobby: { name: '趣味', icon: '🎨', color: '#8b5cf6' },
+                    other: { name: 'その他', icon: '📝', color: '#6b7280' }
+                };
+                saveData(data);
+            }
+            
+            const categoryInfo = data.categoryMaster[hyp.category] || 
+                                { name: 'その他', icon: '📝', color: '#6b7280' };
+            
+            let panel = document.getElementById('category-change-panel');
+            if (!panel) {
+                panel = document.createElement('div');
+                panel.id = 'category-change-panel';
+                panel.style.cssText = 'margin-top:12px;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--surface);';
+                
+                // カレンダーの後、強度パネルの前に挿入
+                const parent = document.getElementById('progress-view');
+                const intensityPanel = document.getElementById('intensity-panel');
+                if (intensityPanel) {
+                    parent.insertBefore(panel, intensityPanel);
+                } else {
+                    parent.appendChild(panel);
+                }
+            }
+            
+            panel.innerHTML = `
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                    <div style="display:flex;flex-direction:column;gap:4px;">
+                        <div style="font-weight:700;">🏷️ カテゴリ</div>
+                        <div style="color: var(--text-secondary);font-size:12px;">習慣のカテゴリを変更できます</div>
+                    </div>
+                    <button class="btn btn-secondary" onclick="editHypothesisCategory()" style="padding:8px 16px;border-radius:10px;display:flex;align-items:center;gap:8px;">
+                        <span style="font-size:20px;">${categoryInfo.icon}</span>
+                        <span>${categoryInfo.name}</span>
+                        <span>変更</span>
+                    </button>
+                </div>
+            `;
         }
 
         // 強度（Intensity）パネル（各習慣ごとにラベル3種を編集可能）
@@ -6096,7 +6152,10 @@
                 
                 overlay.remove();
                 showNotification('カテゴリを変更しました', 'success');
-                showProgressView(window.currentHypothesis.id);
+                // カテゴリパネルを更新
+                renderCategoryPanel();
+                // 進捗を更新
+                updateProgress();
             };
         }
         
