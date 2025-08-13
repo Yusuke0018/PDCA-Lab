@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>カテゴリ変更機能テスト</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        h1 {
+            background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .test-section {
+            background: rgba(30, 41, 59, 0.5);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .status {
+            padding: 8px 16px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        .success {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+        .error {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+        .info {
+            background: rgba(59, 130, 246, 0.2);
+            color: #3b82f6;
+        }
+        button {
+            background: linear-gradient(135deg, #3b82f6, #9333ea);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        pre {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 カテゴリ変更機能テスト</h1>
+    
+    <div class="test-section">
+        <h2>📊 現在の状態</h2>
+        <div id="status"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>🔧 機能テスト</h2>
+        <button onclick="checkCategoryFeature()">1. カテゴリ変更機能の確認</button>
+        <button onclick="testCategoryChange()">2. カテゴリ変更のテスト実行</button>
+        <button onclick="viewHabits()">3. 習慣一覧を表示</button>
+        <div id="test-results"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>📝 ログ</h2>
+        <pre id="log"></pre>
+    </div>
+    
+    <script>
+        function log(message, type = 'info') {
+            const logEl = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString('ja-JP');
+            const typeEmoji = {
+                'info': 'ℹ️',
+                'success': '✅',
+                'error': '❌',
+                'warning': '⚠️'
+            };
+            logEl.textContent += `[${timestamp}] ${typeEmoji[type]} ${message}\n`;
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+        
+        function updateStatus() {
+            const statusEl = document.getElementById('status');
+            const data = JSON.parse(localStorage.getItem('hypolab_local_data') || '{}');
+            
+            const habitsCount = (data.currentHypotheses || []).length;
+            const hasCategories = data.categoryMaster ? 'あり' : 'なし';
+            
+            statusEl.innerHTML = `
+                <div class="status info">
+                    <p>📚 現在の習慣数: ${habitsCount}</p>
+                    <p>🏷️ カテゴリマスタ: ${hasCategories}</p>
+                    ${data.categoryMaster ? `
+                        <p>カテゴリ一覧:</p>
+                        <ul>
+                            ${Object.entries(data.categoryMaster).map(([key, cat]) => 
+                                `<li>${cat.icon} ${cat.name} (${key})</li>`
+                            ).join('')}
+                        </ul>
+                    ` : ''}
+                </div>
+            `;
+            
+            log(`ステータス更新: 習慣数=${habitsCount}, カテゴリマスタ=${hasCategories}`);
+        }
+        
+        function checkCategoryFeature() {
+            const resultsEl = document.getElementById('test-results');
+            
+            log('カテゴリ変更機能の確認開始', 'info');
+            
+            // editHypothesisCategory関数の存在確認
+            const funcExists = typeof window.editHypothesisCategory === 'function';
+            
+            resultsEl.innerHTML = `
+                <div class="status ${funcExists ? 'success' : 'error'}">
+                    <p>${funcExists ? '✅' : '❌'} editHypothesisCategory関数: ${funcExists ? '存在' : '未定義'}</p>
+                </div>
+            `;
+            
+            if (!funcExists) {
+                log('editHypothesisCategory関数が見つかりません。アプリページを開いてください。', 'error');
+                resultsEl.innerHTML += `
+                    <div class="status info">
+                        <p>ℹ️ hypolab-local.htmlページを開いて、習慣の詳細画面でカテゴリ変更ボタンを確認してください。</p>
+                        <a href="hypolab-local.html" target="_blank" style="color: #3b82f6;">アプリを開く</a>
+                    </div>
+                `;
+            } else {
+                log('editHypothesisCategory関数が正常に定義されています', 'success');
+            }
+        }
+        
+        function testCategoryChange() {
+            const resultsEl = document.getElementById('test-results');
+            const data = JSON.parse(localStorage.getItem('hypolab_local_data') || '{}');
+            
+            if (!data.currentHypotheses || data.currentHypotheses.length === 0) {
+                resultsEl.innerHTML = `
+                    <div class="status error">
+                        <p>❌ テスト実行不可: 習慣が存在しません</p>
+                        <p>まず習慣を作成してください</p>
+                    </div>
+                `;
+                log('習慣が存在しないため、テストを実行できません', 'error');
+                return;
+            }
+            
+            const habit = data.currentHypotheses[0];
+            const oldCategory = habit.category || 'なし';
+            
+            // カテゴリを変更
+            const categories = ['study', 'exercise', 'health', 'work', 'hobby', 'other'];
+            const newCategory = categories.find(c => c !== oldCategory) || 'other';
+            
+            habit.category = newCategory;
+            data.currentHypotheses[0] = habit;
+            localStorage.setItem('hypolab_local_data', JSON.stringify(data));
+            
+            const categoryName = data.categoryMaster && data.categoryMaster[newCategory] 
+                ? data.categoryMaster[newCategory].name 
+                : newCategory;
+            
+            resultsEl.innerHTML = `
+                <div class="status success">
+                    <p>✅ カテゴリ変更テスト成功</p>
+                    <p>習慣: ${habit.title}</p>
+                    <p>変更前: ${oldCategory}</p>
+                    <p>変更後: ${newCategory} (${categoryName})</p>
+                </div>
+            `;
+            
+            log(`カテゴリ変更: ${habit.title} - ${oldCategory} → ${newCategory}`, 'success');
+            updateStatus();
+        }
+        
+        function viewHabits() {
+            const resultsEl = document.getElementById('test-results');
+            const data = JSON.parse(localStorage.getItem('hypolab_local_data') || '{}');
+            const habits = data.currentHypotheses || [];
+            
+            if (habits.length === 0) {
+                resultsEl.innerHTML = `
+                    <div class="status info">
+                        <p>習慣が登録されていません</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            resultsEl.innerHTML = `
+                <div class="status info">
+                    <h3>📚 習慣一覧</h3>
+                    ${habits.map((h, i) => {
+                        const cat = data.categoryMaster && data.categoryMaster[h.category]
+                            ? data.categoryMaster[h.category]
+                            : { name: 'その他', icon: '📝' };
+                        return `
+                            <div style="margin: 10px 0; padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 8px;">
+                                <p><strong>${i + 1}. ${h.title}</strong></p>
+                                <p>カテゴリ: ${cat.icon} ${cat.name} (${h.category || 'なし'})</p>
+                                <p>頻度: ${h.frequency ? h.frequency.type : '毎日'}</p>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+            
+            log(`習慣一覧を表示: ${habits.length}件`, 'info');
+        }
+        
+        // 初期化
+        updateStatus();
+        log('テストページ初期化完了', 'success');
+    </script>
+</body>
+</html>
