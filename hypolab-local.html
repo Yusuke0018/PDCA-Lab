@@ -2422,20 +2422,22 @@
             return true;
         }
 
-        // 努力ボーナスポイント獲得
-        function addEffortBonus(reason = '') {
-            const data = loadData();
-            
-            // 1日の上限チェック
-            if (data.pointSystem.dailyEffortUsed >= 3) {
-                alert('今日の努力ボーナスは上限（3ポイント）に達しています。');
+        // 努力ボーナスポイント獲得（改善版：何度でも使用可能、1-3pt選択）
+        function addEffortBonus(points, reason = '') {
+            // ポイント数のバリデーション
+            if (points < 1 || points > 3) {
                 return false;
             }
             
-            // 努力ポイント付与
-            data.pointSystem.dailyEffortUsed += 1;
-            earnPoints(1, 'effort_bonus', reason || '努力ボーナス');
+            const data = loadData();
             
+            // 使用回数を記録（上限なし）
+            data.pointSystem.dailyEffortUsed = (data.pointSystem.dailyEffortUsed || 0) + 1;
+            
+            // 努力ポイント付与
+            earnPoints(points, 'effort_bonus', reason || `努力ボーナス (${points}pt)`);
+            
+            saveData(data);
             return true;
         }
 
@@ -2457,44 +2459,180 @@
             updateEffortBonusDisplay();
         }
         
-        // 努力ボーナス表示を更新
+        // 努力ボーナス表示を更新（改善版：使用回数表示）
         function updateEffortBonusDisplay() {
             const data = loadData();
-            const remaining = 3 - data.pointSystem.dailyEffortUsed;
+            const usedToday = data.pointSystem.dailyEffortUsed || 0;
             const effortStars = document.getElementById('effort-stars');
             const effortCount = document.getElementById('effort-count');
             
             if (effortStars) {
+                // 今日の使用回数を星で表示（最大10個まで表示）
                 let stars = '';
-                for (let i = 0; i < 3; i++) {
-                    if (i < remaining) {
-                        stars += '⭐';
-                    } else {
-                        stars += '☆';
-                    }
+                const displayCount = Math.min(usedToday, 10);
+                for (let i = 0; i < displayCount; i++) {
+                    stars += '⭐';
+                }
+                if (usedToday > 10) {
+                    stars += `+${usedToday - 10}`;
+                }
+                if (usedToday === 0) {
+                    stars = '💪 まだ使っていません';
                 }
                 effortStars.textContent = stars;
             }
             
             if (effortCount) {
-                effortCount.textContent = `残り${remaining}ポイント`;
+                effortCount.textContent = `今日${usedToday}回使用`;
             }
         }
         
-        // 努力ボーナスダイアログを表示
+        // 努力ボーナスダイアログを表示（改善版：1-3pt選択可能）
         function showEffortBonusDialog() {
-            const data = loadData();
-            if (data.pointSystem.dailyEffortUsed >= 3) {
-                alert('今日の努力ボーナスは上限（3ポイント）に達しています。\n明日また挑戦してください！');
-                return;
+            // カスタムダイアログHTMLを作成
+            const dialogHTML = `
+                <div id="effort-dialog" style="
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    background: var(--surface);
+                    border: 2px solid var(--primary);
+                    border-radius: 16px;
+                    padding: 24px;
+                    z-index: 10000;
+                    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+                    max-width: 90%;
+                    width: 320px;
+                ">
+                    <h3 style="margin-bottom: 16px; color: var(--primary);">💪 努力ボーナス</h3>
+                    <div style="margin-bottom: 16px;">
+                        <label style="display: block; margin-bottom: 8px; color: var(--text-secondary);">何を頑張りましたか？</label>
+                        <input type="text" id="effort-reason" placeholder="例: 早起きした" style="
+                            width: 100%;
+                            padding: 8px;
+                            background: var(--background);
+                            border: 1px solid var(--border);
+                            border-radius: 8px;
+                            color: var(--text-primary);
+                        ">
+                    </div>
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 12px; color: var(--text-secondary);">ポイントを選択</label>
+                        <div style="display: flex; gap: 8px;">
+                            <button onclick="selectEffortPoints(1)" id="effort-1pt" class="effort-point-btn" style="
+                                flex: 1;
+                                padding: 12px;
+                                background: var(--surface-light);
+                                border: 2px solid var(--border);
+                                border-radius: 8px;
+                                color: var(--text-primary);
+                                cursor: pointer;
+                                font-size: 16px;
+                                font-weight: bold;
+                            ">1pt</button>
+                            <button onclick="selectEffortPoints(2)" id="effort-2pt" class="effort-point-btn" style="
+                                flex: 1;
+                                padding: 12px;
+                                background: var(--primary);
+                                border: 2px solid var(--primary);
+                                border-radius: 8px;
+                                color: white;
+                                cursor: pointer;
+                                font-size: 16px;
+                                font-weight: bold;
+                            ">2pt</button>
+                            <button onclick="selectEffortPoints(3)" id="effort-3pt" class="effort-point-btn" style="
+                                flex: 1;
+                                padding: 12px;
+                                background: var(--surface-light);
+                                border: 2px solid var(--border);
+                                border-radius: 8px;
+                                color: var(--text-primary);
+                                cursor: pointer;
+                                font-size: 16px;
+                                font-weight: bold;
+                            ">3pt</button>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button onclick="confirmEffortBonus()" style="
+                            flex: 1;
+                            padding: 12px;
+                            background: var(--primary);
+                            border: none;
+                            border-radius: 8px;
+                            color: white;
+                            cursor: pointer;
+                            font-weight: bold;
+                        ">獲得する</button>
+                        <button onclick="closeEffortDialog()" style="
+                            flex: 1;
+                            padding: 12px;
+                            background: var(--surface-light);
+                            border: none;
+                            border-radius: 8px;
+                            color: var(--text-primary);
+                            cursor: pointer;
+                        ">キャンセル</button>
+                    </div>
+                </div>
+                <div id="effort-overlay" onclick="closeEffortDialog()" style="
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(0,0,0,0.5);
+                    z-index: 9999;
+                "></div>
+            `;
+            
+            // ダイアログを表示
+            const dialogContainer = document.createElement('div');
+            dialogContainer.innerHTML = dialogHTML;
+            document.body.appendChild(dialogContainer);
+            
+            // デフォルトで2ptを選択
+            window.selectedEffortPoints = 2;
+        }
+        
+        // 努力ポイントを選択
+        function selectEffortPoints(points) {
+            window.selectedEffortPoints = points;
+            // ボタンのスタイルを更新
+            document.querySelectorAll('.effort-point-btn').forEach(btn => {
+                btn.style.background = 'var(--surface-light)';
+                btn.style.borderColor = 'var(--border)';
+                btn.style.color = 'var(--text-primary)';
+            });
+            const selectedBtn = document.getElementById(`effort-${points}pt`);
+            if (selectedBtn) {
+                selectedBtn.style.background = 'var(--primary)';
+                selectedBtn.style.borderColor = 'var(--primary)';
+                selectedBtn.style.color = 'white';
+            }
+        }
+        
+        // 努力ボーナスを確定
+        function confirmEffortBonus() {
+            const reason = document.getElementById('effort-reason').value;
+            const points = window.selectedEffortPoints || 2;
+            
+            if (addEffortBonus(points, reason)) {
+                updateEffortBonusDisplay();
+                showNotification(`💪 努力ボーナス +${points}pt 獲得！`, 'success');
             }
             
-            const reason = prompt('どんなことを頑張りましたか？（任意）');
-            if (reason !== null) { // キャンセルじゃない場合
-                if (addEffortBonus(reason)) {
-                    updateEffortBonusDisplay();
-                    showNotification('💪 努力ボーナス +1pt 獲得！', 'success');
-                }
+            closeEffortDialog();
+        }
+        
+        // ダイアログを閉じる
+        function closeEffortDialog() {
+            const dialog = document.getElementById('effort-dialog');
+            const overlay = document.getElementById('effort-overlay');
+            if (dialog && dialog.parentElement) {
+                dialog.parentElement.remove();
             }
         }
 
