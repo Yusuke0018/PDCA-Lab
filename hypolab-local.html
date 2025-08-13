@@ -2242,6 +2242,135 @@
                 rarity: 'rare',
                 color: '#10b981'
             },
+            // 新規追加カード - 報酬カード
+            event_trigger: {
+                id: 'event_trigger',
+                type: 'reward',
+                name: 'イベントトリガー',
+                description: '明日のイベント発生確率を100%にする',
+                icon: '🎪',
+                rarity: 'rare',
+                color: '#8b5cf6'
+            },
+            event_combo: {
+                id: 'event_combo',
+                type: 'reward',
+                name: 'イベントコンボ',
+                description: '3日間連続でイベントが発生する',
+                icon: '🔮',
+                rarity: 'legendary',
+                color: '#ec4899'
+            },
+            point_gem: {
+                id: 'point_gem',
+                type: 'reward',
+                name: 'ポイントジェム',
+                description: '次の3日間、獲得ポイントが2倍になる',
+                icon: '💎',
+                rarity: 'rare',
+                color: '#06b6d4'
+            },
+            mission_master: {
+                id: 'mission_master',
+                type: 'reward',
+                name: 'ミッションマスター',
+                description: '今日のミッションが自動達成される',
+                icon: '🎯',
+                rarity: 'legendary',
+                color: '#f59e0b'
+            },
+            rainbow_boost: {
+                id: 'rainbow_boost',
+                type: 'reward',
+                name: 'レインボーブースト',
+                description: '全カテゴリーの習慣が今日は2倍ポイント',
+                icon: '🌈',
+                rarity: 'legendary',
+                color: '#a855f7'
+            },
+            quick_start: {
+                id: 'quick_start',
+                type: 'reward',
+                name: 'クイックスタート',
+                description: '次の習慣の最初の3日が自動達成',
+                icon: '⚡',
+                rarity: 'rare',
+                color: '#14b8a6'
+            },
+            streak_bonus: {
+                id: 'streak_bonus',
+                type: 'reward',
+                name: '連続達成ボーナス',
+                description: '7日連続達成でレアカード確定',
+                icon: '🔥',
+                rarity: 'rare',
+                color: '#f97316'
+            },
+            lucky_seven: {
+                id: 'lucky_seven',
+                type: 'reward',
+                name: 'ラッキーセブン',
+                description: '今日から7日間、カードドロップ率2倍',
+                icon: '🎰',
+                rarity: 'legendary',
+                color: '#eab308'
+            },
+            // 新規追加カード - ペナルティカード
+            event_seal: {
+                id: 'event_seal',
+                type: 'penalty',
+                name: 'イベント封印',
+                description: '3日間イベントが発生しない',
+                icon: '🌑',
+                rarity: 'common',
+                color: '#64748b'
+            },
+            mission_overload: {
+                id: 'mission_overload',
+                type: 'penalty',
+                name: 'ミッション追加',
+                description: '今日のミッションが2つ追加される',
+                icon: '⛓️',
+                rarity: 'rare',
+                color: '#991b1b'
+            },
+            slowdown: {
+                id: 'slowdown',
+                type: 'penalty',
+                name: 'スローダウン',
+                description: '3日間獲得ポイントが0.5倍',
+                icon: '🕸️',
+                rarity: 'common',
+                color: '#7c2d12'
+            },
+            reverse_curse: {
+                id: 'reverse_curse',
+                type: 'penalty',
+                name: '逆転の呪い',
+                description: '3日間、達成と未達成の効果が反転',
+                icon: '🎭',
+                rarity: 'legendary',
+                color: '#581c87'
+            },
+            // 新規追加カード - 特殊カード
+            conversion_magic: {
+                id: 'conversion_magic',
+                type: 'special',
+                name: '変換の魔法',
+                description: 'ペナルティカード1枚を報酬カードに変換',
+                icon: '🪄',
+                rarity: 'legendary',
+                color: '#0891b2'
+            },
+            fate_dice: {
+                id: 'fate_dice',
+                type: 'special',
+                name: '運命のダイス',
+                description: 'ランダムで報酬かペナルティ効果が発動（50/50）',
+                icon: '🎲',
+                rarity: 'rare',
+                color: '#059669'
+            },
             double_or_nothing: {
                 id: 'double_or_nothing',
                 type: 'penalty',
@@ -4543,6 +4672,49 @@
                             case 'achievement_decrease':
                                 window.achievementDecrease = 10;
                                 break;
+                            case 'event_seal':
+                                // イベント封印効果を3日間適用
+                                const sealStart = new Date();
+                                const sealEnd = new Date();
+                                sealEnd.setDate(sealEnd.getDate() + 3);
+                                if (!data.cards.activeEffects) data.cards.activeEffects = [];
+                                data.cards.activeEffects.push({
+                                    type: 'event_seal',
+                                    startDate: sealStart.toISOString(),
+                                    endDate: sealEnd.toISOString()
+                                });
+                                saveData(data);
+                                break;
+                            case 'mission_overload':
+                                // ミッション追加（ランダムに2つ追加）
+                                window.additionalMissions = 2;
+                                break;
+                            case 'slowdown':
+                                // ポイント0.5倍効果を3日間適用
+                                const slowStart = new Date();
+                                const slowEnd = new Date();
+                                slowEnd.setDate(slowEnd.getDate() + 3);
+                                if (!data.cards.activeEffects) data.cards.activeEffects = [];
+                                data.cards.activeEffects.push({
+                                    type: 'slowdown',
+                                    startDate: slowStart.toISOString(),
+                                    endDate: slowEnd.toISOString()
+                                });
+                                saveData(data);
+                                break;
+                            case 'reverse_curse':
+                                // 逆転の呪い効果を3日間適用
+                                const curseStart = new Date();
+                                const curseEnd = new Date();
+                                curseEnd.setDate(curseEnd.getDate() + 3);
+                                if (!data.cards.activeEffects) data.cards.activeEffects = [];
+                                data.cards.activeEffects.push({
+                                    type: 'reverse_curse',
+                                    startDate: curseStart.toISOString(),
+                                    endDate: curseEnd.toISOString()
+                                });
+                                saveData(data);
+                                break;
                         }
                     }
                 });
@@ -4816,6 +4988,26 @@
                         cardDiv.onclick = () => useAchievementBooster();
                     } else if (cardId === 'second_chance') {
                         cardDiv.onclick = () => useSecondChance();
+                    } else if (cardId === 'event_trigger') {
+                        cardDiv.onclick = () => useEventTrigger();
+                    } else if (cardId === 'event_combo') {
+                        cardDiv.onclick = () => useEventCombo();
+                    } else if (cardId === 'point_gem') {
+                        cardDiv.onclick = () => usePointGem();
+                    } else if (cardId === 'mission_master') {
+                        cardDiv.onclick = () => useMissionMaster();
+                    } else if (cardId === 'rainbow_boost') {
+                        cardDiv.onclick = () => useRainbowBoost();
+                    } else if (cardId === 'quick_start') {
+                        cardDiv.onclick = () => useQuickStart();
+                    } else if (cardId === 'streak_bonus') {
+                        cardDiv.onclick = () => useStreakBonus();
+                    } else if (cardId === 'lucky_seven') {
+                        cardDiv.onclick = () => useLuckySeven();
+                    } else if (cardId === 'conversion_magic') {
+                        cardDiv.onclick = () => useConversionMagic();
+                    } else if (cardId === 'fate_dice') {
+                        cardDiv.onclick = () => useFateDice();
                     }
                     
                     container.appendChild(cardDiv);
@@ -9753,6 +9945,7 @@
         function checkDailyEvents() {
             const data = loadData();
             const today = new Date().toDateString();
+            const todayStr = new Date().toISOString().split('T')[0];
             
             // 最後のチェック日と同じなら何もしない
             if (data.events.lastEventCheck === today) return;
@@ -9760,17 +9953,37 @@
             data.events.lastEventCheck = today;
             data.events.activeBoosts = [];
             
+            // イベント封印チェック
+            if (data.cards && data.cards.activeEffects) {
+                const sealEffect = data.cards.activeEffects.find(effect => 
+                    effect.type === 'event_seal' && 
+                    new Date(effect.startDate) <= new Date() && 
+                    new Date(effect.endDate) >= new Date()
+                );
+                if (sealEffect) {
+                    saveData(data);
+                    return; // イベント封印中は何もしない
+                }
+            }
+            
             // ブーストが有効ならチェック
             if (data.events.boostEnabled) {
-                // イベント個数を決定（0個:50%, 1個:45%, 2個:5%）
-                const eventRoll = Math.random();
                 let eventCount = 0;
-                if (eventRoll < 0.5) {
-                    eventCount = 0;  // 50%の確率で0個
-                } else if (eventRoll < 0.95) {
-                    eventCount = 1;  // 45%の確率で1個
+                
+                // 強制イベントチェック
+                if (data.events.forcedEvents && data.events.forcedEvents[todayStr]) {
+                    eventCount = 1;  // 強制イベント発生
+                    delete data.events.forcedEvents[todayStr];  // 使用済みにする
                 } else {
-                    eventCount = 2;  // 5%の確率で2個
+                    // 通常のイベント個数を決定（0個:50%, 1個:45%, 2個:5%）
+                    const eventRoll = Math.random();
+                    if (eventRoll < 0.5) {
+                        eventCount = 0;  // 50%の確率で0個
+                    } else if (eventRoll < 0.95) {
+                        eventCount = 1;  // 45%の確率で1個
+                    } else {
+                        eventCount = 2;  // 5%の確率で2個
+                    }
                 }
                 
                 if (eventCount > 0) {
@@ -9947,39 +10160,86 @@
             let multiplier = 1.0;
             let bonus = 0;
             
-            if (!data.events.activeBoosts) return basePoints;
-            
-            data.events.activeBoosts.forEach(boost => {
-                const effect = boost.effect;
+            // カード効果のチェック
+            if (data.cards && data.cards.activeEffects) {
+                const now = new Date();
                 
-                switch (effect.type) {
-                    case 'global_multiplier':
-                        multiplier *= effect.value;
-                        break;
-                    case 'category_multiplier':
-                        if (category === effect.target) {
-                            multiplier *= effect.value;
-                        }
-                        break;
-                    case 'category_bonus':
-                        if (category === effect.target) {
-                            bonus += effect.value;
-                        }
-                        break;
-                    case 'challenge_multiplier':
-                        if (source === 'challenge') {
-                            multiplier *= effect.value;
-                        }
-                        break;
-                    case 'time_bonus':
-                        const hour = new Date().getHours();
-                        if ((boost.duration === 'morning' && hour >= 6 && hour <= 9) ||
-                            (boost.duration === 'night' && hour >= 20 && hour <= 23)) {
-                            bonus += effect.value;
-                        }
-                        break;
+                // ポイントジェム効果
+                const pointGem = data.cards.activeEffects.find(effect => 
+                    effect.type === 'point_multiplier' && 
+                    new Date(effect.startDate) <= now && 
+                    new Date(effect.endDate) >= now
+                );
+                if (pointGem) {
+                    multiplier *= pointGem.multiplier;
                 }
-            });
+                
+                // レインボーブースト効果
+                const rainbowBoost = data.cards.activeEffects.find(effect => 
+                    effect.type === 'all_category_boost' && 
+                    new Date(effect.startDate) <= now && 
+                    new Date(effect.endDate) >= now
+                );
+                if (rainbowBoost && category) {
+                    multiplier *= rainbowBoost.multiplier;
+                }
+                
+                // スローダウン効果
+                const slowdown = data.cards.activeEffects.find(effect => 
+                    effect.type === 'slowdown' && 
+                    new Date(effect.startDate) <= now && 
+                    new Date(effect.endDate) >= now
+                );
+                if (slowdown) {
+                    multiplier *= 0.5;
+                }
+                
+                // 逆転の呪い効果
+                const reverseCurse = data.cards.activeEffects.find(effect => 
+                    effect.type === 'reverse_curse' && 
+                    new Date(effect.startDate) <= now && 
+                    new Date(effect.endDate) >= now
+                );
+                if (reverseCurse && source === 'habit') {
+                    // 達成で0ポイント、未達成で通常ポイント（呼び出し元で処理）
+                    return 0;
+                }
+            }
+            
+            // イベントブースト効果
+            if (data.events && data.events.activeBoosts) {
+                data.events.activeBoosts.forEach(boost => {
+                    const effect = boost.effect;
+                    
+                    switch (effect.type) {
+                        case 'global_multiplier':
+                            multiplier *= effect.value;
+                            break;
+                        case 'category_multiplier':
+                            if (category === effect.target) {
+                                multiplier *= effect.value;
+                            }
+                            break;
+                        case 'category_bonus':
+                            if (category === effect.target) {
+                                bonus += effect.value;
+                            }
+                            break;
+                        case 'challenge_multiplier':
+                            if (source === 'challenge') {
+                                multiplier *= effect.value;
+                            }
+                            break;
+                        case 'time_bonus':
+                            const hour = new Date().getHours();
+                            if ((boost.duration === 'morning' && hour >= 6 && hour <= 9) ||
+                                (boost.duration === 'night' && hour >= 20 && hour <= 23)) {
+                                bonus += effect.value;
+                            }
+                            break;
+                    }
+                });
+            }
             
             finalPoints = Math.round(basePoints * multiplier + bonus);
             return finalPoints;
@@ -10051,14 +10311,31 @@
                 protect_shield: 'ペナルティカードを引いた後に出現しやすい',
                 achievement_booster: '達成率が低い時に応援として出現',
                 second_chance: '習慣期限が近づくと出現率UP',
+                event_trigger: 'イベントが少ない日が続くと出現',
+                event_combo: '複数イベントが同時発生した日に稀に出現',
+                point_gem: 'ポイントを大量に使った後に出現しやすい',
+                mission_master: '全ミッションクリアで出現率UP',
+                rainbow_boost: '全カテゴリーの習慣を持つと出現',
+                quick_start: '新しい習慣を始める時に出現しやすい',
+                streak_bonus: '連続達成記録が途切れた後に出現',
+                lucky_seven: '7の付く日に出現率UP',
                 
                 // ペナルティカード
                 hard_mode: '簡単すぎる習慣には試練が待っている',
                 reset_risk: '油断は禁物、連続失敗に注意',
                 achievement_decrease: '最初から躓くこともある',
-                short_term_limit: '長期習慣の後に現れやすい',
+                short_term: '長期習慣の後に現れやすい',
+                extension_card: '短期習慣を選びすぎると...',
                 chaos_vortex: 'カオスな日々を過ごすと...',
-                double_or_nothing: '大きな賭けには大きなリスク'
+                double_or_nothing: '大きな賭けには大きなリスク',
+                event_seal: 'イベントが多すぎた日の翌日に',
+                mission_overload: 'ミッションを怠けていると...',
+                slowdown: '急ぎすぎには注意が必要',
+                reverse_curse: '不規則な達成パターンで出現',
+                
+                // 特殊カード
+                conversion_magic: '伝説の習慣達成者のみが手にする',
+                fate_dice: '運命を信じる者に与えられる'
             };
             
             return hints[cardId] || '条件は秘密...探し出そう！';
@@ -10379,6 +10656,60 @@
                     });
                     saveData(data);
                     break;
+                    
+                case 'event_seal':
+                    // イベント封印効果を3日間適用
+                    const sealData = loadData();
+                    const sealStart = new Date();
+                    const sealEnd = new Date();
+                    sealEnd.setDate(sealEnd.getDate() + 3);
+                    if (!sealData.cards.activeEffects) sealData.cards.activeEffects = [];
+                    sealData.cards.activeEffects.push({
+                        type: 'event_seal',
+                        startDate: sealStart.toISOString(),
+                        endDate: sealEnd.toISOString()
+                    });
+                    saveData(sealData);
+                    showCardEffect('イベント封印発動！', '3日間イベントが発生しません', '#64748b');
+                    break;
+                    
+                case 'mission_overload':
+                    // ミッション追加（今日のミッションに2つ追加）
+                    window.additionalMissions = 2;
+                    showCardEffect('ミッション追加発動！', '今日のミッションが2つ追加されました', '#991b1b');
+                    break;
+                    
+                case 'slowdown':
+                    // ポイント0.5倍効果を3日間適用
+                    const slowData = loadData();
+                    const slowStart = new Date();
+                    const slowEnd = new Date();
+                    slowEnd.setDate(slowEnd.getDate() + 3);
+                    if (!slowData.cards.activeEffects) slowData.cards.activeEffects = [];
+                    slowData.cards.activeEffects.push({
+                        type: 'slowdown',
+                        startDate: slowStart.toISOString(),
+                        endDate: slowEnd.toISOString()
+                    });
+                    saveData(slowData);
+                    showCardEffect('スローダウン発動！', '3日間獲得ポイントが0.5倍になります', '#7c2d12');
+                    break;
+                    
+                case 'reverse_curse':
+                    // 逆転の呪い効果を3日間適用
+                    const curseData = loadData();
+                    const curseStart = new Date();
+                    const curseEnd = new Date();
+                    curseEnd.setDate(curseEnd.getDate() + 3);
+                    if (!curseData.cards.activeEffects) curseData.cards.activeEffects = [];
+                    curseData.cards.activeEffects.push({
+                        type: 'reverse_curse',
+                        startDate: curseStart.toISOString(),
+                        endDate: curseEnd.toISOString()
+                    });
+                    saveData(curseData);
+                    showCardEffect('逆転の呪い発動！', '3日間、達成と未達成の効果が反転します', '#581c87');
+                    break;
             }
             
             // データを保存（double_or_nothing以外）
@@ -10600,6 +10931,383 @@
             updateProgress();
             
             showCardEffect('セカンドチャンス発動！', '3日分の追加チャンスを獲得しました', '#10b981');
+        }
+
+        // 新しいカード効果関数
+
+        // イベントトリガー
+        function useEventTrigger() {
+            closeCardUseMenu();
+            const data = loadData();
+            
+            // カードを消費
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'event_trigger' && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                showNotification('⚠️ イベントトリガーがありません', 'error');
+                return;
+            }
+            
+            // カードを使用済みにする
+            data.cards.inventory[cardIndex].used = true;
+            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            
+            // 明日のイベントを確定させる
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const tomorrowStr = tomorrow.toISOString().split('T')[0];
+            
+            if (!data.events) data.events = {};
+            if (!data.events.forcedEvents) data.events.forcedEvents = {};
+            data.events.forcedEvents[tomorrowStr] = true;
+            
+            saveData(data);
+            showNotification('🎪 明日は必ずイベントが発生します！', 'success');
+            updateCardUseButton();
+        }
+
+        // イベントコンボ
+        function useEventCombo() {
+            closeCardUseMenu();
+            const data = loadData();
+            
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'event_combo' && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                showNotification('⚠️ イベントコンボがありません', 'error');
+                return;
+            }
+            
+            data.cards.inventory[cardIndex].used = true;
+            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            
+            // 3日間連続でイベントを確定
+            if (!data.events) data.events = {};
+            if (!data.events.forcedEvents) data.events.forcedEvents = {};
+            
+            for (let i = 1; i <= 3; i++) {
+                const date = new Date();
+                date.setDate(date.getDate() + i);
+                const dateStr = date.toISOString().split('T')[0];
+                data.events.forcedEvents[dateStr] = true;
+            }
+            
+            saveData(data);
+            showNotification('🔮 3日間連続でイベントが発生します！', 'success');
+            updateCardUseButton();
+        }
+
+        // ポイントジェム
+        function usePointGem() {
+            closeCardUseMenu();
+            const data = loadData();
+            
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'point_gem' && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                showNotification('⚠️ ポイントジェムがありません', 'error');
+                return;
+            }
+            
+            data.cards.inventory[cardIndex].used = true;
+            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            
+            // 3日間ポイント2倍効果を付与
+            if (!data.cards.activeEffects) data.cards.activeEffects = [];
+            
+            const today = new Date();
+            const endDate = new Date();
+            endDate.setDate(endDate.getDate() + 3);
+            
+            data.cards.activeEffects.push({
+                cardId: 'point_gem',
+                type: 'point_multiplier',
+                multiplier: 2,
+                startDate: today.toISOString(),
+                endDate: endDate.toISOString()
+            });
+            
+            saveData(data);
+            showNotification('💎 3日間ポイントが2倍になります！', 'success');
+            updateCardUseButton();
+        }
+
+        // ミッションマスター
+        function useMissionMaster() {
+            closeCardUseMenu();
+            const data = loadData();
+            
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'mission_master' && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                showNotification('⚠️ ミッションマスターがありません', 'error');
+                return;
+            }
+            
+            data.cards.inventory[cardIndex].used = true;
+            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            
+            // 今日のミッションを自動達成
+            const today = new Date().toISOString().split('T')[0];
+            if (!data.challenges) data.challenges = {};
+            if (!data.challenges.daily) data.challenges.daily = {};
+            if (!data.challenges.missions) data.challenges.missions = {};
+            
+            // デイリーミッションをすべて達成扱いにする
+            const dailyMissions = ['3habits', '5achievements_C', 'continuous_3days', 'morning_achievement', 
+                                   'effort_bonus_5pt', 'all_categories', 'perfect_1habit', 'weekend_10habits',
+                                   'weekday_consistency', 'evening_achievement', 'total_20pt', 'any_challenge'];
+            
+            dailyMissions.forEach(missionId => {
+                if (!data.challenges.missions[missionId]) {
+                    data.challenges.missions[missionId] = {};
+                }
+                data.challenges.missions[missionId][today] = true;
+            });
+            
+            saveData(data);
+            showNotification('🎯 今日のミッションがすべて達成されました！', 'success');
+            updateCardUseButton();
+            updateChallenges();
+        }
+
+        // レインボーブースト
+        function useRainbowBoost() {
+            closeCardUseMenu();
+            const data = loadData();
+            
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'rainbow_boost' && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                showNotification('⚠️ レインボーブーストがありません', 'error');
+                return;
+            }
+            
+            data.cards.inventory[cardIndex].used = true;
+            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            
+            // 今日のすべてのカテゴリーポイント2倍
+            const today = new Date();
+            const endDate = new Date();
+            endDate.setHours(23, 59, 59, 999);
+            
+            if (!data.cards.activeEffects) data.cards.activeEffects = [];
+            data.cards.activeEffects.push({
+                cardId: 'rainbow_boost',
+                type: 'all_category_boost',
+                multiplier: 2,
+                startDate: today.toISOString(),
+                endDate: endDate.toISOString()
+            });
+            
+            saveData(data);
+            showNotification('🌈 今日はすべてのカテゴリーでポイント2倍！', 'success');
+            updateCardUseButton();
+        }
+
+        // クイックスタート
+        function useQuickStart() {
+            closeCardUseMenu();
+            const data = loadData();
+            
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'quick_start' && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                showNotification('⚠️ クイックスタートがありません', 'error');
+                return;
+            }
+            
+            data.cards.inventory[cardIndex].used = true;
+            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            
+            // 次の習慣作成時に効果を適用するフラグを設定
+            if (!data.cards.pendingEffects) data.cards.pendingEffects = [];
+            data.cards.pendingEffects.push({
+                cardId: 'quick_start',
+                type: 'auto_achieve_first_days',
+                days: 3
+            });
+            
+            saveData(data);
+            showNotification('⚡ 次の習慣の最初の3日が自動達成されます！', 'success');
+            updateCardUseButton();
+        }
+
+        // 連続達成ボーナス
+        function useStreakBonus() {
+            closeCardUseMenu();
+            const data = loadData();
+            
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'streak_bonus' && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                showNotification('⚠️ 連続達成ボーナスがありません', 'error');
+                return;
+            }
+            
+            data.cards.inventory[cardIndex].used = true;
+            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            
+            // 7日連続達成でレアカード確定
+            if (!data.cards.activeEffects) data.cards.activeEffects = [];
+            const today = new Date();
+            const endDate = new Date();
+            endDate.setDate(endDate.getDate() + 7);
+            
+            data.cards.activeEffects.push({
+                cardId: 'streak_bonus',
+                type: 'streak_rare_guarantee',
+                targetDays: 7,
+                startDate: today.toISOString(),
+                endDate: endDate.toISOString()
+            });
+            
+            saveData(data);
+            showNotification('🔥 7日連続達成でレアカード確定！', 'success');
+            updateCardUseButton();
+        }
+
+        // ラッキーセブン
+        function useLuckySeven() {
+            closeCardUseMenu();
+            const data = loadData();
+            
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'lucky_seven' && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                showNotification('⚠️ ラッキーセブンがありません', 'error');
+                return;
+            }
+            
+            data.cards.inventory[cardIndex].used = true;
+            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            
+            // 7日間カードドロップ率2倍
+            if (!data.cards.activeEffects) data.cards.activeEffects = [];
+            const today = new Date();
+            const endDate = new Date();
+            endDate.setDate(endDate.getDate() + 7);
+            
+            data.cards.activeEffects.push({
+                cardId: 'lucky_seven',
+                type: 'drop_rate_boost',
+                multiplier: 2,
+                startDate: today.toISOString(),
+                endDate: endDate.toISOString()
+            });
+            
+            saveData(data);
+            showNotification('🎰 7日間カードドロップ率が2倍になりました！', 'success');
+            updateCardUseButton();
+        }
+
+        // 変換の魔法
+        function useConversionMagic() {
+            closeCardUseMenu();
+            const data = loadData();
+            
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'conversion_magic' && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                showNotification('⚠️ 変換の魔法がありません', 'error');
+                return;
+            }
+            
+            // ペナルティカードを探す
+            const penaltyCards = data.cards.inventory.filter(
+                card => !card.used && CARD_MASTER[card.cardId] && CARD_MASTER[card.cardId].type === 'penalty'
+            );
+            
+            if (penaltyCards.length === 0) {
+                showNotification('⚠️ 変換できるペナルティカードがありません', 'error');
+                return;
+            }
+            
+            // ランダムにペナルティカードを選択
+            const targetCard = penaltyCards[Math.floor(Math.random() * penaltyCards.length)];
+            const targetIndex = data.cards.inventory.indexOf(targetCard);
+            
+            // カードを使用済みにする
+            data.cards.inventory[cardIndex].used = true;
+            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            
+            // ペナルティカードを削除
+            data.cards.inventory.splice(targetIndex, 1);
+            
+            // ランダムな報酬カードを追加
+            const rewardCards = Object.keys(CARD_MASTER).filter(
+                id => CARD_MASTER[id].type === 'reward'
+            );
+            const newCardId = rewardCards[Math.floor(Math.random() * rewardCards.length)];
+            
+            data.cards.inventory.push({
+                cardId: newCardId,
+                acquiredDate: new Date().toISOString(),
+                used: false
+            });
+            
+            // カード図鑑に登録
+            registerCardToAlbum(newCardId);
+            
+            saveData(data);
+            showNotification(`🪄 ${CARD_MASTER[targetCard.cardId].name}を${CARD_MASTER[newCardId].name}に変換しました！`, 'success');
+            updateCardUseButton();
+        }
+
+        // 運命のダイス
+        function useFateDice() {
+            closeCardUseMenu();
+            const data = loadData();
+            
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'fate_dice' && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                showNotification('⚠️ 運命のダイスがありません', 'error');
+                return;
+            }
+            
+            data.cards.inventory[cardIndex].used = true;
+            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            
+            // 50/50で報酬かペナルティ
+            const isReward = Math.random() < 0.5;
+            
+            if (isReward) {
+                // 報酬効果：10-30ポイント獲得
+                const points = Math.floor(Math.random() * 21) + 10;
+                earnPoints(points, `運命のダイス（大当たり！）`);
+                showNotification(`🎲 大当たり！${points}ポイント獲得！`, 'success');
+            } else {
+                // ペナルティ効果：5-15ポイント失う
+                const points = Math.floor(Math.random() * 11) + 5;
+                data.pointSystem.currentPoints = Math.max(0, data.pointSystem.currentPoints - points);
+                addTransaction(-points, 'penalty', '運命のダイス（ハズレ）');
+                showNotification(`🎲 残念...${points}ポイント失いました`, 'error');
+            }
+            
+            saveData(data);
+            updateCardUseButton();
+            updatePointsDisplay();
         }
         
         // 通知を表示
