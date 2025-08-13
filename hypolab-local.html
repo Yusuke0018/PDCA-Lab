@@ -1325,10 +1325,12 @@
                 gap: 2px !important;
                 padding-bottom: 4px !important;
                 -webkit-overflow-scrolling: touch !important;
+                justify-content: space-between !important;
             }
             #weekday-stats > div {
-                flex: 0 0 40px !important;
-                min-width: 40px !important;
+                flex: 1 1 calc(14% - 2px) !important;
+                min-width: 38px !important;
+                max-width: 50px !important;
             }
             .achievement-chart {
                 gap: 6px !important;
@@ -1821,7 +1823,7 @@
                 <div class="achievement-chart" id="achievement-chart" style="display:grid; gap:16px;">
                     <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
                         <h3 style="margin-bottom:8px;">⏰ 曜日別達成率</h3>
-                        <div id="weekday-stats" style="display:flex; gap:4px; margin-top:12px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch;"></div>
+                        <div id="weekday-stats" style="display:flex; gap:3px; margin-top:8px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; justify-content: space-between;"></div>
                     </div>
                     <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
                         <h3 style="margin-bottom:8px;">🎮 達成率レベル分布</h3>
@@ -5715,11 +5717,11 @@
                     const color = rate >= 80 ? '#10b981' : rate >= 50 ? '#3b82f6' : '#ef4444';
                     
                     const dayCard = document.createElement('div');
-                    dayCard.style.cssText = 'text-align:center; padding:12px 8px; background:rgba(99,102,241,0.1); border-radius:8px;';
+                    dayCard.style.cssText = 'text-align:center; padding:8px 4px; background:rgba(99,102,241,0.1); border-radius:8px; min-width: 40px;';
                     dayCard.innerHTML = `
-                        <div style="font-size:14px; font-weight:600; margin-bottom:4px;">${weekdayNames[i]}</div>
-                        <div style="font-size:24px; font-weight:800; color:${color};">${rate}%</div>
-                        <div style="font-size:10px; color:var(--text-secondary);">${stats.achieved}/${stats.total}</div>
+                        <div style="font-size:12px; font-weight:600; margin-bottom:2px;">${weekdayNames[i]}</div>
+                        <div style="font-size:18px; font-weight:800; color:${color};">${rate}%</div>
+                        <div style="font-size:9px; color:var(--text-secondary);">${stats.achieved}/${stats.total}</div>
                     `;
                     weekdayDiv.appendChild(dayCard);
                 }
