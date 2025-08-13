@@ -1520,6 +1520,23 @@
                     </div>
                     
                     <div class="form-group">
+                        <label>開始日を選択</label>
+                        <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+                            <button type="button" class="btn btn-secondary" onclick="setStartDate('today')" id="start-today-btn" style="flex: 1; padding: 12px; background: var(--primary); color: white;">
+                                今日から開始
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="showDatePicker()" id="start-later-btn" style="flex: 1; padding: 12px;">
+                                日付を指定
+                            </button>
+                        </div>
+                        <input type="date" id="habit-start-date" style="display: none; width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface);" onchange="updateStartDateDisplay()">
+                        <div id="start-date-display" style="padding: 8px 12px; background: var(--surface-light); border-radius: 8px; margin-bottom: 12px; display: none;">
+                            <span style="color: var(--text-secondary); font-size: 14px;">開始日: </span>
+                            <span id="selected-start-date" style="font-weight: 600;"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
                         <label>検証期間を選択</label>
                         <div class="duration-selector" id="duration-selector">
                             <div class="duration-option" onclick="selectDuration('short')" data-duration="short">
@@ -3778,6 +3795,106 @@
             return streak;
         }
 
+        // 開始日の設定関数
+        function setStartDate(type) {
+            const todayBtn = document.getElementById('start-today-btn');
+            const laterBtn = document.getElementById('start-later-btn');
+            const dateInput = document.getElementById('habit-start-date');
+            const dateDisplay = document.getElementById('start-date-display');
+            const selectedDateSpan = document.getElementById('selected-start-date');
+            
+            if (!todayBtn || !laterBtn || !dateInput || !dateDisplay || !selectedDateSpan) {
+                // 新規作成画面の要素がまだ存在しない場合はリターン
+                return;
+            }
+            
+            if (type === 'today') {
+                // 今日から開始
+                const today = new Date();
+                const dateStr = today.toISOString().split('T')[0];
+                
+                // ボタンのスタイルを更新
+                todayBtn.style.background = 'var(--primary)';
+                todayBtn.style.color = 'white';
+                laterBtn.style.background = 'var(--surface-light)';
+                laterBtn.style.color = 'var(--text-primary)';
+                
+                // 日付入力を非表示
+                dateInput.style.display = 'none';
+                dateInput.value = dateStr;
+                
+                // 開始日表示を更新
+                dateDisplay.style.display = 'block';
+                selectedDateSpan.textContent = formatDateJapanese(today);
+                
+                // グローバル変数に保存
+                window.selectedStartDate = dateStr;
+            }
+        }
+        
+        function showDatePicker() {
+            const todayBtn = document.getElementById('start-today-btn');
+            const laterBtn = document.getElementById('start-later-btn');
+            const dateInput = document.getElementById('habit-start-date');
+            const dateDisplay = document.getElementById('start-date-display');
+            
+            if (!todayBtn || !laterBtn || !dateInput || !dateDisplay) {
+                return;
+            }
+            
+            // ボタンのスタイルを更新
+            laterBtn.style.background = 'var(--primary)';
+            laterBtn.style.color = 'white';
+            todayBtn.style.background = 'var(--surface-light)';
+            todayBtn.style.color = 'var(--text-primary)';
+            
+            // 日付入力を表示
+            dateInput.style.display = 'block';
+            
+            // 最小値を今日に設定
+            const today = new Date();
+            const minDate = today.toISOString().split('T')[0];
+            dateInput.min = minDate;
+            
+            // 最大値を30日後に設定
+            const maxDate = new Date();
+            maxDate.setDate(maxDate.getDate() + 30);
+            dateInput.max = maxDate.toISOString().split('T')[0];
+            
+            // デフォルト値を明日に設定
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            dateInput.value = tomorrow.toISOString().split('T')[0];
+            
+            // 開始日表示を更新
+            updateStartDateDisplay();
+        }
+        
+        function updateStartDateDisplay() {
+            const dateInput = document.getElementById('habit-start-date');
+            const dateDisplay = document.getElementById('start-date-display');
+            const selectedDateSpan = document.getElementById('selected-start-date');
+            
+            if (dateInput && dateInput.value && dateDisplay && selectedDateSpan) {
+                const selectedDate = new Date(dateInput.value);
+                dateDisplay.style.display = 'block';
+                selectedDateSpan.textContent = formatDateJapanese(selectedDate);
+                
+                // グローバル変数に保存
+                window.selectedStartDate = dateInput.value;
+            }
+        }
+        
+        function formatDateJapanese(date) {
+            const year = date.getFullYear();
+            const month = date.getMonth() + 1;
+            const day = date.getDate();
+            const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+            const weekday = weekdays[date.getDay()];
+            
+            return `${year}年${month}月${day}日(${weekday})`;
+        }
+        
         // コンボボーナスのチェックと付与
         function checkAndAwardComboBonus(dateKey) {
             const data = loadData();
@@ -4413,6 +4530,10 @@
                 opt.onclick = function() { selectDuration(this.dataset.duration); };
             });
             
+            // 開始日を今日にリセット
+            window.selectedStartDate = null;
+            setStartDate('today');
+            
             // 短期集中ペナルティが有効な場合
             if (window.shortTermOnly) {
                 // 中期間と長期間を無効化
@@ -4578,13 +4699,16 @@
                 frequencyData.weekdays = selectedDays;
             }
 
+            // 開始日を取得（未選択の場合は今日）
+            let startDate = window.selectedStartDate || new Date().toISOString().split('T')[0];
+            
             currentHypothesis = {
                 id: Date.now(),
                 title: title,
                 description: description,
                 category: category,  // カテゴリーを追加
                 duration: selectedDuration,
-                startDate: new Date().toISOString(),
+                startDate: startDate + 'T00:00:00.000Z',
                 achievements: {},
                 // ペナルティ効果を記録
                 hardMode: window.hardModeActive || false,
@@ -11450,6 +11574,12 @@
             } catch (e) { 
                 /* noop */
             }
+            
+            // デフォルトの期間を設定
+            selectDuration('medium');
+            
+            // 開始日の初期設定
+            setStartDate('today');
         }
 
         // 物理戻るボタン（popstate）でホームへ戻す
