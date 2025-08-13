@@ -2408,7 +2408,12 @@
                                 ✅ 完了
                             </button>
                         ` : `
-                            <span style="color: #10b981; font-weight: bold;">✅ 完了済み</span>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="color: #10b981; font-weight: bold;">✅ 完了済み</span>
+                                <button class="btn btn-secondary" onclick="undoChallenge('daily', '${daily.id}')" style="padding: 4px 8px; font-size: 11px; background: #ef4444;">
+                                    ↩️ 取消
+                                </button>
+                            </div>
                         `}
                     </div>
                 `;
@@ -2445,7 +2450,12 @@
                                 ✅ 完了
                             </button>
                         ` : `
-                            <span style="color: #10b981; font-weight: bold;">✅ 完了済み</span>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="color: #10b981; font-weight: bold;">✅ 完了済み</span>
+                                <button class="btn btn-secondary" onclick="undoChallenge('weekly', '${weekly.id}')" style="padding: 4px 8px; font-size: 11px; background: #ef4444;">
+                                    ↩️ 取消
+                                </button>
+                            </div>
                         `}
                     </div>
                 `;
@@ -2492,6 +2502,7 @@
                     }
                     
                     data.challenges.totalCompleted++;
+                    saveData(data);  // データを保存してからポイント追加
                     earnPoints(challenge.points, 'daily_challenge', `デイリーチャレンジ: ${challenge.name}`);
                     showNotification(`🎉 デイリーチャレンジ完了！ +${challenge.points}pt`, 'success');
                 }
@@ -2516,6 +2527,7 @@
                     });
                     
                     data.challenges.totalCompleted++;
+                    saveData(data);  // データを保存してからポイント追加
                     earnPoints(challenge.points, 'weekly_challenge', `ウィークリーチャレンジ: ${challenge.name}`);
                     showNotification(`🎉 ウィークリーチャレンジ完了！ +${challenge.points}pt`, 'success');
                 }
@@ -2527,6 +2539,90 @@
             }
             
             saveData(data);
+            updateChallenges();
+            updatePointDisplay();
+            updatePointsView();
+            updateChallengeStats();
+        }
+        
+        // チャレンジ達成を取り消す
+        function undoChallenge(type, challengeId) {
+            if (!confirm('チャレンジの達成を取り消しますか？\nポイントも返却されます。')) {
+                return;
+            }
+            
+            const data = loadData();
+            
+            if (type === 'daily') {
+                // 既定のチャレンジまたはカスタムチャレンジから検索
+                let challenge = DAILY_CHALLENGES.find(c => c.id === challengeId);
+                if (!challenge && data.challenges.customChallenges) {
+                    challenge = data.challenges.customChallenges.find(c => c.id === challengeId && c.type === 'daily');
+                }
+                
+                if (challenge && data.challenges.completedToday.includes(challengeId)) {
+                    // 完了リストから削除
+                    const index = data.challenges.completedToday.indexOf(challengeId);
+                    if (index > -1) {
+                        data.challenges.completedToday.splice(index, 1);
+                    }
+                    
+                    // 履歴から削除
+                    const historyIndex = data.challenges.history.findIndex(h => h.id === challengeId && h.type === 'daily');
+                    if (historyIndex > -1) {
+                        data.challenges.history.splice(historyIndex, 1);
+                    }
+                    
+                    // 総達成数を減らす
+                    data.challenges.totalCompleted = Math.max(0, data.challenges.totalCompleted - 1);
+                    
+                    // ストリークの再計算（今日の他のチャレンジが完了していない場合）
+                    const today = new Date().toDateString();
+                    if (data.challenges.completedToday.length === 0 && data.challenges.lastStreakDate === today) {
+                        data.challenges.streak = Math.max(0, data.challenges.streak - 1);
+                        // 前日の日付に戻す
+                        const yesterday = new Date();
+                        yesterday.setDate(yesterday.getDate() - 1);
+                        data.challenges.lastStreakDate = yesterday.toDateString();
+                    }
+                    
+                    saveData(data);
+                    
+                    // ポイントを返却
+                    spendPoints(challenge.points * -1, `チャレンジ取消: ${challenge.name}`);
+                    showNotification(`チャレンジの達成を取り消しました (-${challenge.points}pt)`, 'info');
+                }
+            } else if (type === 'weekly') {
+                // 既定のチャレンジまたはカスタムチャレンジから検索
+                let challenge = WEEKLY_CHALLENGES.find(c => c.id === challengeId);
+                if (!challenge && data.challenges.customChallenges) {
+                    challenge = data.challenges.customChallenges.find(c => c.id === challengeId && c.type === 'weekly');
+                }
+                
+                if (challenge && data.challenges.completedThisWeek.includes(challengeId)) {
+                    // 完了リストから削除
+                    const index = data.challenges.completedThisWeek.indexOf(challengeId);
+                    if (index > -1) {
+                        data.challenges.completedThisWeek.splice(index, 1);
+                    }
+                    
+                    // 履歴から削除
+                    const historyIndex = data.challenges.history.findIndex(h => h.id === challengeId && h.type === 'weekly');
+                    if (historyIndex > -1) {
+                        data.challenges.history.splice(historyIndex, 1);
+                    }
+                    
+                    // 総達成数を減らす
+                    data.challenges.totalCompleted = Math.max(0, data.challenges.totalCompleted - 1);
+                    
+                    saveData(data);
+                    
+                    // ポイントを返却
+                    spendPoints(challenge.points * -1, `チャレンジ取消: ${challenge.name}`);
+                    showNotification(`チャレンジの達成を取り消しました (-${challenge.points}pt)`, 'info');
+                }
+            }
+            
             updateChallenges();
             updatePointDisplay();
             updatePointsView();
