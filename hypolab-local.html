@@ -2281,7 +2281,7 @@
                     id: 'intensity_boost_a',
                     name: '🔥 燃える月曜日',
                     description: '今日だけA強度の習慣が1.5倍ポイント！',
-                    condition: (data) => new Date().getDay() === 1,
+                    condition: (data) => new Date().getDay() === 1,  // 月曜日のみ
                     effect: { type: 'intensity_multiplier', target: 'A', value: 1.5 },
                     rarity: 'common',
                     duration: 'today'
@@ -2290,7 +2290,7 @@
                     id: 'super_intensity',
                     name: '⚡ スーパー強度デー',
                     description: '今日は全ての強度が+0.3倍！',
-                    condition: () => Math.random() < 0.1,
+                    condition: () => true,  // 条件なし（レアリティで制御）
                     effect: { type: 'all_intensity_bonus', value: 0.3 },
                     rarity: 'rare',
                     duration: 'today'
@@ -2301,7 +2301,7 @@
                     id: 'exercise_fever',
                     name: '💪 運動フィーバー',
                     description: '運動カテゴリーの習慣が2倍ポイント！',
-                    condition: () => Math.random() < 0.15,
+                    condition: () => true,  // レアリティで制御
                     effect: { type: 'category_multiplier', target: 'exercise', value: 2.0 },
                     rarity: 'uncommon',
                     duration: 'today'
@@ -2310,7 +2310,7 @@
                     id: 'study_power',
                     name: '📚 勉強パワーアップ',
                     description: '勉強カテゴリーの習慣が+5ポイントボーナス！',
-                    condition: () => Math.random() < 0.15,
+                    condition: () => true,  // レアリティで制御
                     effect: { type: 'category_bonus', target: 'study', value: 5 },
                     rarity: 'uncommon',
                     duration: 'today'
@@ -2322,10 +2322,10 @@
                     name: '🚀 ストリーク加速',
                     description: '連続達成ボーナスが2倍になる！',
                     condition: (data) => {
-                        const hasStreak = data.currentHypotheses.some(h => 
+                        // 3日以上連続達成している習慣がある場合のみ
+                        return data.currentHypotheses.some(h => 
                             Object.keys(h.achievements || {}).length >= 3
                         );
-                        return hasStreak && Math.random() < 0.2;
                     },
                     effect: { type: 'streak_multiplier', value: 2.0 },
                     rarity: 'rare',
@@ -2339,7 +2339,7 @@
                     description: '朝6時〜9時の達成で+10ポイント！',
                     condition: () => {
                         const hour = new Date().getHours();
-                        return hour >= 6 && hour <= 9 && Math.random() < 0.25;
+                        return hour >= 6 && hour <= 9;  // 朝の時間帯のみ
                     },
                     effect: { type: 'time_bonus', value: 10 },
                     rarity: 'common',
@@ -2351,7 +2351,7 @@
                     description: '夜20時〜23時の達成で+8ポイント！',
                     condition: () => {
                         const hour = new Date().getHours();
-                        return hour >= 20 && hour <= 23 && Math.random() < 0.25;
+                        return hour >= 20 && hour <= 23;  // 夜の時間帯のみ
                     },
                     effect: { type: 'time_bonus', value: 8 },
                     rarity: 'common',
@@ -2363,7 +2363,7 @@
                     id: 'perfect_day',
                     name: '✨ パーフェクトデー',
                     description: '今日全ての習慣を達成すると+30ポイント！',
-                    condition: () => Math.random() < 0.05,
+                    condition: () => true,  // レアリティで制御
                     effect: { type: 'perfect_bonus', value: 30 },
                     rarity: 'legendary',
                     duration: 'today'
@@ -2372,7 +2372,7 @@
                     id: 'double_points',
                     name: '💰 ダブルポイントデー',
                     description: '今日だけ全てのポイントが2倍！',
-                    condition: () => Math.random() < 0.03,
+                    condition: () => true,  // レアリティで制御
                     effect: { type: 'global_multiplier', value: 2.0 },
                     rarity: 'legendary',
                     duration: 'today'
@@ -2381,7 +2381,7 @@
                     id: 'challenge_master',
                     name: '🎯 チャレンジマスター',
                     description: 'チャレンジ達成ポイント+50%！',
-                    condition: () => Math.random() < 0.12,
+                    condition: () => true,  // レアリティで制御
                     effect: { type: 'challenge_multiplier', value: 1.5 },
                     rarity: 'uncommon',
                     duration: 'today'
@@ -2394,7 +2394,7 @@
                     description: '土日限定！努力ボーナスが無制限に！',
                     condition: () => {
                         const day = new Date().getDay();
-                        return (day === 0 || day === 6) && Math.random() < 0.3;
+                        return (day === 0 || day === 6);  // 土日のみ
                     },
                     effect: { type: 'unlimited_effort', value: true },
                     rarity: 'rare',
@@ -2406,7 +2406,7 @@
                     id: 'card_drop_up',
                     name: '🎴 カードドロップ率UP',
                     description: 'カード出現率が2倍！',
-                    condition: () => Math.random() < 0.08,
+                    condition: () => true,  // レアリティで制御
                     effect: { type: 'card_drop_rate', value: 2.0 },
                     rarity: 'rare',
                     duration: 'today'
@@ -2415,7 +2415,7 @@
                     id: 'rare_card_chance',
                     name: '🌟 レアカードチャンス',
                     description: 'レアカードの出現率が大幅UP！',
-                    condition: () => Math.random() < 0.05,
+                    condition: () => true,  // レアリティで制御
                     effect: { type: 'rare_card_boost', value: 3.0 },
                     rarity: 'legendary',
                     duration: 'today'
@@ -9762,21 +9762,58 @@
             
             // ブーストが有効ならチェック
             if (data.events.boostEnabled) {
-                // 各ブーストをチェック
-                HABIT_EVENTS.boosts.forEach(boost => {
-                    if (boost.condition(data)) {
-                        data.events.activeBoosts.push({
-                            ...boost,
-                            activatedAt: new Date().toISOString()
+                // イベント個数を決定（0個:50%, 1個:45%, 2個:5%）
+                const eventRoll = Math.random();
+                let eventCount = 0;
+                if (eventRoll < 0.5) {
+                    eventCount = 0;  // 50%の確率で0個
+                } else if (eventRoll < 0.95) {
+                    eventCount = 1;  // 45%の確率で1個
+                } else {
+                    eventCount = 2;  // 5%の確率で2個
+                }
+                
+                if (eventCount > 0) {
+                    // 利用可能なブーストをシャッフル
+                    const availableBoosts = [...HABIT_EVENTS.boosts];
+                    const shuffled = availableBoosts.sort(() => Math.random() - 0.5);
+                    
+                    // 指定された個数だけイベントを選択
+                    let selectedCount = 0;
+                    for (const boost of shuffled) {
+                        if (selectedCount >= eventCount) break;
+                        
+                        // 条件をチェック（条件関数がある場合は実行）
+                        let shouldActivate = false;
+                        if (typeof boost.condition === 'function') {
+                            // 条件関数の結果をそのまま使用（既に確率が含まれている）
+                            shouldActivate = boost.condition(data);
+                        } else {
+                            // 条件関数がない場合はレアリティに基づく確率
+                            const rarityChance = {
+                                common: 0.4,
+                                uncommon: 0.3,
+                                rare: 0.2,
+                                legendary: 0.1
+                            };
+                            shouldActivate = Math.random() < (rarityChance[boost.rarity] || 0.3);
+                        }
+                        
+                        if (shouldActivate) {
+                            data.events.activeBoosts.push({
+                                ...boost,
+                                activatedAt: new Date().toISOString()
+                            });
+                            selectedCount++;
+                        }
+                    }
+                    
+                    // アクティブなブーストがあれば通知
+                    if (data.events.activeBoosts.length > 0) {
+                        data.events.activeBoosts.forEach(boost => {
+                            showEventNotification(boost);
                         });
                     }
-                });
-                
-                // アクティブなブーストがあれば通知
-                if (data.events.activeBoosts.length > 0) {
-                    data.events.activeBoosts.forEach(boost => {
-                        showEventNotification(boost);
-                    });
                 }
             }
             
