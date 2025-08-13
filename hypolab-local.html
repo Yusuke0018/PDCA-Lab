@@ -4446,7 +4446,12 @@
             const habitModeLabel = hypothesis.habitMode ? ' | 🌟 習慣モード' : '';
             const unlimitedLabel = hypothesis.isUnlimited ? ' | ♾️ 無期限' : '';
             
-            daysInfo.innerHTML = `📅 ${startDate.toLocaleDateString('ja-JP')} 〜 ${hypothesis.isUnlimited ? '無期限' : endDate.toLocaleDateString('ja-JP')} | ${frequencyText}${habitModeLabel}${unlimitedLabel}`;
+            daysInfo.innerHTML = `
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                    <span>📅 ${startDate.toLocaleDateString('ja-JP')} 〜 ${hypothesis.isUnlimited ? '無期限' : endDate.toLocaleDateString('ja-JP')} | ${frequencyText}${habitModeLabel}${unlimitedLabel}</span>
+                    <button class="btn btn-secondary" onclick="editFrequencyType()" style="padding: 4px 12px; font-size: 12px;">🔄 頻度変更</button>
+                </div>
+            `;
             
             // カレンダー/進捗 表示を更新
             updateCalendar();
@@ -5722,6 +5727,154 @@
         }
 
         // 強度ラベル/倍率の編集（シンプルなプロンプトUI）
+        // 頻度タイプを変更する関数
+        function editFrequencyType() {
+            if (!window.currentHypothesis) return;
+            
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay active';
+            overlay.style.backdropFilter = 'blur(6px)';
+            
+            const modal = document.createElement('div');
+            modal.className = 'skip-modal active';
+            modal.style.maxWidth = '520px';
+            modal.style.padding = '20px';
+            
+            const currentFreq = window.currentHypothesis.frequency || { type: 'daily' };
+            
+            modal.innerHTML = `
+                <div class="modal-header">
+                    <h3>🔄 頻度タイプの変更</h3>
+                    <p>習慣の実施頻度を変更します</p>
+                </div>
+                
+                <div class="form-group" style="margin: 20px 0;">
+                    <label style="display: block; margin-bottom: 12px; font-weight: 600;">頻度タイプ</label>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 12px;">
+                        <label style="display: flex; align-items: center; padding: 12px; background: rgba(30, 41, 59, 0.5); border: 2px solid ${currentFreq.type === 'daily' ? '#10b981' : 'var(--border)'}; border-radius: 8px; cursor: pointer;">
+                            <input type="radio" name="freq-type" value="daily" ${currentFreq.type === 'daily' ? 'checked' : ''} style="margin-right: 12px;">
+                            <div>
+                                <div style="font-weight: 600;">☀️ 毎日実施</div>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">毎日習慣を実施します</div>
+                            </div>
+                        </label>
+                        
+                        <label style="display: flex; align-items: center; padding: 12px; background: rgba(30, 41, 59, 0.5); border: 2px solid ${currentFreq.type === 'weekly' ? '#10b981' : 'var(--border)'}; border-radius: 8px; cursor: pointer;">
+                            <input type="radio" name="freq-type" value="weekly" ${currentFreq.type === 'weekly' ? 'checked' : ''} style="margin-right: 12px;">
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600;">📅 週N回実施</div>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">週に指定回数だけ実施します</div>
+                                <div id="weekly-count-container" style="margin-top: 8px; display: ${currentFreq.type === 'weekly' ? 'block' : 'none'};">
+                                    <label style="font-size: 12px;">週に<input type="number" id="weekly-count" min="1" max="7" value="${currentFreq.count || 3}" style="width: 50px; margin: 0 4px; padding: 4px; border-radius: 4px; border: 1px solid var(--border);"/>回</label>
+                                </div>
+                            </div>
+                        </label>
+                        
+                        <label style="display: flex; align-items: center; padding: 12px; background: rgba(30, 41, 59, 0.5); border: 2px solid ${currentFreq.type === 'weekdays' ? '#10b981' : 'var(--border)'}; border-radius: 8px; cursor: pointer;">
+                            <input type="radio" name="freq-type" value="weekdays" ${currentFreq.type === 'weekdays' ? 'checked' : ''} style="margin-right: 12px;">
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600;">📆 曜日指定</div>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">特定の曜日にのみ実施します</div>
+                                <div id="weekdays-container" style="margin-top: 8px; display: ${currentFreq.type === 'weekdays' ? 'flex' : 'none'}; gap: 6px; flex-wrap: wrap;">
+                                    ${['日', '月', '火', '水', '木', '金', '土'].map((day, i) => `
+                                        <label style="display: flex; align-items: center; padding: 4px 8px; background: ${(currentFreq.weekdays || []).includes(i) ? 'rgba(16, 185, 129, 0.2)' : 'transparent'}; border: 1px solid ${(currentFreq.weekdays || []).includes(i) ? '#10b981' : 'var(--border)'}; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                                            <input type="checkbox" name="weekday" value="${i}" ${(currentFreq.weekdays || []).includes(i) ? 'checked' : ''} style="margin-right: 4px;"/>
+                                            ${day}
+                                        </label>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="modal-footer" style="display: flex; gap: 8px; justify-content: flex-end;">
+                    <button class="button secondary" id="freq-cancel">キャンセル</button>
+                    <button class="button primary" id="freq-save">保存</button>
+                </div>
+            `;
+            
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            
+            // ラジオボタンの変更イベント
+            modal.querySelectorAll('input[name="freq-type"]').forEach(radio => {
+                radio.onchange = () => {
+                    // すべてのボーダーをリセット
+                    modal.querySelectorAll('label').forEach(label => {
+                        if (label.querySelector('input[type="radio"]')) {
+                            label.style.border = '2px solid var(--border)';
+                        }
+                    });
+                    
+                    // 選択されたボーダーをハイライト
+                    radio.closest('label').style.border = '2px solid #10b981';
+                    
+                    // オプションの表示/非表示
+                    document.getElementById('weekly-count-container').style.display = radio.value === 'weekly' ? 'block' : 'none';
+                    document.getElementById('weekdays-container').style.display = radio.value === 'weekdays' ? 'flex' : 'none';
+                };
+            });
+            
+            // 曜日チェックボックスの変更イベント
+            modal.querySelectorAll('input[name="weekday"]').forEach(checkbox => {
+                checkbox.onchange = () => {
+                    const label = checkbox.closest('label');
+                    if (checkbox.checked) {
+                        label.style.background = 'rgba(16, 185, 129, 0.2)';
+                        label.style.border = '1px solid #10b981';
+                    } else {
+                        label.style.background = 'transparent';
+                        label.style.border = '1px solid var(--border)';
+                    }
+                };
+            });
+            
+            // キャンセルボタン
+            document.getElementById('freq-cancel').onclick = () => {
+                overlay.remove();
+            };
+            
+            // 保存ボタン
+            document.getElementById('freq-save').onclick = () => {
+                const selectedType = modal.querySelector('input[name="freq-type"]:checked').value;
+                
+                let newFrequency = { type: selectedType };
+                
+                if (selectedType === 'weekly') {
+                    const count = parseInt(document.getElementById('weekly-count').value);
+                    if (count < 1 || count > 7) {
+                        showNotification('週の回数は1〜7の間で指定してください', 'error');
+                        return;
+                    }
+                    newFrequency.count = count;
+                } else if (selectedType === 'weekdays') {
+                    const checkedDays = Array.from(modal.querySelectorAll('input[name="weekday"]:checked')).map(cb => parseInt(cb.value));
+                    if (checkedDays.length === 0) {
+                        showNotification('少なくとも1つの曜日を選択してください', 'error');
+                        return;
+                    }
+                    newFrequency.weekdays = checkedDays;
+                }
+                
+                // データを更新
+                window.currentHypothesis.frequency = newFrequency;
+                const data = loadData();
+                const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+                if (index !== -1) {
+                    data.currentHypotheses[index].frequency = newFrequency;
+                    saveData(data);
+                }
+                
+                overlay.remove();
+                showNotification('頻度タイプを変更しました', 'success');
+                
+                // 進捗画面を再表示
+                showProgressView(window.currentHypothesis.id);
+            };
+        }
+        
         function editIntensityOptions() {
             if (!window.currentHypothesis) return;
             const hyp = window.currentHypothesis;
@@ -6474,24 +6627,26 @@
             // 日付が変わったら宣言状態をチェック
             const todayKey = dateKeyLocal(new Date());
             
-            // カテゴリー別にグループ分け
-            const categoryGroups = {
-                study: { title: '勉強', icon: '📚', habits: [], color: '#3b82f6' },
-                exercise: { title: '運動', icon: '💪', habits: [], color: '#ef4444' },
-                reading: { title: '読書', icon: '📖', habits: [], color: '#10b981' },
-                wellness: { title: '養生', icon: '🧘', habits: [], color: '#8b5cf6' }
+            // 頻度タイプ別にグループ分け
+            const frequencyGroups = {
+                daily: { title: '毎日の習慣', icon: '☀️', habits: [], color: '#10b981' },
+                weekly: { title: '週N回の習慣', icon: '📅', habits: [], color: '#3b82f6' },
+                weekdays: { title: '曜日指定の習慣', icon: '📆', habits: [], color: '#8b5cf6' }
             };
             
-            // 習慣をカテゴリー別に分類
+            // 習慣を頻度タイプ別に分類
             data.currentHypotheses.forEach(hypothesis => {
-                const category = hypothesis.category || 'wellness'; // デフォルトは養生
-                if (categoryGroups[category]) {
-                    categoryGroups[category].habits.push(hypothesis);
+                let frequencyType = 'daily'; // デフォルトは毎日
+                if (hypothesis.frequency) {
+                    frequencyType = hypothesis.frequency.type || 'daily';
+                }
+                if (frequencyGroups[frequencyType]) {
+                    frequencyGroups[frequencyType].habits.push(hypothesis);
                 }
             });
             
             // トグル状態を管理（LocalStorageから読み込み）
-            const toggleStates = JSON.parse(localStorage.getItem('categoryToggleStates') || '{}');
+            const toggleStates = JSON.parse(localStorage.getItem('frequencyToggleStates') || '{}');
             
             // カテゴリーグループごとに表示
             const createGroupSection = (categoryKey, categoryData) => {
@@ -6541,7 +6696,7 @@
                     }
                     
                     // トグル状態を保存
-                    localStorage.setItem('categoryToggleStates', JSON.stringify(toggleStates));
+                    localStorage.setItem('frequencyToggleStates', JSON.stringify(toggleStates));
                 };
                 
                 section.appendChild(header);
@@ -6673,10 +6828,13 @@
                 return item;
             };
             
-            // カテゴリーごとにセクションを作成して表示
-            Object.entries(categoryGroups).forEach(([categoryKey, categoryData]) => {
-                const section = createGroupSection(categoryKey, categoryData);
-                if (section) listContainer.appendChild(section);
+            // 頻度タイプごとにセクションを作成して表示（順序を保持）
+            ['daily', 'weekly', 'weekdays'].forEach(frequencyKey => {
+                const frequencyData = frequencyGroups[frequencyKey];
+                if (frequencyData) {
+                    const section = createGroupSection(frequencyKey, frequencyData);
+                    if (section) listContainer.appendChild(section);
+                }
             });
             
         }
