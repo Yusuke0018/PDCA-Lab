@@ -6465,7 +6465,13 @@
                 if (idx0 !== -1) { data0.currentHypotheses[idx0] = hyp; saveData(data0); }
             }
 
+            // 今日の強度パネルを非表示にする（強度選択はカレンダーから行うため）
             let panel = document.getElementById('intensity-panel');
+            if (panel) {
+                panel.style.display = 'none';
+            }
+            return; // 以降の処理をスキップ
+            
             if (!panel) {
                 panel = document.createElement('div');
                 panel.id = 'intensity-panel';
