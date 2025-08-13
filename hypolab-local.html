@@ -5899,6 +5899,125 @@
             };
         }
 
+        // 強度選択モーダルを表示（新規達成時）
+        function showIntensitySelectionModal(dateKey, dayCell) {
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay active';
+            
+            const modal = document.createElement('div');
+            modal.className = 'skip-modal active';
+            modal.style.maxWidth = '400px';
+            
+            const dateObj = new Date(dateKey);
+            const dateStr = dateObj.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric' });
+            
+            modal.innerHTML = `
+                <div class="modal-header">
+                    <h3>💪 強度を選択</h3>
+                    <p>${dateStr}の習慣達成</p>
+                </div>
+                <div style="display: flex; gap: 10px; margin: 20px 0;">
+                    <button class="intensity-btn" data-intensity="0.8" style="flex: 1; padding: 15px; border-radius: 10px; border: 2px solid var(--surface-light); background: var(--surface); color: var(--text-primary); cursor: pointer;">
+                        <div style="font-size: 20px;">🟢</div>
+                        <div style="margin-top: 5px;">軽め</div>
+                        <div style="font-size: 18px; font-weight: bold;">1pt</div>
+                    </button>
+                    <button class="intensity-btn" data-intensity="1.0" style="flex: 1; padding: 15px; border-radius: 10px; border: 2px solid var(--primary); background: var(--surface); color: var(--text-primary); cursor: pointer;">
+                        <div style="font-size: 20px;">🟡</div>
+                        <div style="margin-top: 5px;">基本</div>
+                        <div style="font-size: 18px; font-weight: bold;">2pt</div>
+                    </button>
+                    <button class="intensity-btn" data-intensity="1.2" style="flex: 1; padding: 15px; border-radius: 10px; border: 2px solid var(--surface-light); background: var(--surface); color: var(--text-primary); cursor: pointer;">
+                        <div style="font-size: 20px;">🔴</div>
+                        <div style="margin-top: 5px;">高強度</div>
+                        <div style="font-size: 18px; font-weight: bold;">3pt</div>
+                    </button>
+                </div>
+                <div class="modal-footer">
+                    <button class="button secondary" onclick="this.closest('.overlay').remove()">キャンセル</button>
+                </div>
+            `;
+            
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            
+            // 強度ボタンのクリック処理
+            modal.querySelectorAll('.intensity-btn').forEach(btn => {
+                btn.onclick = () => {
+                    const intensity = parseFloat(btn.dataset.intensity);
+                    applyAchievementWithIntensity(dateKey, dayCell, intensity);
+                    overlay.remove();
+                };
+            });
+            
+            // オーバーレイクリックで閉じる
+            overlay.onclick = (e) => {
+                if (e.target === overlay) {
+                    overlay.remove();
+                }
+            };
+        }
+        
+        // 強度を適用して達成状態にする
+        function applyAchievementWithIntensity(dateKey, dayCell, intensityValue) {
+            // 強度を保存
+            if (!window.currentHypothesis.intensity) {
+                window.currentHypothesis.intensity = {};
+            }
+            window.currentHypothesis.intensity[dateKey] = intensityValue;
+            
+            // 達成状態にする
+            window.currentHypothesis.achievements[dateKey] = true;
+            dayCell.classList.remove('not-achieved');
+            dayCell.classList.add('achieved');
+            
+            // ポイント獲得処理
+            // 強度に応じてポイントを設定（0.8→1pt、1.0→2pt、1.2→3pt）
+            let actualPoints = 2; // デフォルトは基本の2pt
+            if (intensityValue === 0.8) {
+                actualPoints = 1; // 軽め
+            } else if (intensityValue === 1.0) {
+                actualPoints = 2; // 基本
+            } else if (intensityValue === 1.2) {
+                actualPoints = 3; // 高強度
+            }
+            
+            // 連続日数を計算
+            const streakDays = calculateCurrentStreak(window.currentHypothesis);
+            const multiplier = calculateStreakMultiplier(streakDays);
+            
+            // ポイント付与（強度を考慮した実際のポイント）
+            earnPoints(actualPoints, 'habit', `${window.currentHypothesis.title} 達成`, multiplier);
+            
+            // 同日の他の習慣達成をチェックしてコンボボーナス
+            checkAndAwardComboBonus(dateKey);
+            
+            // 達成アニメーションを表示
+            showAchievementAnimation();
+            
+            // データを保存
+            const data = loadData();
+            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (index !== -1) {
+                data.currentHypotheses[index] = window.currentHypothesis;
+                saveData(data);
+            }
+            
+            updateProgress();
+            updateCalendar(); // カレンダーを再描画して週の状況を更新
+            
+            // バッジ獲得チェック
+            checkAndAwardBadges();
+            
+            // リセットリスクのチェック（翌日に実行）
+            if (window.currentHypothesis.resetRisk) {
+                setTimeout(() => checkResetRisk(), 100);
+            }
+            
+            // ステージアップチェック
+            checkStageProgress();
+        }
+        
         // 日の達成状態を切り替え
         function toggleDayStatus(dateKey, dayCell) {
             // 週●回の制限チェック
@@ -5931,37 +6050,8 @@
             }
             
             if (!window.currentHypothesis.achievements[dateKey]) {
-                // 達成状態にする
-                window.currentHypothesis.achievements[dateKey] = true;
-                dayCell.classList.remove('not-achieved');
-                dayCell.classList.add('achieved');
-                
-                // ポイント獲得処理
-                const data = loadData();
-                // 日付ごとの強度を取得（なければデフォルト値1.0）
-                const intensityValue = window.currentHypothesis.intensity?.[dateKey] || 1.0;
-                // 強度に応じてポイントを設定（0.8→1pt、1.0→2pt、1.2→3pt）
-                let actualPoints = 2; // デフォルトは基本の2pt
-                if (intensityValue === 0.8) {
-                    actualPoints = 1; // 軽め
-                } else if (intensityValue === 1.0) {
-                    actualPoints = 2; // 基本
-                } else if (intensityValue === 1.2) {
-                    actualPoints = 3; // 高強度
-                }
-                
-                // 連続日数を計算
-                const streakDays = calculateCurrentStreak(window.currentHypothesis);
-                const multiplier = calculateStreakMultiplier(streakDays);
-                
-                // ポイント付与（強度を考慮した実際のポイント）
-                earnPoints(actualPoints, 'habit', `${window.currentHypothesis.title} 達成`, multiplier);
-                
-                // 同日の他の習慣達成をチェックしてコンボボーナス
-                checkAndAwardComboBonus(dateKey);
-                
-                // 達成アニメーションを表示
-                showAchievementAnimation();
+                // 達成状態にする前に強度選択モーダルを表示
+                showIntensitySelectionModal(dateKey, dayCell);
             } else {
                 // 達成を取り消す（ポイントを減算する）
                 delete window.currentHypothesis.achievements[dateKey];
@@ -6002,32 +6092,18 @@
                     data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100);
                 }
                 
+                // 習慣データも更新
+                const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+                if (index !== -1) {
+                    data.currentHypotheses[index] = window.currentHypothesis;
+                }
+                
                 saveData(data);
                 updatePointDisplay();
+                updateProgress();
+                updateCalendar();
                 showNotification(`習慣の達成を取り消しました (-${actualPoints}pt)`, 'info');
             }
-            
-            // データを保存
-            const data = loadData();
-            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
-            if (index !== -1) {
-                data.currentHypotheses[index] = window.currentHypothesis;
-                saveData(data);
-            }
-            
-            updateProgress();
-            updateCalendar(); // カレンダーを再描画して週の状況を更新
-            
-            // バッジ獲得チェック
-            checkAndAwardBadges();
-            
-            // リセットリスクのチェック（翌日に実行）
-            if (window.currentHypothesis.resetRisk) {
-                setTimeout(() => checkResetRisk(), 100);
-            }
-            
-            // ステージアップチェック
-            checkStageProgress();
         }
         
         // 週番号を取得する関数（グローバルに定義） - 検証開始日基準
