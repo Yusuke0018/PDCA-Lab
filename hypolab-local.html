@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>HypoLab - 習慣トラッカー（ローカル版）</title>
+    <title>HypoLab - 習慣トラッカー</title>
     
     <!-- PWA対応 -->
     <meta name="mobile-web-app-capable" content="yes">
@@ -1381,7 +1381,6 @@
         <div class="header-content">
             <div class="header-logo">
                 <h1>🧪 HypoLab</h1>
-                <span style="font-size: 12px; color: var(--text-secondary); background: var(--surface-light); padding: 4px 8px; border-radius: 4px;">ローカル版</span>
             </div>
             <!-- ポイント表示 -->
             <div id="point-display" style="
@@ -1396,18 +1395,6 @@
                 <span class="point-amount" style="font-weight: bold; color: #fbbf24;">💰 0pt</span>
                 <span class="level-info" style="font-size: 12px; color: var(--text-secondary);">Lv.1 初心者</span>
             </div>
-            <button id="debug-toggle" onclick="toggleDebugMode()" style="
-                background: none;
-                border: 1px solid var(--border);
-                color: var(--text-secondary);
-                padding: 6px 12px;
-                border-radius: 8px;
-                font-size: 12px;
-                cursor: pointer;
-                transition: all 0.3s;
-            ">
-                🛠️ デバッグ
-            </button>
         </div>
     </header>
 
@@ -1662,127 +1649,6 @@
             </div>
 
             <!-- メモ入力（アウトプット/インプット）はデータ入出力と混同を避けるため削除 -->
-            
-            <!-- デバッグモード -->
-            <div id="debug-panel" style="margin-top: 24px; margin-bottom: 24px; display: none;">
-                <div class="card" style="background: rgba(239, 68, 68, 0.1); border: 2px dashed #ef4444;">
-                    <h4 style="color: #ef4444; margin-bottom: 16px;">🛠️ デバッグモード</h4>
-                    <div style="display: grid; gap: 12px;">
-                        <button onclick="debugAchieveToday()" class="btn" style="
-                            background: #10b981;
-                            color: white;
-                        ">
-                            ✅ 今日を達成にする
-                        </button>
-                        <button onclick="debugFailToday()" class="btn" style="
-                            background: #ef4444;
-                            color: white;
-                        ">
-                            ❌ 今日を未達成にする
-                        </button>
-                        <button onclick="debugAchieveAllPast()" class="btn" style="
-                            background: #3b82f6;
-                            color: white;
-                        ">
-                            📅 過去全てを達成にする
-                        </button>
-                        <button onclick="debugSkipDays()" class="btn" style="
-                            background: #f59e0b;
-                            color: white;
-                        ">
-                            ⏩ 日付を進める（3日）
-                        </button>
-                        <button onclick="debugCompleteHypothesis()" class="btn" style="
-                            background: #8b5cf6;
-                            color: white;
-                        ">
-                            🏁 習慣を完了する
-                        </button>
-                        <hr style="margin: 16px 0; border: 1px dashed #ef4444;">
-                        <h5 style="color: #ef4444; margin-bottom: 12px;">🎴 カード効果テスト</h5>
-                        <button onclick="debugAddCard('skip_ticket')" class="btn" style="
-                            background: #3b82f6;
-                            color: white;
-                        ">
-                            ⏭️ スキップチケットを追加
-                        </button>
-                        <button onclick="debugAddCard('achievement_boost')" class="btn" style="
-                            background: #10b981;
-                            color: white;
-                        ">
-                            🌟 達成ブーストを追加
-                        </button>
-                        <button onclick="debugAddCard('perfect_bonus')" class="btn" style="
-                            background: #f59e0b;
-                            color: white;
-                        ">
-                            🎯 パーフェクトボーナスを追加
-                        </button>
-                        <button onclick="debugApplyPenalty('extension_card')" class="btn" style="
-                            background: #ef4444;
-                            color: white;
-                        ">
-                            ⏰ 延長カード（+3日）
-                        </button>
-                        <button onclick="debugApplyPenalty('hard_mode')" class="btn" style="
-                            background: #dc2626;
-                            color: white;
-                        ">
-                            ⚡ ハードモード（90%必要）
-                        </button>
-                        <button onclick="debugApplyPenalty('reset_risk')" class="btn" style="
-                            background: #dc2626;
-                            color: white;
-                        ">
-                            🔄 リセットリスク
-                        </button>
-                        <button onclick="debugApplyPenalty('achievement_decrease')" class="btn" style="
-                            background: #ef4444;
-                            color: white;
-                        ">
-                            📉 達成率-10%
-                        </button>
-                        <hr style="margin: 12px 0; border: 1px dashed #ef4444;">
-                        <h5 style="color: #ef4444; margin-bottom: 12px;">🆕 新カード</h5>
-                        <button onclick="debugAddCard('protect_shield')" class="btn" style="
-                            background: #10b981;
-                            color: white;
-                        ">
-                            🛡️ プロテクトシールド
-                        </button>
-                        <button onclick="debugAddCard('achievement_booster')" class="btn" style="
-                            background: #3b82f6;
-                            color: white;
-                        ">
-                            📈 達成率ブースター
-                        </button>
-                        <button onclick="debugAddCard('second_chance')" class="btn" style="
-                            background: #10b981;
-                            color: white;
-                        ">
-                            🎯 セカンドチャンス
-                        </button>
-                        <button onclick="debugApplyPenalty('chaos_vortex')" class="btn" style="
-                            background: #dc2626;
-                            color: white;
-                        ">
-                            🌀 混乱の渦
-                        </button>
-                        <button onclick="debugApplyPenalty('double_or_nothing')" class="btn" style="
-                            background: #dc2626;
-                            color: white;
-                        ">
-                            ⚠️ ダブルオアナッシング
-                        </button>
-                        <button onclick="debugClearAllCards()" class="btn" style="
-                            background: #6b7280;
-                            color: white;
-                        ">
-                            🗑️ 全カードクリア
-                        </button>
-                    </div>
-                </div>
-            </div>
 
             <!-- 完了報告ボタン -->
             <div id="completion-report-section" style="display: none; margin-bottom: 20px;">
