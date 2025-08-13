@@ -8713,7 +8713,10 @@
             
             all.forEach(h => {
                 // 毎日の習慣のみを対象にする
-                if (!h.frequency || h.frequency.type !== 'daily') {
+                // frequencyがない場合は従来の習慣なので毎日の習慣として扱う
+                const isDailyHabit = !h.frequency || h.frequency.type === 'daily';
+                
+                if (!isDailyHabit) {
                     return; // 毎日の習慣でない場合はスキップ
                 }
                 
