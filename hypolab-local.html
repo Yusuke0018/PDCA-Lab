@@ -6325,28 +6325,80 @@
         };
 
         // スワイプイベントの設定
+        // スワイプ関連の変数をグローバルスコープに移動
+        let swipeState = {
+            isEnabled: true,
+            isSwiping: false,
+            scrolling: false,
+            touchStartX: 0,
+            touchStartY: 0,
+            touchEndX: 0,
+            touchEndY: 0
+        };
+        
         function setupSwipeListeners() {
             const container = document.querySelector('.container');
-            let isSwipeEnabled = true;
-            let isSwiping = false;
-            let scrolling = false;
             
             // フォーム要素でのスワイプを無効化
             // 入力系のみスワイプ抑止（ボタンは許可）
             document.querySelectorAll('input, textarea').forEach(element => {
                 element.addEventListener('touchstart', () => {
-                    isSwipeEnabled = false;
+                    swipeState.isEnabled = false;
                 }, { passive: true });
                 
                 element.addEventListener('touchend', () => {
                     setTimeout(() => {
-                        isSwipeEnabled = true;
+                        swipeState.isEnabled = true;
                     }, 100);
                 }, { passive: true });
             });
             
+            // 統計画面に専用のイベントリスナーを追加
+            const statsView = document.getElementById('stats-view');
+            if (statsView) {
+                console.log('[STATS] Adding direct event listeners to stats view');
+                
+                // キャプチャフェーズで確実にイベントを捕捉
+                statsView.addEventListener('touchstart', (e) => {
+                    console.log('[STATS DIRECT] touchstart on stats view!');
+                    const currentView = getCurrentView();
+                    if (currentView === 'stats') {
+                        swipeState.touchStartX = e.changedTouches[0].screenX;
+                        swipeState.touchStartY = e.changedTouches[0].screenY;
+                        swipeState.scrolling = false;
+                        swipeState.isSwiping = false;
+                        console.log('[STATS DIRECT] Start position:', swipeState.touchStartX, swipeState.touchStartY);
+                    }
+                }, { passive: true, capture: true });
+                
+                statsView.addEventListener('touchmove', (e) => {
+                    const currentView = getCurrentView();
+                    if (currentView === 'stats') {
+                        const diffX = Math.abs(e.changedTouches[0].screenX - swipeState.touchStartX);
+                        const diffY = Math.abs(e.changedTouches[0].screenY - swipeState.touchStartY);
+                        console.log('[STATS DIRECT] Move - diffX:', diffX, 'diffY:', diffY);
+                        if (diffX > 30 && diffX > diffY) {
+                            swipeState.isSwiping = true;
+                            swipeState.scrolling = false;
+                            e.preventDefault();
+                        }
+                    }
+                }, { passive: false, capture: true });
+                
+                statsView.addEventListener('touchend', (e) => {
+                    const currentView = getCurrentView();
+                    if (currentView === 'stats' && swipeState.isSwiping) {
+                        swipeState.touchEndX = e.changedTouches[0].screenX;
+                        swipeState.touchEndY = e.changedTouches[0].screenY;
+                        console.log('[STATS DIRECT] End - calling handleSwipe');
+                        handleSwipe();
+                        swipeState.isSwiping = false;
+                    }
+                }, { passive: true, capture: true });
+            }
+            
             container.addEventListener('touchstart', (e) => {
-                if (!isSwipeEnabled) {
+                if (!swipeState.isEnabled) {
                     console.log('[Swipe Debug] スワイプが無効です');
                     return;
                 }
@@ -6356,7 +6408,7 @@
                 
                 // 統計画面ではスクロールを常に無効化してスワイプを優先
                 if (currentView === 'stats') {
-                    scrolling = false;
+                    swipeState.scrolling = false;
                     console.log('[Swipe Debug] 統計画面 - scrollingをfalseに設定');
                 } else if (currentView === 'cards') {
                     // カード画面でのみスクロール可能な要素上の場合はスワイプを無効化
@@ -6367,26 +6419,26 @@
                         // スクロール可能な要素かチェック
                         const scrollableParent = findScrollableParent(target);
                         if (scrollableParent && scrollableParent.scrollHeight > scrollableParent.clientHeight) {
-                            scrolling = true;
-                            touchStartX = e.changedTouches[0].screenX;
-                            touchStartY = e.changedTouches[0].screenY;
+                            swipeState.scrolling = true;
+                            swipeState.touchStartX = e.changedTouches[0].screenX;
+                            swipeState.touchStartY = e.changedTouches[0].screenY;
                             console.log('[Swipe Debug] カード画面 - スクロール可能な要素のため中断');
                             return;
                         }
                     }
-                    scrolling = false;
+                    swipeState.scrolling = false;
                 } else {
-                    scrolling = false;
+                    swipeState.scrolling = false;
                 }
                 
-                touchStartX = e.changedTouches[0].screenX;
-                touchStartY = e.changedTouches[0].screenY;
-                isSwiping = false;
-                console.log('[Swipe Debug] タッチ開始位置 X:', touchStartX, 'Y:', touchStartY);
+                swipeState.touchStartX = e.changedTouches[0].screenX;
+                swipeState.touchStartY = e.changedTouches[0].screenY;
+                swipeState.isSwiping = false;
+                console.log('[Swipe Debug] タッチ開始位置 X:', swipeState.touchStartX, 'Y:', swipeState.touchStartY);
             }, { passive: true });
             
             container.addEventListener('touchmove', (e) => {
-                if (!isSwipeEnabled) {
+                if (!swipeState.isEnabled) {
                     console.log('[Swipe Debug] touchmove - スワイプ無効');
                     return;
                 }
@@ -6395,15 +6447,15 @@
                 
                 // 統計画面では特別な処理
                 if (currentView === 'stats') {
-                    const diffX = Math.abs(e.changedTouches[0].screenX - touchStartX);
-                    const diffY = Math.abs(e.changedTouches[0].screenY - touchStartY);
+                    const diffX = Math.abs(e.changedTouches[0].screenX - swipeState.touchStartX);
+                    const diffY = Math.abs(e.changedTouches[0].screenY - swipeState.touchStartY);
                     
-                    console.log('[Swipe Debug] 統計画面 touchmove - diffX:', diffX, 'diffY:', diffY, 'isSwiping:', isSwiping);
+                    console.log('[Swipe Debug] 統計画面 touchmove - diffX:', diffX, 'diffY:', diffY, 'isSwiping:', swipeState.isSwiping);
                     
                     // 横方向の動きが縦より大きければスワイプとして扱う
                     if (diffX > 20 && diffX > diffY * 0.8) {
-                        isSwiping = true;
-                        scrolling = false;
+                        swipeState.isSwiping = true;
+                        swipeState.scrolling = false;
                         console.log('[Swipe Debug] 統計画面 - スワイプ検出！');
                         try {
                             e.preventDefault(); // スクロールを防ぐ
@@ -6415,42 +6467,42 @@
                 }
                 
                 // 統計画面以外の処理
-                if (scrolling) return;
+                if (swipeState.scrolling) return;
                 
-                const diffX = Math.abs(e.changedTouches[0].screenX - touchStartX);
-                const diffY = Math.abs(e.changedTouches[0].screenY - touchStartY);
+                const diffX = Math.abs(e.changedTouches[0].screenX - swipeState.touchStartX);
+                const diffY = Math.abs(e.changedTouches[0].screenY - swipeState.touchStartY);
                 
                 // 縦方向の動きが大きい場合はスクロールとみなす
                 if (diffY > diffX && diffY > 10) {
-                    scrolling = true;
+                    swipeState.scrolling = true;
                     return;
                 }
                 
                 // 横方向の動きが大きい場合はスワイプとみなす
                 if (diffX > diffY && diffX > 10) {
-                    isSwiping = true;
+                    swipeState.isSwiping = true;
                 }
             }, { passive: false });
 
             container.addEventListener('touchend', (e) => {
                 const currentView = getCurrentView();
-                console.log('[Swipe Debug] touchend - ビュー:', currentView, 'isSwipeEnabled:', isSwipeEnabled, 'isSwiping:', isSwiping, 'scrolling:', scrolling);
+                console.log('[Swipe Debug] touchend - ビュー:', currentView, 'isSwipeEnabled:', swipeState.isEnabled, 'isSwiping:', swipeState.isSwiping, 'scrolling:', swipeState.scrolling);
                 
                 // 統計画面ではscrollingフラグを無視
-                if (!isSwipeEnabled || (!isSwiping) || (currentView !== 'stats' && scrolling)) {
+                if (!swipeState.isEnabled || (!swipeState.isSwiping) || (currentView !== 'stats' && swipeState.scrolling)) {
                     console.log('[Swipe Debug] touchend - スワイプ処理をスキップ');
-                    scrolling = false;
-                    isSwiping = false;
+                    swipeState.scrolling = false;
+                    swipeState.isSwiping = false;
                     return;
                 }
                 
-                touchEndX = e.changedTouches[0].screenX;
-                touchEndY = e.changedTouches[0].screenY;
-                console.log('[Swipe Debug] タッチ終了位置 X:', touchEndX, 'Y:', touchEndY);
-                console.log('[Swipe Debug] 移動量 X:', touchStartX - touchEndX, 'Y:', touchStartY - touchEndY);
+                swipeState.touchEndX = e.changedTouches[0].screenX;
+                swipeState.touchEndY = e.changedTouches[0].screenY;
+                console.log('[Swipe Debug] タッチ終了位置 X:', swipeState.touchEndX, 'Y:', swipeState.touchEndY);
+                console.log('[Swipe Debug] 移動量 X:', swipeState.touchStartX - swipeState.touchEndX, 'Y:', swipeState.touchStartY - swipeState.touchEndY);
                 handleSwipe();
-                scrolling = false;
-                isSwiping = false;
+                swipeState.scrolling = false;
+                swipeState.isSwiping = false;
             }, { passive: true });
         }
         
@@ -6475,8 +6527,8 @@
 
         // スワイプ処理
         function handleSwipe() {
-            const diffX = touchStartX - touchEndX;
-            const diffY = touchStartY - touchEndY;
+            const diffX = swipeState.touchStartX - swipeState.touchEndX;
+            const diffY = swipeState.touchStartY - swipeState.touchEndY;
             const currentView = getCurrentView();
             
             // 統計画面では閾値を下げる
