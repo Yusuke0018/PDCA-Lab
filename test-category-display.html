@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>カテゴリボタン表示テスト</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        iframe {
+            width: 100%;
+            height: 700px;
+            border: 2px solid #3b82f6;
+            border-radius: 8px;
+        }
+        .instructions {
+            background: rgba(59, 130, 246, 0.2);
+            color: #3b82f6;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        h1 {
+            background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+    </style>
+</head>
+<body>
+    <h1>📱 カテゴリボタン表示テスト</h1>
+    
+    <div class="instructions">
+        <h2>📝 テスト手順：</h2>
+        <ol>
+            <li>下のアプリ画面で習慣をクリック</li>
+            <li>習慣詳細画面（進捗画面）が表示される</li>
+            <li>日付情報の右側に「🔄 頻度変更」と「📚 勉強 変更」のようなボタンが表示されるか確認</li>
+            <li>カテゴリ変更ボタンをクリックして、モーダルが表示されるか確認</li>
+        </ol>
+    </div>
+    
+    <iframe src="hypolab-local.html"></iframe>
+    
+    <script>
+        // テスト用習慣が無い場合は作成
+        const data = JSON.parse(localStorage.getItem('hypolab_local_data') || '{}');
+        if (!data.currentHypotheses || data.currentHypotheses.length === 0) {
+            if (!data.categoryMaster) {
+                data.categoryMaster = {
+                    study: { name: '勉強', icon: '📚', color: '#3b82f6' },
+                    exercise: { name: '運動', icon: '💪', color: '#ef4444' },
+                    health: { name: '健康', icon: '🧘', color: '#10b981' },
+                    work: { name: '仕事', icon: '💼', color: '#f59e0b' },
+                    hobby: { name: '趣味', icon: '🎨', color: '#8b5cf6' },
+                    other: { name: 'その他', icon: '📝', color: '#6b7280' }
+                };
+            }
+            
+            data.currentHypotheses = [{
+                id: `test_${Date.now()}`,
+                title: 'カテゴリ変更テスト用習慣',
+                description: 'カテゴリ変更ボタンの動作確認',
+                category: 'study',
+                frequency: { type: 'daily' },
+                startDate: new Date().toISOString().split('T')[0],
+                totalDays: 7,
+                achievements: {},
+                intensity: {},
+                declarations: {},
+                habitMode: false,
+                isUnlimited: false
+            }];
+            
+            localStorage.setItem('hypolab_local_data', JSON.stringify(data));
+            console.log('テスト用習慣を作成しました');
+        }
+    </script>
+</body>
+</html>
