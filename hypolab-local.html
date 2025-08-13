@@ -1854,6 +1854,45 @@
                         <h3 style="margin-bottom:8px;">🎮 達成率レベル分布</h3>
                         <div id="achievement-level-distribution" style="display:grid; gap:8px; margin-top:12px;"></div>
                     </div>
+                    <!-- ポイント統計セクション -->
+                    <div class="stat-panel" style="background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1)); padding: 16px; border-radius: 12px; border: 1px solid rgba(251, 191, 36, 0.3);">
+                        <h3 style="margin-bottom:12px;">💰 ポイント統計</h3>
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+                            <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                                <div id="current-points-stat" style="font-size: 24px; font-weight: bold; color: #fbbf24;">0</div>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">現在のポイント</div>
+                            </div>
+                            <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                                <div id="lifetime-earned-stat" style="font-size: 24px; font-weight: bold; color: #10b981;">0</div>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">累計獲得</div>
+                            </div>
+                            <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                                <div id="lifetime-spent-stat" style="font-size: 24px; font-weight: bold; color: #ef4444;">0</div>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">累計消費</div>
+                            </div>
+                            <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                                <div id="current-level-stat" style="font-size: 24px; font-weight: bold; color: #8b5cf6;">Lv.1</div>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">現在のレベル</div>
+                            </div>
+                        </div>
+                        <!-- レベル進捗バー -->
+                        <div style="margin-top: 16px;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                <span id="level-progress-label" style="font-size: 12px; color: var(--text-secondary);">次のレベルまで</span>
+                                <span id="level-progress-text" style="font-size: 12px; color: var(--text-secondary);">0/50pt</span>
+                            </div>
+                            <div style="background: rgba(0,0,0,0.3); height: 8px; border-radius: 4px; overflow: hidden;">
+                                <div id="level-progress-bar" style="background: linear-gradient(90deg, #fbbf24, #f59e0b); height: 100%; width: 0%; transition: width 0.3s ease;"></div>
+                            </div>
+                        </div>
+                        <!-- 最近のトランザクション -->
+                        <div style="margin-top: 16px;">
+                            <h4 style="font-size: 14px; margin-bottom: 8px;">📝 最近の獲得/消費</h4>
+                            <div id="recent-transactions" style="display: grid; gap: 4px; max-height: 150px; overflow-y: auto; font-size: 12px;">
+                                <!-- 動的に生成 -->
+                            </div>
+                        </div>
+                    </div>
                     <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
                         <h3 style="margin-bottom:8px;">🧩 強度ラベル使用割合</h3>
                         <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; justify-content:center;">
@@ -2425,6 +2464,90 @@
                 earnPoints(3, 'combo', '3習慣同時達成ボーナス');
             } else if (totalHabits >= 4 && achievedToday === totalHabits) {
                 earnPoints(5, 'combo', '全習慣達成ボーナス');
+            }
+        }
+        
+        // ポイント統計を更新（統計画面用）
+        function updatePointStatistics() {
+            const data = loadData();
+            const ps = data.pointSystem;
+            
+            // 現在のポイント
+            const currentPointsEl = document.getElementById('current-points-stat');
+            if (currentPointsEl) {
+                currentPointsEl.textContent = ps.currentPoints.toLocaleString();
+            }
+            
+            // 累計獲得
+            const lifetimeEarnedEl = document.getElementById('lifetime-earned-stat');
+            if (lifetimeEarnedEl) {
+                lifetimeEarnedEl.textContent = ps.lifetimeEarned.toLocaleString();
+            }
+            
+            // 累計消費
+            const lifetimeSpentEl = document.getElementById('lifetime-spent-stat');
+            if (lifetimeSpentEl) {
+                lifetimeSpentEl.textContent = ps.lifetimeSpent.toLocaleString();
+            }
+            
+            // 現在のレベル
+            const levelInfo = calculateLevel(ps.lifetimeEarned);
+            const currentLevelEl = document.getElementById('current-level-stat');
+            if (currentLevelEl) {
+                currentLevelEl.textContent = `Lv.${levelInfo.level}`;
+                currentLevelEl.title = levelInfo.name; // ツールチップでレベル名表示
+            }
+            
+            // レベル進捗バー
+            const progressInLevel = ps.lifetimeEarned - levelInfo.min;
+            const levelRange = levelInfo.max - levelInfo.min;
+            const progressPercent = Math.min(100, (progressInLevel / levelRange) * 100);
+            
+            const levelProgressLabel = document.getElementById('level-progress-label');
+            if (levelProgressLabel) {
+                levelProgressLabel.textContent = `Lv.${levelInfo.level + 1} ${levelInfo.level < 10 ? LEVEL_THRESHOLDS[levelInfo.level].name : '超越者'} まで`;
+            }
+            
+            const levelProgressText = document.getElementById('level-progress-text');
+            if (levelProgressText) {
+                const remaining = levelInfo.max - ps.lifetimeEarned + 1;
+                levelProgressText.textContent = `あと${remaining}pt`;
+            }
+            
+            const levelProgressBar = document.getElementById('level-progress-bar');
+            if (levelProgressBar) {
+                levelProgressBar.style.width = `${progressPercent}%`;
+            }
+            
+            // 最近のトランザクション
+            const recentTransEl = document.getElementById('recent-transactions');
+            if (recentTransEl) {
+                const recentTrans = ps.transactions.slice(0, 10); // 最新10件
+                
+                if (recentTrans.length === 0) {
+                    recentTransEl.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 8px;">まだ取引履歴がありません</div>';
+                } else {
+                    recentTransEl.innerHTML = recentTrans.map(t => {
+                        const date = new Date(t.timestamp);
+                        const dateStr = `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+                        const icon = t.type === 'earn' ? '➕' : '➖';
+                        const color = t.type === 'earn' ? '#10b981' : '#ef4444';
+                        const amount = t.type === 'earn' ? 
+                            (t.finalAmount || t.amount) : 
+                            t.amount;
+                        
+                        return `
+                            <div style="display: flex; justify-content: space-between; padding: 4px 8px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                                <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                    ${icon} ${escapeHTML(t.description)}
+                                </span>
+                                <span style="color: ${color}; font-weight: bold; margin-left: 8px;">
+                                    ${t.type === 'earn' ? '+' : '-'}${amount}pt
+                                </span>
+                            </div>
+                        `;
+                    }).join('');
+                }
             }
         }
 
@@ -6246,6 +6369,9 @@
             
             // バッジコレクションを表示
             displayBadgeCollection();
+            
+            // ポイント統計を表示
+            updatePointStatistics();
         }
         
         // バッジコレクションを表示
