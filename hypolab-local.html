@@ -6381,34 +6381,43 @@
             container.addEventListener('touchmove', (e) => {
                 if (!isSwipeEnabled) return;
                 
-                // 統計画面ではscrollingフラグを無視
                 const currentView = getCurrentView();
-                if (currentView !== 'stats' && scrolling) return;
+                
+                // 統計画面では特別な処理
+                if (currentView === 'stats') {
+                    const diffX = Math.abs(e.changedTouches[0].screenX - touchStartX);
+                    const diffY = Math.abs(e.changedTouches[0].screenY - touchStartY);
+                    
+                    // 横方向の動きが縦より大きければスワイプとして扱う
+                    if (diffX > 20 && diffX > diffY * 0.8) {
+                        isSwiping = true;
+                        scrolling = false;
+                        try {
+                            e.preventDefault(); // スクロールを防ぐ
+                        } catch(err) {
+                            // passive: trueの場合はpreventDefaultできないので無視
+                        }
+                    }
+                    return;
+                }
+                
+                // 統計画面以外の処理
+                if (scrolling) return;
                 
                 const diffX = Math.abs(e.changedTouches[0].screenX - touchStartX);
                 const diffY = Math.abs(e.changedTouches[0].screenY - touchStartY);
                 
-                // 統計画面では横方向の動きを優先してスワイプとみなす
-                if (currentView === 'stats') {
-                    // 統計画面では横方向の動きが少しでもあればスワイプとみなす
-                    if (diffX > 30 && diffX > diffY * 0.5) {
-                        isSwiping = true;
-                        e.preventDefault(); // スクロールを防ぐ
-                    }
-                } else {
-                    // 他の画面では通常の判定
-                    // 縦方向の動きが大きい場合はスクロールとみなす
-                    if (diffY > diffX && diffY > 10) {
-                        scrolling = true;
-                        return;
-                    }
-                    
-                    // 横方向の動きが大きい場合はスワイプとみなす
-                    if (diffX > diffY && diffX > 10) {
-                        isSwiping = true;
-                    }
+                // 縦方向の動きが大きい場合はスクロールとみなす
+                if (diffY > diffX && diffY > 10) {
+                    scrolling = true;
+                    return;
                 }
-            }, { passive: true });
+                
+                // 横方向の動きが大きい場合はスワイプとみなす
+                if (diffX > diffY && diffX > 10) {
+                    isSwiping = true;
+                }
+            }, { passive: false });
 
             container.addEventListener('touchend', (e) => {
                 const currentView = getCurrentView();
@@ -6450,13 +6459,17 @@
         function handleSwipe() {
             const diffX = touchStartX - touchEndX;
             const diffY = touchStartY - touchEndY;
-            const minSwipeDistance = 80; // Androidで誤動作を防ぐため閾値を上げる
+            const currentView = getCurrentView();
+            
+            // 統計画面では閾値を下げる
+            const minSwipeDistance = currentView === 'stats' ? 50 : 80;
+            
+            // 統計画面では条件を緩和
+            const horizontalRatio = currentView === 'stats' ? 1.2 : 2;
             
             // 水平スワイプのみを検出（垂直移動が少ない場合）
-            // 垂直移動が大きすぎる場合はスワイプとみなさない
-            if (Math.abs(diffX) > Math.abs(diffY) * 2 && Math.abs(diffX) > minSwipeDistance) {
+            if (Math.abs(diffX) > Math.abs(diffY) * horizontalRatio && Math.abs(diffX) > minSwipeDistance) {
                 // シャッフル画面や進捗画面ではスワイプ無効
-                const currentView = getCurrentView();
                 if (currentView === 'shuffle' || currentView === 'progress') {
                     return;
                 }
