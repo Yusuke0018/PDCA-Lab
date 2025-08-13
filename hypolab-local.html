@@ -6465,13 +6465,7 @@
                 if (idx0 !== -1) { data0.currentHypotheses[idx0] = hyp; saveData(data0); }
             }
 
-            // 今日の強度パネルを非表示にする（強度選択はカレンダーから行うため）
             let panel = document.getElementById('intensity-panel');
-            if (panel) {
-                panel.style.display = 'none';
-            }
-            return; // 以降の処理をスキップ
-            
             if (!panel) {
                 panel = document.createElement('div');
                 panel.id = 'intensity-panel';
@@ -6480,10 +6474,11 @@
                 parent.appendChild(panel);
             }
 
+            // ボタンを無効化（選択できないように）
             const btnStyle = (active) => `
                 padding:8px 12px;border-radius:10px;border:1px solid ${active ? 'var(--primary)' : 'var(--border)'};
                 background:${active ? 'rgba(16,185,129,0.15)' : 'transparent'};color:${active ? 'var(--text-primary)' : 'var(--text-secondary)'};
-                cursor:pointer;`
+                cursor:not-allowed;opacity:0.5;`
 
             const opt0 = hyp.intensityOptions[0];
             const opt1 = hyp.intensityOptions[1];
@@ -6525,16 +6520,18 @@
             const be = document.getElementById('intensity-edit');
             if (be) be.onclick = () => editIntensityOptions();
 
-            // すべての日で強度選択を有効化（未達成日でも選択可能に）
+            // 強度選択ボタンを無効化（カレンダーから選択するため）
             [b0, b1, b2].forEach(btn => {
                 if (btn) {
-                    btn.style.opacity = '';
-                    btn.style.pointerEvents = 'auto';
+                    btn.disabled = true;
+                    btn.style.cursor = 'not-allowed';
+                    btn.title = '強度の選択はカレンダーから行ってください';
                 }
             });
-            if (b0) b0.onclick = () => set(opt0.mult);
-            if (b1) b1.onclick = () => set(opt1.mult);
-            if (b2) b2.onclick = () => set(opt2.mult);
+            // クリックイベントも無効化
+            if (b0) b0.onclick = (e) => { e.preventDefault(); showNotification('強度の選択はカレンダーの日付をクリックして行ってください', 'info'); };
+            if (b1) b1.onclick = (e) => { e.preventDefault(); showNotification('強度の選択はカレンダーの日付をクリックして行ってください', 'info'); };
+            if (b2) b2.onclick = (e) => { e.preventDefault(); showNotification('強度の選択はカレンダーの日付をクリックして行ってください', 'info'); };
         }
 
         // 強度ラベル/倍率の編集（シンプルなプロンプトUI）
