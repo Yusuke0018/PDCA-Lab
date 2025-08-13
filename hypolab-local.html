@@ -6474,10 +6474,10 @@
                 parent.appendChild(panel);
             }
 
-            // ボタンを無効化（選択できないように）
+            // ボタンを無効化（選択できないように）、選択状態も表示しない
             const btnStyle = (active) => `
-                padding:8px 12px;border-radius:10px;border:1px solid ${active ? 'var(--primary)' : 'var(--border)'};
-                background:${active ? 'rgba(16,185,129,0.15)' : 'transparent'};color:${active ? 'var(--text-primary)' : 'var(--text-secondary)'};
+                padding:8px 12px;border-radius:10px;border:1px solid var(--border);
+                background:transparent;color:var(--text-secondary);
                 cursor:not-allowed;opacity:0.5;`
 
             const opt0 = hyp.intensityOptions[0];
