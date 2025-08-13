@@ -1499,8 +1499,10 @@
                         <select id="hypothesis-category" required>
                             <option value="study">📚 勉強</option>
                             <option value="exercise">💪 運動</option>
-                            <option value="reading">📖 読書</option>
-                            <option value="wellness">🧘 養生</option>
+                            <option value="health">🧘 健康</option>
+                            <option value="work">💼 仕事</option>
+                            <option value="hobby">🎨 趣味</option>
+                            <option value="other">📝 その他</option>
                         </select>
                     </div>
 
@@ -2723,6 +2725,31 @@
                     viewHistory: []
                 };
             }
+            
+            // 旧カテゴリーを新カテゴリーにマッピング
+            const categoryMapping = {
+                'reading': 'hobby',    // 読書 → 趣味
+                'wellness': 'health'   // 養生 → 健康
+            };
+            
+            // 現在の習慣のカテゴリーを更新
+            if (parsed.currentHypotheses) {
+                parsed.currentHypotheses.forEach(h => {
+                    if (categoryMapping[h.category]) {
+                        h.category = categoryMapping[h.category];
+                    }
+                });
+            }
+            
+            // 完了済み習慣のカテゴリーも更新
+            if (parsed.completedHypotheses) {
+                parsed.completedHypotheses.forEach(h => {
+                    if (categoryMapping[h.category]) {
+                        h.category = categoryMapping[h.category];
+                    }
+                });
+            }
+            
             // 日付が変わったら努力ポイントとデイリーチャレンジをリセット
             const today = new Date().toDateString();
             if (parsed.pointSystem && parsed.pointSystem.dailyEffortLastReset !== today) {
