@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HypoLab デバッグテスト</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1 {
+            background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .test-section {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .test-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
+            padding: 10px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+        }
+        .status {
+            font-size: 20px;
+        }
+        .pass { color: #10b981; }
+        .fail { color: #ef4444; }
+        .pending { color: #f59e0b; }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        #console-log {
+            background: #000;
+            color: #0f0;
+            font-family: monospace;
+            padding: 15px;
+            border-radius: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+        .error-log {
+            color: #f00;
+        }
+        .info-log {
+            color: #0af;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 HypoLab デバッグテスト</h1>
+    
+    <div class="test-section">
+        <h2>📋 自動テスト項目</h2>
+        <div id="test-results"></div>
+        <button onclick="runAllTests()">すべてのテストを実行</button>
+    </div>
+
+    <div class="test-section">
+        <h2>🔍 LocalStorage データ確認</h2>
+        <button onclick="checkLocalStorage()">データを確認</button>
+        <button onclick="clearLocalStorage()">データをクリア（注意！）</button>
+        <div id="storage-info" style="margin-top: 10px;"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>💻 コンソールログ</h2>
+        <div id="console-log"></div>
+        <button onclick="clearConsole()">ログをクリア</button>
+    </div>
+
+    <script>
+        const testResults = document.getElementById('test-results');
+        const consoleLog = document.getElementById('console-log');
+        const storageInfo = document.getElementById('storage-info');
+
+        // コンソールログをキャプチャ
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addToConsole(args.join(' '), 'info');
+        };
+
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addToConsole(args.join(' '), 'error');
+        };
+
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            addToConsole(args.join(' '), 'warn');
+        };
+
+        function addToConsole(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error-log' : type === 'info' ? 'info-log' : '';
+            consoleLog.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            consoleLog.scrollTop = consoleLog.scrollHeight;
+        }
+
+        function clearConsole() {
+            consoleLog.innerHTML = '';
+        }
+
+        // テスト定義
+        const tests = [
+            {
+                name: 'LocalStorageが利用可能',
+                test: () => {
+                    try {
+                        localStorage.setItem('test', 'test');
+                        localStorage.removeItem('test');
+                        return true;
+                    } catch (e) {
+                        return false;
+                    }
+                }
+            },
+            {
+                name: 'HypoLabデータが存在する',
+                test: () => {
+                    const data = localStorage.getItem('hypolab_local_data');
+                    return data !== null;
+                }
+            },
+            {
+                name: 'データが正しいJSON形式',
+                test: () => {
+                    const data = localStorage.getItem('hypolab_local_data');
+                    if (!data) return false;
+                    try {
+                        JSON.parse(data);
+                        return true;
+                    } catch (e) {
+                        return false;
+                    }
+                }
+            },
+            {
+                name: '必須フィールドが存在する',
+                test: () => {
+                    const data = localStorage.getItem('hypolab_local_data');
+                    if (!data) return false;
+                    try {
+                        const parsed = JSON.parse(data);
+                        return parsed.hasOwnProperty('currentHypotheses') &&
+                               parsed.hasOwnProperty('completedHypotheses') &&
+                               parsed.hasOwnProperty('cards');
+                    } catch (e) {
+                        return false;
+                    }
+                }
+            },
+            {
+                name: 'DOM要素が存在する（メインページ）',
+                test: () => {
+                    // iframe経由でメインページをチェック
+                    return new Promise((resolve) => {
+                        const iframe = document.createElement('iframe');
+                        iframe.style.display = 'none';
+                        iframe.src = 'hypolab-local.html';
+                        iframe.onload = () => {
+                            try {
+                                const doc = iframe.contentDocument;
+                                const homeView = doc.getElementById('home-view');
+                                const navButtons = doc.querySelectorAll('.nav-btn');
+                                const result = homeView !== null && navButtons.length > 0;
+                                document.body.removeChild(iframe);
+                                resolve(result);
+                            } catch (e) {
+                                document.body.removeChild(iframe);
+                                resolve(false);
+                            }
+                        };
+                        document.body.appendChild(iframe);
+                    });
+                }
+            },
+            {
+                name: 'Service Workerが登録されている',
+                test: async () => {
+                    if (!('serviceWorker' in navigator)) return false;
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    return registrations.length > 0;
+                }
+            }
+        ];
+
+        async function runAllTests() {
+            testResults.innerHTML = '';
+            
+            for (const testDef of tests) {
+                const item = document.createElement('div');
+                item.className = 'test-item';
+                
+                try {
+                    const result = await testDef.test();
+                    item.innerHTML = `
+                        <span class="status ${result ? 'pass' : 'fail'}">${result ? '✅' : '❌'}</span>
+                        <span>${testDef.name}</span>
+                    `;
+                    console.log(`テスト: ${testDef.name} - ${result ? 'PASS' : 'FAIL'}`);
+                } catch (e) {
+                    item.innerHTML = `
+                        <span class="status fail">❌</span>
+                        <span>${testDef.name} (エラー: ${e.message})</span>
+                    `;
+                    console.error(`テストエラー: ${testDef.name}`, e);
+                }
+                
+                testResults.appendChild(item);
+            }
+        }
+
+        function checkLocalStorage() {
+            const data = localStorage.getItem('hypolab_local_data');
+            if (!data) {
+                storageInfo.innerHTML = '<p style="color: #ef4444;">データが存在しません</p>';
+                return;
+            }
+
+            try {
+                const parsed = JSON.parse(data);
+                const info = `
+                    <div style="margin-top: 10px;">
+                        <p><strong>データサイズ:</strong> ${(data.length / 1024).toFixed(2)} KB</p>
+                        <p><strong>現在の習慣数:</strong> ${parsed.currentHypotheses?.length || 0}</p>
+                        <p><strong>完了した習慣数:</strong> ${parsed.completedHypotheses?.length || 0}</p>
+                        <p><strong>カード所持数:</strong> ${parsed.cards?.inventory?.length || 0}</p>
+                        <p><strong>獲得バッジ数:</strong> ${parsed.unlockedBadges?.length || 0}</p>
+                    </div>
+                `;
+                storageInfo.innerHTML = info;
+                console.log('LocalStorageデータ:', parsed);
+            } catch (e) {
+                storageInfo.innerHTML = '<p style="color: #ef4444;">データの解析に失敗しました</p>';
+                console.error('データ解析エラー:', e);
+            }
+        }
+
+        function clearLocalStorage() {
+            if (confirm('本当にすべてのデータを削除しますか？この操作は取り消せません。')) {
+                localStorage.removeItem('hypolab_local_data');
+                localStorage.removeItem('lastAffirmationCheck');
+                storageInfo.innerHTML = '<p style="color: #10b981;">データを削除しました</p>';
+                console.log('LocalStorageをクリアしました');
+            }
+        }
+
+        // ページロード時に自動実行
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('デバッグテストページを読み込みました');
+            console.log('User Agent:', navigator.userAgent);
+            console.log('Screen Size:', `${screen.width}x${screen.height}`);
+            console.log('Window Size:', `${window.innerWidth}x${window.innerHeight}`);
+        });
+
+        // エラーハンドリング
+        window.addEventListener('error', (e) => {
+            console.error('グローバルエラー:', e.message, 'at', e.filename, ':', e.lineno);
+        });
+
+        window.addEventListener('unhandledrejection', (e) => {
+            console.error('未処理のPromiseエラー:', e.reason);
+        });
+    </script>
+</body>
+</html>

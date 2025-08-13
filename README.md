@@ -238,6 +238,95 @@ HypoLabは、習慣形成を科学的かつ楽しくサポートするWebアプ�
 - **IF-THEN**: IF 22:30になったら THEN スマホを充電器に置く
 - **アウトプット**: 睡眠の質や朝の体調を記録
 
+## 🚨 開発ガイドライン（重要）
+
+### 画面表示バグを防ぐための必須確認事項
+
+#### 1. JavaScript初期化の確認
+**問題**: 初期化処理が実行されないと画面に何も表示されない
+```javascript
+// ❌ 悪い例：初期化関数を呼び出していない
+showHomeView();
+
+// ✅ 良い例：DOMContentLoadedで確実に初期化
+document.addEventListener('DOMContentLoaded', () => {
+    initializeApp();
+});
+```
+
+#### 2. 変数の重複宣言を避ける
+**問題**: 同じスコープで変数を重複宣言するとSyntaxError
+```javascript
+// ❌ 悪い例：同じスコープで重複宣言
+const currentView = getCurrentView();
+// ... 他の処理 ...
+const currentView = getCurrentView(); // Error!
+
+// ✅ 良い例：既存の変数を再利用
+const currentView = getCurrentView();
+// ... 他の処理でcurrentViewを使用 ...
+```
+
+#### 3. 関数の存在確認
+**問題**: 未定義の関数を呼び出すとエラーで処理が停止
+```javascript
+// ❌ 悪い例：関数の存在を確認せずに呼び出し
+updateCardInventory(); // 関数が存在しない場合エラー
+
+// ✅ 良い例：存在確認またはtry-catchで保護
+if (typeof updateCardInventory === 'function') {
+    updateCardInventory();
+}
+```
+
+#### 4. DOM要素の存在確認
+**問題**: 存在しないDOM要素にアクセスするとnullエラー
+```javascript
+// ❌ 悪い例：要素の存在を確認せずにアクセス
+document.getElementById('element-id').innerHTML = 'content';
+
+// ✅ 良い例：存在確認してからアクセス
+const element = document.getElementById('element-id');
+if (element) {
+    element.innerHTML = 'content';
+}
+```
+
+### デバッグ手順
+
+#### 1. コンソールエラーの確認
+1. ブラウザの開発者ツールを開く（F12）
+2. Consoleタブでエラーメッセージを確認
+3. エラーの行番号をクリックして問題箇所を特定
+
+#### 2. 初期化処理の確認
+```javascript
+// デバッグ用ログを追加
+console.log('初期化開始');
+showHomeView();
+console.log('ホーム画面表示');
+updateCurrentHypothesisList();
+console.log('習慣リスト更新');
+```
+
+#### 3. データの確認
+```javascript
+// LocalStorageのデータを確認
+const data = JSON.parse(localStorage.getItem('hypolab_local_data'));
+console.log('保存データ:', data);
+```
+
+### テスト項目（リリース前必須）
+
+- [ ] ページ読み込み時に習慣リストが表示される
+- [ ] ナビゲーションバーが正しく動作する
+- [ ] 新規習慣の作成ができる
+- [ ] 習慣の達成記録ができる
+- [ ] 統計画面が正しく表示される
+- [ ] カード画面が正しく表示される
+- [ ] スマホでの表示が崩れていない
+- [ ] コンソールにエラーが出ていない
+
 ## 🛠️ 技術仕様
 
 ### 対応環境
