@@ -5004,6 +5004,11 @@
             
             window.currentHypothesis = hypothesis;
             
+            // intensityプロパティが存在しない場合は初期化
+            if (!window.currentHypothesis.intensity) {
+                window.currentHypothesis.intensity = {};
+            }
+            
             document.getElementById('home-view').style.display = 'none';
             document.getElementById('shuffle-view').style.display = 'none';
             document.getElementById('progress-view').style.display = 'block';
@@ -5933,17 +5938,17 @@
                 
                 // ポイント獲得処理
                 const data = loadData();
-                const intensity = window.currentHypothesis.intensity || 'light';
-                let basePoints = 1;
-                if (intensity === 'medium') basePoints = 2;
-                if (intensity === 'heavy') basePoints = 3;
+                // 日付ごとの強度を取得（なければデフォルト値1.0）
+                const intensityValue = window.currentHypothesis.intensity?.[dateKey] || 1.0;
+                let basePoints = 3; // 基本ポイントは3
+                const actualPoints = Math.round(basePoints * intensityValue);
                 
                 // 連続日数を計算
                 const streakDays = calculateCurrentStreak(window.currentHypothesis);
                 const multiplier = calculateStreakMultiplier(streakDays);
                 
-                // ポイント付与
-                earnPoints(basePoints, 'habit', `${window.currentHypothesis.title} 達成`, multiplier);
+                // ポイント付与（強度を考慮した実際のポイント）
+                earnPoints(actualPoints, 'habit', `${window.currentHypothesis.title} 達成`, multiplier);
                 
                 // 同日の他の習慣達成をチェックしてコンボボーナス
                 checkAndAwardComboBonus(dateKey);
@@ -5951,10 +5956,41 @@
                 // 達成アニメーションを表示
                 showAchievementAnimation();
             } else {
-                // 達成を取り消す（ポイントは返却しない）
+                // 達成を取り消す（ポイントを減算する）
                 delete window.currentHypothesis.achievements[dateKey];
                 dayCell.classList.remove('achieved');
                 dayCell.classList.add('not-achieved');
+                
+                // ポイント減算処理
+                const data = loadData();
+                // 日付ごとの強度を取得（なければデフォルト値1.0）
+                const intensityValue = window.currentHypothesis.intensity?.[dateKey] || 1.0;
+                let basePoints = 3; // 基本ポイント
+                const actualPoints = Math.round(basePoints * intensityValue);
+                
+                // 連続日数ボーナスも考慮（ただし、現在の連続日数ではなく、達成時の連続日数は不明なので基本ポイントのみ減算）
+                // より正確にするには、達成時のポイントを記録しておく必要がある
+                
+                // ポイント減算
+                data.pointSystem.currentPoints = Math.max(0, data.pointSystem.currentPoints - actualPoints);
+                
+                // トランザクション記録
+                data.pointSystem.transactions.unshift({
+                    type: 'deduct',
+                    amount: actualPoints,
+                    source: 'habit_cancel',
+                    description: `${window.currentHypothesis.title} 取り消し`,
+                    timestamp: new Date().toISOString()
+                });
+                
+                // トランザクション履歴を100件に制限
+                if (data.pointSystem.transactions.length > 100) {
+                    data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100);
+                }
+                
+                saveData(data);
+                updatePointDisplay();
+                showNotification(`習慣の達成を取り消しました (-${actualPoints}pt)`, 'info');
             }
             
             // データを保存
