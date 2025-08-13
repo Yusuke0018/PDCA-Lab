@@ -1802,15 +1802,19 @@
         <div id="points-view" style="display: none;">
             <!-- ポイント状況 -->
             <div class="card" style="margin-top: 0; background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1)); border: 1px solid rgba(251, 191, 36, 0.3);">
-                <h2 style="margin-bottom: 16px; margin-top: 0;">💰 ポイントショップ</h2>
-                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px;">
-                    <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 16px; border-radius: 12px;">
-                        <div id="points-current" style="font-size: 32px; font-weight: bold; color: #fbbf24;">0</div>
-                        <div style="font-size: 14px; color: var(--text-secondary); margin-top: 4px;">所持ポイント</div>
+                <h2 style="margin-bottom: 16px; margin-top: 0;">💰 ポイント</h2>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 20px;">
+                    <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 12px;">
+                        <div id="points-current" style="font-size: 24px; font-weight: bold; color: #fbbf24;">0</div>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">現在</div>
                     </div>
-                    <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 16px; border-radius: 12px;">
-                        <div id="points-level" style="font-size: 32px; font-weight: bold; color: #8b5cf6;">Lv.1</div>
-                        <div id="points-level-name" style="font-size: 14px; color: var(--text-secondary); margin-top: 4px;">初心者</div>
+                    <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 12px;">
+                        <div id="points-level" style="font-size: 24px; font-weight: bold; color: #8b5cf6;">Lv.1</div>
+                        <div id="points-level-name" style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">初心者</div>
+                    </div>
+                    <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 12px;">
+                        <div id="points-lifetime" style="font-size: 24px; font-weight: bold; color: #10b981;">0</div>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">累計</div>
                     </div>
                 </div>
             </div>
@@ -1909,15 +1913,6 @@
                     <div id="penalty-cards" style="display: grid; gap: 12px;">
                         <!-- 動的に生成 -->
                     </div>
-                </div>
-                
-                <div style="background: var(--background); padding: 16px; border-radius: 12px; margin-top: 24px;">
-                    <h4 style="font-size: 14px; margin-bottom: 8px; color: var(--text-secondary);">カード獲得条件</h4>
-                    <ul style="font-size: 14px; color: var(--text-secondary); margin-left: 20px;">
-                        <li>100%達成: 報酬カード2枚</li>
-                        <li>80-99%達成: 報酬カード1枚</li>
-                        <li>79%以下: ペナルティカード1枚</li>
-                    </ul>
                 </div>
             </div>
         </div>
@@ -2763,6 +2758,12 @@
             const pointsCurrent = document.getElementById('points-current');
             if (pointsCurrent) {
                 pointsCurrent.textContent = ps.currentPoints.toLocaleString();
+            }
+            
+            // 累計ポイント
+            const pointsLifetime = document.getElementById('points-lifetime');
+            if (pointsLifetime) {
+                pointsLifetime.textContent = ps.lifetimeEarned.toLocaleString();
             }
             
             // レベル
@@ -7327,6 +7328,50 @@
                 }, { passive: true, capture: true });
             }
             
+            // ポイント画面に専用のイベントリスナーを追加
+            const pointsView = document.getElementById('points-view');
+            if (pointsView) {
+                console.log('[POINTS] Adding direct event listeners to points view');
+                
+                // キャプチャフェーズで確実にイベントを捕捉
+                pointsView.addEventListener('touchstart', (e) => {
+                    console.log('[POINTS DIRECT] touchstart on points view!');
+                    const currentView = getCurrentView();
+                    if (currentView === 'points') {
+                        swipeState.touchStartX = e.changedTouches[0].screenX;
+                        swipeState.touchStartY = e.changedTouches[0].screenY;
+                        swipeState.scrolling = false;
+                        swipeState.isSwiping = false;
+                        console.log('[POINTS DIRECT] Start position:', swipeState.touchStartX, swipeState.touchStartY);
+                    }
+                }, { passive: true, capture: true });
+                
+                pointsView.addEventListener('touchmove', (e) => {
+                    const currentView = getCurrentView();
+                    if (currentView === 'points') {
+                        const diffX = Math.abs(e.changedTouches[0].screenX - swipeState.touchStartX);
+                        const diffY = Math.abs(e.changedTouches[0].screenY - swipeState.touchStartY);
+                        console.log('[POINTS DIRECT] Move - diffX:', diffX, 'diffY:', diffY);
+                        if (diffX > 30 && diffX > diffY) {
+                            swipeState.isSwiping = true;
+                            swipeState.scrolling = false;
+                            e.preventDefault();
+                        }
+                    }
+                }, { passive: false, capture: true });
+                
+                pointsView.addEventListener('touchend', (e) => {
+                    const currentView = getCurrentView();
+                    if (currentView === 'points' && swipeState.isSwiping) {
+                        swipeState.touchEndX = e.changedTouches[0].screenX;
+                        swipeState.touchEndY = e.changedTouches[0].screenY;
+                        console.log('[POINTS DIRECT] End - calling handleSwipe');
+                        handleSwipe();
+                        swipeState.isSwiping = false;
+                    }
+                }, { passive: true, capture: true });
+            }
+            
             container.addEventListener('touchstart', (e) => {
                 if (!swipeState.isEnabled) {
                     console.log('[Swipe Debug] スワイプが無効です');
@@ -7336,10 +7381,10 @@
                 const currentView = getCurrentView();
                 console.log('[Swipe Debug] touchstart - 現在のビュー:', currentView);
                 
-                // 統計画面ではスクロールを常に無効化してスワイプを優先
-                if (currentView === 'stats') {
+                // 統計画面とポイント画面ではスクロールを常に無効化してスワイプを優先
+                if (currentView === 'stats' || currentView === 'points') {
                     swipeState.scrolling = false;
-                    console.log('[Swipe Debug] 統計画面 - scrollingをfalseに設定');
+                    console.log('[Swipe Debug] 統計/ポイント画面 - scrollingをfalseに設定');
                 } else if (currentView === 'cards') {
                     // カード画面でのみスクロール可能な要素上の場合はスワイプを無効化
                     const target = e.target;
@@ -7461,11 +7506,11 @@
             const diffY = swipeState.touchStartY - swipeState.touchEndY;
             const currentView = getCurrentView();
             
-            // 統計画面では閾値を下げる
-            const minSwipeDistance = currentView === 'stats' ? 50 : 80;
+            // 統計画面とポイント画面では閾値を下げる
+            const minSwipeDistance = (currentView === 'stats' || currentView === 'points') ? 50 : 80;
             
-            // 統計画面では条件を緩和
-            const horizontalRatio = currentView === 'stats' ? 1.2 : 2;
+            // 統計画面とポイント画面では条件を緩和
+            const horizontalRatio = (currentView === 'stats' || currentView === 'points') ? 1.2 : 2;
             
             console.log('[Swipe Debug] handleSwipe - ビュー:', currentView);
             console.log('[Swipe Debug] 最小距離:', minSwipeDistance, '比率:', horizontalRatio);
