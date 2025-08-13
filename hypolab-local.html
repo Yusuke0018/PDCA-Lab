@@ -4794,7 +4794,46 @@
             // 日付が変わったら宣言状態をチェック
             const todayKey = dateKeyLocal(new Date());
             
+            // 習慣を頻度別にグループ分け
+            const dailyHabits = [];
+            const weeklyHabits = [];
+            const specificDaysHabits = [];
+            
             data.currentHypotheses.forEach(hypothesis => {
+                if (!hypothesis.frequency || hypothesis.frequency === 'daily') {
+                    dailyHabits.push(hypothesis);
+                } else if (hypothesis.frequency === 'weekly') {
+                    weeklyHabits.push(hypothesis);
+                } else if (hypothesis.frequency === 'specific-days') {
+                    specificDaysHabits.push(hypothesis);
+                }
+            });
+            
+            // 頻度グループごとに表示
+            const createGroupSection = (title, icon, habits, description, borderColor) => {
+                if (habits.length === 0) return null;
+                
+                const section = document.createElement('div');
+                section.style.cssText = 'margin-bottom: 24px;';
+                
+                const header = document.createElement('div');
+                header.style.cssText = `display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding: 10px 14px; background: linear-gradient(135deg, ${borderColor}10, ${borderColor}05); border-radius: 10px; border-left: 3px solid ${borderColor};`;
+                header.innerHTML = `
+                    <span style="font-size: 20px;">${icon}</span>
+                    <span style="font-weight: 700; font-size: 15px; color: var(--text-primary);">${title}</span>
+                    <span style="font-size: 12px; color: var(--text-secondary); margin-left: auto; background: rgba(0,0,0,0.2); padding: 2px 8px; border-radius: 999px;">${description}</span>
+                `;
+                section.appendChild(header);
+                
+                habits.forEach(hypothesis => {
+                    section.appendChild(createHypothesisItem(hypothesis, todayKey));
+                });
+                
+                return section;
+            };
+            
+            // 各習慣アイテムを作成する共通関数
+            const createHypothesisItem = (hypothesis, todayKey) => {
                 const item = document.createElement('div');
                 item.className = 'hypothesis-item';
                 item.onclick = () => showProgressView(hypothesis.id);
@@ -4862,8 +4901,18 @@
                     badges.push(`<span style="${style} padding:2px 8px; border-radius:999px; font-size:11px;">${escapeHTML(labelText)}</span>`);
                 }
                 
+                // 頻度表示を追加
+                let frequencyBadge = '';
+                if (hypothesis.frequency === 'weekly') {
+                    frequencyBadge = `<span style="display: inline-block; padding: 2px 8px; background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 999px; font-size: 11px; font-weight: 600; margin-left: 8px;">週${hypothesis.weeklyCount || 3}回</span>`;
+                } else if (hypothesis.frequency === 'specific-days') {
+                    const weekdayNames = ['日', '月', '火', '水', '木', '金', '土'];
+                    const days = (hypothesis.weekdays || []).map(d => weekdayNames[d]).join('・');
+                    frequencyBadge = `<span style="display: inline-block; padding: 2px 8px; background: rgba(139, 92, 246, 0.15); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 999px; font-size: 11px; font-weight: 600; margin-left: 8px;">${days}</span>`;
+                }
+                
                 item.innerHTML = `
-                    <h3 class="hypothesis-title">${escapeHTML(hypothesis.title)}</h3>
+                    <h3 class="hypothesis-title">${escapeHTML(hypothesis.title)}${frequencyBadge}</h3>
                     <p class="hypothesis-description">${escapeHTML(hypothesis.description)}</p>
                     ${stage ? `
                         <div style="margin: 12px 0; padding: 10px; background: linear-gradient(135deg, ${stage.color}15, ${stage.color}08); border-radius: 8px; border-left: 3px solid ${stage.color};">
@@ -4903,8 +4952,44 @@
                     })()}
                 `;
                 
-                listContainer.appendChild(item);
-            });
+                return item;
+            };
+            
+            // 毎日の習慣
+            const dailySection = createGroupSection(
+                '毎日の習慣',
+                '🌅',
+                dailyHabits,
+                `${dailyHabits.length}個`,
+                '#10b981'
+            );
+            if (dailySection) listContainer.appendChild(dailySection);
+            
+            // 週◯回の習慣
+            const weeklySection = createGroupSection(
+                '週◯回の習慣',
+                '📅',
+                weeklyHabits,
+                `${weeklyHabits.length}個`,
+                '#3b82f6'
+            );
+            if (weeklySection) listContainer.appendChild(weeklySection);
+            
+            // 特定曜日の習慣
+            const weekdayNames = ['日', '月', '火', '水', '木', '金', '土'];
+            const specificSection = createGroupSection(
+                '特定曜日の習慣',
+                '📆',
+                specificDaysHabits,
+                `${specificDaysHabits.length}個`,
+                '#8b5cf6'
+            );
+            if (specificSection) listContainer.appendChild(specificSection);
+            
+            // 習慣が0個の場合のメッセージ（通常はここに到達しない）
+            if (dailyHabits.length === 0 && weeklyHabits.length === 0 && specificDaysHabits.length === 0) {
+                listContainer.innerHTML = '<p style="color: var(--text-secondary);">現在進行中の習慣はありません</p>';
+            }
         }
 
         // 習慣を継続
