@@ -10000,7 +10000,7 @@
             }
             
             // 全カードの定義を図鑑に登録
-            const allCards = { ...CARDS };
+            const allCards = { ...CARD_MASTER };
             Object.keys(allCards).forEach(cardId => {
                 if (!data.cardAlbum.collection[cardId]) {
                     data.cardAlbum.collection[cardId] = {
@@ -10066,7 +10066,7 @@
         
         // 図鑑コンプリート率チェック
         function checkAlbumCompletion(data) {
-            const totalCards = Object.keys(CARDS).length;
+            const totalCards = Object.keys(CARD_MASTER).length;
             const obtainedCards = data.cardAlbum.totalCardsObtained;
             const completionRate = (obtainedCards / totalCards) * 100;
             
@@ -10095,7 +10095,7 @@
             modal.className = 'modal-overlay';
             modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px;';
             
-            const totalCards = Object.keys(CARDS).length;
+            const totalCards = Object.keys(CARD_MASTER).length;
             const obtainedCards = data.cardAlbum.totalCardsObtained;
             const completionRate = Math.round((obtainedCards / totalCards) * 100);
             
@@ -10123,7 +10123,7 @@
                     </div>
                     
                     <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px;">
-                        ${Object.entries(CARDS).map(([cardId, card]) => {
+                        ${Object.entries(CARD_MASTER).map(([cardId, card]) => {
                             const entry = data.cardAlbum.collection[cardId] || { obtained: false, count: 0, hints: '' };
                             const isObtained = entry.obtained;
                             
