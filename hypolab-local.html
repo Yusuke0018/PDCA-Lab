@@ -10093,14 +10093,14 @@
             
             const modal = document.createElement('div');
             modal.className = 'modal-overlay';
-            modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px;';
+            modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.98); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px;';
             
             const totalCards = Object.keys(CARD_MASTER).length;
             const obtainedCards = data.cardAlbum.totalCardsObtained;
             const completionRate = Math.round((obtainedCards / totalCards) * 100);
             
             modal.innerHTML = `
-                <div style="background: #1e293b; border-radius: 16px; padding: 24px; max-width: 600px; width: 100%; max-height: 80vh; overflow-y: auto; border: 1px solid rgba(59, 130, 246, 0.3);">
+                <div style="background: #0f172a; border-radius: 16px; padding: 24px; max-width: 600px; width: 100%; max-height: 80vh; overflow-y: auto; border: 2px solid rgba(59, 130, 246, 0.5); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.9);">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                         <h2 style="font-size: 24px; font-weight: bold; color: #e2e8f0;">🎴 カード図鑑</h2>
                         <button onclick="this.closest('.modal-overlay').remove()" style="background: none; border: none; color: #94a3b8; font-size: 24px; cursor: pointer;">×</button>
@@ -10128,10 +10128,10 @@
                             const isObtained = entry.obtained;
                             
                             return `
-                                <div style="background: ${isObtained ? 'rgba(30, 41, 59, 0.9)' : 'rgba(15, 23, 42, 0.6)'}; 
-                                            border: 2px solid ${isObtained ? card.color : '#475569'}; 
+                                <div style="background: ${isObtained ? '#1e293b' : '#0f172a'}; 
+                                            border: 2px solid ${isObtained ? card.color : '#334155'}; 
                                             border-radius: 12px; padding: 12px; 
-                                            opacity: ${isObtained ? '1' : '0.7'};">
+                                            opacity: ${isObtained ? '1' : '0.6'};">
                                     <div style="font-size: 32px; text-align: center; margin-bottom: 8px;">
                                         ${isObtained ? card.icon : '❓'}
                                     </div>
