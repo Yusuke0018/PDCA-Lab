@@ -10100,24 +10100,24 @@
             const completionRate = Math.round((obtainedCards / totalCards) * 100);
             
             modal.innerHTML = `
-                <div style="background: var(--card-bg); border-radius: 16px; padding: 24px; max-width: 600px; width: 100%; max-height: 80vh; overflow-y: auto;">
+                <div style="background: #1e293b; border-radius: 16px; padding: 24px; max-width: 600px; width: 100%; max-height: 80vh; overflow-y: auto; border: 1px solid rgba(59, 130, 246, 0.3);">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <h2 style="font-size: 24px; font-weight: bold;">🎴 カード図鑑</h2>
-                        <button onclick="this.closest('.modal-overlay').remove()" style="background: none; border: none; color: var(--text-secondary); font-size: 24px; cursor: pointer;">×</button>
+                        <h2 style="font-size: 24px; font-weight: bold; color: #e2e8f0;">🎴 カード図鑑</h2>
+                        <button onclick="this.closest('.modal-overlay').remove()" style="background: none; border: none; color: #94a3b8; font-size: 24px; cursor: pointer;">×</button>
                     </div>
                     
-                    <div style="background: rgba(139, 92, 246, 0.1); border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+                    <div style="background: rgba(139, 92, 246, 0.15); border-radius: 12px; padding: 16px; margin-bottom: 20px; border: 1px solid rgba(139, 92, 246, 0.3);">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <div>
-                                <div style="font-size: 14px; color: var(--text-secondary);">コンプリート率</div>
-                                <div style="font-size: 28px; font-weight: bold; color: var(--primary);">${completionRate}%</div>
+                                <div style="font-size: 14px; color: #94a3b8;">コンプリート率</div>
+                                <div style="font-size: 28px; font-weight: bold; color: #8b5cf6;">${completionRate}%</div>
                             </div>
                             <div style="text-align: right;">
-                                <div style="font-size: 14px; color: var(--text-secondary);">取得カード</div>
-                                <div style="font-size: 20px; font-weight: bold;">${obtainedCards} / ${totalCards}</div>
+                                <div style="font-size: 14px; color: #94a3b8;">取得カード</div>
+                                <div style="font-size: 20px; font-weight: bold; color: #e2e8f0;">${obtainedCards} / ${totalCards}</div>
                             </div>
                         </div>
-                        <div style="margin-top: 12px; background: rgba(0,0,0,0.3); border-radius: 8px; height: 8px; overflow: hidden;">
+                        <div style="margin-top: 12px; background: rgba(0,0,0,0.5); border-radius: 8px; height: 8px; overflow: hidden;">
                             <div style="background: linear-gradient(90deg, #10b981, #3b82f6); height: 100%; width: ${completionRate}%; transition: width 0.3s;"></div>
                         </div>
                     </div>
@@ -10128,21 +10128,21 @@
                             const isObtained = entry.obtained;
                             
                             return `
-                                <div style="background: ${isObtained ? card.color + '22' : 'rgba(100, 116, 139, 0.1)'}; 
-                                            border: 2px solid ${isObtained ? card.color : '#64748b33'}; 
+                                <div style="background: ${isObtained ? 'rgba(30, 41, 59, 0.9)' : 'rgba(15, 23, 42, 0.6)'}; 
+                                            border: 2px solid ${isObtained ? card.color : '#475569'}; 
                                             border-radius: 12px; padding: 12px; 
-                                            opacity: ${isObtained ? '1' : '0.5'};">
+                                            opacity: ${isObtained ? '1' : '0.7'};">
                                     <div style="font-size: 32px; text-align: center; margin-bottom: 8px;">
                                         ${isObtained ? card.icon : '❓'}
                                     </div>
-                                    <div style="font-size: 12px; font-weight: bold; text-align: center;">
+                                    <div style="font-size: 12px; font-weight: bold; text-align: center; color: ${isObtained ? '#e2e8f0' : '#94a3b8'};">
                                         ${isObtained ? card.name : '???'}
                                     </div>
-                                    <div style="font-size: 10px; color: var(--text-secondary); text-align: center; margin-top: 4px;">
+                                    <div style="font-size: 10px; color: #94a3b8; text-align: center; margin-top: 4px;">
                                         ${isObtained ? `所持: ${entry.count}枚` : entry.hints}
                                     </div>
                                     ${isObtained && entry.firstObtained ? `
-                                        <div style="font-size: 9px; color: var(--text-secondary); text-align: center; margin-top: 4px;">
+                                        <div style="font-size: 9px; color: #64748b; text-align: center; margin-top: 4px;">
                                             初回: ${new Date(entry.firstObtained).toLocaleDateString()}
                                         </div>
                                     ` : ''}
@@ -10151,8 +10151,8 @@
                         }).join('')}
                     </div>
                     
-                    <div style="margin-top: 20px; padding: 12px; background: rgba(59, 130, 246, 0.1); border-radius: 8px;">
-                        <div style="font-size: 12px; color: var(--text-secondary);">
+                    <div style="margin-top: 20px; padding: 12px; background: rgba(59, 130, 246, 0.15); border-radius: 8px; border: 1px solid rgba(59, 130, 246, 0.3);">
+                        <div style="font-size: 12px; color: #94a3b8;">
                             💡 ヒント: カードは習慣達成時やイベント発生時に獲得できます。全種類集めて図鑑をコンプリートしよう！
                         </div>
                     </div>
