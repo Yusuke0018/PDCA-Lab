@@ -1894,12 +1894,7 @@
             
             <!-- 履歴タブ -->
             <div id="history-tab-content" class="card" style="display: none;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                    <h3 style="margin: 0;">📝 取引履歴</h3>
-                    <button onclick="resetAllPoints()" style="padding: 8px 16px; background: #ef4444; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px;">
-                        🗑️ ポイントをリセット
-                    </button>
-                </div>
+                <h3 style="margin-bottom: 16px;">📝 取引履歴</h3>
                 <div id="points-history" style="display: grid; gap: 8px; max-height: 400px; overflow-y: auto;">
                     <!-- 履歴が動的に生成される -->
                 </div>
@@ -2679,33 +2674,33 @@
             updateChallengeStats();
         }
 
-        // ポイントをすべてリセット
-        function resetAllPoints() {
-            if (!confirm('⚠️ 警告\n\nすべてのポイントと履歴を削除します。\nこの操作は取り消せません。\n\n本当に実行しますか？')) {
-                return;
-            }
-            
-            if (!confirm('⚠️ 最終確認\n\n本当にすべてのポイントをリセットしますか？')) {
-                return;
-            }
-            
-            const data = loadData();
-            
-            // ポイントシステムをリセット
-            data.pointSystem.currentPoints = 0;
-            data.pointSystem.lifetimeEarned = 0;
-            data.pointSystem.lifetimeSpent = 0;
-            data.pointSystem.currentLevel = 1;
-            data.pointSystem.levelProgress = 0;
-            data.pointSystem.transactions = [];
-            
-            saveData(data);
-            
-            // UI更新
-            updatePointDisplay();
-            updatePointsView();
-            showNotification('ポイントをリセットしました', 'success');
-        }
+        // ポイントをすべてリセット（緊急時用・通常は非表示）
+        // function resetAllPoints() {
+        //     if (!confirm('⚠️ 警告\n\nすべてのポイントと履歴を削除します。\nこの操作は取り消せません。\n\n本当に実行しますか？')) {
+        //         return;
+        //     }
+        //     
+        //     if (!confirm('⚠️ 最終確認\n\n本当にすべてのポイントをリセットしますか？')) {
+        //         return;
+        //     }
+        //     
+        //     const data = loadData();
+        //     
+        //     // ポイントシステムをリセット
+        //     data.pointSystem.currentPoints = 0;
+        //     data.pointSystem.lifetimeEarned = 0;
+        //     data.pointSystem.lifetimeSpent = 0;
+        //     data.pointSystem.currentLevel = 1;
+        //     data.pointSystem.levelProgress = 0;
+        //     data.pointSystem.transactions = [];
+        //     
+        //     saveData(data);
+        //     
+        //     // UI更新
+        //     updatePointDisplay();
+        //     updatePointsView();
+        //     showNotification('ポイントをリセットしました', 'success');
+        // }
 
         // チャレンジ統計を更新
         function updateChallengeStats() {
