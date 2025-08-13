@@ -1383,6 +1383,19 @@
                 <h1>🧪 HypoLab</h1>
                 <span style="font-size: 12px; color: var(--text-secondary); background: var(--surface-light); padding: 4px 8px; border-radius: 4px;">ローカル版</span>
             </div>
+            <!-- ポイント表示 -->
+            <div id="point-display" style="
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1));
+                padding: 8px 16px;
+                border-radius: 12px;
+                border: 1px solid rgba(251, 191, 36, 0.3);
+            ">
+                <span class="point-amount" style="font-weight: bold; color: #fbbf24;">💰 0pt</span>
+                <span class="level-info" style="font-size: 12px; color: var(--text-secondary);">Lv.1 初心者</span>
+            </div>
             <button id="debug-toggle" onclick="toggleDebugMode()" style="
                 background: none;
                 border: 1px solid var(--border);
@@ -1431,6 +1444,18 @@
     <div class="container">
         <!-- ホーム画面 -->
         <div id="home-view">
+            <!-- 努力ボーナスセクション -->
+            <div class="card" style="margin-bottom: 16px; background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(59, 130, 246, 0.1)); border: 1px solid rgba(16, 185, 129, 0.3);">
+                <h3 style="margin-bottom: 12px; font-size: 16px;">今日の努力ボーナス</h3>
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                    <span id="effort-stars" style="font-size: 24px;">⭐⭐⭐</span>
+                    <span id="effort-count" style="color: var(--text-secondary); font-size: 14px;">残り3ポイント</span>
+                </div>
+                <button class="btn btn-secondary" onclick="showEffortBonusDialog()" style="padding: 8px 16px; font-size: 14px;">
+                    💪 今日頑張った！ (+1pt)
+                </button>
+            </div>
+            
             <div class="card">
                 <h2 style="margin-bottom: 16px;">現在の習慣</h2>
                 <div id="current-hypothesis-list" class="hypothesis-list">
@@ -2116,6 +2141,27 @@
             if (!parsed.meta) {
                 parsed.meta = {};
             }
+            // ポイントシステムがない場合は初期化
+            if (!parsed.pointSystem) {
+                parsed.pointSystem = {
+                    currentPoints: 0,
+                    lifetimeEarned: 0,
+                    lifetimeSpent: 0,
+                    currentLevel: 1,
+                    levelProgress: 0,
+                    streakMultiplier: 1.0,
+                    dailyEffortUsed: 0,
+                    dailyEffortLastReset: new Date().toDateString(),
+                    customRewards: [],
+                    transactions: []
+                };
+            }
+            // 日付が変わったら努力ポイントをリセット
+            const today = new Date().toDateString();
+            if (parsed.pointSystem && parsed.pointSystem.dailyEffortLastReset !== today) {
+                parsed.pointSystem.dailyEffortUsed = 0;
+                parsed.pointSystem.dailyEffortLastReset = today;
+            }
             return parsed;
         }
 
@@ -2123,6 +2169,266 @@
         function saveData(data) {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
         }
+
+        // ========== ポイントシステム関連の関数 ==========
+        
+        // レベル設定（厳しめ）
+        const LEVEL_THRESHOLDS = [
+            { level: 1, name: '初心者', min: 0, max: 50 },
+            { level: 2, name: '見習い', min: 51, max: 150 },
+            { level: 3, name: '習慣家', min: 151, max: 300 },
+            { level: 4, name: '実践者', min: 301, max: 500 },
+            { level: 5, name: '達人', min: 501, max: 750 },
+            { level: 6, name: 'マスター', min: 751, max: 1100 },
+            { level: 7, name: 'グランドマスター', min: 1101, max: 1500 },
+            { level: 8, name: 'レジェンド', min: 1501, max: 2000 },
+            { level: 9, name: '神', min: 2001, max: 2600 },
+            { level: 10, name: '超越者', min: 2601, max: Infinity }
+        ];
+
+        // 現在のレベルを計算
+        function calculateLevel(lifetimeEarned) {
+            for (const threshold of LEVEL_THRESHOLDS) {
+                if (lifetimeEarned <= threshold.max) {
+                    return threshold;
+                }
+            }
+            // レベル10以上の計算
+            const extraPoints = lifetimeEarned - 2601;
+            const extraLevels = Math.floor(extraPoints / 700);
+            return {
+                level: 10 + extraLevels,
+                name: '超越者',
+                min: 2601 + (extraLevels * 700),
+                max: 2601 + ((extraLevels + 1) * 700)
+            };
+        }
+
+        // ポイント獲得処理
+        function earnPoints(amount, source, description, multiplier = 1.0) {
+            const data = loadData();
+            const finalAmount = Math.round(amount * multiplier);
+            
+            // ポイント追加
+            data.pointSystem.currentPoints += finalAmount;
+            data.pointSystem.lifetimeEarned += finalAmount;
+            data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
+            
+            // レベル更新
+            const newLevel = calculateLevel(data.pointSystem.lifetimeEarned);
+            const oldLevel = data.pointSystem.currentLevel;
+            data.pointSystem.currentLevel = newLevel.level;
+            
+            // トランザクション記録
+            data.pointSystem.transactions.unshift({
+                timestamp: new Date().toISOString(),
+                type: 'earn',
+                amount: amount,
+                source: source,
+                description: description,
+                multiplier: multiplier,
+                finalAmount: finalAmount
+            });
+            
+            // トランザクション履歴を最新100件に制限
+            if (data.pointSystem.transactions.length > 100) {
+                data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100);
+            }
+            
+            saveData(data);
+            
+            // レベルアップ通知
+            if (newLevel.level > oldLevel) {
+                showLevelUpNotification(oldLevel, newLevel);
+            }
+            
+            // ポイント獲得アニメーション
+            showPointAnimation(finalAmount);
+            
+            // UI更新
+            updatePointDisplay();
+            
+            return finalAmount;
+        }
+
+        // ポイント消費処理
+        function spendPoints(amount, rewardName) {
+            const data = loadData();
+            
+            if (data.pointSystem.currentPoints < amount) {
+                return false; // ポイント不足
+            }
+            
+            // ポイント消費
+            data.pointSystem.currentPoints -= amount;
+            data.pointSystem.lifetimeSpent += amount;
+            
+            // トランザクション記録
+            data.pointSystem.transactions.unshift({
+                timestamp: new Date().toISOString(),
+                type: 'spend',
+                amount: amount,
+                source: 'reward',
+                description: rewardName
+            });
+            
+            // トランザクション履歴を制限
+            if (data.pointSystem.transactions.length > 100) {
+                data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100);
+            }
+            
+            saveData(data);
+            
+            // UI更新
+            updatePointDisplay();
+            
+            return true;
+        }
+
+        // 努力ボーナスポイント獲得
+        function addEffortBonus(reason = '') {
+            const data = loadData();
+            
+            // 1日の上限チェック
+            if (data.pointSystem.dailyEffortUsed >= 3) {
+                alert('今日の努力ボーナスは上限（3ポイント）に達しています。');
+                return false;
+            }
+            
+            // 努力ポイント付与
+            data.pointSystem.dailyEffortUsed += 1;
+            earnPoints(1, 'effort_bonus', reason || '努力ボーナス');
+            
+            return true;
+        }
+
+        // ポイント表示を更新
+        function updatePointDisplay() {
+            const data = loadData();
+            const pointDisplay = document.getElementById('point-display');
+            const levelInfo = calculateLevel(data.pointSystem.lifetimeEarned);
+            
+            if (pointDisplay) {
+                pointDisplay.innerHTML = `
+                    <span class="point-amount">💰 ${data.pointSystem.currentPoints}pt</span>
+                    <span class="level-info">Lv.${levelInfo.level} ${levelInfo.name}</span>
+                    ${data.pointSystem.streakMultiplier > 1 ? `<span class="multiplier">🔥×${data.pointSystem.streakMultiplier.toFixed(1)}</span>` : ''}
+                `;
+            }
+            
+            // 努力ボーナスの表示も更新
+            updateEffortBonusDisplay();
+        }
+        
+        // 努力ボーナス表示を更新
+        function updateEffortBonusDisplay() {
+            const data = loadData();
+            const remaining = 3 - data.pointSystem.dailyEffortUsed;
+            const effortStars = document.getElementById('effort-stars');
+            const effortCount = document.getElementById('effort-count');
+            
+            if (effortStars) {
+                let stars = '';
+                for (let i = 0; i < 3; i++) {
+                    if (i < remaining) {
+                        stars += '⭐';
+                    } else {
+                        stars += '☆';
+                    }
+                }
+                effortStars.textContent = stars;
+            }
+            
+            if (effortCount) {
+                effortCount.textContent = `残り${remaining}ポイント`;
+            }
+        }
+        
+        // 努力ボーナスダイアログを表示
+        function showEffortBonusDialog() {
+            const data = loadData();
+            if (data.pointSystem.dailyEffortUsed >= 3) {
+                alert('今日の努力ボーナスは上限（3ポイント）に達しています。\n明日また挑戦してください！');
+                return;
+            }
+            
+            const reason = prompt('どんなことを頑張りましたか？（任意）');
+            if (reason !== null) { // キャンセルじゃない場合
+                if (addEffortBonus(reason)) {
+                    updateEffortBonusDisplay();
+                    showNotification('💪 努力ボーナス +1pt 獲得！', 'success');
+                }
+            }
+        }
+
+        // レベルアップ通知
+        function showLevelUpNotification(oldLevel, newLevel) {
+            // 後で実装: モーダルやトーストでレベルアップを祝福
+            console.log(`🎉 レベルアップ！ Lv.${oldLevel} → Lv.${newLevel.level} ${newLevel.name}`);
+        }
+
+        // ポイント獲得アニメーション
+        function showPointAnimation(points) {
+            // 後で実装: +Xpt のフローティングアニメーション
+            console.log(`+${points}pt 獲得！`);
+        }
+
+        // 連続ボーナスの計算
+        function calculateStreakMultiplier(streakDays) {
+            if (streakDays >= 21) return 2.0;
+            if (streakDays >= 14) return 1.7;
+            if (streakDays >= 7) return 1.5;
+            if (streakDays >= 3) return 1.2;
+            return 1.0;
+        }
+
+        // 現在の連続日数を計算
+        function calculateCurrentStreak(hypothesis) {
+            if (!hypothesis.achievements) return 0;
+            
+            const today = new Date();
+            let streak = 0;
+            let checkDate = new Date(today);
+            
+            // 今日から遡って連続達成をカウント
+            while (true) {
+                const dateKey = dateKeyLocal(checkDate);
+                if (hypothesis.achievements[dateKey]) {
+                    streak++;
+                    checkDate.setDate(checkDate.getDate() - 1);
+                } else {
+                    break;
+                }
+            }
+            
+            return streak;
+        }
+
+        // コンボボーナスのチェックと付与
+        function checkAndAwardComboBonus(dateKey) {
+            const data = loadData();
+            let achievedToday = 0;
+            let totalHabits = 0;
+            
+            // 今日達成した習慣数をカウント
+            data.currentHypotheses.forEach(h => {
+                if (h.achievements && h.achievements[dateKey]) {
+                    achievedToday++;
+                }
+                totalHabits++;
+            });
+            
+            // コンボボーナス付与
+            if (achievedToday === 2) {
+                earnPoints(1, 'combo', '2習慣同時達成ボーナス');
+            } else if (achievedToday === 3) {
+                earnPoints(3, 'combo', '3習慣同時達成ボーナス');
+            } else if (totalHabits >= 4 && achievedToday === totalHabits) {
+                earnPoints(5, 'combo', '全習慣達成ボーナス');
+            }
+        }
+
+        // ========== ポイントシステム関連の関数ここまで ==========
 
         // ナビゲーションを更新
         function updateNavigation(activeView) {
@@ -3640,10 +3946,27 @@
                 dayCell.classList.remove('not-achieved');
                 dayCell.classList.add('achieved');
                 
+                // ポイント獲得処理
+                const data = loadData();
+                const intensity = window.currentHypothesis.intensity || 'light';
+                let basePoints = 1;
+                if (intensity === 'medium') basePoints = 2;
+                if (intensity === 'heavy') basePoints = 3;
+                
+                // 連続日数を計算
+                const streakDays = calculateCurrentStreak(window.currentHypothesis);
+                const multiplier = calculateStreakMultiplier(streakDays);
+                
+                // ポイント付与
+                earnPoints(basePoints, 'habit', `${window.currentHypothesis.title} 達成`, multiplier);
+                
+                // 同日の他の習慣達成をチェックしてコンボボーナス
+                checkAndAwardComboBonus(dateKey);
+                
                 // 達成アニメーションを表示
                 showAchievementAnimation();
             } else {
-                // 達成を取り消す
+                // 達成を取り消す（ポイントは返却しない）
                 delete window.currentHypothesis.achievements[dateKey];
                 dayCell.classList.remove('achieved');
                 dayCell.classList.add('not-achieved');
@@ -7240,6 +7563,9 @@
         function initializeApp() {
             // ホーム画面を表示（これが習慣リストも更新する）
             showHomeView();
+            
+            // ポイント表示を初期化
+            updatePointDisplay();
             
             // 履歴初期化（ホームを現在の状態として記録）
             try {
