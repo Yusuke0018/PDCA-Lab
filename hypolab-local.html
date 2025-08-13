@@ -5940,8 +5940,15 @@
                 const data = loadData();
                 // 日付ごとの強度を取得（なければデフォルト値1.0）
                 const intensityValue = window.currentHypothesis.intensity?.[dateKey] || 1.0;
-                let basePoints = 3; // 基本ポイントは3
-                const actualPoints = Math.round(basePoints * intensityValue);
+                // 強度に応じてポイントを設定（0.8→1pt、1.0→2pt、1.2→3pt）
+                let actualPoints = 2; // デフォルトは基本の2pt
+                if (intensityValue === 0.8) {
+                    actualPoints = 1; // 軽め
+                } else if (intensityValue === 1.0) {
+                    actualPoints = 2; // 基本
+                } else if (intensityValue === 1.2) {
+                    actualPoints = 3; // 高強度
+                }
                 
                 // 連続日数を計算
                 const streakDays = calculateCurrentStreak(window.currentHypothesis);
@@ -5965,8 +5972,15 @@
                 const data = loadData();
                 // 日付ごとの強度を取得（なければデフォルト値1.0）
                 const intensityValue = window.currentHypothesis.intensity?.[dateKey] || 1.0;
-                let basePoints = 3; // 基本ポイント
-                const actualPoints = Math.round(basePoints * intensityValue);
+                // 強度に応じてポイントを設定（0.8→1pt、1.0→2pt、1.2→3pt）
+                let actualPoints = 2; // デフォルトは基本の2pt
+                if (intensityValue === 0.8) {
+                    actualPoints = 1; // 軽め
+                } else if (intensityValue === 1.0) {
+                    actualPoints = 2; // 基本
+                } else if (intensityValue === 1.2) {
+                    actualPoints = 3; // 高強度
+                }
                 
                 // 連続日数ボーナスも考慮（ただし、現在の連続日数ではなく、達成時の連続日数は不明なので基本ポイントのみ減算）
                 // より正確にするには、達成時のポイントを記録しておく必要がある
