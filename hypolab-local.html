@@ -1794,6 +1794,42 @@
                         <h3 style="margin-bottom:8px;">🏆 獲得バッジ</h3>
                         <div id="badge-collection" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap:12px; margin-top:12px;"></div>
                     </div>
+                    <!-- チャレンジ統計セクション -->
+                    <div class="stat-panel" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(236, 72, 153, 0.1)); padding: 16px; border-radius: 12px; border: 1px solid rgba(139, 92, 246, 0.3);">
+                        <h3 style="margin-bottom:12px;">🎯 チャレンジ統計</h3>
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px;">
+                            <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                                <div id="challenge-streak" style="font-size: 24px; font-weight: bold; color: #fbbf24;">0</div>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">連続達成日数</div>
+                            </div>
+                            <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                                <div id="total-challenges-completed" style="font-size: 24px; font-weight: bold; color: #10b981;">0</div>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">累計完了</div>
+                            </div>
+                            <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                                <div id="daily-completion-rate" style="font-size: 24px; font-weight: bold; color: #8b5cf6;">0%</div>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">デイリー達成率</div>
+                            </div>
+                            <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                                <div id="weekly-completion-rate" style="font-size: 24px; font-weight: bold; color: #ec4899;">0%</div>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">ウィークリー達成率</div>
+                            </div>
+                        </div>
+                        <!-- お気に入りチャレンジ -->
+                        <div style="margin-bottom: 16px;">
+                            <h4 style="font-size: 14px; margin-bottom: 8px;">⭐ よく達成するチャレンジ</h4>
+                            <div id="favorite-challenges" style="display: grid; gap: 8px; max-height: 150px; overflow-y: auto;">
+                                <!-- 動的に生成 -->
+                            </div>
+                        </div>
+                        <!-- チャレンジ履歴 -->
+                        <div>
+                            <h4 style="font-size: 14px; margin-bottom: 8px;">📝 最近のチャレンジ達成</h4>
+                            <div id="recent-challenges" style="display: grid; gap: 4px; max-height: 150px; overflow-y: auto; font-size: 12px;">
+                                <!-- 動的に生成 -->
+                            </div>
+                        </div>
+                    </div>
                     <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
                         <h3 style="margin-bottom:8px;">📈 習慣レポート</h3>
                         <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 16px;">
@@ -1866,7 +1902,19 @@
             
             <!-- 作成タブ -->
             <div id="create-tab-content" class="card" style="display: none;">
-                <h3 style="margin-bottom: 16px;">➕ 新しい報酬を作成</h3>
+                <!-- タブ選択 -->
+                <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+                    <button class="btn btn-secondary" onclick="showRewardCreation()" id="reward-creation-btn" style="flex: 1; padding: 8px; font-size: 14px; background: var(--primary); color: white;">
+                        🎁 報酬作成
+                    </button>
+                    <button class="btn btn-secondary" onclick="showChallengeCreation()" id="challenge-creation-btn" style="flex: 1; padding: 8px; font-size: 14px;">
+                        🎯 チャレンジ作成
+                    </button>
+                </div>
+                
+                <!-- 報酬作成フォーム -->
+                <div id="reward-creation-form" style="display: block;">
+                    <h3 style="margin-bottom: 16px;">➕ 新しい報酬を作成</h3>
                 <form onsubmit="createReward(event)">
                     <div class="form-group">
                         <label for="reward-name">報酬の名前</label>
@@ -1905,6 +1953,65 @@
                         ✨ 報酬を作成
                     </button>
                 </form>
+                </div>
+                
+                <!-- チャレンジ作成フォーム -->
+                <div id="challenge-creation-form" style="display: none;">
+                    <h3 style="margin-bottom: 16px;">🎯 カスタムチャレンジを作成</h3>
+                    <form onsubmit="createCustomChallenge(event)">
+                        <div class="form-group">
+                            <label for="challenge-name">チャレンジ名</label>
+                            <input type="text" id="challenge-name" required placeholder="例: 腕立て伏せ20回" autocomplete="off">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="challenge-type">タイプ</label>
+                            <select id="challenge-type" required>
+                                <option value="daily">デイリー</option>
+                                <option value="weekly">ウィークリー</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="challenge-points">報酬ポイント</label>
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <input type="range" id="challenge-points-slider" min="1" max="30" value="5" style="flex: 1;" oninput="updateChallengePoints(this.value)">
+                                <span id="challenge-points-display" style="min-width: 40px; text-align: right; font-weight: bold;">5pt</span>
+                            </div>
+                            <input type="hidden" id="challenge-points" value="5">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="challenge-emoji">アイコン（絵文字）</label>
+                            <input type="text" id="challenge-emoji" placeholder="例: 💪" maxlength="2" autocomplete="off">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="challenge-category">カテゴリー</label>
+                            <select id="challenge-category">
+                                <option value="health">🏃 健康・運動</option>
+                                <option value="study">📚 学習・成長</option>
+                                <option value="mindfulness">🧘 マインドフルネス</option>
+                                <option value="social">🤝 社会・人間関係</option>
+                                <option value="creativity">🎨 創造性</option>
+                                <option value="productivity">⚡ 生産性</option>
+                                <option value="other">📦 その他</option>
+                            </select>
+                        </div>
+                        
+                        <button type="submit" class="btn" style="width: 100%; margin-top: 16px;">
+                            チャレンジを作成
+                        </button>
+                    </form>
+                    
+                    <!-- カスタムチャレンジリスト -->
+                    <div style="margin-top: 24px;">
+                        <h4 style="margin-bottom: 12px; font-size: 14px;">📝 作成したチャレンジ</h4>
+                        <div id="custom-challenges-list" style="display: grid; gap: 8px;">
+                            <!-- 動的に生成 -->
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -2167,7 +2274,12 @@
                         completedToday: [],
                         completedThisWeek: [],
                         lastDailyReset: new Date().toDateString(),
-                        lastWeeklyReset: new Date().toISOString()
+                        lastWeeklyReset: new Date().toISOString(),
+                        history: [],
+                        streak: 0,
+                        lastStreakDate: null,
+                        totalCompleted: 0,
+                        customChallenges: []
                     },
                     meta: {}
                 };
@@ -2212,9 +2324,20 @@
                     completedToday: [],
                     completedThisWeek: [],
                     lastDailyReset: new Date().toDateString(),
-                    lastWeeklyReset: new Date().toISOString()
+                    lastWeeklyReset: new Date().toISOString(),
+                    history: [],
+                    streak: 0,
+                    lastStreakDate: null,
+                    totalCompleted: 0,
+                    customChallenges: []
                 };
             }
+            // チャレンジ履歴がない場合は初期化
+            if (!parsed.challenges.history) parsed.challenges.history = [];
+            if (parsed.challenges.streak === undefined) parsed.challenges.streak = 0;
+            if (!parsed.challenges.lastStreakDate) parsed.challenges.lastStreakDate = null;
+            if (parsed.challenges.totalCompleted === undefined) parsed.challenges.totalCompleted = 0;
+            if (!parsed.challenges.customChallenges) parsed.challenges.customChallenges = [];
             // 日付が変わったら努力ポイントとデイリーチャレンジをリセット
             const today = new Date().toDateString();
             if (parsed.pointSystem && parsed.pointSystem.dailyEffortLastReset !== today) {
@@ -2249,11 +2372,20 @@
         function updateChallenges() {
             const data = loadData();
             
+            // カスタムチャレンジを取得
+            const customDailyChallenges = (data.challenges.customChallenges || [])
+                .filter(c => c.type === 'daily');
+            const customWeeklyChallenges = (data.challenges.customChallenges || [])
+                .filter(c => c.type === 'weekly');
+            
+            // デイリーチャレンジプールを作成（既定 + カスタム）
+            const allDailyChallenges = [...DAILY_CHALLENGES, ...customDailyChallenges];
+            
             // デイリーチャレンジ
             const dailyContainer = document.getElementById('daily-challenge-container');
             if (!data.challenges.daily) {
                 // ランダムにデイリーチャレンジを選択
-                const randomDaily = DAILY_CHALLENGES[Math.floor(Math.random() * DAILY_CHALLENGES.length)];
+                const randomDaily = allDailyChallenges[Math.floor(Math.random() * allDailyChallenges.length)];
                 data.challenges.daily = randomDaily;
                 saveData(data);
             }
@@ -2268,7 +2400,7 @@
                             <span style="font-size: 24px;">${daily.icon}</span>
                             <div>
                                 <div style="font-weight: bold; ${isCompleted ? 'text-decoration: line-through; color: var(--text-secondary);' : ''}">${daily.name}</div>
-                                <div style="font-size: 12px; color: var(--text-secondary);">報酬: ${daily.points}pt</div>
+                                <div style="font-size: 12px; color: var(--text-secondary);">報酬: ${daily.points}pt${daily.id.startsWith('custom_') ? ' (カスタム)' : ''}</div>
                             </div>
                         </div>
                         ${!isCompleted ? `
@@ -2282,11 +2414,14 @@
                 `;
             }
             
+            // ウィークリーチャレンジプールを作成（既定 + カスタム）
+            const allWeeklyChallenges = [...WEEKLY_CHALLENGES, ...customWeeklyChallenges];
+            
             // ウィークリーチャレンジ
             const weeklyContainer = document.getElementById('weekly-challenge-container');
             if (!data.challenges.weekly) {
                 // ランダムにウィークリーチャレンジを選択
-                const randomWeekly = WEEKLY_CHALLENGES[Math.floor(Math.random() * WEEKLY_CHALLENGES.length)];
+                const randomWeekly = allWeeklyChallenges[Math.floor(Math.random() * allWeeklyChallenges.length)];
                 data.challenges.weekly = randomWeekly;
                 saveData(data);
             }
@@ -2302,7 +2437,7 @@
                             <span style="font-size: 24px;">${weekly.icon}</span>
                             <div>
                                 <div style="font-weight: bold; ${isCompleted ? 'text-decoration: line-through; color: var(--text-secondary);' : ''}">${weekly.name}</div>
-                                <div style="font-size: 12px; color: var(--text-secondary);">報酬: ${weekly.points}pt</div>
+                                <div style="font-size: 12px; color: var(--text-secondary);">報酬: ${weekly.points}pt${weekly.id.startsWith('custom_') ? ' (カスタム)' : ''}</div>
                             </div>
                         </div>
                         ${!isCompleted ? `
@@ -2320,27 +2455,268 @@
         // チャレンジを完了
         function completeChallenge(type, challengeId) {
             const data = loadData();
+            const today = new Date().toDateString();
             
             if (type === 'daily') {
-                const challenge = DAILY_CHALLENGES.find(c => c.id === challengeId);
+                // 既定のチャレンジまたはカスタムチャレンジから検索
+                let challenge = DAILY_CHALLENGES.find(c => c.id === challengeId);
+                if (!challenge && data.challenges.customChallenges) {
+                    challenge = data.challenges.customChallenges.find(c => c.id === challengeId && c.type === 'daily');
+                }
+                
                 if (challenge && !data.challenges.completedToday.includes(challengeId)) {
                     data.challenges.completedToday.push(challengeId);
+                    
+                    // 履歴に追加
+                    data.challenges.history.unshift({
+                        id: challengeId,
+                        name: challenge.name,
+                        type: 'daily',
+                        points: challenge.points,
+                        completedAt: new Date().toISOString(),
+                        isCustom: challengeId.startsWith('custom_')
+                    });
+                    
+                    // ストリークを更新
+                    if (data.challenges.lastStreakDate !== today) {
+                        const yesterday = new Date();
+                        yesterday.setDate(yesterday.getDate() - 1);
+                        const yesterdayStr = yesterday.toDateString();
+                        
+                        if (data.challenges.lastStreakDate === yesterdayStr) {
+                            data.challenges.streak++;
+                        } else {
+                            data.challenges.streak = 1;
+                        }
+                        data.challenges.lastStreakDate = today;
+                    }
+                    
+                    data.challenges.totalCompleted++;
                     earnPoints(challenge.points, 'daily_challenge', `デイリーチャレンジ: ${challenge.name}`);
                     showNotification(`🎉 デイリーチャレンジ完了！ +${challenge.points}pt`, 'success');
                 }
             } else if (type === 'weekly') {
-                const challenge = WEEKLY_CHALLENGES.find(c => c.id === challengeId);
+                // 既定のチャレンジまたはカスタムチャレンジから検索
+                let challenge = WEEKLY_CHALLENGES.find(c => c.id === challengeId);
+                if (!challenge && data.challenges.customChallenges) {
+                    challenge = data.challenges.customChallenges.find(c => c.id === challengeId && c.type === 'weekly');
+                }
+                
                 if (challenge && !data.challenges.completedThisWeek.includes(challengeId)) {
                     data.challenges.completedThisWeek.push(challengeId);
+                    
+                    // 履歴に追加
+                    data.challenges.history.unshift({
+                        id: challengeId,
+                        name: challenge.name,
+                        type: 'weekly',
+                        points: challenge.points,
+                        completedAt: new Date().toISOString(),
+                        isCustom: challengeId.startsWith('custom_')
+                    });
+                    
+                    data.challenges.totalCompleted++;
                     earnPoints(challenge.points, 'weekly_challenge', `ウィークリーチャレンジ: ${challenge.name}`);
                     showNotification(`🎉 ウィークリーチャレンジ完了！ +${challenge.points}pt`, 'success');
                 }
+            }
+            
+            // 履歴は最新100件のみ保存
+            if (data.challenges.history.length > 100) {
+                data.challenges.history = data.challenges.history.slice(0, 100);
             }
             
             saveData(data);
             updateChallenges();
             updatePointDisplay();
             updatePointsView();
+            updateChallengeStats();
+        }
+
+        // チャレンジ統計を更新
+        function updateChallengeStats() {
+            const data = loadData();
+            const challenges = data.challenges;
+            
+            // 連続達成日数
+            const streakEl = document.getElementById('challenge-streak');
+            if (streakEl) {
+                streakEl.textContent = challenges.streak || 0;
+            }
+            
+            // 累計完了数
+            const totalEl = document.getElementById('total-challenges-completed');
+            if (totalEl) {
+                totalEl.textContent = challenges.totalCompleted || 0;
+            }
+            
+            // デイリー達成率を計算
+            const dailyHistory = challenges.history.filter(h => h.type === 'daily');
+            const last30Days = dailyHistory.filter(h => {
+                const date = new Date(h.completedAt);
+                const daysDiff = (new Date() - date) / (1000 * 60 * 60 * 24);
+                return daysDiff <= 30;
+            });
+            const dailyRate = last30Days.length > 0 ? Math.round((last30Days.length / 30) * 100) : 0;
+            const dailyRateEl = document.getElementById('daily-completion-rate');
+            if (dailyRateEl) {
+                dailyRateEl.textContent = `${dailyRate}%`;
+            }
+            
+            // ウィークリー達成率を計算
+            const weeklyHistory = challenges.history.filter(h => h.type === 'weekly');
+            const last8Weeks = weeklyHistory.filter(h => {
+                const date = new Date(h.completedAt);
+                const weeksDiff = (new Date() - date) / (1000 * 60 * 60 * 24 * 7);
+                return weeksDiff <= 8;
+            });
+            const weeklyRate = last8Weeks.length > 0 ? Math.round((last8Weeks.length / 8) * 100) : 0;
+            const weeklyRateEl = document.getElementById('weekly-completion-rate');
+            if (weeklyRateEl) {
+                weeklyRateEl.textContent = `${weeklyRate}%`;
+            }
+            
+            // お気に入りチャレンジ（よく達成するチャレンジ）
+            const favoriteContainer = document.getElementById('favorite-challenges');
+            if (favoriteContainer) {
+                const challengeCounts = {};
+                challenges.history.forEach(h => {
+                    if (!challengeCounts[h.id]) {
+                        challengeCounts[h.id] = { name: h.name, count: 0, type: h.type };
+                    }
+                    challengeCounts[h.id].count++;
+                });
+                
+                const sortedChallenges = Object.entries(challengeCounts)
+                    .sort((a, b) => b[1].count - a[1].count)
+                    .slice(0, 5);
+                
+                if (sortedChallenges.length > 0) {
+                    favoriteContainer.innerHTML = sortedChallenges.map(([id, data]) => `
+                        <div style="display: flex; justify-content: space-between; padding: 8px; background: rgba(139, 92, 246, 0.1); border-radius: 8px;">
+                            <span style="font-size: 12px;">${data.name}</span>
+                            <span style="font-size: 12px; color: var(--text-secondary);">${data.count}回</span>
+                        </div>
+                    `).join('');
+                } else {
+                    favoriteContainer.innerHTML = '<p style="color: var(--text-secondary); font-size: 12px;">まだデータがありません</p>';
+                }
+            }
+            
+            // 最近のチャレンジ達成
+            const recentContainer = document.getElementById('recent-challenges');
+            if (recentContainer) {
+                const recent = challenges.history.slice(0, 10);
+                if (recent.length > 0) {
+                    recentContainer.innerHTML = recent.map(h => {
+                        const date = new Date(h.completedAt);
+                        const dateStr = `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+                        const typeIcon = h.type === 'daily' ? '📅' : '📆';
+                        return `
+                            <div style="display: flex; justify-content: space-between; padding: 6px; background: rgba(0, 0, 0, 0.1); border-radius: 6px;">
+                                <span>${typeIcon} ${h.name}</span>
+                                <span style="color: var(--text-secondary);">${dateStr}</span>
+                            </div>
+                        `;
+                    }).join('');
+                } else {
+                    recentContainer.innerHTML = '<p style="color: var(--text-secondary);">まだチャレンジを達成していません</p>';
+                }
+            }
+        }
+
+        // カスタムチャレンジ作成フォーム表示
+        function showChallengeCreation() {
+            document.getElementById('reward-creation-form').style.display = 'none';
+            document.getElementById('challenge-creation-form').style.display = 'block';
+            document.getElementById('reward-creation-btn').style.background = '';
+            document.getElementById('reward-creation-btn').style.color = '';
+            document.getElementById('challenge-creation-btn').style.background = 'var(--primary)';
+            document.getElementById('challenge-creation-btn').style.color = 'white';
+            updateCustomChallengesList();
+        }
+        
+        // 報酬作成フォーム表示
+        function showRewardCreation() {
+            document.getElementById('reward-creation-form').style.display = 'block';
+            document.getElementById('challenge-creation-form').style.display = 'none';
+            document.getElementById('reward-creation-btn').style.background = 'var(--primary)';
+            document.getElementById('reward-creation-btn').style.color = 'white';
+            document.getElementById('challenge-creation-btn').style.background = '';
+            document.getElementById('challenge-creation-btn').style.color = '';
+        }
+        
+        // チャレンジポイント更新
+        function updateChallengePoints(value) {
+            document.getElementById('challenge-points-display').textContent = `${value}pt`;
+            document.getElementById('challenge-points').value = value;
+        }
+        
+        // カスタムチャレンジ作成
+        function createCustomChallenge(event) {
+            event.preventDefault();
+            const data = loadData();
+            
+            const challenge = {
+                id: `custom_${Date.now()}`,
+                name: document.getElementById('challenge-name').value,
+                type: document.getElementById('challenge-type').value,
+                points: parseInt(document.getElementById('challenge-points').value),
+                icon: document.getElementById('challenge-emoji').value || '🎯',
+                category: document.getElementById('challenge-category').value,
+                isCustom: true,
+                createdAt: new Date().toISOString()
+            };
+            
+            data.challenges.customChallenges.push(challenge);
+            saveData(data);
+            
+            // フォームをリセット
+            document.getElementById('challenge-name').value = '';
+            document.getElementById('challenge-emoji').value = '';
+            document.getElementById('challenge-points-slider').value = 5;
+            updateChallengePoints(5);
+            
+            showNotification('カスタムチャレンジを作成しました！', 'success');
+            updateCustomChallengesList();
+        }
+        
+        // カスタムチャレンジリストを更新
+        function updateCustomChallengesList() {
+            const data = loadData();
+            const container = document.getElementById('custom-challenges-list');
+            
+            if (container) {
+                if (data.challenges.customChallenges.length === 0) {
+                    container.innerHTML = '<p style="color: var(--text-secondary); font-size: 12px;">まだカスタムチャレンジを作成していません</p>';
+                } else {
+                    container.innerHTML = data.challenges.customChallenges.map(challenge => `
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px; background: rgba(139, 92, 246, 0.1); border-radius: 8px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span>${challenge.icon}</span>
+                                <div>
+                                    <div style="font-size: 12px; font-weight: bold;">${challenge.name}</div>
+                                    <div style="font-size: 10px; color: var(--text-secondary);">${challenge.type === 'daily' ? 'デイリー' : 'ウィークリー'} / ${challenge.points}pt</div>
+                                </div>
+                            </div>
+                            <button class="btn btn-secondary" onclick="deleteCustomChallenge('${challenge.id}')" style="padding: 4px 8px; font-size: 10px;">
+                                削除
+                            </button>
+                        </div>
+                    `).join('');
+                }
+            }
+        }
+        
+        // カスタムチャレンジを削除
+        function deleteCustomChallenge(challengeId) {
+            if (confirm('このカスタムチャレンジを削除しますか？')) {
+                const data = loadData();
+                data.challenges.customChallenges = data.challenges.customChallenges.filter(c => c.id !== challengeId);
+                saveData(data);
+                updateCustomChallengesList();
+                showNotification('カスタムチャレンジを削除しました', 'info');
+            }
         }
 
         // ========== ポイントシステム関連の関数 ==========
@@ -6683,6 +7059,9 @@
             if (pointDisplay) {
                 pointDisplay.style.display = 'flex';
             }
+            
+            // チャレンジ統計を更新
+            updateChallengeStats();
             
             const data = loadData();
             const totalHypotheses = data.currentHypotheses.length + data.completedHypotheses.length;
