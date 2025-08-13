@@ -8265,6 +8265,22 @@
                 return cards; // 空の配列を返す
             }
             
+            // 習慣の期間からレアリティボーナスを計算
+            const getDurationBonus = (days) => {
+                if (days >= 30) return 0.4;  // 長期（30日以上）：レア率+40%
+                if (days >= 21) return 0.25; // 中長期（21-29日）：レア率+25%
+                if (days >= 14) return 0.15; // 中期（14-20日）：レア率+15%
+                if (days >= 7) return 0.05;  // 短中期（7-13日）：レア率+5%
+                return 0;                     // 短期（6日以下）：ボーナスなし
+            };
+            
+            const durationBonus = hypothesis ? getDurationBonus(hypothesis.totalDays) : 0;
+            
+            // デバッグ用：期間ボーナスをコンソールに出力
+            if (hypothesis) {
+                console.log(`習慣期間: ${hypothesis.totalDays}日, 期間ボーナス: +${(durationBonus * 100).toFixed(0)}%`);
+            }
+            
             // パーフェクトボーナスが有効かチェック
             let hasPerfectBonus = false;
             if (data.cards && data.cards.activeEffects) {
@@ -8281,24 +8297,41 @@
             }
             
             if (achievementRate === 100) {
-                // 100%達成: 基本 L15/R35/C50、サプライズ時 L25/R45/C30
+                // 100%達成: 期間ボーナスでレア率上昇
                 const rand = Math.random();
-                if (hasSurpriseBoost) {
-                    if (rand < 0.25) {
-                        cards.push('perfect_bonus');
-                    } else if (rand < 0.70) {
-                        cards.push('achievement_boost');
-                    } else {
-                        cards.push('skip_ticket');
-                    }
+                
+                // 新カードを含む報酬カードプール
+                const legendaryCards = [
+                    'perfect_bonus', 'second_chance', 'achievement_booster',
+                    'event_trigger', 'event_combo', 'point_gem', 
+                    'mission_master', 'rainbow_boost', 'quick_start',
+                    'streak_bonus', 'lucky_seven', 'conversion_magic'
+                ];
+                const rareCards = [
+                    'achievement_boost', 'protect_shield', 'skip_ticket'
+                ];
+                const commonCards = [
+                    'skip_ticket', 'destiny_dice'
+                ];
+                
+                // 期間ボーナスを加味したレアリティ判定
+                const baseLegendaryChance = hasSurpriseBoost ? 0.25 : 0.15;
+                const legendaryChance = baseLegendaryChance + (durationBonus * 0.5); // 期間ボーナスの半分をレジェンダリーに
+                const rareChance = hasSurpriseBoost ? 0.45 : 0.35;
+                const adjustedRareChance = rareChance + (durationBonus * 0.3); // 期間ボーナスの30%をレアに
+                
+                if (rand < legendaryChance) {
+                    // レジェンダリーカード
+                    const selectedCard = legendaryCards[Math.floor(Math.random() * legendaryCards.length)];
+                    cards.push(selectedCard);
+                } else if (rand < legendaryChance + adjustedRareChance) {
+                    // レアカード
+                    const selectedCard = rareCards[Math.floor(Math.random() * rareCards.length)];
+                    cards.push(selectedCard);
                 } else {
-                    if (rand < 0.15) {
-                        cards.push('perfect_bonus');
-                    } else if (rand < 0.50) {
-                        cards.push('achievement_boost');
-                    } else {
-                        cards.push('skip_ticket');
-                    }
+                    // コモンカード
+                    const selectedCard = commonCards[Math.floor(Math.random() * commonCards.length)];
+                    cards.push(selectedCard);
                 }
                 
                 // パーフェクトボーナスが有効な場合、追加で1枚獲得
@@ -8324,33 +8357,51 @@
                     }, 1000);
                 }
             } else if (achievementRate >= 80) {
-                // 80-99%達成: 基本 R20/C80、サプライズ時 R35/C65
-                const rand = Math.random();
-                if (hasSurpriseBoost) {
-                    if (rand < 0.35) {
-                        cards.push('achievement_boost');
-                    } else {
-                        cards.push('skip_ticket');
-                    }
-                } else {
-                    if (rand < 0.2) {
-                        cards.push('achievement_boost');
-                    } else {
-                        cards.push('skip_ticket');
-                    }
-                }
-            } else if (achievementRate < 60) {
-                // 59%以下: ペナルティカード1枚
+                // 80-99%達成: 期間ボーナスでレア率上昇
                 const rand = Math.random();
                 
-                if (rand < 0.4) {
-                    // 40%の確率でコモン
-                    const commonPenalties = ['extension_card', 'short_term', 'achievement_decrease'];
-                    cards.push(commonPenalties[Math.floor(Math.random() * commonPenalties.length)]);
+                const rareCards = [
+                    'achievement_boost', 'protect_shield', 'skip_ticket'
+                ];
+                const commonCards = [
+                    'skip_ticket', 'destiny_dice'
+                ];
+                
+                // 期間ボーナスを加味したレア率
+                const baseRareChance = hasSurpriseBoost ? 0.35 : 0.2;
+                const rareChance = baseRareChance + durationBonus; // 期間ボーナスをそのまま加算
+                
+                if (rand < rareChance) {
+                    // レアカード
+                    const selectedCard = rareCards[Math.floor(Math.random() * rareCards.length)];
+                    cards.push(selectedCard);
                 } else {
-                    // 60%の確率でレア
-                    const rarePenalties = ['hard_mode', 'reset_risk'];
-                    cards.push(rarePenalties[Math.floor(Math.random() * rarePenalties.length)]);
+                    // コモンカード
+                    const selectedCard = commonCards[Math.floor(Math.random() * commonCards.length)];
+                    cards.push(selectedCard);
+                }
+            } else if (achievementRate < 60) {
+                // 59%以下: ペナルティカード（期間が長いほど強いペナルティ）
+                const rand = Math.random();
+                
+                // 新カードを含むペナルティカードプール
+                const commonPenalties = ['extension_card', 'short_term', 'achievement_decrease'];
+                const rarePenalties = [
+                    'hard_mode', 'reset_risk', 'event_seal', 
+                    'mission_addition', 'slowdown', 'reverse_curse'
+                ];
+                
+                // 期間が長いほどレアペナルティ率上昇（逆効果）
+                const rarePenaltyChance = 0.6 + (durationBonus * 0.5);
+                
+                if (rand < rarePenaltyChance) {
+                    // レアペナルティ
+                    const selectedCard = rarePenalties[Math.floor(Math.random() * rarePenalties.length)];
+                    cards.push(selectedCard);
+                } else {
+                    // コモンペナルティ
+                    const selectedCard = commonPenalties[Math.floor(Math.random() * commonPenalties.length)];
+                    cards.push(selectedCard);
                 }
             }
             // 60-79%は何も獲得しない
