@@ -1452,11 +1452,11 @@
             <div class="card" style="margin-bottom: 16px; background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(59, 130, 246, 0.1)); border: 1px solid rgba(16, 185, 129, 0.3);">
                 <h3 style="margin-bottom: 12px; font-size: 16px;">今日の努力ボーナス</h3>
                 <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
-                    <span id="effort-stars" style="font-size: 24px;">⭐⭐⭐</span>
-                    <span id="effort-count" style="color: var(--text-secondary); font-size: 14px;">残り3ポイント</span>
+                    <span id="effort-stars" style="font-size: 24px;">⭐ 無制限</span>
+                    <span id="effort-count" style="color: var(--text-secondary); font-size: 14px;">今日0回使用</span>
                 </div>
                 <button class="btn btn-secondary" onclick="showEffortBonusDialog()" style="padding: 8px 16px; font-size: 14px;">
-                    💪 今日頑張った！ (+1pt)
+                    💪 努力を記録する (+1-3pt)
                 </button>
             </div>
             
@@ -2434,10 +2434,46 @@
             // 使用回数を記録（上限なし）
             data.pointSystem.dailyEffortUsed = (data.pointSystem.dailyEffortUsed || 0) + 1;
             
-            // 努力ポイント付与
-            earnPoints(points, 'effort_bonus', reason || `努力ボーナス (${points}pt)`);
+            // ポイント追加（直接処理）
+            data.pointSystem.currentPoints += points;
+            data.pointSystem.lifetimeEarned += points;
+            data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
+            
+            // レベル更新
+            const newLevel = calculateLevel(data.pointSystem.lifetimeEarned);
+            const oldLevel = data.pointSystem.currentLevel;
+            data.pointSystem.currentLevel = newLevel.level;
+            
+            // トランザクション記録
+            data.pointSystem.transactions.unshift({
+                timestamp: new Date().toISOString(),
+                type: 'earn',
+                amount: points,
+                source: 'effort_bonus',
+                description: reason || `努力ボーナス (${points}pt)`,
+                finalAmount: points
+            });
+            
+            // トランザクション履歴を最新100件に制限
+            if (data.pointSystem.transactions.length > 100) {
+                data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100);
+            }
             
             saveData(data);
+            
+            // レベルアップ通知
+            if (newLevel.level > oldLevel) {
+                showLevelUpNotification(oldLevel, newLevel);
+            }
+            
+            // ポイント獲得アニメーション
+            showPointAnimation(points);
+            
+            // UI更新
+            updatePointDisplay();
+            updatePointsView();
+            updateStatistics();
+            
             return true;
         }
 
@@ -2506,9 +2542,33 @@
                     width: 320px;
                 ">
                     <h3 style="margin-bottom: 16px; color: var(--primary);">💪 努力ボーナス</h3>
+                    <div style="margin-bottom: 12px;">
+                        <label style="display: block; margin-bottom: 8px; color: var(--text-secondary);">種類を選択</label>
+                        <select id="effort-type" style="
+                            width: 100%;
+                            padding: 8px;
+                            background: var(--background);
+                            border: 1px solid var(--border);
+                            border-radius: 8px;
+                            color: var(--text-primary);
+                            margin-bottom: 12px;
+                        ">
+                            <option value="morning">🌅 早起き・朝活</option>
+                            <option value="exercise">💪 運動・トレーニング</option>
+                            <option value="study">📚 勉強・学習</option>
+                            <option value="work">💼 仕事・作業</option>
+                            <option value="health">🥗 健康・食事</option>
+                            <option value="cleaning">🧹 掃除・整理整頓</option>
+                            <option value="mindfulness">🧘 瞑想・リラックス</option>
+                            <option value="social">👥 人間関係・交流</option>
+                            <option value="creative">🎨 創造・趣味</option>
+                            <option value="challenge">🎯 新しい挑戦</option>
+                            <option value="other">✨ その他</option>
+                        </select>
+                    </div>
                     <div style="margin-bottom: 16px;">
-                        <label style="display: block; margin-bottom: 8px; color: var(--text-secondary);">何を頑張りましたか？</label>
-                        <input type="text" id="effort-reason" placeholder="例: 早起きした" style="
+                        <label style="display: block; margin-bottom: 8px; color: var(--text-secondary);">詳細（任意）</label>
+                        <input type="text" id="effort-reason" placeholder="例: 6時に起きて朝活した" style="
                             width: 100%;
                             padding: 8px;
                             background: var(--background);
@@ -2616,12 +2676,36 @@
         
         // 努力ボーナスを確定
         function confirmEffortBonus() {
-            const reason = document.getElementById('effort-reason').value;
+            const typeSelect = document.getElementById('effort-type');
+            const typeText = typeSelect.options[typeSelect.selectedIndex].text;
+            const detail = document.getElementById('effort-reason').value;
+            const reason = detail ? `${typeText} - ${detail}` : typeText;
             const points = window.selectedEffortPoints || 2;
             
             if (addEffortBonus(points, reason)) {
-                updateEffortBonusDisplay();
-                showNotification(`💪 努力ボーナス +${points}pt 獲得！`, 'success');
+                // 成功メッセージ
+                const message = document.createElement('div');
+                message.style.cssText = `
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    padding: 20px 40px;
+                    border-radius: 20px;
+                    font-size: 18px;
+                    font-weight: 600;
+                    z-index: 10001;
+                    animation: fadeInOut 2s ease-out;
+                `;
+                message.textContent = `💪 ${points}ポイント獲得！`;
+                document.body.appendChild(message);
+                
+                setTimeout(() => message.remove(), 2000);
+                
+                // 努力ボーナスエリアを更新
+                updateEffortBonusArea();
             }
             
             closeEffortDialog();
