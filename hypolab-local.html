@@ -2502,7 +2502,13 @@
                     }
                     
                     data.challenges.totalCompleted++;
-                    saveData(data);  // データを保存してからポイント追加
+                    
+                    // 履歴は最新100件のみ保存
+                    if (data.challenges.history.length > 100) {
+                        data.challenges.history = data.challenges.history.slice(0, 100);
+                    }
+                    
+                    saveData(data);
                     earnPoints(challenge.points, 'daily_challenge', `デイリーチャレンジ: ${challenge.name}`);
                     showNotification(`🎉 デイリーチャレンジ完了！ +${challenge.points}pt`, 'success');
                 }
@@ -2527,18 +2533,17 @@
                     });
                     
                     data.challenges.totalCompleted++;
-                    saveData(data);  // データを保存してからポイント追加
+                    
+                    // 履歴は最新100件のみ保存
+                    if (data.challenges.history.length > 100) {
+                        data.challenges.history = data.challenges.history.slice(0, 100);
+                    }
+                    
+                    saveData(data);
                     earnPoints(challenge.points, 'weekly_challenge', `ウィークリーチャレンジ: ${challenge.name}`);
                     showNotification(`🎉 ウィークリーチャレンジ完了！ +${challenge.points}pt`, 'success');
                 }
             }
-            
-            // 履歴は最新100件のみ保存
-            if (data.challenges.history.length > 100) {
-                data.challenges.history = data.challenges.history.slice(0, 100);
-            }
-            
-            saveData(data);
             updateChallenges();
             updatePointDisplay();
             updatePointsView();
@@ -2586,10 +2591,30 @@
                         data.challenges.lastStreakDate = yesterday.toDateString();
                     }
                     
-                    saveData(data);
+                    // ポイントを減算
+                    data.pointSystem.currentPoints = Math.max(0, data.pointSystem.currentPoints - challenge.points);
+                    data.pointSystem.lifetimeEarned = Math.max(0, data.pointSystem.lifetimeEarned - challenge.points);
+                    data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
                     
-                    // ポイントを返却
-                    spendPoints(challenge.points * -1, `チャレンジ取消: ${challenge.name}`);
+                    // レベル更新
+                    const newLevel = calculateLevel(data.pointSystem.lifetimeEarned);
+                    data.pointSystem.currentLevel = newLevel.level;
+                    
+                    // トランザクション記録
+                    data.pointSystem.transactions.unshift({
+                        timestamp: new Date().toISOString(),
+                        type: 'spend',
+                        amount: challenge.points,
+                        source: 'challenge_undo',
+                        description: `チャレンジ取消: ${challenge.name}`
+                    });
+                    
+                    // トランザクション履歴を制限
+                    if (data.pointSystem.transactions.length > 100) {
+                        data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100);
+                    }
+                    
+                    saveData(data);
                     showNotification(`チャレンジの達成を取り消しました (-${challenge.points}pt)`, 'info');
                 }
             } else if (type === 'weekly') {
@@ -2615,10 +2640,30 @@
                     // 総達成数を減らす
                     data.challenges.totalCompleted = Math.max(0, data.challenges.totalCompleted - 1);
                     
-                    saveData(data);
+                    // ポイントを減算
+                    data.pointSystem.currentPoints = Math.max(0, data.pointSystem.currentPoints - challenge.points);
+                    data.pointSystem.lifetimeEarned = Math.max(0, data.pointSystem.lifetimeEarned - challenge.points);
+                    data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
                     
-                    // ポイントを返却
-                    spendPoints(challenge.points * -1, `チャレンジ取消: ${challenge.name}`);
+                    // レベル更新
+                    const newLevel = calculateLevel(data.pointSystem.lifetimeEarned);
+                    data.pointSystem.currentLevel = newLevel.level;
+                    
+                    // トランザクション記録
+                    data.pointSystem.transactions.unshift({
+                        timestamp: new Date().toISOString(),
+                        type: 'spend',
+                        amount: challenge.points,
+                        source: 'challenge_undo',
+                        description: `チャレンジ取消: ${challenge.name}`
+                    });
+                    
+                    // トランザクション履歴を制限
+                    if (data.pointSystem.transactions.length > 100) {
+                        data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100);
+                    }
+                    
+                    saveData(data);
                     showNotification(`チャレンジの達成を取り消しました (-${challenge.points}pt)`, 'info');
                 }
             }
