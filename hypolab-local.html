@@ -2243,6 +2243,7 @@
 
         // チャレンジマスターデータ
         const DAILY_CHALLENGES = [
+            // 生活改善系
             { id: 'meditation_5min', name: '5分間瞑想', points: 3, icon: '🧘' },
             { id: 'no_device_30min', name: '30分間電子機器に触らない', points: 4, icon: '📵' },
             { id: 'burpee_plus10', name: 'バーピー+10回', points: 5, icon: '💪' },
@@ -2257,10 +2258,25 @@
             { id: 'stretch_5min', name: 'ストレッチ5分', points: 3, icon: '🤸' },
             { id: 'learn_word', name: '新しい単語を1つ覚える', points: 3, icon: '📖' },
             { id: 'plank_plus10', name: 'プランク+10秒', points: 4, icon: '🏋️' },
-            { id: 'mindful_eating', name: 'スマホを見ずに食事', points: 3, icon: '🍽️' }
+            { id: 'mindful_eating', name: 'スマホを見ずに食事', points: 3, icon: '🍽️' },
+            
+            // 習慣達成ミッション系
+            { id: 'complete_3_habits', name: '今日3つ以上の習慣を達成', points: 5, icon: '🎯', checkFunction: 'checkComplete3Habits' },
+            { id: 'morning_routine', name: '朝の習慣をすべて完了', points: 4, icon: '🌅', checkFunction: 'checkMorningRoutine' },
+            { id: 'high_intensity_day', name: '今日すべて高強度(×1.2)で達成', points: 6, icon: '🔥', checkFunction: 'checkHighIntensityDay' },
+            { id: 'perfect_streak', name: '3日連続で全習慣達成', points: 8, icon: '⚡', checkFunction: 'checkPerfectStreak' },
+            { id: 'category_master', name: '同じカテゴリーの習慣を3つ達成', points: 4, icon: '📊', checkFunction: 'checkCategoryMaster' },
+            { id: 'early_bird', name: '午前中に習慣を2つ以上達成', points: 3, icon: '🐦', checkFunction: 'checkEarlyBird' },
+            { id: 'if_then_execute', name: 'IF-THENルールを3回実行', points: 4, icon: '🔄', checkFunction: 'checkIfThenExecute' },
+            { id: 'declaration_master', name: '今日の宣言をすべて実行', points: 5, icon: '📢', checkFunction: 'checkDeclarationMaster' },
+            { id: 'variety_day', name: '4種類の異なるカテゴリーを達成', points: 6, icon: '🌈', checkFunction: 'checkVarietyDay' },
+            { id: 'consistency_bonus', name: '同じ時間帯に習慣を実行', points: 3, icon: '⏰', checkFunction: 'checkConsistencyBonus' },
+            { id: 'effort_bonus_max', name: '努力ボーナスを最大まで使用', points: 4, icon: '💪', checkFunction: 'checkEffortBonusMax' },
+            { id: 'habit_and_challenge', name: '習慣とチャレンジを両方達成', points: 5, icon: '🏆', checkFunction: 'checkHabitAndChallenge' }
         ];
 
         const WEEKLY_CHALLENGES = [
+            // 生活改善系
             { id: 'new_habit', name: '新しい習慣を作る', points: 15, icon: '🌱' },
             { id: 'walking_plus1', name: 'ウォーキング週一回追加', points: 10, icon: '🚶' },
             { id: 'room_cleanup', name: '部屋の大掃除（1エリア）', points: 12, icon: '🧼' },
@@ -2268,7 +2284,19 @@
             { id: 'early_rise_3days', name: '早起き3日連続', points: 20, icon: '🌅' },
             { id: 'try_new_sport', name: '新しい運動を試す', points: 12, icon: '🏃' },
             { id: 'read_book', name: '本を1冊読み切る', points: 25, icon: '📕' },
-            { id: 'volunteer', name: '寄付/ボランティア活動', points: 20, icon: '🤝' }
+            { id: 'volunteer', name: '寄付/ボランティア活動', points: 20, icon: '🤝' },
+            
+            // 週間習慣ミッション系
+            { id: 'week_perfect', name: '今週すべての習慣を90%以上達成', points: 30, icon: '💯', checkFunction: 'checkWeekPerfect' },
+            { id: 'week_consistency', name: '毎日同じ時間に習慣を実行', points: 20, icon: '⏰', checkFunction: 'checkWeekConsistency' },
+            { id: 'week_intensity_up', name: '週の後半は強度を上げて達成', points: 18, icon: '📈', checkFunction: 'checkWeekIntensityUp' },
+            { id: 'week_all_categories', name: '全カテゴリーを週3回以上達成', points: 25, icon: '🌈', checkFunction: 'checkWeekAllCategories' },
+            { id: 'week_if_then_master', name: 'IF-THENルールを20回以上実行', points: 22, icon: '🔄', checkFunction: 'checkWeekIfThenMaster' },
+            { id: 'week_card_collector', name: 'カードを5枚以上獲得', points: 20, icon: '🎴', checkFunction: 'checkWeekCardCollector' },
+            { id: 'week_comeback', name: '3日サボってから復活', points: 15, icon: '💪', checkFunction: 'checkWeekComeback' },
+            { id: 'week_habit_combo', name: '習慣コンボを10回達成', points: 18, icon: '🔥', checkFunction: 'checkWeekHabitCombo' },
+            { id: 'week_declaration_perfect', name: '宣言を100%実行（7日間）', points: 25, icon: '📢', checkFunction: 'checkWeekDeclarationPerfect' },
+            { id: 'week_challenge_master', name: 'デイリーチャレンジ7連続達成', points: 20, icon: '🏆', checkFunction: 'checkWeekChallengeMaster' }
         ];
 
         // データの読み込み
@@ -2408,17 +2436,36 @@
                 const daily = data.challenges.daily;
                 const isCompleted = data.challenges.completedToday.includes(daily.id);
                 
+                // チェック関数がある場合は自動チェック
+                let isAutoCheckable = false;
+                let isAutoCompleted = false;
+                if (daily.checkFunction && !isCompleted) {
+                    try {
+                        isAutoCheckable = true;
+                        isAutoCompleted = window[daily.checkFunction]();
+                    } catch (e) {
+                        console.log('チェック関数エラー:', e);
+                    }
+                }
+                
                 dailyContainer.innerHTML = `
                     <div style="display: flex; align-items: center; justify-content: space-between;">
                         <div style="display: flex; align-items: center; gap: 12px;">
                             <span style="font-size: 24px;">${daily.icon}</span>
                             <div>
                                 <div style="font-weight: bold; ${isCompleted ? 'text-decoration: line-through; color: var(--text-secondary);' : ''}">${daily.name}</div>
-                                <div style="font-size: 12px; color: var(--text-secondary);">報酬: ${daily.points}pt${daily.id.startsWith('custom_') ? ' (カスタム)' : ''}</div>
+                                <div style="font-size: 12px; color: var(--text-secondary);">
+                                    報酬: ${daily.points}pt
+                                    ${daily.id.startsWith('custom_') ? ' (カスタム)' : ''}
+                                    ${isAutoCheckable && !isCompleted ? (isAutoCompleted ? ' 🟢 達成可能！' : ' ⏳ 条件未達成') : ''}
+                                </div>
                             </div>
                         </div>
                         ${!isCompleted ? `
-                            <button class="btn btn-secondary" onclick="completeChallenge('daily', '${daily.id}')" style="padding: 6px 12px; font-size: 12px;">
+                            <button class="btn btn-secondary" 
+                                onclick="completeChallenge('daily', '${daily.id}')" 
+                                style="padding: 6px 12px; font-size: 12px; ${isAutoCheckable && !isAutoCompleted ? 'opacity: 0.5;' : ''}"
+                                ${isAutoCheckable && !isAutoCompleted ? 'disabled' : ''}>
                                 ✅ 完了
                             </button>
                         ` : `
@@ -9237,6 +9284,181 @@
             };
         }
 
+        // ========== ミッションチェック関数 ==========
+        
+        // デイリーミッションチェック関数
+        function checkComplete3Habits() {
+            const data = loadData();
+            const todayKey = dateKeyLocal(new Date());
+            let completedCount = 0;
+            
+            data.currentHypotheses.forEach(h => {
+                if (h.achievements && h.achievements[todayKey]) {
+                    completedCount++;
+                }
+            });
+            
+            return completedCount >= 3;
+        }
+        
+        function checkMorningRoutine() {
+            const data = loadData();
+            const todayKey = dateKeyLocal(new Date());
+            const now = new Date();
+            const noon = new Date();
+            noon.setHours(12, 0, 0, 0);
+            
+            if (now.getHours() >= 12) {
+                // 午後になったらチェック可能
+                let morningHabitsCompleted = 0;
+                data.currentHypotheses.forEach(h => {
+                    // 朝の宣言がある習慣
+                    if (h.morningDeclaration && h.achievements && h.achievements[todayKey]) {
+                        morningHabitsCompleted++;
+                    }
+                });
+                return morningHabitsCompleted > 0;
+            }
+            return false;
+        }
+        
+        function checkHighIntensityDay() {
+            const data = loadData();
+            const todayKey = dateKeyLocal(new Date());
+            let allHighIntensity = true;
+            let hasAchievements = false;
+            
+            data.currentHypotheses.forEach(h => {
+                if (h.achievements && h.achievements[todayKey]) {
+                    hasAchievements = true;
+                    const intensity = h.intensity && h.intensity[todayKey] || 1.0;
+                    if (intensity < 1.2) {
+                        allHighIntensity = false;
+                    }
+                }
+            });
+            
+            return hasAchievements && allHighIntensity;
+        }
+        
+        function checkCategoryMaster() {
+            const data = loadData();
+            const todayKey = dateKeyLocal(new Date());
+            const categoryCount = {};
+            
+            data.currentHypotheses.forEach(h => {
+                if (h.achievements && h.achievements[todayKey]) {
+                    const category = h.category || 'other';
+                    categoryCount[category] = (categoryCount[category] || 0) + 1;
+                }
+            });
+            
+            return Object.values(categoryCount).some(count => count >= 3);
+        }
+        
+        function checkEarlyBird() {
+            const data = loadData();
+            const todayKey = dateKeyLocal(new Date());
+            const now = new Date();
+            
+            if (now.getHours() >= 12) {
+                // 午後になったらチェック可能
+                let morningAchievements = 0;
+                data.currentHypotheses.forEach(h => {
+                    if (h.achievements && h.achievements[todayKey]) {
+                        // 簡易的に午前中の達成とみなす
+                        morningAchievements++;
+                    }
+                });
+                return morningAchievements >= 2;
+            }
+            return false;
+        }
+        
+        function checkVarietyDay() {
+            const data = loadData();
+            const todayKey = dateKeyLocal(new Date());
+            const categories = new Set();
+            
+            data.currentHypotheses.forEach(h => {
+                if (h.achievements && h.achievements[todayKey]) {
+                    categories.add(h.category || 'other');
+                }
+            });
+            
+            return categories.size >= 4;
+        }
+        
+        function checkEffortBonusMax() {
+            const data = loadData();
+            // 努力ボーナスの最大使用（11種類すべて使用）
+            return data.pointSystem.dailyEffortUsed >= 11;
+        }
+        
+        function checkHabitAndChallenge() {
+            const data = loadData();
+            const todayKey = dateKeyLocal(new Date());
+            let hasHabitAchievement = false;
+            
+            data.currentHypotheses.forEach(h => {
+                if (h.achievements && h.achievements[todayKey]) {
+                    hasHabitAchievement = true;
+                }
+            });
+            
+            const hasChallengeCompleted = data.challenges.completedToday.length > 0;
+            
+            return hasHabitAchievement && hasChallengeCompleted;
+        }
+        
+        // ウィークリーミッションチェック関数
+        function checkWeekPerfect() {
+            const data = loadData();
+            let allAbove90 = true;
+            
+            data.currentHypotheses.forEach(h => {
+                const achievedDays = Object.keys(h.achievements || {}).length;
+                const totalDays = h.totalDays || 1;
+                const rate = (achievedDays / totalDays) * 100;
+                if (rate < 90) {
+                    allAbove90 = false;
+                }
+            });
+            
+            return data.currentHypotheses.length > 0 && allAbove90;
+        }
+        
+        function checkWeekCardCollector() {
+            const data = loadData();
+            const oneWeekAgo = new Date();
+            oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+            
+            const recentCards = (data.cards.inventory || []).filter(card => {
+                return new Date(card.earnedAt) > oneWeekAgo;
+            });
+            
+            return recentCards.length >= 5;
+        }
+        
+        function checkWeekChallengeMaster() {
+            const data = loadData();
+            // チャレンジストリークが7以上
+            return data.challenges.streak >= 7;
+        }
+        
+        // その他のチェック関数（簡略化）
+        function checkPerfectStreak() { return false; }
+        function checkIfThenExecute() { return false; }
+        function checkDeclarationMaster() { return false; }
+        function checkConsistencyBonus() { return false; }
+        function checkWeekConsistency() { return false; }
+        function checkWeekIntensityUp() { return false; }
+        function checkWeekAllCategories() { return false; }
+        function checkWeekIfThenMaster() { return false; }
+        function checkWeekComeback() { return false; }
+        function checkWeekHabitCombo() { return false; }
+        function checkWeekDeclarationPerfect() { return false; }
+        
         // 初期化
         window.addEventListener('load', () => {
             updateHeaderHeightVar();
