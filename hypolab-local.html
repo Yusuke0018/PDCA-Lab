@@ -1426,6 +1426,9 @@
             <button class="nav-btn" onclick="showStatsView()" data-view="stats">
                 📊 統計
             </button>
+            <button class="nav-btn" onclick="showPointsView()" data-view="points">
+                💰 ポイント
+            </button>
             <button class="nav-btn" onclick="showCardsView()" data-view="cards">
                 🎴 カード
             </button>
@@ -1437,6 +1440,7 @@
             <span class="dot" data-page="2" style="width: 6px; height: 6px; background: var(--surface-light); border-radius: 50%; transition: all 0.3s;"></span>
             <span class="dot" data-page="3" style="width: 6px; height: 6px; background: var(--surface-light); border-radius: 50%; transition: all 0.3s;"></span>
             <span class="dot" data-page="4" style="width: 6px; height: 6px; background: var(--surface-light); border-radius: 50%; transition: all 0.3s;"></span>
+            <span class="dot" data-page="5" style="width: 6px; height: 6px; background: var(--surface-light); border-radius: 50%; transition: all 0.3s;"></span>
         </div>
     </nav>
 
@@ -1927,6 +1931,100 @@
             </div>
         </div>
 
+
+        <!-- ポイント画面 -->
+        <div id="points-view" style="display: none;">
+            <!-- ポイント状況 -->
+            <div class="card" style="margin-top: 0; background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1)); border: 1px solid rgba(251, 191, 36, 0.3);">
+                <h2 style="margin-bottom: 16px; margin-top: 0;">💰 ポイントショップ</h2>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px;">
+                    <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 16px; border-radius: 12px;">
+                        <div id="points-current" style="font-size: 32px; font-weight: bold; color: #fbbf24;">0</div>
+                        <div style="font-size: 14px; color: var(--text-secondary); margin-top: 4px;">所持ポイント</div>
+                    </div>
+                    <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 16px; border-radius: 12px;">
+                        <div id="points-level" style="font-size: 32px; font-weight: bold; color: #8b5cf6;">Lv.1</div>
+                        <div id="points-level-name" style="font-size: 14px; color: var(--text-secondary); margin-top: 4px;">初心者</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- タブナビゲーション -->
+            <div style="display: flex; gap: 8px; margin-bottom: 16px; background: var(--surface); padding: 8px; border-radius: 12px;">
+                <button id="rewards-tab" class="btn btn-secondary" onclick="showRewardsTab()" style="flex: 1; padding: 10px; font-size: 14px; background: var(--primary); color: white;">
+                    🎁 報酬
+                </button>
+                <button id="history-tab" class="btn btn-secondary" onclick="showHistoryTab()" style="flex: 1; padding: 10px; font-size: 14px;">
+                    📝 履歴
+                </button>
+                <button id="create-tab" class="btn btn-secondary" onclick="showCreateTab()" style="flex: 1; padding: 10px; font-size: 14px;">
+                    ➕ 作成
+                </button>
+            </div>
+            
+            <!-- 報酬タブ -->
+            <div id="rewards-tab-content" class="card">
+                <h3 style="margin-bottom: 16px;">🎁 報酬リスト</h3>
+                <div id="rewards-list" style="display: grid; gap: 12px;">
+                    <!-- 報酬カードが動的に生成される -->
+                    <div style="text-align: center; color: var(--text-secondary); padding: 40px;">
+                        報酬がまだありません<br>
+                        「➕ 作成」タブから報酬を追加してください
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 履歴タブ -->
+            <div id="history-tab-content" class="card" style="display: none;">
+                <h3 style="margin-bottom: 16px;">📝 取引履歴</h3>
+                <div id="points-history" style="display: grid; gap: 8px; max-height: 400px; overflow-y: auto;">
+                    <!-- 履歴が動的に生成される -->
+                </div>
+            </div>
+            
+            <!-- 作成タブ -->
+            <div id="create-tab-content" class="card" style="display: none;">
+                <h3 style="margin-bottom: 16px;">➕ 新しい報酬を作成</h3>
+                <form onsubmit="createReward(event)">
+                    <div class="form-group">
+                        <label for="reward-name">報酬の名前</label>
+                        <input type="text" id="reward-name" required placeholder="例: 15分SNS" autocomplete="off">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="reward-cost">必要ポイント</label>
+                        <input type="number" id="reward-cost" required min="1" max="999" placeholder="例: 10" autocomplete="off">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="reward-emoji">アイコン（絵文字）</label>
+                        <input type="text" id="reward-emoji" placeholder="例: 📱" maxlength="2" autocomplete="off">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="reward-category">カテゴリー</label>
+                        <select id="reward-category">
+                            <option value="休憩">🍵 休憩</option>
+                            <option value="娯楽">🎮 娯楽</option>
+                            <option value="食事">🍰 食事</option>
+                            <option value="買い物">🛍️ 買い物</option>
+                            <option value="体験">🎭 体験</option>
+                            <option value="自由時間">⏰ 自由時間</option>
+                            <option value="その他">📦 その他</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="reward-memo">メモ（任意）</label>
+                        <textarea id="reward-memo" placeholder="この報酬の詳細説明" autocomplete="off"></textarea>
+                    </div>
+                    
+                    <button type="submit" class="btn" style="width: 100%;">
+                        ✨ 報酬を作成
+                    </button>
+                </form>
+            </div>
+        </div>
 
         <!-- カード一覧画面 -->
         <div id="cards-view" style="display: none;">
@@ -2548,6 +2646,300 @@
                         `;
                     }).join('');
                 }
+            }
+        }
+
+        // ポイント画面を表示
+        function showPointsView() {
+            resetScrollToTop();
+            document.getElementById('home-view').style.display = 'none';
+            document.getElementById('new-hypothesis-view').style.display = 'none';
+            document.getElementById('shuffle-view').style.display = 'none';
+            document.getElementById('progress-view').style.display = 'none';
+            document.getElementById('history-view').style.display = 'none';
+            document.getElementById('stats-view').style.display = 'none';
+            document.getElementById('points-view').style.display = 'block';
+            document.getElementById('cards-view').style.display = 'none';
+            
+            updateNavigation('points');
+            updatePointsView();
+            showRewardsTab(); // デフォルトで報酬タブを表示
+        }
+        
+        // ポイント画面の更新
+        function updatePointsView() {
+            const data = loadData();
+            const ps = data.pointSystem;
+            
+            // 現在のポイント
+            const pointsCurrent = document.getElementById('points-current');
+            if (pointsCurrent) {
+                pointsCurrent.textContent = ps.currentPoints.toLocaleString();
+            }
+            
+            // レベル
+            const levelInfo = calculateLevel(ps.lifetimeEarned);
+            const pointsLevel = document.getElementById('points-level');
+            const pointsLevelName = document.getElementById('points-level-name');
+            if (pointsLevel) {
+                pointsLevel.textContent = `Lv.${levelInfo.level}`;
+            }
+            if (pointsLevelName) {
+                pointsLevelName.textContent = levelInfo.name;
+            }
+        }
+        
+        // 報酬タブを表示
+        function showRewardsTab() {
+            document.getElementById('rewards-tab-content').style.display = 'block';
+            document.getElementById('history-tab-content').style.display = 'none';
+            document.getElementById('create-tab-content').style.display = 'none';
+            
+            // タブボタンのスタイル更新
+            document.getElementById('rewards-tab').style.background = 'var(--primary)';
+            document.getElementById('rewards-tab').style.color = 'white';
+            document.getElementById('history-tab').style.background = '';
+            document.getElementById('history-tab').style.color = '';
+            document.getElementById('create-tab').style.background = '';
+            document.getElementById('create-tab').style.color = '';
+            
+            updateRewardsList();
+        }
+        
+        // 履歴タブを表示
+        function showHistoryTab() {
+            document.getElementById('rewards-tab-content').style.display = 'none';
+            document.getElementById('history-tab-content').style.display = 'block';
+            document.getElementById('create-tab-content').style.display = 'none';
+            
+            // タブボタンのスタイル更新
+            document.getElementById('rewards-tab').style.background = '';
+            document.getElementById('rewards-tab').style.color = '';
+            document.getElementById('history-tab').style.background = 'var(--primary)';
+            document.getElementById('history-tab').style.color = 'white';
+            document.getElementById('create-tab').style.background = '';
+            document.getElementById('create-tab').style.color = '';
+            
+            updatePointsHistory();
+        }
+        
+        // 作成タブを表示
+        function showCreateTab() {
+            document.getElementById('rewards-tab-content').style.display = 'none';
+            document.getElementById('history-tab-content').style.display = 'none';
+            document.getElementById('create-tab-content').style.display = 'block';
+            
+            // タブボタンのスタイル更新
+            document.getElementById('rewards-tab').style.background = '';
+            document.getElementById('rewards-tab').style.color = '';
+            document.getElementById('history-tab').style.background = '';
+            document.getElementById('history-tab').style.color = '';
+            document.getElementById('create-tab').style.background = 'var(--primary)';
+            document.getElementById('create-tab').style.color = 'white';
+        }
+        
+        // 報酬リストを更新
+        function updateRewardsList() {
+            const data = loadData();
+            const rewardsList = document.getElementById('rewards-list');
+            if (!rewardsList) return;
+            
+            if (!data.pointSystem.customRewards || data.pointSystem.customRewards.length === 0) {
+                rewardsList.innerHTML = `
+                    <div style="text-align: center; color: var(--text-secondary); padding: 40px;">
+                        報酬がまだありません<br>
+                        「➕ 作成」タブから報酬を追加してください
+                    </div>
+                `;
+                return;
+            }
+            
+            // 報酬カードを生成
+            rewardsList.innerHTML = data.pointSystem.customRewards
+                .filter(r => !r.isArchived)
+                .sort((a, b) => {
+                    if (a.isFavorite && !b.isFavorite) return -1;
+                    if (!a.isFavorite && b.isFavorite) return 1;
+                    return a.cost - b.cost;
+                })
+                .map(reward => {
+                    const canAfford = data.pointSystem.currentPoints >= reward.cost;
+                    return `
+                        <div style="
+                            background: ${canAfford ? 'var(--surface)' : 'rgba(51, 65, 85, 0.3)'};
+                            padding: 16px;
+                            border-radius: 12px;
+                            border: 1px solid ${canAfford ? 'var(--border)' : 'rgba(255,255,255,0.05)'};
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
+                            opacity: ${canAfford ? '1' : '0.6'};
+                        ">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <span style="font-size: 24px;">${reward.emoji || '🎁'}</span>
+                                <div>
+                                    <div style="font-weight: bold; font-size: 16px;">${escapeHTML(reward.name)}</div>
+                                    <div style="font-size: 12px; color: var(--text-secondary);">
+                                        ${escapeHTML(reward.category)} ${reward.memo ? '• ' + escapeHTML(reward.memo) : ''}
+                                    </div>
+                                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
+                                        使用回数: ${reward.timesUsed || 0}回
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 8px; align-items: flex-end;">
+                                <div style="font-size: 18px; font-weight: bold; color: ${canAfford ? '#fbbf24' : 'var(--text-secondary)'};">
+                                    ${reward.cost}pt
+                                </div>
+                                ${canAfford ? `
+                                    <button class="btn btn-secondary" onclick="useReward('${reward.id}')" style="padding: 6px 12px; font-size: 12px;">
+                                        使用する
+                                    </button>
+                                ` : `
+                                    <span style="font-size: 10px; color: var(--text-secondary);">ポイント不足</span>
+                                `}
+                                <button onclick="toggleRewardMenu('${reward.id}')" style="
+                                    background: none;
+                                    border: none;
+                                    color: var(--text-secondary);
+                                    cursor: pointer;
+                                    padding: 4px;
+                                    font-size: 18px;
+                                ">⋯</button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+        }
+        
+        // 履歴を更新
+        function updatePointsHistory() {
+            const data = loadData();
+            const historyEl = document.getElementById('points-history');
+            if (!historyEl) return;
+            
+            if (!data.pointSystem.transactions || data.pointSystem.transactions.length === 0) {
+                historyEl.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 40px;">取引履歴がありません</div>';
+                return;
+            }
+            
+            historyEl.innerHTML = data.pointSystem.transactions.map(t => {
+                const date = new Date(t.timestamp);
+                const dateStr = `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+                const icon = t.type === 'earn' ? '➕' : '➖';
+                const color = t.type === 'earn' ? '#10b981' : '#ef4444';
+                const amount = t.type === 'earn' ? (t.finalAmount || t.amount) : t.amount;
+                
+                return `
+                    <div style="
+                        display: flex;
+                        justify-content: space-between;
+                        padding: 12px;
+                        background: var(--surface);
+                        border-radius: 8px;
+                        border: 1px solid var(--border);
+                    ">
+                        <div>
+                            <div style="font-weight: bold;">${icon} ${escapeHTML(t.description)}</div>
+                            <div style="font-size: 12px; color: var(--text-secondary);">${dateStr}</div>
+                        </div>
+                        <div style="font-size: 20px; font-weight: bold; color: ${color};">
+                            ${t.type === 'earn' ? '+' : '-'}${amount}pt
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // 報酬を作成
+        function createReward(event) {
+            event.preventDefault();
+            
+            const name = document.getElementById('reward-name').value;
+            const cost = parseInt(document.getElementById('reward-cost').value);
+            const emoji = document.getElementById('reward-emoji').value || '🎁';
+            const category = document.getElementById('reward-category').value;
+            const memo = document.getElementById('reward-memo').value;
+            
+            const data = loadData();
+            
+            // 新しい報酬を追加
+            const newReward = {
+                id: 'reward_' + Date.now(),
+                name: name,
+                cost: cost,
+                emoji: emoji,
+                category: category,
+                memo: memo,
+                timesUsed: 0,
+                isFavorite: false,
+                isArchived: false,
+                createdAt: new Date().toISOString()
+            };
+            
+            if (!data.pointSystem.customRewards) {
+                data.pointSystem.customRewards = [];
+            }
+            data.pointSystem.customRewards.push(newReward);
+            
+            saveData(data);
+            
+            // フォームをリセット
+            document.getElementById('reward-name').value = '';
+            document.getElementById('reward-cost').value = '';
+            document.getElementById('reward-emoji').value = '';
+            document.getElementById('reward-memo').value = '';
+            
+            // 報酬タブに切り替え
+            showRewardsTab();
+            
+            showNotification('✨ 報酬を作成しました！', 'success');
+        }
+        
+        // 報酬を使用
+        function useReward(rewardId) {
+            const data = loadData();
+            const reward = data.pointSystem.customRewards.find(r => r.id === rewardId);
+            
+            if (!reward) return;
+            
+            if (data.pointSystem.currentPoints < reward.cost) {
+                showNotification('ポイントが不足しています', 'error');
+                return;
+            }
+            
+            // 確認ダイアログ
+            if (!confirm(`「${reward.name}」を ${reward.cost}pt で使用しますか？`)) {
+                return;
+            }
+            
+            // ポイントを消費
+            if (spendPoints(reward.cost, reward.name)) {
+                // 使用回数を増やす
+                reward.timesUsed = (reward.timesUsed || 0) + 1;
+                
+                const updatedData = loadData();
+                const rewardIndex = updatedData.pointSystem.customRewards.findIndex(r => r.id === rewardId);
+                if (rewardIndex !== -1) {
+                    updatedData.pointSystem.customRewards[rewardIndex] = reward;
+                    saveData(updatedData);
+                }
+                
+                showNotification(`🎉 「${reward.name}」を使用しました！`, 'success');
+                updatePointsView();
+                updateRewardsList();
+            }
+        }
+        
+        // 報酬メニューのトグル（お気に入り、編集、削除など）
+        function toggleRewardMenu(rewardId) {
+            // 簡単な実装として削除のみ
+            if (confirm('この報酬を削除しますか？')) {
+                const data = loadData();
+                data.pointSystem.customRewards = data.pointSystem.customRewards.filter(r => r.id !== rewardId);
+                saveData(data);
+                updateRewardsList();
+                showNotification('報酬を削除しました', 'info');
             }
         }
 
@@ -6764,12 +7156,13 @@
         let touchEndX = 0;
         let touchEndY = 0;
         let currentViewIndex = 0;
-        const views = ['home', 'new', 'history', 'stats', 'cards'];
+        const views = ['home', 'new', 'history', 'stats', 'points', 'cards'];
         const viewElements = {
             'home': 'home-view',
             'new': 'new-hypothesis-view',
             'history': 'history-view',
             'stats': 'stats-view',
+            'points': 'points-view',
             'cards': 'cards-view'
         };
 
@@ -7019,6 +7412,7 @@
             if (document.getElementById('new-hypothesis-view').style.display !== 'none') return 'new';
             if (document.getElementById('history-view').style.display !== 'none') return 'history';
             if (document.getElementById('stats-view').style.display !== 'none') return 'stats';
+            if (document.getElementById('points-view').style.display !== 'none') return 'points';
             if (document.getElementById('cards-view').style.display !== 'none') return 'cards';
             if (document.getElementById('shuffle-view').style.display !== 'none') return 'shuffle';
             if (document.getElementById('progress-view').style.display !== 'none') return 'progress';
@@ -7081,6 +7475,9 @@
                         break;
                     case 'stats':
                         showStatsView();
+                        break;
+                    case 'points':
+                        showPointsView();
                         break;
                     case 'cards':
                         showCardsView();
