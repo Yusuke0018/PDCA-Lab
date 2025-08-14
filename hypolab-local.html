@@ -8941,6 +8941,262 @@
             renderIfThenPanel();
         }
 
+        // 習慣別詳細統計を表示
+        function showHabitDetailStats() {
+            const data = loadData();
+            
+            let html = '<div style="padding: 10px; font-size: 14px;">';
+            html += '<h3 style="margin: 0 0 15px 0; font-size: 16px; font-weight: 600;">📊 習慣別詳細統計</h3>';
+            
+            // 習慣選択ドロップダウン
+            html += '<select id="habit-detail-select" onchange="showSelectedHabitDetail()" style="width: 100%; padding: 8px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 6px;">';
+            html += '<option value="">習慣を選択してください</option>';
+            
+            data.currentHypotheses.forEach(habit => {
+                if (habit.type === 'daily') {
+                    html += `<option value="${habit.id}">${habit.title}</option>`;
+                }
+            });
+            
+            html += '</select>';
+            html += '<div id="habit-detail-content"></div>';
+            html += '</div>';
+            
+            document.getElementById('ranking-container').innerHTML = html;
+            
+            // タブのスタイル更新
+            document.getElementById('ranking-detail-tab').style.background = '#6366f1';
+            document.getElementById('ranking-detail-tab').style.color = '#fff';
+            document.getElementById('ranking-achievement-tab').style.background = '#fff';
+            document.getElementById('ranking-achievement-tab').style.color = '#666';
+            document.getElementById('ranking-points-tab').style.background = '#fff';
+            document.getElementById('ranking-points-tab').style.color = '#666';
+            document.getElementById('ranking-streak-tab').style.background = '#fff';
+            document.getElementById('ranking-streak-tab').style.color = '#666';
+        }
+        
+        // 選択された習慣の詳細を表示
+        window.showSelectedHabitDetail = function() {
+            const habitId = document.getElementById('habit-detail-select').value;
+            if (!habitId) {
+                document.getElementById('habit-detail-content').innerHTML = '';
+                return;
+            }
+            
+            const data = loadData();
+            const habit = data.currentHypotheses.find(h => h.id === habitId);
+            if (!habit) return;
+            
+            // 統計情報を計算
+            const stats = calculateHabitStats(habit, data);
+            
+            let html = '<div style="background: #f8f9fa; border-radius: 8px; padding: 15px;">';
+            
+            // 基本情報
+            html += `<h4 style="margin: 0 0 10px 0; font-size: 15px; font-weight: 600;">🎯 ${habit.title}</h4>`;
+            
+            // 達成統計
+            html += '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">';
+            html += `<div style="background: #fff; padding: 10px; border-radius: 6px;">
+                <div style="color: #666; font-size: 12px;">達成率</div>
+                <div style="font-size: 20px; font-weight: bold; color: #4CAF50;">${stats.achievementRate}%</div>
+            </div>`;
+            html += `<div style="background: #fff; padding: 10px; border-radius: 6px;">
+                <div style="color: #666; font-size: 12px;">総達成日数</div>
+                <div style="font-size: 20px; font-weight: bold; color: #2196F3;">${stats.totalAchievedDays}日</div>
+            </div>`;
+            html += '</div>';
+            
+            // ポイント統計
+            html += '<div style="background: #fff; padding: 12px; border-radius: 6px; margin-bottom: 15px;">';
+            html += '<h5 style="margin: 0 0 8px 0; font-size: 14px;">💰 ポイント統計</h5>';
+            html += `<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-size: 12px;">
+                <div>
+                    <span style="color: #666;">総獲得:</span>
+                    <span style="font-weight: 600;">${stats.totalPoints}pt</span>
+                </div>
+                <div>
+                    <span style="color: #666;">平均:</span>
+                    <span style="font-weight: 600;">${stats.averagePoints}pt</span>
+                </div>
+                <div>
+                    <span style="color: #666;">ブースト:</span>
+                    <span style="font-weight: 600;">+${stats.boostBonus}pt</span>
+                </div>
+            </div>`;
+            html += '</div>';
+            
+            // 連続記録
+            html += '<div style="background: #fff; padding: 12px; border-radius: 6px; margin-bottom: 15px;">';
+            html += '<h5 style="margin: 0 0 8px 0; font-size: 14px;">🔥 連続記録</h5>';
+            html += `<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 12px;">
+                <div>
+                    <span style="color: #666;">現在:</span>
+                    <span style="font-weight: 600; color: #FF9800;">${stats.currentStreak}日</span>
+                </div>
+                <div>
+                    <span style="color: #666;">最長:</span>
+                    <span style="font-weight: 600; color: #E91E63;">${stats.longestStreak}日</span>
+                </div>
+            </div>`;
+            html += '</div>';
+            
+            // 曜日別パフォーマンス
+            html += '<div style="background: #fff; padding: 12px; border-radius: 6px; margin-bottom: 15px;">';
+            html += '<h5 style="margin: 0 0 8px 0; font-size: 14px;">📅 曜日別達成率</h5>';
+            html += '<div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; font-size: 11px;">';
+            const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+            stats.weekdayPerformance.forEach((rate, index) => {
+                const color = rate >= 80 ? '#4CAF50' : rate >= 60 ? '#FFC107' : rate >= 40 ? '#FF9800' : '#F44336';
+                html += `<div>
+                    <div style="color: #666;">${dayNames[index]}</div>
+                    <div style="font-weight: 600; color: ${color};">${rate}%</div>
+                </div>`;
+            });
+            html += '</div>';
+            html += '</div>';
+            
+            // 月別推移
+            if (stats.monthlyTrend.length > 0) {
+                html += '<div style="background: #fff; padding: 12px; border-radius: 6px;">';
+                html += '<h5 style="margin: 0 0 8px 0; font-size: 14px;">📈 月別達成推移</h5>';
+                html += '<div style="max-height: 150px; overflow-y: auto;">';
+                stats.monthlyTrend.forEach(month => {
+                    html += `<div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #f0f0f0; font-size: 12px;">
+                        <span>${month.label}</span>
+                        <span style="font-weight: 600;">${month.rate}%</span>
+                    </div>`;
+                });
+                html += '</div>';
+                html += '</div>';
+            }
+            
+            html += '</div>';
+            
+            document.getElementById('habit-detail-content').innerHTML = html;
+        };
+        
+        // 習慣の統計情報を計算
+        function calculateHabitStats(habit, data) {
+            const stats = {
+                achievementRate: 0,
+                totalAchievedDays: 0,
+                totalPoints: 0,
+                averagePoints: 0,
+                boostBonus: 0,
+                currentStreak: 0,
+                longestStreak: 0,
+                weekdayPerformance: [0, 0, 0, 0, 0, 0, 0],
+                monthlyTrend: []
+            };
+            
+            // 達成日数と率を計算
+            const today = getToday();
+            const createdDate = new Date(habit.createdAt || today);
+            const totalDays = Math.floor((new Date(today) - createdDate) / (1000 * 60 * 60 * 24)) + 1;
+            
+            let achievedDays = 0;
+            let currentStreak = 0;
+            let longestStreak = 0;
+            let tempStreak = 0;
+            const weekdayCount = [0, 0, 0, 0, 0, 0, 0];
+            const weekdayAchieved = [0, 0, 0, 0, 0, 0, 0];
+            const monthlyData = {};
+            
+            // ログを日付順にソート
+            const sortedDates = Object.keys(habit.logs || {}).sort();
+            
+            sortedDates.forEach((dateKey, index) => {
+                const log = habit.logs[dateKey];
+                const date = new Date(dateKey);
+                const dayOfWeek = date.getDay();
+                
+                weekdayCount[dayOfWeek]++;
+                
+                if (log.completed) {
+                    achievedDays++;
+                    weekdayAchieved[dayOfWeek]++;
+                    
+                    // 月別データ
+                    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                    if (!monthlyData[monthKey]) {
+                        monthlyData[monthKey] = { achieved: 0, total: 0 };
+                    }
+                    monthlyData[monthKey].achieved++;
+                    
+                    // 連続記録計算
+                    if (index === 0 || !habit.logs[sortedDates[index - 1]]?.completed) {
+                        tempStreak = 1;
+                    } else {
+                        const prevDate = new Date(sortedDates[index - 1]);
+                        const dayDiff = Math.floor((date - prevDate) / (1000 * 60 * 60 * 24));
+                        if (dayDiff === 1) {
+                            tempStreak++;
+                        } else {
+                            tempStreak = 1;
+                        }
+                    }
+                    
+                    longestStreak = Math.max(longestStreak, tempStreak);
+                    
+                    // 現在の連続記録
+                    if (dateKey === today || (index === sortedDates.length - 1 && new Date(today) - date < 2 * 24 * 60 * 60 * 1000)) {
+                        currentStreak = tempStreak;
+                    }
+                } else {
+                    tempStreak = 0;
+                }
+                
+                // 月別総日数
+                const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                if (!monthlyData[monthKey]) {
+                    monthlyData[monthKey] = { achieved: 0, total: 0 };
+                }
+                monthlyData[monthKey].total++;
+            });
+            
+            stats.achievementRate = totalDays > 0 ? Math.round((achievedDays / totalDays) * 100) : 0;
+            stats.totalAchievedDays = achievedDays;
+            stats.currentStreak = currentStreak;
+            stats.longestStreak = longestStreak;
+            
+            // 曜日別パフォーマンス
+            stats.weekdayPerformance = weekdayCount.map((count, index) => {
+                return count > 0 ? Math.round((weekdayAchieved[index] / count) * 100) : 0;
+            });
+            
+            // 月別推移
+            const sortedMonths = Object.keys(monthlyData).sort();
+            stats.monthlyTrend = sortedMonths.map(monthKey => {
+                const [year, month] = monthKey.split('-');
+                const rate = monthlyData[monthKey].total > 0 
+                    ? Math.round((monthlyData[monthKey].achieved / monthlyData[monthKey].total) * 100) 
+                    : 0;
+                return {
+                    label: `${year}年${parseInt(month)}月`,
+                    rate: rate
+                };
+            });
+            
+            // ポイント統計を計算
+            let pointCount = 0;
+            data.pointSystem.transactions.forEach(t => {
+                if (t.source === 'habit') {
+                    // habitIdまたは説明文から習慣を特定
+                    if (t.habitId === habit.id || t.description.includes(habit.title)) {
+                        stats.totalPoints += t.points;
+                        pointCount++;
+                        const basePoints = Math.round(t.points / (t.boost || 1));
+                        stats.boostBonus += (t.points - basePoints);
+                    }
+                }
+            });
+            
+            stats.averagePoints = pointCount > 0 ? Math.round(stats.totalPoints / pointCount) : 0;
+            
+            return stats;
+        }
+        
         window.editIfThen = function(index) {
             const item = (window.currentHypothesis.ifThen || [])[index];
             if (!item) return;
