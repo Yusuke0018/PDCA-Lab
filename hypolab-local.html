@@ -1488,6 +1488,39 @@
                     ➕ 新規習慣立案
                 </button>
             </div>
+            
+            <!-- データ管理セクション -->
+            <div class="card" style="margin-top: 24px; background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(168, 85, 247, 0.1)); border: 1px solid rgba(99, 102, 241, 0.3);">
+                <h3 style="margin-bottom: 16px; font-size: 16px;">⚙️ データ管理</h3>
+                
+                <!-- エクスポート -->
+                <div style="margin-bottom: 12px;">
+                    <button class="btn btn-secondary" onclick="exportAllData()" style="width: 100%; padding: 10px; font-size: 14px; background: linear-gradient(135deg, #6366f1, #8b5cf6);">
+                        📤 全データをエクスポート
+                    </button>
+                    <small style="display: block; margin-top: 6px; color: var(--text-secondary); font-size: 12px;">
+                        習慣、ジャーナル、ポイント、カード等すべてのデータをJSON形式で保存
+                    </small>
+                </div>
+                
+                <!-- インポート -->
+                <div>
+                    <input type="file" id="import-file" accept=".json" style="display: none;" onchange="handleImportFile(event)">
+                    <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()" style="width: 100%; padding: 10px; font-size: 14px; background: linear-gradient(135deg, #10b981, #3b82f6);">
+                        📥 データをインポート
+                    </button>
+                    <small style="display: block; margin-top: 6px; color: var(--text-secondary); font-size: 12px;">
+                        以前エクスポートしたJSONファイルからデータを復元
+                    </small>
+                </div>
+                
+                <!-- 警告メッセージ -->
+                <div style="margin-top: 12px; padding: 8px; background: rgba(239, 68, 68, 0.1); border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.3);">
+                    <small style="color: #ef4444; font-size: 11px;">
+                        ⚠️ インポートすると現在のデータが上書きされます。事前にエクスポートしてバックアップを取ることをお勧めします。
+                    </small>
+                </div>
+            </div>
         </div>
 
         <!-- 新規習慣作成画面 -->
@@ -12317,6 +12350,171 @@
         }
         
         // 通知を表示
+        // ========== データエクスポート/インポート機能 ==========
+        
+        // 全データをエクスポート
+        function exportAllData() {
+            try {
+                const data = loadData();
+                
+                // エクスポート用のデータ構造
+                const exportData = {
+                    version: '1.0.0',
+                    exportDate: new Date().toISOString(),
+                    appVersion: 'PDCA-Lab v3.3.0',
+                    data: {
+                        // 習慣データ
+                        currentHypotheses: data.currentHypotheses || [],
+                        completedHypotheses: data.completedHypotheses || [],
+                        
+                        // ポイントシステム
+                        pointSystem: data.pointSystem || {
+                            currentPoints: 0,
+                            lifetimeEarned: 0,
+                            lifetimeSpent: 0,
+                            currentLevel: 1,
+                            levelProgress: 0,
+                            transactions: [],
+                            customRewards: [],
+                            dailyEffortUsed: 0,
+                            dailyEffortLastReset: null
+                        },
+                        
+                        // チャレンジ
+                        challenges: data.challenges || {
+                            daily: {},
+                            weekly: {},
+                            customChallenges: [],
+                            completedToday: [],
+                            completedThisWeek: [],
+                            history: [],
+                            streak: 0,
+                            lastStreakDate: null
+                        },
+                        
+                        // カード
+                        cards: data.cards || {
+                            inventory: [],
+                            activeEffects: [],
+                            pendingPenalties: []
+                        },
+                        
+                        // イベント
+                        events: data.events || {
+                            activeBoosts: [],
+                            lastEventDate: null,
+                            milestoneRewards: {}
+                        },
+                        
+                        // カード図鑑
+                        cardAlbum: data.cardAlbum || {
+                            collection: {},
+                            totalCardsObtained: 0,
+                            rewardsEarned: []
+                        },
+                        
+                        // バッジ
+                        badges: data.badges || {
+                            earned: []
+                        },
+                        
+                        // デイリージャーナル
+                        dailyJournal: data.dailyJournal || {
+                            entries: {},
+                            stats: {
+                                currentStreak: 0,
+                                longestStreak: 0,
+                                totalEntries: 0,
+                                lastEntry: null
+                            },
+                            settings: {
+                                morningReminderTime: "06:00",
+                                eveningReminderTime: "21:00",
+                                remindersEnabled: true
+                            }
+                        },
+                        
+                        // UI設定
+                        uiSettings: data.uiSettings || {
+                            categoryOpenStates: {},
+                            lastOpenedView: 'home'
+                        }
+                    }
+                };
+                
+                // JSONファイルとしてダウンロード
+                const jsonStr = JSON.stringify(exportData, null, 2);
+                const blob = new Blob([jsonStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                const dateStr = new Date().toISOString().split('T')[0];
+                a.href = url;
+                a.download = `pdca-lab-backup-${dateStr}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                showNotification('📤 データのエクスポートが完了しました', 'success');
+                console.log('データエクスポート完了:', exportData);
+                
+            } catch (error) {
+                console.error('エクスポートエラー:', error);
+                showNotification('❌ エクスポートに失敗しました', 'error');
+            }
+        }
+        
+        // データをインポート
+        function handleImportFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    
+                    // バージョンチェック
+                    if (!importedData.version || !importedData.data) {
+                        throw new Error('無効なファイル形式です');
+                    }
+                    
+                    // 確認ダイアログ
+                    if (!confirm(`${importedData.exportDate} にエクスポートされたデータをインポートします。\n\n現在のデータは上書きされます。続行しますか？`)) {
+                        event.target.value = ''; // ファイル選択をリセット
+                        return;
+                    }
+                    
+                    // データをマージして保存
+                    const currentData = loadData();
+                    const mergedData = {
+                        ...currentData,
+                        ...importedData.data
+                    };
+                    
+                    // LocalStorageに保存
+                    localStorage.setItem('pdcaLabData', JSON.stringify(mergedData));
+                    
+                    showNotification('📥 データのインポートが完了しました', 'success');
+                    console.log('データインポート完了:', mergedData);
+                    
+                    // 3秒後にページをリロード
+                    setTimeout(() => {
+                        location.reload();
+                    }, 3000);
+                    
+                } catch (error) {
+                    console.error('インポートエラー:', error);
+                    showNotification('❌ インポートに失敗しました: ' + error.message, 'error');
+                }
+                
+                // ファイル選択をリセット
+                event.target.value = '';
+            };
+            
+            reader.readAsText(file);
+        }
+        
         function showNotification(message, type = 'info') {
             const notification = document.createElement('div');
             notification.style.cssText = `
