@@ -4702,9 +4702,9 @@
             };
         }
 
-        // ポイント獲得処理
-        function earnPoints(amount, source, description, multiplier = 1.0, category = null) {
-            console.log('earnPoints呼び出し:', {amount, source, description});
+        // ポイント獲得処理（habitIdパラメータを追加）
+        function earnPoints(amount, source, description, multiplier = 1.0, category = null, habitId = null) {
+            console.log('earnPoints呼び出し:', {amount, source, description, habitId});
             const data = loadData();
             
             // ブースト効果を適用
@@ -4724,8 +4724,8 @@
             const oldLevel = data.pointSystem.currentLevel;
             data.pointSystem.currentLevel = newLevel.level;
             
-            // トランザクション記録
-            data.pointSystem.transactions.unshift({
+            // トランザクション記録（habitIdを含める）
+            const transaction = {
                 timestamp: new Date().toISOString(),
                 type: 'earn',
                 amount: amount,
@@ -4733,7 +4733,14 @@
                 description: description,
                 multiplier: multiplier,
                 finalAmount: finalAmount
-            });
+            };
+            
+            // habitIdがある場合は追加
+            if (habitId) {
+                transaction.habitId = habitId;
+            }
+            
+            data.pointSystem.transactions.unshift(transaction);
             
             // トランザクション履歴を最新100件に制限
             if (data.pointSystem.transactions.length > 100) {
@@ -7686,7 +7693,7 @@
             // ポイント付与（強度を考慮した実際のポイント）
             const basePoints = actualPoints;
             const bonusPoints = Math.round(actualPoints * (multiplier - 1));
-            earnPoints(actualPoints, 'habit', `${window.currentHypothesis.title} 達成`, multiplier);
+            earnPoints(actualPoints, 'habit', `${window.currentHypothesis.title} 達成`, multiplier, null, window.currentHypothesis.id);
             
             // 連続達成ボーナスの表示
             if (multiplier > 1.0) {
@@ -11319,25 +11326,51 @@
                     totalPoints: 0,
                     achievementCount: 0,
                     bonusPoints: 0,
-                    averagePoints: 0
+                    averagePoints: 0,
+                    recentHistory: [] // 最近の履歴を追加
                 };
             });
             
             // トランザクションから集計
             if (data.pointSystem && data.pointSystem.transactions) {
                 data.pointSystem.transactions.forEach(t => {
-                    if (t.type === 'earn' && t.source === 'habit' && t.habitId) {
-                        if (habitPoints[t.habitId]) {
-                            habitPoints[t.habitId].totalPoints += t.finalAmount || t.amount;
-                            habitPoints[t.habitId].achievementCount++;
+                    if (t.type === 'earn' && t.source === 'habit') {
+                        // habitIdがある場合はそれを使用、なければdescriptionから習慣名を抽出
+                        let targetHabitId = t.habitId;
+                        
+                        // habitIdがない場合、descriptionから習慣を特定
+                        if (!targetHabitId && t.description) {
+                            // "習慣名 達成" のパターンから習慣名を抽出
+                            const habitTitle = t.description.replace(' 達成', '').trim();
+                            const habit = all.find(h => h.title === habitTitle);
+                            if (habit) {
+                                targetHabitId = habit.id;
+                            }
+                        }
+                        
+                        if (targetHabitId && habitPoints[targetHabitId]) {
+                            habitPoints[targetHabitId].totalPoints += t.finalAmount || t.amount;
+                            habitPoints[targetHabitId].achievementCount++;
+                            
+                            // 最近の履歴に追加
+                            habitPoints[targetHabitId].recentHistory.push({
+                                timestamp: t.timestamp,
+                                amount: t.finalAmount || t.amount,
+                                description: t.description
+                            });
                             
                             // ブーストポイントを計算
                             if (t.multiplier && t.multiplier > 1) {
                                 const bonus = (t.finalAmount || t.amount) - t.amount;
-                                habitPoints[t.habitId].bonusPoints += bonus;
+                                habitPoints[targetHabitId].bonusPoints += bonus;
                             }
                         }
                     }
+                });
+                
+                // 各習慣の履歴を時系列順（新しい順）にソート
+                Object.values(habitPoints).forEach(h => {
+                    h.recentHistory.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
                 });
             }
             
