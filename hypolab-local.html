@@ -3545,9 +3545,344 @@
                         まだジャーナルの記録がありません
                     </div>
                 ` : ''}
+                
+                ${
+                    // 月別記録率と感情推移
+                    totalEntries > 0 ? `
+                    <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; margin-top: 16px;">
+                        <h4 style="font-size: 14px; margin-bottom: 12px; color: var(--text-primary);">📅 月別記録状況</h4>
+                        ${generateMonthlyStats(entries)}
+                    </div>
+                ` : ''
+                }
+                
+                ${
+                    // 時間帯別記録パターン
+                    totalEntries > 0 ? `
+                    <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; margin-top: 16px;">
+                        <h4 style="font-size: 14px; margin-bottom: 12px; color: var(--text-primary);">⏰ 記録時間帯分析</h4>
+                        ${generateTimePatternAnalysis(entries)}
+                    </div>
+                ` : ''
+                }
+                
+                ${
+                    // 感情と習慣達成率の相関
+                    totalEntries > 0 && data.currentHypotheses && data.currentHypotheses.length > 0 ? `
+                    <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; margin-top: 16px;">
+                        <h4 style="font-size: 14px; margin-bottom: 12px; color: var(--text-primary);">🔗 感情と習慣の相関</h4>
+                        ${generateEmotionHabitCorrelation(entries, data.currentHypotheses)}
+                    </div>
+                ` : ''
+                }
+                
+                ${
+                    // キーワードクラウド
+                    totalEntries > 10 ? `
+                    <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; margin-top: 16px;">
+                        <h4 style="font-size: 14px; margin-bottom: 12px; color: var(--text-primary);">☁️ よく使うキーワード</h4>
+                        ${generateWordCloud(entries)}
+                    </div>
+                ` : ''
+                }
             `;
         }
         
+        // 月別統計を生成
+        function generateMonthlyStats(entries) {
+            const monthlyData = {};
+            
+            // エントリを月別に集計
+            Object.entries(entries).forEach(([dateStr, entry]) => {
+                const [year, month] = dateStr.split('-');
+                const monthKey = `${year}-${month}`;
+                
+                if (!monthlyData[monthKey]) {
+                    monthlyData[monthKey] = {
+                        total: 0,
+                        morning: 0,
+                        evening: 0,
+                        complete: 0,
+                        conditions: [],
+                        moods: []
+                    };
+                }
+                
+                monthlyData[monthKey].total++;
+                if (entry.morning) {
+                    monthlyData[monthKey].morning++;
+                    if (entry.morning.condition) monthlyData[monthKey].conditions.push(entry.morning.condition);
+                    if (entry.morning.mood) monthlyData[monthKey].moods.push(entry.morning.mood);
+                }
+                if (entry.evening) monthlyData[monthKey].evening++;
+                if (entry.morning && entry.evening) monthlyData[monthKey].complete++;
+            });
+            
+            // 最新6ヶ月分を表示
+            const sortedMonths = Object.keys(monthlyData).sort().slice(-6);
+            
+            return `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(60px, 1fr)); gap: 8px;">
+                    ${sortedMonths.map(monthKey => {
+                        const data = monthlyData[monthKey];
+                        const [year, month] = monthKey.split('-');
+                        const daysInMonth = new Date(year, month, 0).getDate();
+                        const recordRate = Math.round((data.complete / daysInMonth) * 100);
+                        const avgCondition = data.conditions.length > 0 
+                            ? (data.conditions.reduce((a, b) => a + b, 0) / data.conditions.length).toFixed(1)
+                            : '-';
+                        const avgMood = data.moods.length > 0
+                            ? (data.moods.reduce((a, b) => a + b, 0) / data.moods.length).toFixed(1)
+                            : '-';
+                        
+                        return `
+                            <div style="text-align: center; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 6px;">
+                                <div style="font-size: 11px; font-weight: bold; margin-bottom: 4px;">${parseInt(month)}月</div>
+                                <div style="font-size: 18px; font-weight: bold; color: ${
+                                    recordRate >= 80 ? '#10b981' :
+                                    recordRate >= 50 ? '#f59e0b' :
+                                    '#ef4444'
+                                };">${recordRate}%</div>
+                                <div style="font-size: 9px; color: var(--text-secondary); margin-top: 2px;">
+                                    😊${avgCondition} 💭${avgMood}
+                                </div>
+                                <div style="font-size: 9px; color: var(--text-secondary);">
+                                    ${data.complete}/${daysInMonth}日
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+        
+        // 時間帯別パターン分析を生成
+        function generateTimePatternAnalysis(entries) {
+            const timePatterns = {
+                morning: { early: 0, normal: 0, late: 0 },  // 早朝(~7時)、通常(7-9時)、遅め(9時~)
+                evening: { early: 0, normal: 0, late: 0 }   // 早め(~20時)、通常(20-22時)、深夜(22時~)
+            };
+            
+            Object.entries(entries).forEach(([dateStr, entry]) => {
+                if (entry.morning && entry.morning.timestamp) {
+                    const hour = new Date(entry.morning.timestamp).getHours();
+                    if (hour < 7) timePatterns.morning.early++;
+                    else if (hour < 9) timePatterns.morning.normal++;
+                    else timePatterns.morning.late++;
+                }
+                if (entry.evening && entry.evening.timestamp) {
+                    const hour = new Date(entry.evening.timestamp).getHours();
+                    if (hour < 20) timePatterns.evening.early++;
+                    else if (hour < 22) timePatterns.evening.normal++;
+                    else timePatterns.evening.late++;
+                }
+            });
+            
+            const totalMorning = timePatterns.morning.early + timePatterns.morning.normal + timePatterns.morning.late;
+            const totalEvening = timePatterns.evening.early + timePatterns.evening.normal + timePatterns.evening.late;
+            
+            return `
+                <div style="display: grid; gap: 12px;">
+                    <div>
+                        <div style="font-size: 12px; margin-bottom: 8px; color: var(--text-secondary);">🌅 朝のジャーナル</div>
+                        <div style="display: flex; gap: 4px; align-items: center;">
+                            <span style="font-size: 10px; width: 60px;">早朝(~7時)</span>
+                            <div style="flex: 1; height: 20px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+                                <div style="width: ${totalMorning > 0 ? (timePatterns.morning.early / totalMorning * 100) : 0}%; height: 100%; background: #3b82f6;"></div>
+                            </div>
+                            <span style="font-size: 10px; width: 30px; text-align: right;">${timePatterns.morning.early}</span>
+                        </div>
+                        <div style="display: flex; gap: 4px; align-items: center;">
+                            <span style="font-size: 10px; width: 60px;">通常(7-9時)</span>
+                            <div style="flex: 1; height: 20px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+                                <div style="width: ${totalMorning > 0 ? (timePatterns.morning.normal / totalMorning * 100) : 0}%; height: 100%; background: #10b981;"></div>
+                            </div>
+                            <span style="font-size: 10px; width: 30px; text-align: right;">${timePatterns.morning.normal}</span>
+                        </div>
+                        <div style="display: flex; gap: 4px; align-items: center;">
+                            <span style="font-size: 10px; width: 60px;">遅め(9時~)</span>
+                            <div style="flex: 1; height: 20px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+                                <div style="width: ${totalMorning > 0 ? (timePatterns.morning.late / totalMorning * 100) : 0}%; height: 100%; background: #f59e0b;"></div>
+                            </div>
+                            <span style="font-size: 10px; width: 30px; text-align: right;">${timePatterns.morning.late}</span>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <div style="font-size: 12px; margin-bottom: 8px; color: var(--text-secondary);">🌙 夜のジャーナル</div>
+                        <div style="display: flex; gap: 4px; align-items: center;">
+                            <span style="font-size: 10px; width: 60px;">早め(~20時)</span>
+                            <div style="flex: 1; height: 20px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+                                <div style="width: ${totalEvening > 0 ? (timePatterns.evening.early / totalEvening * 100) : 0}%; height: 100%; background: #3b82f6;"></div>
+                            </div>
+                            <span style="font-size: 10px; width: 30px; text-align: right;">${timePatterns.evening.early}</span>
+                        </div>
+                        <div style="display: flex; gap: 4px; align-items: center;">
+                            <span style="font-size: 10px; width: 60px;">通常(20-22時)</span>
+                            <div style="flex: 1; height: 20px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+                                <div style="width: ${totalEvening > 0 ? (timePatterns.evening.normal / totalEvening * 100) : 0}%; height: 100%; background: #10b981;"></div>
+                            </div>
+                            <span style="font-size: 10px; width: 30px; text-align: right;">${timePatterns.evening.normal}</span>
+                        </div>
+                        <div style="display: flex; gap: 4px; align-items: center;">
+                            <span style="font-size: 10px; width: 60px;">深夜(22時~)</span>
+                            <div style="flex: 1; height: 20px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+                                <div style="width: ${totalEvening > 0 ? (timePatterns.evening.late / totalEvening * 100) : 0}%; height: 100%; background: #f59e0b;"></div>
+                            </div>
+                            <span style="font-size: 10px; width: 30px; text-align: right;">${timePatterns.evening.late}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 感情と習慣達成率の相関を生成
+        function generateEmotionHabitCorrelation(entries, hypotheses) {
+            const correlationData = {
+                highMood: { achieved: 0, total: 0 },  // 気分4-5の時
+                midMood: { achieved: 0, total: 0 },   // 気分3の時
+                lowMood: { achieved: 0, total: 0 }    // 気分1-2の時
+            };
+            
+            Object.entries(entries).forEach(([dateStr, entry]) => {
+                if (!entry.morning || !entry.morning.mood) return;
+                
+                const mood = entry.morning.mood;
+                let dayAchieved = 0;
+                let dayTotal = 0;
+                
+                // その日の習慣達成状況を集計
+                hypotheses.forEach(hyp => {
+                    if (hyp.achievements && hyp.achievements[dateStr]) {
+                        dayAchieved++;
+                    }
+                    dayTotal++;
+                });
+                
+                if (dayTotal > 0) {
+                    if (mood >= 4) {
+                        correlationData.highMood.achieved += dayAchieved;
+                        correlationData.highMood.total += dayTotal;
+                    } else if (mood === 3) {
+                        correlationData.midMood.achieved += dayAchieved;
+                        correlationData.midMood.total += dayTotal;
+                    } else {
+                        correlationData.lowMood.achieved += dayAchieved;
+                        correlationData.lowMood.total += dayTotal;
+                    }
+                }
+            });
+            
+            const highRate = correlationData.highMood.total > 0 
+                ? Math.round((correlationData.highMood.achieved / correlationData.highMood.total) * 100)
+                : 0;
+            const midRate = correlationData.midMood.total > 0
+                ? Math.round((correlationData.midMood.achieved / correlationData.midMood.total) * 100)
+                : 0;
+            const lowRate = correlationData.lowMood.total > 0
+                ? Math.round((correlationData.lowMood.achieved / correlationData.lowMood.total) * 100)
+                : 0;
+            
+            return `
+                <div style="display: grid; gap: 8px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 12px; width: 80px;">😄 気分良好時</span>
+                        <div style="flex: 1; height: 24px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; position: relative;">
+                            <div style="width: ${highRate}%; height: 100%; background: linear-gradient(90deg, #10b981, #3b82f6);"></div>
+                            <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 11px; font-weight: bold;">${highRate}%</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 12px; width: 80px;">😐 気分普通時</span>
+                        <div style="flex: 1; height: 24px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; position: relative;">
+                            <div style="width: ${midRate}%; height: 100%; background: linear-gradient(90deg, #f59e0b, #eab308);"></div>
+                            <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 11px; font-weight: bold;">${midRate}%</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 12px; width: 80px;">😔 気分低調時</span>
+                        <div style="flex: 1; height: 24px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; position: relative;">
+                            <div style="width: ${lowRate}%; height: 100%; background: linear-gradient(90deg, #ef4444, #dc2626);"></div>
+                            <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 11px; font-weight: bold;">${lowRate}%</span>
+                        </div>
+                    </div>
+                    <div style="margin-top: 8px; padding: 8px; background: rgba(59, 130, 246, 0.1); border-radius: 6px;">
+                        <p style="font-size: 11px; color: var(--text-secondary); margin: 0;">
+                            ${highRate > lowRate + 10 ? '💡 気分が良い日は習慣達成率も高い傾向があります！' :
+                              lowRate > highRate + 10 ? '💪 気分が低い日でも頑張って習慣を続けています！' :
+                              '📊 気分に関わらず安定して習慣を続けています！'}
+                        </p>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // ワードクラウドを生成
+        function generateWordCloud(entries) {
+            const words = {};
+            
+            // すべてのテキストから単語を抽出
+            Object.values(entries).forEach(entry => {
+                const texts = [];
+                if (entry.morning) {
+                    if (entry.morning.priority) texts.push(entry.morning.priority);
+                }
+                if (entry.evening) {
+                    if (entry.evening.success) texts.push(entry.evening.success);
+                    if (entry.evening.improvement) texts.push(entry.evening.improvement);
+                }
+                
+                // 2文字以上の漢字・ひらがな・カタカナを抽出
+                texts.forEach(text => {
+                    const matches = text.match(/[一-龥ぁ-んァ-ヶー]{2,}/g) || [];
+                    matches.forEach(word => {
+                        // よくある助詞や接続詞を除外
+                        if (!['です', 'ます', 'した', 'こと', 'もの', 'ため', 'から', 'まで', 'など', 'より'].includes(word)) {
+                            words[word] = (words[word] || 0) + 1;
+                        }
+                    });
+                });
+            });
+            
+            // 頻度順にソートして上位20個を取得
+            const sortedWords = Object.entries(words)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 20);
+            
+            if (sortedWords.length === 0) {
+                return '<div style="text-align: center; padding: 20px; color: var(--text-secondary); font-size: 12px;">キーワードを抽出中...</div>';
+            }
+            
+            // 最大頻度を取得してサイズを正規化
+            const maxCount = sortedWords[0][1];
+            
+            return `
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; padding: 12px;">
+                    ${sortedWords.map(([word, count]) => {
+                        const size = 12 + (count / maxCount) * 16; // 12px〜28pxの範囲
+                        const opacity = 0.5 + (count / maxCount) * 0.5; // 0.5〜1.0の範囲
+                        const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+                        const color = colors[Math.floor(Math.random() * colors.length)];
+                        
+                        return `
+                            <span style="
+                                font-size: ${size}px;
+                                color: ${color};
+                                opacity: ${opacity};
+                                padding: 4px 8px;
+                                background: rgba(255,255,255,0.05);
+                                border-radius: 4px;
+                                cursor: default;
+                                transition: all 0.2s;
+                            " title="${count}回使用">
+                                ${word}
+                            </span>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+
         // ジャーナルストリークを更新
         function updateJournalStreak(data) {
             const today = new Date();
