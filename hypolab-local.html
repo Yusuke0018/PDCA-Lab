@@ -2100,7 +2100,9 @@
                 <div id="reward-statistics-panel" style="display: none; margin-bottom: 16px;">
                     <!-- 人気報酬ランキング -->
                     <div style="background: var(--surface); padding: 16px; border-radius: 12px; margin-bottom: 12px;">
-                        <h4 style="margin-bottom: 12px; font-size: 16px;">🏆 人気報酬TOP5</h4>
+                        <h4 style="margin-bottom: 12px; font-size: 16px; cursor: pointer; user-select: none;" onclick="toggleStatSection('popular-rewards')">
+                            <span id="popular-rewards-arrow">▼</span> 🏆 人気報酬TOP5
+                        </h4>
                         <div id="popular-rewards" style="display: grid; gap: 8px;">
                             <!-- 動的に生成 -->
                         </div>
@@ -2108,7 +2110,9 @@
                     
                     <!-- カテゴリー別統計 -->
                     <div style="background: var(--surface); padding: 16px; border-radius: 12px; margin-bottom: 12px;">
-                        <h4 style="margin-bottom: 12px; font-size: 16px;">📂 カテゴリー別使用状況</h4>
+                        <h4 style="margin-bottom: 12px; font-size: 16px; cursor: pointer; user-select: none;" onclick="toggleStatSection('category-statistics')">
+                            <span id="category-statistics-arrow">▼</span> 📂 カテゴリー別使用状況
+                        </h4>
                         <div id="category-statistics" style="display: grid; gap: 8px;">
                             <!-- 動的に生成 -->
                         </div>
@@ -2116,7 +2120,9 @@
                     
                     <!-- 時間帯別使用パターン -->
                     <div style="background: var(--surface); padding: 16px; border-radius: 12px; margin-bottom: 12px;">
-                        <h4 style="margin-bottom: 12px; font-size: 16px;">⏰ 時間帯別使用パターン</h4>
+                        <h4 style="margin-bottom: 12px; font-size: 16px; cursor: pointer; user-select: none;" onclick="toggleStatSection('reward-time-pattern')">
+                            <span id="reward-time-pattern-arrow">▼</span> ⏰ 時間帯別使用パターン
+                        </h4>
                         <div id="reward-time-pattern" style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px;">
                             <!-- 動的に生成 -->
                         </div>
@@ -2124,7 +2130,9 @@
                     
                     <!-- コスト分析 -->
                     <div style="background: var(--surface); padding: 16px; border-radius: 12px; margin-bottom: 12px;">
-                        <h4 style="margin-bottom: 12px; font-size: 16px;">💎 コスト分析</h4>
+                        <h4 style="margin-bottom: 12px; font-size: 16px; cursor: pointer; user-select: none;" onclick="toggleStatSection('cost-analysis')">
+                            <span id="cost-analysis-arrow">▼</span> 💎 コスト分析
+                        </h4>
                         <div id="cost-analysis" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
                             <!-- 動的に生成 -->
                         </div>
@@ -2132,7 +2140,9 @@
                     
                     <!-- 最近使用した報酬 -->
                     <div style="background: var(--surface); padding: 16px; border-radius: 12px;">
-                        <h4 style="margin-bottom: 12px; font-size: 16px;">⏱️ 最近使用した報酬</h4>
+                        <h4 style="margin-bottom: 12px; font-size: 16px; cursor: pointer; user-select: none;" onclick="toggleStatSection('recent-used-rewards')">
+                            <span id="recent-used-rewards-arrow">▼</span> ⏱️ 最近使用した報酬
+                        </h4>
                         <div id="recent-used-rewards" style="display: grid; gap: 8px;">
                             <!-- 動的に生成 -->
                         </div>
@@ -6174,13 +6184,31 @@
         // 詳細統計パネルの表示切り替え
         window.toggleRewardStatistics = function() {
             const panel = document.getElementById('reward-statistics-panel');
-            if (panel) {
-                if (panel.style.display === 'none') {
-                    panel.style.display = 'block';
-                    updateDetailedRewardStatistics();
-                } else {
-                    panel.style.display = 'none';
-                }
+            const btn = document.getElementById('toggle-reward-stats-btn');
+            
+            if (panel.style.display === 'none') {
+                panel.style.display = 'block';
+                btn.textContent = '📊 統計を隠す';
+                updateDetailedRewardStatistics();
+            } else {
+                panel.style.display = 'none';
+                btn.textContent = '📊 詳細統計を見る';
+            }
+        }
+        
+        // 統計セクションのトグル関数
+        window.toggleStatSection = function(sectionId) {
+            const content = document.getElementById(sectionId);
+            const arrow = document.getElementById(sectionId + '-arrow');
+            
+            if (!content) return;
+            
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                if (arrow) arrow.textContent = '▼';
+            } else {
+                content.style.display = 'none';
+                if (arrow) arrow.textContent = '▶';
             }
         }
         
@@ -6598,7 +6626,7 @@
             
             // モーダルを作成
             const modal = document.createElement('div');
-            modal.className = 'overlay';
+            modal.className = 'overlay active';
             modal.innerHTML = `
                 <div class="modal" style="max-width: 400px;">
                     <div class="modal-header">
