@@ -2852,7 +2852,7 @@
         // ジャーナルステータスを更新
         function updateJournalStatus() {
             const data = loadData();
-            const todayKey = dateKeyLocal(new Date());
+            const todayKey = getJournalDateKey(); // 深夜対忌の日付キー
             const statusContainer = document.getElementById('journal-status');
             
             if (!statusContainer) return;
@@ -2908,15 +2908,30 @@
             `;
         }
         
+        // ジャーナル用の日付キーを取得（深夜2時まで前日扱い）
+        function getJournalDateKey() {
+            const now = new Date();
+            const hour = now.getHours();
+            
+            // 0時〜2時の場合は前日の日付として扱う
+            if (hour < 2) {
+                const yesterday = new Date(now);
+                yesterday.setDate(yesterday.getDate() - 1);
+                return dateKeyLocal(yesterday);
+            }
+            
+            return dateKeyLocal(now);
+        }
+        
         // ジャーナルモーダルを開く
         function openJournalModal() {
             const data = loadData();
-            const todayKey = dateKeyLocal(new Date());
+            const todayKey = getJournalDateKey(); // 深夜対応の日付キー
             const todayEntry = data.dailyJournal.entries[todayKey] || {};
             const currentHour = new Date().getHours();
             
-            // 朝か夜かを判定（12時を境に）
-            const isMorning = currentHour < 12;
+            // 朝か夜かを判定（12時を境に、ただし深夜2時まで夜扱い）
+            const isMorning = currentHour >= 2 && currentHour < 12;
             const showMorning = isMorning || !todayEntry.morning;
             
             const overlay = document.createElement('div');
@@ -3104,7 +3119,7 @@
         // 朝のジャーナルを保存
         function saveMorningJournal() {
             let data = loadData();
-            const todayKey = dateKeyLocal(new Date());
+            const todayKey = getJournalDateKey(); // 深夜対応の日付キー
             
             // 選択された値を取得
             const conditionBtn = document.querySelector('#condition-selector .mood-btn[data-selected="true"]');
@@ -3157,7 +3172,7 @@
         // 夜のジャーナルを保存
         function saveEveningJournal() {
             let data = loadData();
-            const todayKey = dateKeyLocal(new Date());
+            const todayKey = getJournalDateKey(); // 深夜対応の日付キー
             
             const success = document.getElementById('success-input').value.trim();
             const improvement = document.getElementById('improvement-input').value.trim();
@@ -3275,6 +3290,87 @@
                 .slice(0, 3)
                 .map(([word, count]) => `${word} (${count}回)`);
             
+            // 過去30日間のデータを取得（感情推移グラフ用）
+            const last30Days = [];
+            const today = new Date();
+            for (let i = 29; i >= 0; i--) {
+                const date = new Date(today);
+                date.setDate(date.getDate() - i);
+                const dateKey = dateKeyLocal(date);
+                const entry = entries[dateKey];
+                
+                last30Days.push({
+                    date: (date.getMonth() + 1) + '/' + date.getDate(),
+                    condition: entry?.morning?.condition || null,
+                    mood: entry?.morning?.mood || null,
+                    hasData: !!(entry?.morning)
+                });
+            }
+            
+            // 曜日別パターン分析
+            const weekdayStats = {
+                0: { name: '日', condition: [], mood: [], records: 0 },
+                1: { name: '月', condition: [], mood: [], records: 0 },
+                2: { name: '火', condition: [], mood: [], records: 0 },
+                3: { name: '水', condition: [], mood: [], records: 0 },
+                4: { name: '木', condition: [], mood: [], records: 0 },
+                5: { name: '金', condition: [], mood: [], records: 0 },
+                6: { name: '土', condition: [], mood: [], records: 0 }
+            };
+            
+            entryDates.forEach(dateStr => {
+                const [year, month, day] = dateStr.split('-').map(Number);
+                const date = new Date(year, month - 1, day);
+                const weekday = date.getDay();
+                const entry = entries[dateStr];
+                
+                if (entry.morning) {
+                    weekdayStats[weekday].records++;
+                    if (entry.morning.condition) {
+                        weekdayStats[weekday].condition.push(entry.morning.condition);
+                    }
+                    if (entry.morning.mood) {
+                        weekdayStats[weekday].mood.push(entry.morning.mood);
+                    }
+                }
+            });
+            
+            // 曜日別平均を計算
+            const weekdayAverages = Object.entries(weekdayStats).map(([day, stats]) => {
+                const avgCondition = stats.condition.length > 0 
+                    ? (stats.condition.reduce((a, b) => a + b, 0) / stats.condition.length).toFixed(1)
+                    : null;
+                const avgMood = stats.mood.length > 0
+                    ? (stats.mood.reduce((a, b) => a + b, 0) / stats.mood.length).toFixed(1)
+                    : null;
+                
+                return {
+                    day: parseInt(day),
+                    name: stats.name,
+                    avgCondition,
+                    avgMood,
+                    records: stats.records
+                };
+            });
+            
+            // ベスト＆ワースト曜日を特定
+            const validWeekdays = weekdayAverages.filter(d => d.avgCondition && d.avgMood);
+            const bestDay = validWeekdays.length > 0 
+                ? validWeekdays.reduce((best, current) => {
+                    const bestScore = parseFloat(best.avgCondition) + parseFloat(best.avgMood);
+                    const currentScore = parseFloat(current.avgCondition) + parseFloat(current.avgMood);
+                    return currentScore > bestScore ? current : best;
+                })
+                : null;
+            
+            const worstDay = validWeekdays.length > 0
+                ? validWeekdays.reduce((worst, current) => {
+                    const worstScore = parseFloat(worst.avgCondition) + parseFloat(worst.avgMood);
+                    const currentScore = parseFloat(current.avgCondition) + parseFloat(current.avgMood);
+                    return currentScore < worstScore ? current : worst;
+                })
+                : null;
+            
             container.innerHTML = `
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px;">
                     <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
@@ -3294,6 +3390,93 @@
                         <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">平均気分 (7日)</div>
                     </div>
                 </div>
+                
+                ${
+                    // 感情推移グラフ
+                    last30Days.some(d => d.hasData) ? `
+                    <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                        <h4 style="font-size: 14px; margin-bottom: 12px; color: var(--text-primary);">📈 感情推移（30日間）</h4>
+                        <div style="position: relative; height: 120px; border-left: 2px solid var(--border); border-bottom: 2px solid var(--border);">
+                            <div style="position: absolute; left: -20px; top: 0; font-size: 10px; color: var(--text-secondary);">5</div>
+                            <div style="position: absolute; left: -20px; top: 50%; transform: translateY(-50%); font-size: 10px; color: var(--text-secondary);">3</div>
+                            <div style="position: absolute; left: -20px; bottom: 0; font-size: 10px; color: var(--text-secondary);">1</div>
+                            
+                            <!-- 体調の線 -->
+                            <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                <polyline
+                                    points="${last30Days.map((d, i) => {
+                                        if (!d.condition) return null;
+                                        const x = (i / 29) * 100;
+                                        const y = 100 - ((d.condition - 1) / 4) * 100;
+                                        return `${x},${y}`;
+                                    }).filter(p => p).join(' ')}"
+                                    fill="none"
+                                    stroke="#10b981"
+                                    stroke-width="2"
+                                    opacity="0.8"
+                                />
+                                <!-- 気分の線 -->
+                                <polyline
+                                    points="${last30Days.map((d, i) => {
+                                        if (!d.mood) return null;
+                                        const x = (i / 29) * 100;
+                                        const y = 100 - ((d.mood - 1) / 4) * 100;
+                                        return `${x},${y}`;
+                                    }).filter(p => p).join(' ')}"
+                                    fill="none"
+                                    stroke="#f59e0b"
+                                    stroke-width="2"
+                                    opacity="0.8"
+                                />
+                            </svg>
+                            
+                            <!-- 日付ラベル -->
+                            <div style="display: flex; justify-content: space-between; position: absolute; bottom: -20px; left: 0; right: 0; font-size: 10px; color: var(--text-secondary);">
+                                <span>${last30Days[0].date}</span>
+                                <span>${last30Days[14].date}</span>
+                                <span>${last30Days[29].date}</span>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 16px; margin-top: 24px; font-size: 11px;">
+                            <span style="color: #10b981;">● 体調</span>
+                            <span style="color: #f59e0b;">● 気分</span>
+                        </div>
+                    </div>
+                ` : ''
+                }
+                
+                ${
+                    // 曜日別パターン
+                    validWeekdays.length > 0 ? `
+                    <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                        <h4 style="font-size: 14px; margin-bottom: 12px; color: var(--text-primary);">🗓️ 曜日別パターン</h4>
+                        <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 12px;">
+                            ${weekdayAverages.map(day => `
+                                <div style="text-align: center; padding: 8px 4px; background: ${
+                                    bestDay && day.day === bestDay.day ? 'rgba(16, 185, 129, 0.2)' :
+                                    worstDay && day.day === worstDay.day ? 'rgba(239, 68, 68, 0.2)' :
+                                    'rgba(255,255,255,0.05)'
+                                }; border-radius: 6px; border: 1px solid ${
+                                    bestDay && day.day === bestDay.day ? 'rgba(16, 185, 129, 0.5)' :
+                                    worstDay && day.day === worstDay.day ? 'rgba(239, 68, 68, 0.5)' :
+                                    'transparent'
+                                };">
+                                    <div style="font-size: 12px; font-weight: bold; margin-bottom: 4px;">${day.name}</div>
+                                    <div style="font-size: 10px; color: #10b981;">😊 ${day.avgCondition || '-'}</div>
+                                    <div style="font-size: 10px; color: #f59e0b;">💭 ${day.avgMood || '-'}</div>
+                                    <div style="font-size: 9px; color: var(--text-secondary); margin-top: 2px;">${day.records}回</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        ${bestDay ? `
+                            <div style="display: flex; gap: 12px; font-size: 11px;">
+                                <span style="color: #10b981;">✨ 最も調子が良い: ${bestDay.name}曜日</span>
+                                ${worstDay ? `<span style="color: #ef4444;">📊 調子が低い: ${worstDay.name}曜日</span>` : ''}
+                            </div>
+                        ` : ''}
+                    </div>
+                ` : ''
+                }
                 
                 ${topSuccess.length > 0 ? `
                     <div style="background: rgba(16, 185, 129, 0.1); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
@@ -3426,7 +3609,7 @@
             }
             
             let data = loadData();
-            const todayKey = dateKeyLocal(new Date());
+            const todayKey = getJournalDateKey(); // 深夜対応の日付キー
             
             if (!data.dailyJournal || !data.dailyJournal.entries[todayKey]) {
                 showNotification('削除するジャーナルが見つかりません', 'error');
