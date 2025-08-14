@@ -4385,6 +4385,45 @@
             }
         }
         
+        // 習慣の休眠モード切り替え
+        function toggleSleepMode() {
+            const data = loadData();
+            const hyp = data.currentHypotheses.find(h => h.id === window.currentHypothesis.id);
+            
+            if (!hyp) return;
+            
+            if (hyp.isSleeping) {
+                // 休眠解除
+                hyp.isSleeping = false;
+                hyp.sleepEndDate = new Date().toISOString();
+                
+                // 休眠期間を記録（統計用）
+                if (!hyp.sleepHistory) hyp.sleepHistory = [];
+                hyp.sleepHistory.push({
+                    startDate: hyp.sleepStartDate,
+                    endDate: hyp.sleepEndDate,
+                    duration: Math.floor((new Date(hyp.sleepEndDate) - new Date(hyp.sleepStartDate)) / (1000 * 60 * 60 * 24))
+                });
+                
+                delete hyp.sleepStartDate;
+                delete hyp.sleepEndDate;
+                
+                showNotification('🌅 習慣を再開しました！', 'success');
+            } else {
+                // 休眠開始
+                if (confirm('この習慣を休眠させますか？\n\n休眠中は：\n• 達成率の計算から除外されます\n• ストリークは保持されます\n• いつでも再開できます')) {
+                    hyp.isSleeping = true;
+                    hyp.sleepStartDate = new Date().toISOString();
+                    
+                    showNotification('😴 習慣を休眠させました', 'info');
+                }
+            }
+            
+            saveData(data);
+            window.currentHypothesis = hyp;
+            showProgressView(hyp.id);
+        }
+
         // ペナルティインジケーターを更新
         function updatePenaltyIndicators() {
             // 既存のインジケーターを削除
@@ -5044,6 +5083,7 @@
             // 習慣モードかどうかチェック
             const habitModeLabel = hypothesis.habitMode ? ' | 🌟 習慣モード' : '';
             const unlimitedLabel = hypothesis.isUnlimited ? ' | ♾️ 無期限' : '';
+            const sleepingLabel = hypothesis.isSleeping ? ' | 😴 休眠中' : '';
             
             // カテゴリ情報を取得
             const categoryInfo = data.categoryMaster && data.categoryMaster[hypothesis.category] 
@@ -5052,8 +5092,11 @@
             
             daysInfo.innerHTML = `
                 <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
-                    <span>📅 ${startDate.toLocaleDateString('ja-JP')} 〜 ${hypothesis.isUnlimited ? '無期限' : endDate.toLocaleDateString('ja-JP')} | ${frequencyText}${habitModeLabel}${unlimitedLabel}</span>
+                    <span>📅 ${startDate.toLocaleDateString('ja-JP')} 〜 ${hypothesis.isUnlimited ? '無期限' : endDate.toLocaleDateString('ja-JP')} | ${frequencyText}${habitModeLabel}${unlimitedLabel}${sleepingLabel}</span>
                     <div style="display: flex; gap: 8px; align-items: center;">
+                        <button class="btn btn-secondary" onclick="toggleSleepMode()" style="padding: 6px 12px; font-size: 12px; border-radius: 6px; background: ${hypothesis.isSleeping ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)'}; color: white;">
+                            ${hypothesis.isSleeping ? '🌅 習慣を再開' : '😴 習慣を休眠'}
+                        </button>
                         <button class="btn btn-secondary" onclick="editFrequencyType()" style="padding: 6px 12px; font-size: 12px; border-radius: 6px;">
                             🔄 頻度変更
                         </button>
@@ -7983,6 +8026,27 @@
             
             // 習慣を頻度タイプ別、さらにカテゴリ別に分類
             data.currentHypotheses.forEach(hypothesis => {
+                // 休眠中の習慣は別グループに
+                if (hypothesis.isSleeping) {
+                    const categoryInfo = data.categoryMaster[hypothesis.category || 'other'] || data.categoryMaster.other;
+                    const categoryKey = hypothesis.category || 'other';
+                    
+                    if (!frequencyGroups.sleeping) {
+                        frequencyGroups.sleeping = {
+                            title: '休眠中の習慣',
+                            icon: '😴',
+                            color: '#94a3b8',
+                            categories: {}
+                        };
+                    }
+                    
+                    if (!frequencyGroups.sleeping.categories[categoryKey]) {
+                        frequencyGroups.sleeping.categories[categoryKey] = [];
+                    }
+                    frequencyGroups.sleeping.categories[categoryKey].push(hypothesis);
+                    return;
+                }
+                
                 let frequencyType = 'daily'; // デフォルトは毎日
                 if (hypothesis.frequency) {
                     frequencyType = hypothesis.frequency.type || 'daily';
