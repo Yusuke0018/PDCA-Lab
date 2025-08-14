@@ -1444,6 +1444,17 @@
                 <!-- 動的に生成 -->
             </div>
             
+            <!-- デイリージャーナルセクション -->
+            <div class="card" id="daily-journal-section" style="margin-bottom: 16px; background: linear-gradient(135deg, rgba(168, 85, 247, 0.1), rgba(59, 130, 246, 0.1)); border: 1px solid rgba(168, 85, 247, 0.3);">
+                <h3 style="margin-bottom: 12px; font-size: 16px;">📔 今日のジャーナル</h3>
+                <div id="journal-status" style="margin-bottom: 12px;">
+                    <!-- 動的に生成 -->
+                </div>
+                <button class="btn btn-primary" onclick="openJournalModal()" style="width: 100%; padding: 10px; font-size: 14px; background: linear-gradient(135deg, #a855f7 0%, #3b82f6 100%);">
+                    📝 記録する
+                </button>
+            </div>
+            
             <!-- 努力ボーナスセクション -->
             <div class="card" style="margin-bottom: 16px; background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(59, 130, 246, 0.1)); border: 1px solid rgba(16, 185, 129, 0.3);">
                 <h3 style="margin-bottom: 12px; font-size: 16px;">今日の努力ボーナス</h3>
@@ -1774,6 +1785,14 @@
                         <h3 style="margin-bottom:8px;">🎮 達成率レベル分布</h3>
                         <div id="achievement-level-distribution" style="display:grid; gap:8px; margin-top:12px;"></div>
                     </div>
+                    <!-- ジャーナル統計セクション -->
+                    <div class="stat-panel" id="journal-stats-section" style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.1), rgba(59, 130, 246, 0.1)); padding: 16px; border-radius: 12px; border: 1px solid rgba(168, 85, 247, 0.3);">
+                        <h3 style="margin-bottom:12px;">📔 ジャーナル統計</h3>
+                        <div id="journal-stats-content">
+                            <!-- 動的に生成 -->
+                        </div>
+                    </div>
+                    
                     <!-- ポイント統計セクション -->
                     <div class="stat-panel" style="background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1)); padding: 16px; border-radius: 12px; border: 1px solid rgba(251, 191, 36, 0.3);">
                         <h3 style="margin-bottom:12px;">💰 ポイント統計</h3>
@@ -2795,6 +2814,516 @@
             localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
         }
 
+        // ========== デイリージャーナル関連の関数 ==========
+        
+        // ジャーナルステータスを更新
+        function updateJournalStatus() {
+            const data = loadData();
+            const todayKey = dateKeyLocal(new Date());
+            const statusContainer = document.getElementById('journal-status');
+            
+            if (!statusContainer) return;
+            
+            // データ構造の初期化
+            if (!data.dailyJournal) {
+                data.dailyJournal = {
+                    entries: {},
+                    stats: {
+                        currentStreak: 0,
+                        longestStreak: 0,
+                        totalEntries: 0,
+                        lastEntry: null
+                    },
+                    settings: {
+                        morningReminderTime: "06:00",
+                        eveningReminderTime: "21:00",
+                        remindersEnabled: true
+                    }
+                };
+                saveData(data);
+            }
+            
+            const todayEntry = data.dailyJournal.entries[todayKey] || {};
+            const hasMorning = todayEntry.morning && todayEntry.morning.timestamp;
+            const hasEvening = todayEntry.evening && todayEntry.evening.timestamp;
+            
+            const morningTime = hasMorning ? new Date(todayEntry.morning.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '';
+            const eveningTime = hasEvening ? new Date(todayEntry.evening.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '';
+            
+            statusContainer.innerHTML = `
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px; background: rgba(255, 255, 255, 0.05); border-radius: 8px;">
+                        <span style="font-size: 14px;">🌅 朝のジャーナル</span>
+                        ${hasMorning 
+                            ? `<span style="color: #10b981; font-size: 12px;">✅ 記録済み (${morningTime})</span>`
+                            : `<span style="color: #f59e0b; font-size: 12px;">⏳ まだ記録していません</span>`
+                        }
+                    </div>
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px; background: rgba(255, 255, 255, 0.05); border-radius: 8px;">
+                        <span style="font-size: 14px;">🌙 夜のジャーナル</span>
+                        ${hasEvening 
+                            ? `<span style="color: #10b981; font-size: 12px;">✅ 記録済み (${eveningTime})</span>`
+                            : `<span style="color: #f59e0b; font-size: 12px;">⏳ まだ記録していません</span>`
+                        }
+                    </div>
+                    ${data.dailyJournal.stats.currentStreak > 0 ? `
+                        <div style="text-align: center; padding: 4px; background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1)); border-radius: 8px; margin-top: 4px;">
+                            <span style="font-size: 12px; color: #fbbf24;">🔥 ${data.dailyJournal.stats.currentStreak}日連続記録中！</span>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+        
+        // ジャーナルモーダルを開く
+        function openJournalModal() {
+            const data = loadData();
+            const todayKey = dateKeyLocal(new Date());
+            const todayEntry = data.dailyJournal.entries[todayKey] || {};
+            const currentHour = new Date().getHours();
+            
+            // 朝か夜かを判定（12時を境に）
+            const isMorning = currentHour < 12;
+            const showMorning = isMorning || !todayEntry.morning;
+            
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay active';
+            overlay.style.backdropFilter = 'blur(6px)';
+            
+            const modal = document.createElement('div');
+            modal.className = 'skip-modal active';
+            modal.style.maxWidth = '520px';
+            modal.style.padding = '24px';
+            
+            if (showMorning) {
+                // 朝のジャーナル
+                modal.innerHTML = `
+                    <div class="modal-header" style="margin-bottom: 20px;">
+                        <h3 style="font-size: 20px; margin-bottom: 8px;">🌅 朝のジャーナル</h3>
+                        <p style="color: var(--text-secondary); font-size: 14px;">今日のスタートを記録しましょう</p>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 12px; font-weight: 600;">体調はどうですか？</label>
+                        <div id="condition-selector" style="display: flex; gap: 12px; justify-content: space-between;">
+                            ${[1,2,3,4,5].map(i => `
+                                <button class="mood-btn" data-value="${i}" style="
+                                    flex: 1;
+                                    padding: 12px;
+                                    border: 2px solid var(--border);
+                                    border-radius: 12px;
+                                    background: var(--surface);
+                                    cursor: pointer;
+                                    transition: all 0.3s;
+                                    text-align: center;
+                                ">
+                                    <div style="font-size: 24px; margin-bottom: 4px;">${['😫', '😟', '😐', '🙂', '😊'][i-1]}</div>
+                                    <div style="font-size: 12px; color: var(--text-secondary);">${i}</div>
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 12px; font-weight: 600;">気分はどうですか？</label>
+                        <div id="mood-selector" style="display: flex; gap: 12px; justify-content: space-between;">
+                            ${[1,2,3,4,5].map(i => `
+                                <button class="mood-btn" data-value="${i}" style="
+                                    flex: 1;
+                                    padding: 12px;
+                                    border: 2px solid var(--border);
+                                    border-radius: 12px;
+                                    background: var(--surface);
+                                    cursor: pointer;
+                                    transition: all 0.3s;
+                                    text-align: center;
+                                ">
+                                    <div style="font-size: 24px; margin-bottom: 4px;">${['😔', '😕', '😐', '😌', '😄'][i-1]}</div>
+                                    <div style="font-size: 12px; color: var(--text-secondary);">${i}</div>
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 24px;">
+                        <label style="display: block; margin-bottom: 12px; font-weight: 600;">今日の最優先事項は？</label>
+                        <textarea id="priority-input" placeholder="例: プロジェクトXの企画書を完成させる" 
+                            style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; 
+                            background: var(--surface); color: var(--text-primary); min-height: 80px; resize: vertical;"
+                            maxlength="200">${todayEntry.morning?.priority || ''}</textarea>
+                        <div style="text-align: right; margin-top: 4px;">
+                            <span id="priority-count" style="font-size: 12px; color: var(--text-secondary);">0/200</span>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-footer" style="display: flex; gap: 12px; justify-content: flex-end;">
+                        <button class="button secondary" onclick="this.closest('.overlay').remove()">キャンセル</button>
+                        <button class="button primary" onclick="saveMorningJournal()" style="background: linear-gradient(135deg, #a855f7 0%, #3b82f6 100%);">
+                            📝 保存して+1pt獲得
+                        </button>
+                    </div>
+                `;
+            } else {
+                // 夜のジャーナル
+                modal.innerHTML = `
+                    <div class="modal-header" style="margin-bottom: 20px;">
+                        <h3 style="font-size: 20px; margin-bottom: 8px;">🌙 夜のジャーナル</h3>
+                        <p style="color: var(--text-secondary); font-size: 14px;">今日を振り返ってみましょう</p>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 12px; font-weight: 600;">今日うまくいったことは？</label>
+                        <textarea id="success-input" placeholder="例: 企画書を予定通り完成できた。チームとの連携もスムーズだった" 
+                            style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; 
+                            background: var(--surface); color: var(--text-primary); min-height: 100px; resize: vertical;"
+                            maxlength="300">${todayEntry.evening?.success || ''}</textarea>
+                        <div style="text-align: right; margin-top: 4px;">
+                            <span id="success-count" style="font-size: 12px; color: var(--text-secondary);">0/300</span>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 24px;">
+                        <label style="display: block; margin-bottom: 12px; font-weight: 600;">改善点は？</label>
+                        <textarea id="improvement-input" placeholder="例: 時間配分をもっと計画的にすべきだった" 
+                            style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; 
+                            background: var(--surface); color: var(--text-primary); min-height: 100px; resize: vertical;"
+                            maxlength="300">${todayEntry.evening?.improvement || ''}</textarea>
+                        <div style="text-align: right; margin-top: 4px;">
+                            <span id="improvement-count" style="font-size: 12px; color: var(--text-secondary);">0/300</span>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-footer" style="display: flex; gap: 12px; justify-content: flex-end;">
+                        <button class="button secondary" onclick="this.closest('.overlay').remove()">キャンセル</button>
+                        <button class="button primary" onclick="saveEveningJournal()" style="background: linear-gradient(135deg, #a855f7 0%, #3b82f6 100%);">
+                            📝 保存して+1pt獲得
+                        </button>
+                    </div>
+                `;
+            }
+            
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            
+            // イベントリスナーを設定
+            setTimeout(() => {
+                if (showMorning) {
+                    // 体調セレクター
+                    document.querySelectorAll('#condition-selector .mood-btn').forEach(btn => {
+                        btn.onclick = () => {
+                            document.querySelectorAll('#condition-selector .mood-btn').forEach(b => {
+                                b.style.border = '2px solid var(--border)';
+                                b.style.background = 'var(--surface)';
+                            });
+                            btn.style.border = '2px solid #10b981';
+                            btn.style.background = 'rgba(16, 185, 129, 0.1)';
+                            btn.dataset.selected = 'true';
+                        };
+                        // 既存の値があれば選択
+                        if (todayEntry.morning?.condition == btn.dataset.value) {
+                            btn.click();
+                        }
+                    });
+                    
+                    // 気分セレクター
+                    document.querySelectorAll('#mood-selector .mood-btn').forEach(btn => {
+                        btn.onclick = () => {
+                            document.querySelectorAll('#mood-selector .mood-btn').forEach(b => {
+                                b.style.border = '2px solid var(--border)';
+                                b.style.background = 'var(--surface)';
+                            });
+                            btn.style.border = '2px solid #3b82f6';
+                            btn.style.background = 'rgba(59, 130, 246, 0.1)';
+                            btn.dataset.selected = 'true';
+                        };
+                        // 既存の値があれば選択
+                        if (todayEntry.morning?.mood == btn.dataset.value) {
+                            btn.click();
+                        }
+                    });
+                    
+                    // 文字数カウント
+                    const priorityInput = document.getElementById('priority-input');
+                    const priorityCount = document.getElementById('priority-count');
+                    priorityInput.oninput = () => {
+                        priorityCount.textContent = `${priorityInput.value.length}/200`;
+                    };
+                    priorityInput.oninput();
+                } else {
+                    // 文字数カウント
+                    const successInput = document.getElementById('success-input');
+                    const successCount = document.getElementById('success-count');
+                    const improvementInput = document.getElementById('improvement-input');
+                    const improvementCount = document.getElementById('improvement-count');
+                    
+                    successInput.oninput = () => {
+                        successCount.textContent = `${successInput.value.length}/300`;
+                    };
+                    improvementInput.oninput = () => {
+                        improvementCount.textContent = `${improvementInput.value.length}/300`;
+                    };
+                    successInput.oninput();
+                    improvementInput.oninput();
+                }
+            }, 100);
+        }
+        
+        // 朝のジャーナルを保存
+        function saveMorningJournal() {
+            const data = loadData();
+            const todayKey = dateKeyLocal(new Date());
+            
+            // 選択された値を取得
+            const conditionBtn = document.querySelector('#condition-selector .mood-btn[data-selected="true"]');
+            const moodBtn = document.querySelector('#mood-selector .mood-btn[data-selected="true"]');
+            const priority = document.getElementById('priority-input').value.trim();
+            
+            if (!conditionBtn || !moodBtn || !priority) {
+                showNotification('すべての項目を入力してください', 'error');
+                return;
+            }
+            
+            // データを保存
+            if (!data.dailyJournal.entries[todayKey]) {
+                data.dailyJournal.entries[todayKey] = {};
+            }
+            
+            const isFirstTime = !data.dailyJournal.entries[todayKey].morning;
+            
+            data.dailyJournal.entries[todayKey].morning = {
+                condition: parseInt(conditionBtn.dataset.value),
+                mood: parseInt(moodBtn.dataset.value),
+                priority: priority,
+                timestamp: new Date().toISOString(),
+                pointsEarned: isFirstTime ? 1 : 0
+            };
+            
+            // ポイントを付与（初回のみ）
+            if (isFirstTime) {
+                earnPoints(1, 'journal', '🌅 朝のジャーナル記録');
+            }
+            
+            // ストリークを更新
+            updateJournalStreak(data);
+            
+            saveData(data);
+            
+            // UIを更新
+            updateJournalStatus();
+            
+            // モーダルを閉じる
+            document.querySelector('.overlay').remove();
+            
+            showNotification('🌅 朝のジャーナルを記録しました！', 'success');
+        }
+        
+        // 夜のジャーナルを保存
+        function saveEveningJournal() {
+            const data = loadData();
+            const todayKey = dateKeyLocal(new Date());
+            
+            const success = document.getElementById('success-input').value.trim();
+            const improvement = document.getElementById('improvement-input').value.trim();
+            
+            if (!success || !improvement) {
+                showNotification('すべての項目を入力してください', 'error');
+                return;
+            }
+            
+            // データを保存
+            if (!data.dailyJournal.entries[todayKey]) {
+                data.dailyJournal.entries[todayKey] = {};
+            }
+            
+            const isFirstTime = !data.dailyJournal.entries[todayKey].evening;
+            
+            data.dailyJournal.entries[todayKey].evening = {
+                success: success,
+                improvement: improvement,
+                timestamp: new Date().toISOString(),
+                pointsEarned: isFirstTime ? 1 : 0
+            };
+            
+            // ポイントを付与（初回のみ）
+            if (isFirstTime) {
+                earnPoints(1, 'journal', '🌙 夜のジャーナル記録');
+            }
+            
+            // ストリークを更新
+            updateJournalStreak(data);
+            
+            saveData(data);
+            
+            // UIを更新
+            updateJournalStatus();
+            
+            // モーダルを閉じる
+            document.querySelector('.overlay').remove();
+            
+            showNotification('🌙 夜のジャーナルを記録しました！', 'success');
+        }
+        
+        // ジャーナル統計を更新
+        function updateJournalStats() {
+            const data = loadData();
+            const container = document.getElementById('journal-stats-content');
+            
+            if (!container || !data.dailyJournal) return;
+            
+            const entries = data.dailyJournal.entries || {};
+            const entryDates = Object.keys(entries).sort();
+            
+            // 基本統計
+            const totalEntries = entryDates.length;
+            const morningEntries = entryDates.filter(date => entries[date].morning).length;
+            const eveningEntries = entryDates.filter(date => entries[date].evening).length;
+            const completeEntries = entryDates.filter(date => entries[date].morning && entries[date].evening).length;
+            
+            // 最近7日間の体調・気分を計算
+            const last7Days = entryDates.slice(-7);
+            let avgCondition = 0;
+            let avgMood = 0;
+            let conditionCount = 0;
+            let moodCount = 0;
+            
+            last7Days.forEach(date => {
+                if (entries[date].morning) {
+                    if (entries[date].morning.condition) {
+                        avgCondition += entries[date].morning.condition;
+                        conditionCount++;
+                    }
+                    if (entries[date].morning.mood) {
+                        avgMood += entries[date].morning.mood;
+                        moodCount++;
+                    }
+                }
+            });
+            
+            if (conditionCount > 0) avgCondition = (avgCondition / conditionCount).toFixed(1);
+            if (moodCount > 0) avgMood = (avgMood / moodCount).toFixed(1);
+            
+            // よくできたことTOP3を抽出
+            const successWords = {};
+            const improvementWords = {};
+            
+            entryDates.forEach(date => {
+                if (entries[date].evening) {
+                    // 簡単な単語抽出（名詞っぽいもの）
+                    if (entries[date].evening.success) {
+                        const words = entries[date].evening.success.match(/[一-龥]{2,}/g) || [];
+                        words.forEach(word => {
+                            successWords[word] = (successWords[word] || 0) + 1;
+                        });
+                    }
+                    if (entries[date].evening.improvement) {
+                        const words = entries[date].evening.improvement.match(/[一-龥]{2,}/g) || [];
+                        words.forEach(word => {
+                            improvementWords[word] = (improvementWords[word] || 0) + 1;
+                        });
+                    }
+                }
+            });
+            
+            const topSuccess = Object.entries(successWords)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 3)
+                .map(([word, count]) => `${word} (${count}回)`);
+            
+            const topImprovement = Object.entries(improvementWords)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 3)
+                .map(([word, count]) => `${word} (${count}回)`);
+            
+            container.innerHTML = `
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px;">
+                    <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                        <div style="font-size: 24px; font-weight: bold; color: #a855f7;">${data.dailyJournal.stats.currentStreak}</div>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">現在のストリーク</div>
+                    </div>
+                    <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                        <div style="font-size: 24px; font-weight: bold; color: #3b82f6;">${completeEntries}</div>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">完全記録日数</div>
+                    </div>
+                    <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                        <div style="font-size: 24px; font-weight: bold; color: #10b981;">${avgCondition || '-'}</div>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">平均体調 (7日)</div>
+                    </div>
+                    <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                        <div style="font-size: 24px; font-weight: bold; color: #f59e0b;">${avgMood || '-'}</div>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">平均気分 (7日)</div>
+                    </div>
+                </div>
+                
+                ${topSuccess.length > 0 ? `
+                    <div style="background: rgba(16, 185, 129, 0.1); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
+                        <h4 style="font-size: 14px; margin-bottom: 8px; color: #10b981;">🏆 よくできたこと TOP3</h4>
+                        <ol style="margin: 0; padding-left: 20px; font-size: 12px; color: var(--text-secondary);">
+                            ${topSuccess.map(item => `<li>${item}</li>`).join('')}
+                        </ol>
+                    </div>
+                ` : ''}
+                
+                ${topImprovement.length > 0 ? `
+                    <div style="background: rgba(245, 158, 11, 0.1); padding: 12px; border-radius: 8px;">
+                        <h4 style="font-size: 14px; margin-bottom: 8px; color: #f59e0b;">💡 改善テーマ TOP3</h4>
+                        <ol style="margin: 0; padding-left: 20px; font-size: 12px; color: var(--text-secondary);">
+                            ${topImprovement.map(item => `<li>${item}</li>`).join('')}
+                        </ol>
+                    </div>
+                ` : ''}
+                
+                ${totalEntries === 0 ? `
+                    <div style="text-align: center; padding: 20px; color: var(--text-secondary); font-size: 14px;">
+                        まだジャーナルの記録がありません
+                    </div>
+                ` : ''}
+            `;
+        }
+        
+        // ジャーナルストリークを更新
+        function updateJournalStreak(data) {
+            const today = new Date();
+            const todayKey = dateKeyLocal(today);
+            
+            // 今日のエントリが完全かチェック
+            const todayEntry = data.dailyJournal.entries[todayKey];
+            const isComplete = todayEntry && todayEntry.morning && todayEntry.evening;
+            
+            if (isComplete) {
+                // 昨日のエントリをチェック
+                const yesterday = new Date(today);
+                yesterday.setDate(yesterday.getDate() - 1);
+                const yesterdayKey = dateKeyLocal(yesterday);
+                const yesterdayEntry = data.dailyJournal.entries[yesterdayKey];
+                
+                if (yesterdayEntry && yesterdayEntry.morning && yesterdayEntry.evening) {
+                    // 連続を継続
+                    data.dailyJournal.stats.currentStreak++;
+                } else {
+                    // 新しいストリークを開始
+                    data.dailyJournal.stats.currentStreak = 1;
+                }
+                
+                // 最長ストリークを更新
+                if (data.dailyJournal.stats.currentStreak > data.dailyJournal.stats.longestStreak) {
+                    data.dailyJournal.stats.longestStreak = data.dailyJournal.stats.currentStreak;
+                }
+                
+                // 統計を更新
+                data.dailyJournal.stats.lastEntry = todayKey;
+                data.dailyJournal.stats.totalEntries++;
+                
+                // ストリークボーナス
+                if (data.dailyJournal.stats.currentStreak === 7) {
+                    earnPoints(5, 'journal', '🔥 ジャーナル7日連続ボーナス');
+                    showNotification('🎆 7日連続達成！+5ptボーナス！', 'success');
+                } else if (data.dailyJournal.stats.currentStreak === 30) {
+                    earnPoints(20, 'journal', '🎆 ジャーナル30日連続ボーナス');
+                    showNotification('🎉 30日連続達成！+20ptボーナス！', 'success');
+                }
+            }
+        }
+        
         // ========== チャレンジシステム関連の関数 ==========
         
         // チャレンジを更新
@@ -4358,6 +4887,7 @@
             updatePerfectBonusIndicator();
             updatePenaltyIndicators();
             updateChallenges();
+            updateJournalStatus();  // ジャーナルステータスを更新
             
             // ホーム画面ではヘッダーのポイント表示を再表示
             const pointDisplay = document.getElementById('point-display');
@@ -8923,6 +9453,9 @@
             
             // チャレンジ統計を更新
             updateChallengeStats();
+            
+            // ジャーナル統計を更新
+            updateJournalStats();
             
             const data = loadData();
             const totalHypotheses = data.currentHypotheses.length + data.completedHypotheses.length;
