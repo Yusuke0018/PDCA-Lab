@@ -1873,12 +1873,16 @@
                 </div>
                 <div class="achievement-chart" id="achievement-chart" style="display:grid; gap:16px;">
                     <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
-                        <h3 style="margin-bottom:8px;">⏰ 曜日別達成率（毎日の習慣）</h3>
-                        <div id="weekday-stats" style="display:flex; gap:3px; margin-top:8px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; justify-content: space-between;"></div>
+                        <h3 style="margin-bottom:8px; cursor: pointer; user-select: none;" onclick="toggleStatSection('weekday-stats')">
+                            <span id="weekday-stats-arrow">▶</span> ⏰ 曜日別達成率（毎日の習慣）
+                        </h3>
+                        <div id="weekday-stats" style="display: none;" style="display:flex; gap:3px; margin-top:8px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; justify-content: space-between;"></div>
                     </div>
                     <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
-                        <h3 style="margin-bottom:8px;">🎮 達成率レベル分布</h3>
-                        <div id="achievement-level-distribution" style="display:grid; gap:8px; margin-top:12px;"></div>
+                        <h3 style="margin-bottom:8px; cursor: pointer; user-select: none;" onclick="toggleStatSection('achievement-level-distribution')">
+                            <span id="achievement-level-distribution-arrow">▶</span> 🎮 達成率レベル分布
+                        </h3>
+                        <div id="achievement-level-distribution" style="display: none;" style="display:grid; gap:8px; margin-top:12px;"></div>
                     </div>
                     <!-- ジャーナル統計セクション -->
                     <div class="stat-panel" id="journal-stats-section" style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.1), rgba(59, 130, 246, 0.1)); padding: 16px; border-radius: 12px; border: 1px solid rgba(168, 85, 247, 0.3);">
@@ -1950,18 +1954,25 @@
                         </div>
                     </div>
                     <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
-                        <h3 style="margin-bottom:8px;">🧩 強度ラベル使用割合</h3>
-                        <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; justify-content:center;">
+                        <h3 style="margin-bottom:8px; cursor: pointer; user-select: none;" onclick="toggleStatSection('intensity-stats')">
+                            <span id="intensity-stats-arrow">▶</span> 🧩 強度ラベル使用割合
+                        </h3>
+                        <div id="intensity-stats" style="display: none; gap:12px; align-items:center; flex-wrap:wrap; justify-content:center;">
                             <svg id="donut-intensity" width="160" height="160" viewBox="0 0 160 160" style="flex-shrink: 0;"></svg>
                             <div id="donut-legend" style="display:grid; gap:6px; font-size:12px; min-width: 100px;"></div>
                         </div>
                     </div>
                     <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
-                        <h3 style="margin-bottom:8px;">🔥 連続達成日数</h3>
-                        <div id="streak-stats" style="display:flex; gap:16px; font-weight:700;"></div>
+                        <h3 style="margin-bottom:8px; cursor: pointer; user-select: none;" onclick="toggleStatSection('streak-stats')">
+                            <span id="streak-stats-arrow">▶</span> 🔥 連続達成日数
+                        </h3>
+                        <div id="streak-stats" style="display: none;" style="display:flex; gap:16px; font-weight:700;"></div>
                     </div>
                     <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
-                        <h3 style="margin-bottom:8px;">🏆 習慣ランキング</h3>
+                        <h3 style="margin-bottom:8px; cursor: pointer; user-select: none;" onclick="toggleStatSection('ranking-content')">
+                            <span id="ranking-content-arrow">▶</span> 🏆 習慣ランキング
+                        </h3>
+                        <div id="ranking-content" style="display: none;">
                         <!-- タブ切り替え -->
                         <div style="display: flex; gap: 8px; margin-bottom: 12px;">
                             <button id="ranking-achievement-tab" onclick="showAchievementRanking()" style="flex: 1; padding: 6px; font-size: 12px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer;">達成率</button>
@@ -1969,10 +1980,13 @@
                             <button id="ranking-streak-tab" onclick="showStreakRanking()" style="flex: 1; padding: 6px; font-size: 12px; background: var(--surface); color: var(--text-primary); border: none; border-radius: 6px; cursor: pointer;">連続</button>
                         </div>
                         <div id="ranking-list" style="display:grid; gap:8px;"></div>
+                        </div>
                     </div>
                     <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
-                        <h3 style="margin-bottom:8px;">🏆 獲得バッジ</h3>
-                        <div id="badge-collection" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap:12px; margin-top:12px;"></div>
+                        <h3 style="margin-bottom:8px; cursor: pointer; user-select: none;" onclick="toggleStatSection('badge-collection')">
+                            <span id="badge-collection-arrow">▶</span> 🏆 獲得バッジ
+                        </h3>
+                        <div id="badge-collection" style="display: none;" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap:12px; margin-top:12px;"></div>
                     </div>
                     <!-- チャレンジ統計セクション -->
                     <div class="stat-panel" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(236, 72, 153, 0.1)); padding: 16px; border-radius: 12px; border: 1px solid rgba(139, 92, 246, 0.3);">
@@ -2015,13 +2029,17 @@
                         </div>
                     </div>
                     <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
-                        <h3 style="margin-bottom:8px;">📈 習慣レポート</h3>
+                        <h3 style="margin-bottom:8px; cursor: pointer; user-select: none;" onclick="toggleStatSection('habit-report')">
+                            <span id="habit-report-arrow">▶</span> 📈 習慣レポート
+                        </h3>
+                        <div id="habit-report" style="display: none;">
                         <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 16px;">
                             <button class="btn btn-secondary" onclick="showMonthlyReport()">📅 月次</button>
                             <button class="btn btn-secondary" onclick="showYearlyReport()">📊 年次</button>
                             <button class="btn btn-secondary" onclick="exportHabitData()">📤 エクスポート</button>
                             <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()">📥 インポート</button>
                             <input id="import-file" type="file" accept="application/json,.json" style="display:none" onchange="handleImportFile(event)">
+                        </div>
                         </div>
                         <div id="report-container" style="display: none; padding: 16px; background: var(--surface); border-radius: 12px; margin-top: 12px;"></div>
                     </div>
