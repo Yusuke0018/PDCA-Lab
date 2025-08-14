@@ -3912,10 +3912,13 @@
             // コンボボーナス付与
             if (achievedToday === 2) {
                 earnPoints(1, 'combo', '2習慣同時達成ボーナス');
+                showNotification('🎉 2習慣同時達成ボーナス! (+1pt)', 'success');
             } else if (achievedToday === 3) {
                 earnPoints(3, 'combo', '3習慣同時達成ボーナス');
+                showNotification('🔥 3習慣同時達成ボーナス! (+3pt)', 'success');
             } else if (totalHabits >= 4 && achievedToday === totalHabits) {
                 earnPoints(5, 'combo', '全習慣達成ボーナス');
+                showNotification('🏆 全習慣達成ボーナス! (+5pt)', 'success');
             }
         }
         
@@ -5987,7 +5990,26 @@
             const multiplier = calculateStreakMultiplier(streakDays);
             
             // ポイント付与（強度を考慮した実際のポイント）
+            const basePoints = actualPoints;
+            const bonusPoints = Math.round(actualPoints * (multiplier - 1));
             earnPoints(actualPoints, 'habit', `${window.currentHypothesis.title} 達成`, multiplier);
+            
+            // 連続達成ボーナスの表示
+            if (multiplier > 1.0) {
+                let streakMessage = '';
+                if (streakDays >= 21) {
+                    streakMessage = `🌟 21日以上連続達成！ ボーナス+${bonusPoints}pt (×2.0)`;
+                } else if (streakDays >= 14) {
+                    streakMessage = `⭐ 14日連続達成！ ボーナス+${bonusPoints}pt (×1.7)`;
+                } else if (streakDays >= 7) {
+                    streakMessage = `🔥 7日連続達成！ ボーナス+${bonusPoints}pt (×1.5)`;
+                } else if (streakDays >= 3) {
+                    streakMessage = `✨ 3日連続達成！ ボーナス+${bonusPoints}pt (×1.2)`;
+                }
+                if (streakMessage) {
+                    setTimeout(() => showNotification(streakMessage, 'success'), 500);
+                }
+            }
             
             // 同日の他の習慣達成をチェックしてコンボボーナス
             checkAndAwardComboBonus(dateKey);
@@ -6072,18 +6094,40 @@
                     actualPoints = 3; // 高強度
                 }
                 
-                // 連続日数ボーナスも考慮（ただし、現在の連続日数ではなく、達成時の連続日数は不明なので基本ポイントのみ減算）
-                // より正確にするには、達成時のポイントを記録しておく必要がある
+                // コンボボーナスのチェックと減算
+                let comboDeduction = 0;
+                let totalAchievedBefore = 0;
+                let totalAchievedAfter = 0;
                 
-                // ポイント減算
-                data.pointSystem.currentPoints = Math.max(0, data.pointSystem.currentPoints - actualPoints);
+                // 取り消し前の同日達成数をカウント
+                data.currentHypotheses.forEach(h => {
+                    if (h.achievements && h.achievements[dateKey]) {
+                        totalAchievedBefore++;
+                    }
+                });
+                
+                // 取り消し後の同日達成数（この習慣を除く）
+                totalAchievedAfter = totalAchievedBefore - 1;
+                
+                // コンボボーナスの差分を計算
+                if (totalAchievedBefore >= 4 && totalAchievedAfter < 4) {
+                    comboDeduction = 5; // 全習慣達成ボーナスが失われる
+                } else if (totalAchievedBefore === 3 && totalAchievedAfter === 2) {
+                    comboDeduction = 3 - 1; // 3習慣ボーナス(3pt)から2習慣ボーナス(1pt)へ
+                } else if (totalAchievedBefore === 2 && totalAchievedAfter === 1) {
+                    comboDeduction = 1; // 2習慣ボーナスが失われる
+                }
+                
+                // ポイント減算（基本ポイント + コンボボーナス）
+                const totalDeduction = actualPoints + comboDeduction;
+                data.pointSystem.currentPoints = Math.max(0, data.pointSystem.currentPoints - totalDeduction);
                 
                 // トランザクション記録
                 data.pointSystem.transactions.unshift({
                     type: 'deduct',
-                    amount: actualPoints,
+                    amount: totalDeduction,
                     source: 'habit_cancel',
-                    description: `${window.currentHypothesis.title} 取り消し`,
+                    description: `${window.currentHypothesis.title} 取り消し${comboDeduction > 0 ? ' (コンボボーナス含む)' : ''}`,
                     timestamp: new Date().toISOString()
                 });
                 
@@ -6102,7 +6146,11 @@
                 updatePointDisplay();
                 updateProgress();
                 updateCalendar();
-                showNotification(`習慣の達成を取り消しました (-${actualPoints}pt)`, 'info');
+                let message = `習慣の達成を取り消しました (-${actualPoints}pt)`;
+                if (comboDeduction > 0) {
+                    message += `\nコンボボーナスも減算 (-${comboDeduction}pt)`;
+                }
+                showNotification(message, 'info');
             }
         }
         
