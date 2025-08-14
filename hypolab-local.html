@@ -1882,69 +1882,70 @@
                     </div>
                     <!-- ジャーナル統計セクション -->
                     <div class="stat-panel" id="journal-stats-section" style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.1), rgba(59, 130, 246, 0.1)); padding: 16px; border-radius: 12px; border: 1px solid rgba(168, 85, 247, 0.3);">
-                        <h3 style="margin-bottom:12px;">📔 ジャーナル統計</h3>
-                        <div id="journal-stats-content">
+                        <h3 style="margin-bottom:12px; cursor: pointer; user-select: none;" onclick="toggleStatSection('journal-stats-content')">
+                            <span id="journal-stats-content-arrow">▶</span> 📔 ジャーナル統計
+                        </h3>
+                        <div id="journal-stats-content" style="display: none;">
                             <!-- 動的に生成 -->
                         </div>
                     </div>
                     
                     <!-- ポイント統計セクション -->
                     <div class="stat-panel" style="background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1)); padding: 16px; border-radius: 12px; border: 1px solid rgba(251, 191, 36, 0.3);">
-                        <h3 style="margin-bottom:12px;">💰 ポイント統計</h3>
-                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
-                            <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
-                                <div id="current-points-stat" style="font-size: 24px; font-weight: bold; color: #fbbf24;">0</div>
-                                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">現在のポイント</div>
+                        <h3 style="margin-bottom:12px; cursor: pointer; user-select: none;" onclick="toggleStatSection('point-stats-content')">
+                            <span id="point-stats-content-arrow">▶</span> 💰 ポイント統計
+                        </h3>
+                        <div id="point-stats-content" style="display: none;">
+                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+                                <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                                    <div id="current-points-stat" style="font-size: 24px; font-weight: bold; color: #fbbf24;">0</div>
+                                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">現在のポイント</div>
+                                </div>
+                                <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                                    <div id="lifetime-earned-stat" style="font-size: 24px; font-weight: bold; color: #10b981;">0</div>
+                                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">累計獲得</div>
+                                </div>
+                                <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                                    <div id="lifetime-spent-stat" style="font-size: 24px; font-weight: bold; color: #ef4444;">0</div>
+                                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">累計消費</div>
+                                </div>
+                                <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                                    <div id="current-level-stat" style="font-size: 24px; font-weight: bold; color: #8b5cf6;">Lv.1</div>
+                                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">現在のレベル</div>
+                                </div>
                             </div>
-                            <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
-                                <div id="lifetime-earned-stat" style="font-size: 24px; font-weight: bold; color: #10b981;">0</div>
-                                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">累計獲得</div>
+                            <!-- レベル進捗バー -->
+                            <div style="margin-top: 16px;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                    <span id="level-progress-label" style="font-size: 12px; color: var(--text-secondary);">次のレベルまで</span>
+                                    <span id="level-progress-text" style="font-size: 12px; color: var(--text-secondary);">0/50pt</span>
+                                </div>
+                                <div style="background: rgba(0,0,0,0.3); height: 8px; border-radius: 4px; overflow: hidden;">
+                                    <div id="level-progress-bar" style="background: linear-gradient(90deg, #fbbf24, #f59e0b); height: 100%; width: 0%; transition: width 0.3s ease;"></div>
+                                </div>
                             </div>
-                            <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
-                                <div id="lifetime-spent-stat" style="font-size: 24px; font-weight: bold; color: #ef4444;">0</div>
-                                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">累計消費</div>
+                            
+                            <!-- ポイント推移グラフ -->
+                            <div id="point-trend-graph" style="margin-top: 16px;">
+                                <!-- 動的に生成 -->
                             </div>
-                            <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
-                                <div id="current-level-stat" style="font-size: 24px; font-weight: bold; color: #8b5cf6;">Lv.1</div>
-                                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">現在のレベル</div>
-                            </div>
-                        </div>
-                        <!-- レベル進捗バー -->
-                        <div style="margin-top: 16px;">
-                            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                                <span id="level-progress-label" style="font-size: 12px; color: var(--text-secondary);">次のレベルまで</span>
-                                <span id="level-progress-text" style="font-size: 12px; color: var(--text-secondary);">0/50pt</span>
-                            </div>
-                            <div style="background: rgba(0,0,0,0.3); height: 8px; border-radius: 4px; overflow: hidden;">
-                                <div id="level-progress-bar" style="background: linear-gradient(90deg, #fbbf24, #f59e0b); height: 100%; width: 0%; transition: width 0.3s ease;"></div>
-                            </div>
-                        </div>
-                        
-                        <!-- ポイント推移グラフ -->
-                        <div id="point-trend-graph" style="margin-top: 16px;">
-                            <!-- 動的に生成 -->
-                        </div>
-                        
-                        <!-- ソース別獲得統計 -->
-                        <div id="point-source-stats" style="margin-top: 16px;">
-                            <!-- 動的に生成 -->
-                        </div>
                         
                         <!-- 時間帯別獲得パターン -->
-                        <div id="point-time-pattern" style="margin-top: 16px;">
-                            <!-- 動的に生成 -->
-                        </div>
-                        
-                        <!-- ブースト効果分析 -->
-                        <div id="boost-effect-analysis" style="margin-top: 16px;">
-                            <!-- 動的に生成 -->
-                        </div>
-                        
-                        <!-- 最近のトランザクション -->
-                        <div style="margin-top: 16px;">
-                            <h4 style="font-size: 14px; margin-bottom: 8px;">📝 最近の獲得/消費</h4>
-                            <div id="recent-transactions" style="display: grid; gap: 4px; max-height: 150px; overflow-y: auto; font-size: 12px;">
+                            <div id="point-time-pattern" style="margin-top: 16px;">
                                 <!-- 動的に生成 -->
+                            </div>
+                            
+                            <!-- ブースト効果分析 -->
+                            <div id="boost-effect-analysis" style="margin-top: 16px;">
+                                <!-- 動的に生成 -->
+                            </div>
+                            
+                            <!-- 最近のトランザクション -->
+                            <div style="margin-top: 16px;">
+                                <h4 style="font-size: 14px; margin-bottom: 8px;">📝 最近の獲得/消費</h4>
+                                <div id="recent-transactions" style="display: grid; gap: 4px; max-height: 150px; overflow-y: auto; font-size: 12px;">
+                                    <!-- 動的に生成 -->
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1975,8 +1976,11 @@
                     </div>
                     <!-- チャレンジ統計セクション -->
                     <div class="stat-panel" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(236, 72, 153, 0.1)); padding: 16px; border-radius: 12px; border: 1px solid rgba(139, 92, 246, 0.3);">
-                        <h3 style="margin-bottom:12px;">🎯 チャレンジ統計</h3>
-                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px;">
+                        <h3 style="margin-bottom:12px; cursor: pointer; user-select: none;" onclick="toggleStatSection('challenge-stats-content')">
+                            <span id="challenge-stats-content-arrow">▶</span> 🎯 チャレンジ統計
+                        </h3>
+                        <div id="challenge-stats-content" style="display: none;">
+                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px;">
                             <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
                                 <div id="challenge-streak" style="font-size: 24px; font-weight: bold; color: #fbbf24;">0</div>
                                 <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">連続達成日数</div>
@@ -2002,10 +2006,11 @@
                             </div>
                         </div>
                         <!-- チャレンジ履歴 -->
-                        <div>
-                            <h4 style="font-size: 14px; margin-bottom: 8px;">📝 最近のチャレンジ達成</h4>
-                            <div id="recent-challenges" style="display: grid; gap: 4px; max-height: 150px; overflow-y: auto; font-size: 12px;">
-                                <!-- 動的に生成 -->
+                            <div>
+                                <h4 style="font-size: 14px; margin-bottom: 8px;">📝 最近のチャレンジ達成</h4>
+                                <div id="recent-challenges" style="display: grid; gap: 4px; max-height: 150px; overflow-y: auto; font-size: 12px;">
+                                    <!-- 動的に生成 -->
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -5599,17 +5604,8 @@
                 `;
             }
             
-            // ソース別獲得統計
-            const sourceStatsEl = document.getElementById('point-source-stats');
-            if (sourceStatsEl && ps.transactions.length > 0) {
-                const sourceStats = analyzePointSources(ps.transactions);
-                sourceStatsEl.innerHTML = `
-                    <h4 style="font-size: 14px; margin-bottom: 12px;">🎯 獲得ソース別分析</h4>
-                    <div style="display: grid; gap: 8px;">
-                        ${generateSourceStatsHTML(sourceStats)}
-                    </div>
-                `;
-            }
+            // ソース別獲得統計（削除済み）
+            // この機能は不要なため削除しました
             
             // 時間帯別獲得パターン
             const timePatternEl = document.getElementById('point-time-pattern');
