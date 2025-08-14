@@ -7067,8 +7067,14 @@
                 let totalAchievedAfter = 0;
                 
                 // 取り消し前の同日達成数をカウント
+                // 注意：現在の習慣の達成状態はまだtrueなので、それも含めてカウント
                 data.currentHypotheses.forEach(h => {
-                    if (h.achievements && h.achievements[dateKey]) {
+                    if (h.id === window.currentHypothesis.id) {
+                        // 現在の習慣は取り消し前なのでtrueとしてカウント
+                        if (window.currentHypothesis.achievements[dateKey]) {
+                            totalAchievedBefore++;
+                        }
+                    } else if (h.achievements && h.achievements[dateKey]) {
                         totalAchievedBefore++;
                     }
                 });
@@ -7077,13 +7083,33 @@
                 totalAchievedAfter = totalAchievedBefore - 1;
                 
                 // コンボボーナスの差分を計算
-                if (totalAchievedBefore >= 4 && totalAchievedAfter < 4) {
-                    comboDeduction = 5; // 全習慣達成ボーナスが失われる
-                } else if (totalAchievedBefore === 3 && totalAchievedAfter === 2) {
-                    comboDeduction = 3 - 1; // 3習慣ボーナス(3pt)から2習慣ボーナス(1pt)へ
-                } else if (totalAchievedBefore === 2 && totalAchievedAfter === 1) {
-                    comboDeduction = 1; // 2習慣ボーナスが失われる
+                // 注意：コンボボーナスは累積ではなく、該当する最高のボーナスのみが付与される
+                let bonusBefore = 0;
+                let bonusAfter = 0;
+                
+                // 全習慣数を取得
+                const totalHabits = data.currentHypotheses.length;
+                
+                // 取り消し前のボーナス
+                if (totalHabits >= 4 && totalAchievedBefore === totalHabits) {
+                    bonusBefore = 5; // 全習慣達成ボーナス
+                } else if (totalAchievedBefore === 3) {
+                    bonusBefore = 3; // 3習慣ボーナス
+                } else if (totalAchievedBefore === 2) {
+                    bonusBefore = 1; // 2習慣ボーナス
                 }
+                
+                // 取り消し後のボーナス
+                if (totalHabits >= 4 && totalAchievedAfter === totalHabits) {
+                    bonusAfter = 5; // 全習慣達成ボーナス（ありえないが念のため）
+                } else if (totalAchievedAfter === 3) {
+                    bonusAfter = 3; // 3習慣ボーナス
+                } else if (totalAchievedAfter === 2) {
+                    bonusAfter = 1; // 2習慣ボーナス
+                }
+                
+                // 差分を計算（失われるボーナス）
+                comboDeduction = bonusBefore - bonusAfter;
                 
                 // ポイント減算（基本ポイント + コンボボーナス）
                 const totalDeduction = actualPoints + comboDeduction;
