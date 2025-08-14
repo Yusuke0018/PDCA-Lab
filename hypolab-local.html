@@ -3070,7 +3070,7 @@
         
         // 朝のジャーナルを保存
         function saveMorningJournal() {
-            const data = loadData();
+            let data = loadData();
             const todayKey = dateKeyLocal(new Date());
             
             // 選択された値を取得
@@ -3100,16 +3100,17 @@
                 pointsEarned: isFirstTime ? 1 : 0
             };
             
+            // ストリークを更新
+            updateJournalStreak(data);
+            
+            // ジャーナルデータを保存
+            saveData(data);
+            
             // ポイントを付与（初回のみ）
             if (isFirstTime) {
                 console.log('朝のジャーナル：初回記録なのでポイント付与');
                 earnPoints(1, 'journal', '🌅 朝のジャーナル記録');
             }
-            
-            // ストリークを更新
-            updateJournalStreak(data);
-            
-            saveData(data);
             
             // UIを更新
             updateJournalStatus();
@@ -3122,7 +3123,7 @@
         
         // 夜のジャーナルを保存
         function saveEveningJournal() {
-            const data = loadData();
+            let data = loadData();
             const todayKey = dateKeyLocal(new Date());
             
             const success = document.getElementById('success-input').value.trim();
@@ -3149,16 +3150,17 @@
                 pointsEarned: isFirstTime ? 1 : 0
             };
             
+            // ストリークを更新
+            updateJournalStreak(data);
+            
+            // ジャーナルデータを保存
+            saveData(data);
+            
             // ポイントを付与（初回のみ）
             if (isFirstTime) {
                 console.log('夜のジャーナル：初回記録なのでポイント付与');
                 earnPoints(1, 'journal', '🌙 夜のジャーナル記録');
             }
-            
-            // ストリークを更新
-            updateJournalStreak(data);
-            
-            saveData(data);
             
             // UIを更新
             updateJournalStatus();
