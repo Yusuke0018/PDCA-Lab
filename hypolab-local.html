@@ -2080,7 +2080,7 @@
                 </div>
                 
                 <!-- 詳細統計ボタン -->
-                <button onclick="toggleRewardStatistics()" style="
+                <button onclick="window.toggleRewardStatistics()" style="
                     width: 100%;
                     padding: 12px;
                     background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1));
@@ -6172,7 +6172,7 @@
         }
         
         // 詳細統計パネルの表示切り替え
-        function toggleRewardStatistics() {
+        window.toggleRewardStatistics = function() {
             const panel = document.getElementById('reward-statistics-panel');
             if (panel) {
                 if (panel.style.display === 'none') {
@@ -6541,7 +6541,7 @@
             `;
             
             menu.innerHTML = `
-                <div onclick="editReward('${rewardId}'); this.parentElement.remove();" style="
+                <div onclick="window.editReward('${rewardId}'); this.parentElement.remove();" style="
                     padding: 12px 16px;
                     cursor: pointer;
                     border-radius: 8px;
@@ -6553,7 +6553,7 @@
                 " onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background='transparent'">
                     ✏️ 編集
                 </div>
-                <div onclick="deleteReward('${rewardId}'); this.parentElement.remove();" style="
+                <div onclick="window.deleteReward('${rewardId}'); this.parentElement.remove();" style="
                     padding: 12px 16px;
                     cursor: pointer;
                     border-radius: 8px;
@@ -6591,7 +6591,7 @@
         }
         
         // 報酬を編集
-        function editReward(rewardId) {
+        window.editReward = function(rewardId) {
             const data = loadData();
             const reward = data.pointSystem.customRewards.find(r => r.id === rewardId);
             if (!reward) return;
@@ -6652,7 +6652,7 @@
         }
         
         // 編集した報酬を保存
-        function saveEditedReward(event, rewardId) {
+        window.saveEditedReward = function(event, rewardId) {
             event.preventDefault();
             
             const data = loadData();
@@ -6681,11 +6681,8 @@
             showNotification('✅ 報酬を更新しました', 'success');
         }
         
-        // グローバルスコープに関数を登録
-        window.saveEditedReward = saveEditedReward;
-        
         // 報酬を削除
-        function deleteReward(rewardId) {
+        window.deleteReward = function(rewardId) {
             if (!confirm('この報酬を削除しますか？')) return;
             
             const data = loadData();
