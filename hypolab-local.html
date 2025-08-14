@@ -3088,7 +3088,9 @@
                 data.dailyJournal.entries[todayKey] = {};
             }
             
+            console.log('朝のジャーナル：既存データ =', data.dailyJournal.entries[todayKey].morning);
             const isFirstTime = !data.dailyJournal.entries[todayKey].morning;
+            console.log('朝のジャーナル：初回判定 =', isFirstTime);
             
             data.dailyJournal.entries[todayKey].morning = {
                 condition: parseInt(conditionBtn.dataset.value),
@@ -3100,6 +3102,7 @@
             
             // ポイントを付与（初回のみ）
             if (isFirstTime) {
+                console.log('朝のジャーナル：初回記録なのでポイント付与');
                 earnPoints(1, 'journal', '🌅 朝のジャーナル記録');
             }
             
@@ -3135,7 +3138,9 @@
                 data.dailyJournal.entries[todayKey] = {};
             }
             
+            console.log('夜のジャーナル：既存データ =', data.dailyJournal.entries[todayKey].evening);
             const isFirstTime = !data.dailyJournal.entries[todayKey].evening;
+            console.log('夜のジャーナル：初回判定 =', isFirstTime);
             
             data.dailyJournal.entries[todayKey].evening = {
                 success: success,
@@ -3146,6 +3151,7 @@
             
             // ポイントを付与（初回のみ）
             if (isFirstTime) {
+                console.log('夜のジャーナル：初回記録なのでポイント付与');
                 earnPoints(1, 'journal', '🌙 夜のジャーナル記録');
             }
             
@@ -3901,16 +3907,20 @@
 
         // ポイント獲得処理
         function earnPoints(amount, source, description, multiplier = 1.0, category = null) {
+            console.log('earnPoints呼び出し:', {amount, source, description});
             const data = loadData();
             
             // ブースト効果を適用
             const boostedAmount = calculatePointsWithBoosts(amount, source, category);
             const finalAmount = Math.round(boostedAmount * multiplier);
+            console.log('計算後のポイント:', finalAmount);
             
             // ポイント追加
+            const beforePoints = data.pointSystem.currentPoints;
             data.pointSystem.currentPoints += finalAmount;
             data.pointSystem.lifetimeEarned += finalAmount;
             data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
+            console.log('ポイント更新:', beforePoints, '→', data.pointSystem.currentPoints);
             
             // レベル更新
             const newLevel = calculateLevel(data.pointSystem.lifetimeEarned);
@@ -4043,12 +4053,14 @@
             const data = loadData();
             const pointDisplay = document.getElementById('point-display');
             const levelInfo = calculateLevel(data.pointSystem.lifetimeEarned);
+            console.log('updatePointDisplay: 現在のポイント =', data.pointSystem.currentPoints);
             
             if (pointDisplay) {
+                const multiplier = data.pointSystem.streakMultiplier || 1.0;
                 pointDisplay.innerHTML = `
                     <span class="point-amount">💰 ${data.pointSystem.currentPoints}pt</span>
                     <span class="level-info">Lv.${levelInfo.level} ${levelInfo.name}</span>
-                    ${data.pointSystem.streakMultiplier > 1 ? `<span class="multiplier">🔥×${data.pointSystem.streakMultiplier.toFixed(1)}</span>` : ''}
+                    ${multiplier > 1 ? `<span class="multiplier">🔥×${multiplier.toFixed(1)}</span>` : ''}
                 `;
             }
             
