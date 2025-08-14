@@ -5624,9 +5624,6 @@
                 <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
                     <span>📅 ${startDate.toLocaleDateString('ja-JP')} 〜 ${hypothesis.isUnlimited ? '無期限' : endDate.toLocaleDateString('ja-JP')} | ${frequencyText}${habitModeLabel}${unlimitedLabel}${sleepingLabel}</span>
                     <div style="display: flex; gap: 8px; align-items: center;">
-                        <button class="btn btn-secondary" onclick="toggleSleepMode()" style="padding: 6px 12px; font-size: 12px; border-radius: 6px; background: ${hypothesis.isSleeping ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)'}; color: white;">
-                            ${hypothesis.isSleeping ? '🌅 習慣を再開' : '😴 習慣を休眠'}
-                        </button>
                         <button class="btn btn-secondary" onclick="editFrequencyType()" style="padding: 6px 12px; font-size: 12px; border-radius: 6px;">
                             🔄 頻度変更
                         </button>
@@ -7123,6 +7120,22 @@
                 </div>
                 <div style=\"margin-top:8px;color:#94a3b8;font-size:12px;\">
                     達成日に設定した強度倍率を重みとして適用し、表示達成率は全日数を分母に計算します。
+                </div>
+                
+                <!-- 休眠ボタン -->
+                <div style=\"margin-top:16px; padding-top:16px; border-top:1px solid var(--border);\">
+                    <button onclick=\"toggleSleepMode()\" class=\"btn\" style=\"width:100%; padding:12px; font-size:14px; background: ${hyp.isSleeping ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)'}; color: white;\">
+                        ${hyp.isSleeping ? '🌅 習慣を再開する' : '😴 習慣を休眠させる'}
+                    </button>
+                    ${hyp.isSleeping ? `
+                        <div style=\"margin-top:8px; padding:8px; background: rgba(148, 163, 184, 0.1); border-radius:8px; font-size:12px; color: var(--text-secondary);\">
+                            📌 休眠開始: ${new Date(hyp.sleepStartDate).toLocaleDateString('ja-JP')}
+                        </div>
+                    ` : `
+                        <div style=\"margin-top:8px; font-size:11px; color: var(--text-secondary);\">
+                            ※ 休眠中は達成率の計算から除外され、ストリークは保持されます
+                        </div>
+                    `}
                 </div>
             `;
 
