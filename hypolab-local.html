@@ -11451,10 +11451,10 @@
             document.getElementById('ranking-streak-tab').style.background = 'var(--surface)';
             document.getElementById('ranking-streak-tab').style.color = 'var(--text-primary)';
             
-            // トランザクションから習慣別ポイントを集計
+            // 習慣のログベースでポイントを正確に集計
             const habitPoints = {};
             
-            // 各習慣の初期化
+            // 各習慣の初期化とログベースの集計
             all.forEach(h => {
                 habitPoints[h.id] = {
                     id: h.id,
@@ -11463,32 +11463,63 @@
                     achievementCount: 0,
                     bonusPoints: 0,
                     averagePoints: 0,
-                    recentHistory: [] // 最近の履歴を追加
+                    recentHistory: []
                 };
+                
+                // 習慣のログから実際の達成日をカウント
+                if (h.logs) {
+                    Object.entries(h.logs).forEach(([dateKey, log]) => {
+                        if (log.completed) {
+                            // 基本ポイント（強度を考慮）
+                            const intensity = log.intensity || 1.0;
+                            const basePoints = Math.round(h.pointValue * intensity);
+                            
+                            habitPoints[h.id].totalPoints += basePoints;
+                            habitPoints[h.id].achievementCount++;
+                        }
+                    });
+                }
             });
             
-            // トランザクションから集計
+            // トランザクションから最近の履歴とボーナスポイントを取得
             if (data.pointSystem && data.pointSystem.transactions) {
+                // 日付ごとの最新トランザクションのみを保持するマップ
+                const latestTransactionsByDateAndHabit = {};
+                
                 data.pointSystem.transactions.forEach(t => {
-                    // earnタイプかつhabitソースのトランザクションのみを集計（取り消しは除外）
-                    if (t.type === 'earn' && t.source === 'habit' && !t.description.includes('取り消し')) {
+                    if (t.source === 'habit') {
                         // habitIdがある場合はそれを使用、なければdescriptionから習慣名を抽出
                         let targetHabitId = t.habitId;
                         
-                        // habitIdがない場合、descriptionから習慣を特定
                         if (!targetHabitId && t.description) {
-                            // "習慣名 達成" のパターンから習慣名を抽出
-                            const habitTitle = t.description.replace(' 達成', '').trim();
+                            const habitTitle = t.description.replace(' 達成', '').replace(' 取り消し', '').trim();
                             const habit = all.find(h => h.title === habitTitle);
                             if (habit) {
                                 targetHabitId = habit.id;
                             }
                         }
                         
-                        if (targetHabitId && habitPoints[targetHabitId]) {
-                            habitPoints[targetHabitId].totalPoints += t.finalAmount || t.amount;
-                            habitPoints[targetHabitId].achievementCount++;
+                        if (targetHabitId) {
+                            // タイムスタンプから日付キーを生成
+                            const date = new Date(t.timestamp);
+                            const dateKey = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+                            const key = `${targetHabitId}_${dateKey}`;
                             
+                            // 同じ日付・習慣の最新トランザクションのみを保持
+                            if (!latestTransactionsByDateAndHabit[key] || 
+                                new Date(t.timestamp) > new Date(latestTransactionsByDateAndHabit[key].timestamp)) {
+                                latestTransactionsByDateAndHabit[key] = t;
+                            }
+                        }
+                    }
+                });
+                
+                // 最新トランザクションから履歴とボーナスを計算
+                Object.values(latestTransactionsByDateAndHabit).forEach(t => {
+                    if (t.type === 'earn' && !t.description.includes('取り消し')) {
+                        const targetHabitId = t.habitId || all.find(h => t.description.includes(h.title))?.id;
+                        
+                        if (targetHabitId && habitPoints[targetHabitId]) {
                             // 最近の履歴に追加
                             habitPoints[targetHabitId].recentHistory.push({
                                 timestamp: t.timestamp,
@@ -11496,10 +11527,11 @@
                                 description: t.description
                             });
                             
-                            // ブーストポイントを計算
-                            if (t.multiplier && t.multiplier > 1) {
-                                const bonus = (t.finalAmount || t.amount) - t.amount;
+                            // ボーナスポイントを計算（連続ボーナスなど）
+                            if (t.multiplier && t.multiplier > 1 && t.finalAmount && t.amount) {
+                                const bonus = t.finalAmount - t.amount;
                                 habitPoints[targetHabitId].bonusPoints += bonus;
+                                habitPoints[targetHabitId].totalPoints += bonus; // ボーナスを合計に追加
                             }
                         }
                     }
@@ -11508,6 +11540,8 @@
                 // 各習慣の履歴を時系列順（新しい順）にソート
                 Object.values(habitPoints).forEach(h => {
                     h.recentHistory.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    // 最新5件のみ保持
+                    h.recentHistory = h.recentHistory.slice(0, 5);
                 });
             }
             
