@@ -2201,6 +2201,21 @@
             const day = String(d.getDate()).padStart(2, '0');
             return `${y}-${m}-${day}`;
         }
+        
+        // 習慣・ジャーナル用の日付キーを取得（深夜2時まで前日扱い）
+        function getActivityDateKey(date = new Date()) {
+            const now = new Date(date);
+            const hour = now.getHours();
+            
+            // 0時〜2時の場合は前日の日付として扱う
+            if (hour < 2) {
+                const yesterday = new Date(now);
+                yesterday.setDate(yesterday.getDate() - 1);
+                return dateKeyLocal(yesterday);
+            }
+            
+            return dateKeyLocal(now);
+        }
 
         // カードマスターデータ
         const CARD_MASTER = {
@@ -2908,19 +2923,9 @@
             `;
         }
         
-        // ジャーナル用の日付キーを取得（深夜2時まで前日扱い）
+        // ジャーナル用の日付キーを取得（getActivityDateKeyを使用）
         function getJournalDateKey() {
-            const now = new Date();
-            const hour = now.getHours();
-            
-            // 0時〜2時の場合は前日の日付として扱う
-            if (hour < 2) {
-                const yesterday = new Date(now);
-                yesterday.setDate(yesterday.getDate() - 1);
-                return dateKeyLocal(yesterday);
-            }
-            
-            return dateKeyLocal(now);
+            return getActivityDateKey();
         }
         
         // ジャーナルモーダルを開く
@@ -6663,8 +6668,11 @@
                     }
                 }
                 
-                // 今日の日付の場合、対象日ならクリック可能にする
-                if (cellDate.toDateString() === today.toDateString() && isTargetDay && canClickToday) {
+                // 今日の日付の場合、対象日ならクリック可能にする（深夜対応）
+                // 深夜2時までは前日のセルもクリック可能
+                const currentActivityKey = getActivityDateKey();
+                const isClickableToday = (dateKey === currentActivityKey) && isTargetDay && canClickToday;
+                if (isClickableToday) {
                     if (!window.currentHypothesis.achievements[dateKey]) {
                         dayCell.classList.remove('future');
                         dayCell.classList.add('not-achieved');
@@ -8918,8 +8926,8 @@
                 return;
             }
             
-            // 日付が変わったら宣言状態をチェック
-            const todayKey = dateKeyLocal(new Date());
+            // 日付が変わったら宣言状態をチェック（深夜対応）
+            const todayKey = getActivityDateKey();
             
             // カテゴリーマスター（編集可能）
             if (!data.categoryMaster) {
@@ -9190,8 +9198,8 @@
                         <span>💪 直近:</span> ${badges.join(' ')}
                     </div>` : ''}
                     ${(() => {
-                        // 今日の宣言状態をチェック
-                        const todayKey = dateKeyLocal(new Date());
+                        // 今日の宣言状態をチェック（深夜対応）
+                        const todayKey = getActivityDateKey();
                         const isAffirmed = hypothesis.declarations && hypothesis.declarations[todayKey];
                         const isAchievedToday = hypothesis.achievements && hypothesis.achievements[todayKey];
                         
