@@ -11357,28 +11357,51 @@
                 if (ranking.length === 0) {
                     rankDiv.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 20px;">まだポイント獲得履歴がありません</div>';
                 } else {
-                    rankDiv.innerHTML = ranking.map((r,idx)=>`
-                        <div class="ranking-item" style="display:flex;justify-content:space-between;gap:12px;align-items:center;padding:8px;border:1px solid var(--border);border-radius:10px;background: ${
+                    rankDiv.innerHTML = ranking.map((r,idx)=>{
+                        // この習慣の最近のポイント履歴を取得（最新3件）
+                        const recentPoints = r.recentHistory.slice(0, 3);
+                        let historyHtml = '';
+                        if (recentPoints.length > 0) {
+                            historyHtml = `
+                                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 10px;">
+                                    <div style="color: var(--text-secondary); margin-bottom: 4px;">最近の獲得:</div>
+                                    ${recentPoints.map(p => {
+                                        const date = new Date(p.timestamp);
+                                        const dateStr = `${date.getMonth()+1}/${date.getDate()}`;
+                                        return `<div style="display: flex; justify-content: space-between; padding: 2px 0;">
+                                            <span style="color: var(--text-secondary);">${dateStr}</span>
+                                            <span style="color: #10b981;">+${p.amount}pt</span>
+                                        </div>`;
+                                    }).join('')}
+                                </div>
+                            `;
+                        }
+                        
+                        return `
+                        <div class="ranking-item" style="padding:8px;border:1px solid var(--border);border-radius:10px;background: ${
                             idx === 0 ? 'linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1))' :
                             idx === 1 ? 'linear-gradient(135deg, rgba(192, 192, 192, 0.1), rgba(128, 128, 128, 0.1))' :
                             idx === 2 ? 'linear-gradient(135deg, rgba(205, 127, 50, 0.1), rgba(165, 87, 10, 0.1))' :
                             'rgba(0,0,0,0.1)'
                         };">
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <span style="font-size: 20px;">${idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx+1}`}</span>
-                                <div>
-                                    <div>${escapeHTML(r.title||'Untitled')}</div>
-                                    <div style="font-size: 10px; color: var(--text-secondary);">
-                                        ${r.achievementCount}回達成 · 平均${r.averagePoints}pt
-                                        ${r.bonusPoints > 0 ? ` · 🚀+${r.bonusPoints}pt` : ''}
+                            <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="font-size: 20px;">${idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx+1}`}</span>
+                                    <div>
+                                        <div>${escapeHTML(r.title||'Untitled')}</div>
+                                        <div style="font-size: 10px; color: var(--text-secondary);">
+                                            ${r.achievementCount}回達成 · 平均${r.averagePoints}pt
+                                            ${r.bonusPoints > 0 ? ` · 🚀+${r.bonusPoints}pt` : ''}
+                                        </div>
                                     </div>
                                 </div>
+                                <div style="text-align: right;">
+                                    <div style="font-size: 16px; font-weight: bold; color: #fbbf24;">${r.totalPoints}pt</div>
+                                </div>
                             </div>
-                            <div style="text-align: right;">
-                                <div style="font-size: 16px; font-weight: bold; color: #fbbf24;">${r.totalPoints}pt</div>
-                            </div>
+                            ${historyHtml}
                         </div>
-                    `).join('');
+                    `}).join('');
                 }
             }
         }
