@@ -5959,34 +5959,46 @@
                             <div style="display: flex; align-items: center; gap: 12px;">
                                 <span style="font-size: 24px;">${reward.emoji || '🎁'}</span>
                                 <div>
-                                    <div style="font-weight: bold; font-size: 16px;">${escapeHTML(reward.name)}</div>
-                                    <div style="font-size: 12px; color: var(--text-secondary);">
+                                    <div style="font-weight: bold; font-size: 16px; margin-bottom: 4px;">${escapeHTML(reward.name)}</div>
+                                    <div style="font-size: 13px; color: var(--text-secondary);">
                                         ${escapeHTML(reward.category)} ${reward.memo ? '• ' + escapeHTML(reward.memo) : ''}
                                     </div>
-                                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
+                                    <div style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">
                                         使用回数: ${reward.timesUsed || 0}回
                                     </div>
                                 </div>
                             </div>
-                            <div style="display: flex; flex-direction: column; gap: 8px; align-items: flex-end;">
-                                <div style="font-size: 18px; font-weight: bold; color: ${canAfford ? '#fbbf24' : 'var(--text-secondary)'};">
-                                    ${reward.cost}pt
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <div style="display: flex; flex-direction: column; align-items: flex-end;">
+                                    <div style="font-size: 18px; font-weight: bold; color: ${canAfford ? '#fbbf24' : 'var(--text-secondary)'};">
+                                        ${reward.cost}pt
+                                    </div>
+                                    ${canAfford ? `
+                                        <button class="btn btn-secondary" onclick="useReward('${reward.id}')" style="padding: 8px 16px; font-size: 14px;">
+                                            使用
+                                        </button>
+                                    ` : `
+                                        <span style="font-size: 10px; color: var(--text-secondary);">不足</span>
+                                    `}
                                 </div>
-                                ${canAfford ? `
-                                    <button class="btn btn-secondary" onclick="useReward('${reward.id}')" style="padding: 6px 12px; font-size: 12px;">
-                                        使用する
-                                    </button>
-                                ` : `
-                                    <span style="font-size: 10px; color: var(--text-secondary);">ポイント不足</span>
-                                `}
                                 <button onclick="showRewardMenu(event, '${reward.id}')" style="
-                                    background: none;
-                                    border: none;
-                                    color: var(--text-secondary);
+                                    background: var(--surface-light);
+                                    border: 1px solid var(--border);
+                                    border-radius: 8px;
+                                    color: var(--text);
                                     cursor: pointer;
-                                    padding: 4px;
-                                    font-size: 18px;
-                                ">⋯</button>
+                                    padding: 12px;
+                                    font-size: 20px;
+                                    width: 44px;
+                                    height: 44px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    transition: all 0.2s;
+                                    flex-shrink: 0;
+                                " onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background='var(--surface-light)'">
+                                    ⋮
+                                </button>
                             </div>
                         </div>
                     `;
@@ -6101,6 +6113,7 @@
         // 報酬メニューを表示
         function showRewardMenu(event, rewardId) {
             event.stopPropagation();
+            event.preventDefault();
             
             // 既存のメニューを削除
             const existingMenu = document.querySelector('.reward-menu');
@@ -6111,40 +6124,66 @@
             // メニューを作成
             const menu = document.createElement('div');
             menu.className = 'reward-menu';
+            
+            // ボタンの位置を取得
+            const button = event.currentTarget;
+            const rect = button.getBoundingClientRect();
+            
+            // メニューの位置を計算（ボタンの下に表示）
+            const menuTop = rect.bottom + 8;
+            const menuLeft = Math.max(8, rect.right - 180); // 右寄せで表示
+            
             menu.style.cssText = `
                 position: fixed;
-                left: ${event.clientX}px;
-                top: ${event.clientY}px;
+                left: ${menuLeft}px;
+                top: ${menuTop}px;
                 background: var(--surface);
                 border: 1px solid var(--border);
-                border-radius: 8px;
-                padding: 4px;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                border-radius: 12px;
+                padding: 8px;
+                box-shadow: 0 8px 24px rgba(0,0,0,0.4);
                 z-index: 10000;
-                min-width: 120px;
+                min-width: 160px;
             `;
             
             menu.innerHTML = `
                 <div onclick="editReward('${rewardId}'); this.parentElement.remove();" style="
-                    padding: 8px 12px;
+                    padding: 12px 16px;
                     cursor: pointer;
-                    border-radius: 4px;
+                    border-radius: 8px;
                     transition: background 0.2s;
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    font-size: 16px;
                 " onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background='transparent'">
                     ✏️ 編集
                 </div>
                 <div onclick="deleteReward('${rewardId}'); this.parentElement.remove();" style="
-                    padding: 8px 12px;
+                    padding: 12px 16px;
                     cursor: pointer;
-                    border-radius: 4px;
+                    border-radius: 8px;
                     color: #ef4444;
                     transition: background 0.2s;
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    font-size: 16px;
                 " onmouseover="this.style.background='rgba(239, 68, 68, 0.1)'" onmouseout="this.style.background='transparent'">
                     🗑️ 削除
                 </div>
             `;
             
             document.body.appendChild(menu);
+            
+            // 画面外にはみ出す場合は位置を調整
+            const menuRect = menu.getBoundingClientRect();
+            if (menuRect.bottom > window.innerHeight) {
+                menu.style.top = (rect.top - menuRect.height - 8) + 'px';
+            }
+            if (menuRect.right > window.innerWidth) {
+                menu.style.left = (window.innerWidth - menuRect.width - 8) + 'px';
+            }
             
             // クリックで閉じる
             setTimeout(() => {
@@ -6173,7 +6212,7 @@
                         <button class="close-btn" onclick="this.closest('.overlay').remove()">×</button>
                     </div>
                     <div class="modal-body">
-                        <form onsubmit="saveEditedReward(event, '${rewardId}')" style="display: grid; gap: 16px;">
+                        <form onsubmit="window.saveEditedReward(event, '${rewardId}'); return false;" style="display: grid; gap: 16px;">
                             <div class="form-group">
                                 <label for="edit-reward-name">報酬の名前</label>
                                 <input type="text" id="edit-reward-name" value="${escapeHTML(reward.name)}" required autocomplete="off">
@@ -6237,12 +6276,19 @@
             
             saveData(data);
             updateRewardsList();
+            updateRewardsStatistics();
             
             // モーダルを閉じる
-            document.querySelector('.overlay').remove();
+            const overlay = event.target.closest('.overlay');
+            if (overlay) {
+                overlay.remove();
+            }
             
             showNotification('✅ 報酬を更新しました', 'success');
         }
+        
+        // グローバルスコープに関数を登録
+        window.saveEditedReward = saveEditedReward;
         
         // 報酬を削除
         function deleteReward(rewardId) {
