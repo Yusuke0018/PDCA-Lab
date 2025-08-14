@@ -11461,7 +11461,7 @@
             // 習慣のポイント集計用オブジェクト
             const habitPoints = {};
             
-            // 各習慣の初期化
+            // 各習慣の初期化とカレンダーベースのポイント計算
             all.forEach(h => {
                 habitPoints[h.id] = {
                     id: h.id,
@@ -11472,9 +11472,37 @@
                     averagePoints: 0,
                     recentHistory: []
                 };
+                
+                // まず、カレンダー（logs）から基本ポイントを計算
+                if (h.logs) {
+                    Object.entries(h.logs).forEach(([dateKey, log]) => {
+                        if (log.completed) {
+                            // 基本ポイント値（デフォルト2pt）
+                            const basePointValue = h.pointValue || 2;
+                            // 強度による調整
+                            const intensity = log.intensity || 1.0;
+                            const points = Math.round(basePointValue * intensity);
+                            
+                            habitPoints[h.id].totalPoints += points;
+                            habitPoints[h.id].achievementCount++;
+                        }
+                    });
+                }
+                
+                // 旧形式のachievementsからもポイントを計算（後方互換性）
+                if (h.achievements) {
+                    Object.entries(h.achievements).forEach(([dateKey, achieved]) => {
+                        // logsに存在しない場合のみ加算（重複防止）
+                        if (achieved && (!h.logs || !h.logs[dateKey])) {
+                            const basePointValue = h.pointValue || 2;
+                            habitPoints[h.id].totalPoints += basePointValue;
+                            habitPoints[h.id].achievementCount++;
+                        }
+                    });
+                }
             });
             
-            // トランザクションから正確なポイントを集計
+            // トランザクションから最近の履歴とボーナスポイントを取得（追加分として）
             if (data.pointSystem && data.pointSystem.transactions) {
                 // 日付と習慣ごとのトランザクション履歴を管理
                 const transactionHistory = {};
@@ -11511,7 +11539,7 @@
                     }
                 });
                 
-                // 各日付・習慣の最終状態からポイントを集計
+                // 各トランザクションから最近の履歴とボーナスポイントを抽出
                 Object.entries(transactionHistory).forEach(([key, transactions]) => {
                     // トランザクションを時系列順にソート
                     transactions.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
@@ -11520,15 +11548,12 @@
                     const lastTransaction = transactions[transactions.length - 1];
                     const [habitId] = key.split('_');
                     
-                    // 取り消しされていない場合のみポイントを加算
-                    if (!lastTransaction.description.includes('取り消し')) {
+                    // 取り消しされていない場合のみ履歴に追加
+                    if (!lastTransaction.description.includes('取り消し') && habitPoints[habitId]) {
                         const points = lastTransaction.finalAmount || lastTransaction.amount || lastTransaction.points || 0;
                         
-                        if (points > 0 && habitPoints[habitId]) {
-                            habitPoints[habitId].totalPoints += points;
-                            habitPoints[habitId].achievementCount++;
-                            
-                            // 最近の履歴に追加
+                        // 最近の履歴に追加（表示用）
+                        if (points > 0) {
                             habitPoints[habitId].recentHistory.push({
                                 timestamp: lastTransaction.timestamp,
                                 amount: points,
@@ -11536,11 +11561,13 @@
                                 multiplier: lastTransaction.multiplier || 1
                             });
                             
-                            // ボーナスポイントの計算
+                            // ボーナスポイントの計算（連続ボーナスなど）
                             if (lastTransaction.multiplier && lastTransaction.multiplier > 1) {
                                 const baseAmount = lastTransaction.amount || Math.floor(points / lastTransaction.multiplier);
                                 const bonus = points - baseAmount;
                                 habitPoints[habitId].bonusPoints += bonus;
+                                // ボーナス分を合計に追加
+                                habitPoints[habitId].totalPoints += bonus;
                             }
                         }
                     }
