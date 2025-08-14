@@ -2062,6 +2062,23 @@
             <!-- 報酬タブ -->
             <div id="rewards-tab-content" class="card">
                 <h3 style="margin-bottom: 16px;">🎁 報酬リスト</h3>
+                
+                <!-- 報酬統計 -->
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px;">
+                    <div style="background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1)); padding: 12px; border-radius: 8px; text-align: center;">
+                        <div id="total-rewards-count" style="font-size: 20px; font-weight: bold; color: #fbbf24;">0</div>
+                        <div style="font-size: 10px; color: var(--text-secondary); margin-top: 2px;">報酬数</div>
+                    </div>
+                    <div style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(236, 72, 153, 0.1)); padding: 12px; border-radius: 8px; text-align: center;">
+                        <div id="total-rewards-used" style="font-size: 20px; font-weight: bold; color: #8b5cf6;">0</div>
+                        <div style="font-size: 10px; color: var(--text-secondary); margin-top: 2px;">使用回数</div>
+                    </div>
+                    <div style="background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(16, 185, 129, 0.1)); padding: 12px; border-radius: 8px; text-align: center;">
+                        <div id="total-rewards-spent" style="font-size: 20px; font-weight: bold; color: #10b981;">0pt</div>
+                        <div style="font-size: 10px; color: var(--text-secondary); margin-top: 2px;">累計消費</div>
+                    </div>
+                </div>
+                
                 <div id="rewards-list" style="display: grid; gap: 12px;">
                     <!-- 報酬カードが動的に生成される -->
                     <div style="text-align: center; color: var(--text-secondary); padding: 40px;">
@@ -5905,6 +5922,9 @@
             const rewardsList = document.getElementById('rewards-list');
             if (!rewardsList) return;
             
+            // 統計を更新
+            updateRewardsStatistics();
+            
             if (!data.pointSystem.customRewards || data.pointSystem.customRewards.length === 0) {
                 rewardsList.innerHTML = `
                     <div style="text-align: center; color: var(--text-secondary); padding: 40px;">
@@ -5959,7 +5979,7 @@
                                 ` : `
                                     <span style="font-size: 10px; color: var(--text-secondary);">ポイント不足</span>
                                 `}
-                                <button onclick="toggleRewardMenu('${reward.id}')" style="
+                                <button onclick="showRewardMenu(event, '${reward.id}')" style="
                                     background: none;
                                     border: none;
                                     color: var(--text-secondary);
@@ -6055,6 +6075,190 @@
             showRewardsTab();
             
             showNotification('✨ 報酬を作成しました！', 'success');
+        }
+        
+        // 報酬統計を更新
+        function updateRewardsStatistics() {
+            const data = loadData();
+            const rewards = data.pointSystem.customRewards || [];
+            
+            // 報酬数
+            const totalCount = rewards.filter(r => !r.isArchived).length;
+            const countEl = document.getElementById('total-rewards-count');
+            if (countEl) countEl.textContent = totalCount;
+            
+            // 使用回数の合計
+            const totalUsed = rewards.reduce((sum, r) => sum + (r.timesUsed || 0), 0);
+            const usedEl = document.getElementById('total-rewards-used');
+            if (usedEl) usedEl.textContent = totalUsed;
+            
+            // 累計消費ポイント
+            const totalSpent = rewards.reduce((sum, r) => sum + (r.cost * (r.timesUsed || 0)), 0);
+            const spentEl = document.getElementById('total-rewards-spent');
+            if (spentEl) spentEl.textContent = totalSpent + 'pt';
+        }
+        
+        // 報酬メニューを表示
+        function showRewardMenu(event, rewardId) {
+            event.stopPropagation();
+            
+            // 既存のメニューを削除
+            const existingMenu = document.querySelector('.reward-menu');
+            if (existingMenu) {
+                existingMenu.remove();
+            }
+            
+            // メニューを作成
+            const menu = document.createElement('div');
+            menu.className = 'reward-menu';
+            menu.style.cssText = `
+                position: fixed;
+                left: ${event.clientX}px;
+                top: ${event.clientY}px;
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                padding: 4px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                z-index: 10000;
+                min-width: 120px;
+            `;
+            
+            menu.innerHTML = `
+                <div onclick="editReward('${rewardId}'); this.parentElement.remove();" style="
+                    padding: 8px 12px;
+                    cursor: pointer;
+                    border-radius: 4px;
+                    transition: background 0.2s;
+                " onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background='transparent'">
+                    ✏️ 編集
+                </div>
+                <div onclick="deleteReward('${rewardId}'); this.parentElement.remove();" style="
+                    padding: 8px 12px;
+                    cursor: pointer;
+                    border-radius: 4px;
+                    color: #ef4444;
+                    transition: background 0.2s;
+                " onmouseover="this.style.background='rgba(239, 68, 68, 0.1)'" onmouseout="this.style.background='transparent'">
+                    🗑️ 削除
+                </div>
+            `;
+            
+            document.body.appendChild(menu);
+            
+            // クリックで閉じる
+            setTimeout(() => {
+                document.addEventListener('click', function closeMenu(e) {
+                    if (!menu.contains(e.target)) {
+                        menu.remove();
+                        document.removeEventListener('click', closeMenu);
+                    }
+                });
+            }, 100);
+        }
+        
+        // 報酬を編集
+        function editReward(rewardId) {
+            const data = loadData();
+            const reward = data.pointSystem.customRewards.find(r => r.id === rewardId);
+            if (!reward) return;
+            
+            // モーダルを作成
+            const modal = document.createElement('div');
+            modal.className = 'overlay';
+            modal.innerHTML = `
+                <div class="modal" style="max-width: 400px;">
+                    <div class="modal-header">
+                        <h2>報酬を編集</h2>
+                        <button class="close-btn" onclick="this.closest('.overlay').remove()">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <form onsubmit="saveEditedReward(event, '${rewardId}')" style="display: grid; gap: 16px;">
+                            <div class="form-group">
+                                <label for="edit-reward-name">報酬の名前</label>
+                                <input type="text" id="edit-reward-name" value="${escapeHTML(reward.name)}" required autocomplete="off">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="edit-reward-cost">必要ポイント</label>
+                                <input type="number" id="edit-reward-cost" value="${reward.cost}" required min="1" max="999" autocomplete="off">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="edit-reward-emoji">アイコン（絵文字）</label>
+                                <input type="text" id="edit-reward-emoji" value="${reward.emoji || ''}" maxlength="2" autocomplete="off">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="edit-reward-category">カテゴリー</label>
+                                <select id="edit-reward-category">
+                                    <option value="休憩" ${reward.category === '休憩' ? 'selected' : ''}>🍵 休憩</option>
+                                    <option value="娯楽" ${reward.category === '娯楽' ? 'selected' : ''}>🎮 娯楽</option>
+                                    <option value="食事" ${reward.category === '食事' ? 'selected' : ''}>🍰 食事</option>
+                                    <option value="買い物" ${reward.category === '買い物' ? 'selected' : ''}>🛍️ 買い物</option>
+                                    <option value="体験" ${reward.category === '体験' ? 'selected' : ''}>🎭 体験</option>
+                                    <option value="自由時間" ${reward.category === '自由時間' ? 'selected' : ''}>⏰ 自由時間</option>
+                                    <option value="その他" ${reward.category === 'その他' ? 'selected' : ''}>📦 その他</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="edit-reward-memo">メモ（任意）</label>
+                                <textarea id="edit-reward-memo" autocomplete="off">${reward.memo || ''}</textarea>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary" style="width: 100%;">
+                                💾 保存
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+        }
+        
+        // 編集した報酬を保存
+        function saveEditedReward(event, rewardId) {
+            event.preventDefault();
+            
+            const data = loadData();
+            const rewardIndex = data.pointSystem.customRewards.findIndex(r => r.id === rewardId);
+            if (rewardIndex === -1) return;
+            
+            const reward = data.pointSystem.customRewards[rewardIndex];
+            
+            // 更新
+            reward.name = document.getElementById('edit-reward-name').value.trim();
+            reward.cost = parseInt(document.getElementById('edit-reward-cost').value);
+            reward.emoji = document.getElementById('edit-reward-emoji').value.trim() || '🎁';
+            reward.category = document.getElementById('edit-reward-category').value;
+            reward.memo = document.getElementById('edit-reward-memo').value.trim();
+            
+            saveData(data);
+            updateRewardsList();
+            
+            // モーダルを閉じる
+            document.querySelector('.overlay').remove();
+            
+            showNotification('✅ 報酬を更新しました', 'success');
+        }
+        
+        // 報酬を削除
+        function deleteReward(rewardId) {
+            if (!confirm('この報酬を削除しますか？')) return;
+            
+            const data = loadData();
+            const rewardIndex = data.pointSystem.customRewards.findIndex(r => r.id === rewardId);
+            if (rewardIndex === -1) return;
+            
+            // 削除
+            data.pointSystem.customRewards.splice(rewardIndex, 1);
+            
+            saveData(data);
+            updateRewardsList();
+            
+            showNotification('🗑️ 報酬を削除しました', 'success');
         }
         
         // 報酬を使用
