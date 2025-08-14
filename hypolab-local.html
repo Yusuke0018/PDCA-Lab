@@ -1551,38 +1551,7 @@
                 </button>
             </div>
             
-            <!-- データ管理セクション -->
-            <div class="card" style="margin-top: 24px; background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(168, 85, 247, 0.1)); border: 1px solid rgba(99, 102, 241, 0.3);">
-                <h3 style="margin-bottom: 16px; font-size: 16px;">⚙️ データ管理</h3>
-                
-                <!-- エクスポート -->
-                <div style="margin-bottom: 12px;">
-                    <button class="btn btn-secondary" onclick="exportAllData()" style="width: 100%; padding: 10px; font-size: 14px; background: linear-gradient(135deg, #6366f1, #8b5cf6);">
-                        📤 全データをエクスポート
-                    </button>
-                    <small style="display: block; margin-top: 6px; color: var(--text-secondary); font-size: 12px;">
-                        習慣、ジャーナル、ポイント、カード等すべてのデータをJSON形式で保存
-                    </small>
-                </div>
-                
-                <!-- インポート -->
-                <div>
-                    <input type="file" id="import-file" accept=".json" style="display: none;" onchange="handleImportFile(event)">
-                    <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()" style="width: 100%; padding: 10px; font-size: 14px; background: linear-gradient(135deg, #10b981, #3b82f6);">
-                        📥 データをインポート
-                    </button>
-                    <small style="display: block; margin-top: 6px; color: var(--text-secondary); font-size: 12px;">
-                        以前エクスポートしたJSONファイルからデータを復元
-                    </small>
-                </div>
-                
-                <!-- 警告メッセージ -->
-                <div style="margin-top: 12px; padding: 8px; background: rgba(239, 68, 68, 0.1); border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.3);">
-                    <small style="color: #ef4444; font-size: 11px;">
-                        ⚠️ インポートすると現在のデータが上書きされます。事前にエクスポートしてバックアップを取ることをお勧めします。
-                    </small>
-                </div>
-            </div>
+            
         </div>
 
         <!-- 新規習慣作成画面 -->
@@ -1845,6 +1814,39 @@
                 <h2 style="margin-bottom: 24px; margin-top: 0;">完了した習慣</h2>
                 <div id="history-list">
                     <!-- 動的に生成 -->
+                </div>
+            </div>
+            
+            <!-- データ管理セクション -->
+            <div class="card" style="margin-top: 24px; background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(168, 85, 247, 0.1)); border: 1px solid rgba(99, 102, 241, 0.3);">
+                <h3 style="margin-bottom: 16px; font-size: 16px;">⚙️ データ管理</h3>
+                
+                <!-- エクスポート -->
+                <div style="margin-bottom: 12px;">
+                    <button class="btn btn-secondary" onclick="exportAllData()" style="width: 100%; padding: 10px; font-size: 14px; background: linear-gradient(135deg, #6366f1, #8b5cf6);">
+                        📤 全データをエクスポート
+                    </button>
+                    <small style="display: block; margin-top: 6px; color: var(--text-secondary); font-size: 12px;">
+                        習慣、ジャーナル、ポイント、カード等すべてのデータをJSON形式で保存
+                    </small>
+                </div>
+                
+                <!-- インポート -->
+                <div>
+                    <input type="file" id="import-file-history" accept=".json" style="display: none;" onchange="handleImportFile(event)">
+                    <button class="btn btn-secondary" onclick="document.getElementById('import-file-history').click()" style="width: 100%; padding: 10px; font-size: 14px; background: linear-gradient(135deg, #10b981, #3b82f6);">
+                        📥 データをインポート
+                    </button>
+                    <small style="display: block; margin-top: 6px; color: var(--text-secondary); font-size: 12px;">
+                        以前エクスポートしたJSONファイルからデータを復元
+                    </small>
+                </div>
+                
+                <!-- 警告メッセージ -->
+                <div style="margin-top: 12px; padding: 8px; background: rgba(239, 68, 68, 0.1); border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.3);">
+                    <small style="color: #ef4444; font-size: 11px;">
+                        ⚠️ インポートすると現在のデータが上書きされます。事前にエクスポートしてバックアップを取ることをお勧めします。
+                    </small>
                 </div>
             </div>
         </div>
