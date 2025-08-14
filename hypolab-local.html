@@ -3097,26 +3097,96 @@
             const morningTime = hasMorning ? new Date(todayEntry.morning.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '';
             const eveningTime = hasEvening ? new Date(todayEntry.evening.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '';
             
+            // 過去のジャーナルを取得（最大5日分）
+            const pastJournals = [];
+            const dates = Object.keys(data.dailyJournal.entries || {})
+                .sort((a, b) => b.localeCompare(a))
+                .slice(0, 5);
+            
+            dates.forEach(dateKey => {
+                const entry = data.dailyJournal.entries[dateKey];
+                if (entry && (entry.morning || entry.evening)) {
+                    pastJournals.push({ dateKey, entry });
+                }
+            });
+            
             statusContainer.innerHTML = `
                 <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <div class="journal-entry-item" data-type="morning" style="display: flex; align-items: center; justify-content: space-between; padding: 8px; background: rgba(255, 255, 255, 0.05); border-radius: 8px; cursor: ${hasMorning ? 'pointer' : 'default'};" ${hasMorning ? 'oncontextmenu="showJournalContextMenu(event, \'morning\'); return false;"' : ''}>
-                        <span style="font-size: 14px;">🌅 朝のジャーナル</span>
-                        ${hasMorning 
-                            ? `<span style="color: #10b981; font-size: 12px;">✅ 記録済み (${morningTime})</span>`
-                            : `<span style="color: #f59e0b; font-size: 12px;">⏳ まだ記録していません</span>`
-                        }
+                    <!-- 今日のジャーナル -->
+                    <div class="journal-entry-item ${hasMorning ? 'expandable' : ''}" data-type="morning" data-date="${todayKey}" 
+                        style="background: rgba(255, 255, 255, 0.05); border-radius: 8px; overflow: hidden; transition: all 0.3s;"
+                        ${hasMorning ? 'oncontextmenu="showJournalContextMenu(event, \'morning\'); return false;"' : ''}>
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; cursor: ${hasMorning ? 'pointer' : 'default'};" 
+                            ${hasMorning ? 'onclick="toggleJournalExpand(this.parentElement, \'morning\', \'' + todayKey + '\')"}' : ''}>
+                            <span style="font-size: 14px;">🌅 朝のジャーナル</span>
+                            ${hasMorning 
+                                ? `<div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="color: #10b981; font-size: 12px;">✅ ${morningTime}</span>
+                                    <span class="expand-icon" style="font-size: 12px; transition: transform 0.3s;">▼</span>
+                                  </div>`
+                                : `<span style="color: #f59e0b; font-size: 12px;">⏳ まだ記録していません</span>`
+                            }
+                        </div>
+                        ${hasMorning ? `
+                            <div class="journal-content" style="display: none; padding: 0 12px 12px; border-top: 1px solid var(--border);">
+                                <div style="margin-top: 12px;">
+                                    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">体調: ${['😫', '😟', '😐', '🙂', '😊'][todayEntry.morning.condition - 1]} (${todayEntry.morning.condition}/5)</div>
+                                    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">気分: ${['😔', '😕', '😐', '😌', '😄'][todayEntry.morning.mood - 1]} (${todayEntry.morning.mood}/5)</div>
+                                    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">最優先事項:</div>
+                                    <div style="font-size: 13px; background: var(--surface); padding: 8px; border-radius: 6px; margin-top: 4px;">${todayEntry.morning.priority || 'なし'}</div>
+                                </div>
+                            </div>
+                        ` : ''}
                     </div>
-                    <div class="journal-entry-item" data-type="evening" style="display: flex; align-items: center; justify-content: space-between; padding: 8px; background: rgba(255, 255, 255, 0.05); border-radius: 8px; cursor: ${hasEvening ? 'pointer' : 'default'};" ${hasEvening ? 'oncontextmenu="showJournalContextMenu(event, \'evening\'); return false;"' : ''}>
-                        <span style="font-size: 14px;">🌙 夜のジャーナル</span>
-                        ${hasEvening 
-                            ? `<span style="color: #10b981; font-size: 12px;">✅ 記録溂み (${eveningTime})</span>`
-                            : `<span style="color: #f59e0b; font-size: 12px;">⏳ まだ記録していません</span>`
-                        }
+                    
+                    <div class="journal-entry-item ${hasEvening ? 'expandable' : ''}" data-type="evening" data-date="${todayKey}"
+                        style="background: rgba(255, 255, 255, 0.05); border-radius: 8px; overflow: hidden; transition: all 0.3s;"
+                        ${hasEvening ? 'oncontextmenu="showJournalContextMenu(event, \'evening\'); return false;"' : ''}>
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; cursor: ${hasEvening ? 'pointer' : 'default'};" 
+                            ${hasEvening ? 'onclick="toggleJournalExpand(this.parentElement, \'evening\', \'' + todayKey + '\')"}' : ''}>
+                            <span style="font-size: 14px;">🌙 夜のジャーナル</span>
+                            ${hasEvening 
+                                ? `<div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="color: #10b981; font-size: 12px;">✅ ${eveningTime}</span>
+                                    <span class="expand-icon" style="font-size: 12px; transition: transform 0.3s;">▼</span>
+                                  </div>`
+                                : `<span style="color: #f59e0b; font-size: 12px;">⏳ まだ記録していません</span>`
+                            }
+                        </div>
+                        ${hasEvening ? `
+                            <div class="journal-content" style="display: none; padding: 0 12px 12px; border-top: 1px solid var(--border);">
+                                <div style="margin-top: 12px;">
+                                    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">うまくいったこと:</div>
+                                    <div style="font-size: 13px; background: var(--surface); padding: 8px; border-radius: 6px; margin-bottom: 8px;">${todayEntry.evening.success || 'なし'}</div>
+                                    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">改善点:</div>
+                                    <div style="font-size: 13px; background: var(--surface); padding: 8px; border-radius: 6px;">${todayEntry.evening.improvement || 'なし'}</div>
+                                </div>
+                            </div>
+                        ` : ''}
                     </div>
+                    
                     ${data.dailyJournal.stats.currentStreak > 0 ? `
                         <div style="text-align: center; padding: 4px; background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1)); border-radius: 8px; margin-top: 4px;">
                             <span style="font-size: 12px; color: #fbbf24;">🔥 ${data.dailyJournal.stats.currentStreak}日連続記録中！</span>
                         </div>
+                    ` : ''}
+                    
+                    <!-- 過去のジャーナル履歴ボタン -->
+                    ${pastJournals.length > 1 ? `
+                        <button onclick="showJournalHistory()" style="
+                            margin-top: 8px;
+                            padding: 10px;
+                            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1));
+                            border: 1px solid rgba(59, 130, 246, 0.3);
+                            border-radius: 8px;
+                            color: var(--text-primary);
+                            cursor: pointer;
+                            font-size: 13px;
+                            transition: all 0.3s;
+                        " onmouseover="this.style.background='linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2))'" 
+                           onmouseout="this.style.background='linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1))'">
+                            📚 過去のジャーナルを見る
+                        </button>
                     ` : ''}
                 </div>
             `;
@@ -3126,6 +3196,142 @@
         function getJournalDateKey() {
             return getActivityDateKey();
         }
+        
+        // ジャーナルエントリの展開/折りたたみ
+        function toggleJournalExpand(element, type, dateKey) {
+            const content = element.querySelector('.journal-content');
+            const icon = element.querySelector('.expand-icon');
+            
+            if (content) {
+                if (content.style.display === 'none') {
+                    content.style.display = 'block';
+                    if (icon) icon.style.transform = 'rotate(180deg)';
+                } else {
+                    content.style.display = 'none';
+                    if (icon) icon.style.transform = 'rotate(0deg)';
+                }
+            }
+        }
+        window.toggleJournalExpand = toggleJournalExpand;
+        
+        // 過去のジャーナル履歴を表示
+        function showJournalHistory() {
+            const data = loadData();
+            const entries = data.dailyJournal.entries || {};
+            
+            // 日付順にソート（新しい順）
+            const sortedDates = Object.keys(entries)
+                .filter(key => entries[key].morning || entries[key].evening)
+                .sort((a, b) => b.localeCompare(a))
+                .slice(0, 30); // 最大30日分
+            
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay active';
+            overlay.style.backdropFilter = 'blur(6px)';
+            
+            const modal = document.createElement('div');
+            modal.className = 'skip-modal active';
+            modal.style.maxWidth = '600px';
+            modal.style.maxHeight = '80vh';
+            modal.style.overflow = 'auto';
+            modal.style.padding = '24px';
+            
+            let historyHTML = `
+                <div class="modal-header" style="margin-bottom: 20px; position: sticky; top: -24px; background: var(--surface); padding: 24px 0 12px; margin-top: -24px; z-index: 10;">
+                    <h3 style="font-size: 20px; margin-bottom: 8px;">📚 ジャーナル履歴</h3>
+                    <p style="color: var(--text-secondary); font-size: 14px;">過去30日間の記録</p>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+            `;
+            
+            sortedDates.forEach(dateKey => {
+                const entry = entries[dateKey];
+                const date = new Date(dateKey);
+                const dateStr = date.toLocaleDateString('ja-JP', { 
+                    month: 'numeric', 
+                    day: 'numeric', 
+                    weekday: 'short' 
+                });
+                
+                historyHTML += `
+                    <div style="border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: rgba(255, 255, 255, 0.02);">
+                        <div style="padding: 12px; background: rgba(255, 255, 255, 0.03); border-bottom: 1px solid var(--border);">
+                            <strong style="font-size: 14px;">📅 ${dateStr}</strong>
+                        </div>
+                `;
+                
+                if (entry.morning) {
+                    const morningTime = new Date(entry.morning.timestamp).toLocaleTimeString('ja-JP', { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                    });
+                    historyHTML += `
+                        <div class="history-journal-item" style="padding: 12px; border-bottom: 1px solid var(--border);">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <span style="font-size: 14px; font-weight: 600;">🌅 朝のジャーナル</span>
+                                <span style="font-size: 11px; color: var(--text-secondary);">${morningTime}</span>
+                            </div>
+                            <div style="font-size: 12px; color: var(--text-secondary); display: flex; gap: 12px; margin-bottom: 6px;">
+                                <span>体調: ${['😫', '😟', '😐', '🙂', '😊'][entry.morning.condition - 1]} ${entry.morning.condition}/5</span>
+                                <span>気分: ${['😔', '😕', '😐', '😌', '😄'][entry.morning.mood - 1]} ${entry.morning.mood}/5</span>
+                            </div>
+                            <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">最優先事項:</div>
+                            <div style="font-size: 13px; background: var(--surface); padding: 8px; border-radius: 6px;">
+                                ${entry.morning.priority || 'なし'}
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                if (entry.evening) {
+                    const eveningTime = new Date(entry.evening.timestamp).toLocaleTimeString('ja-JP', { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                    });
+                    historyHTML += `
+                        <div class="history-journal-item" style="padding: 12px;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <span style="font-size: 14px; font-weight: 600;">🌙 夜のジャーナル</span>
+                                <span style="font-size: 11px; color: var(--text-secondary);">${eveningTime}</span>
+                            </div>
+                            <div style="margin-bottom: 8px;">
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">うまくいったこと:</div>
+                                <div style="font-size: 13px; background: var(--surface); padding: 8px; border-radius: 6px;">
+                                    ${entry.evening.success || 'なし'}
+                                </div>
+                            </div>
+                            <div>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">改善点:</div>
+                                <div style="font-size: 13px; background: var(--surface); padding: 8px; border-radius: 6px;">
+                                    ${entry.evening.improvement || 'なし'}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                historyHTML += `</div>`;
+            });
+            
+            historyHTML += `
+                </div>
+                <div class="modal-footer" style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px; position: sticky; bottom: -24px; background: var(--surface); padding: 12px 0 0; margin-bottom: -24px;">
+                    <button class="button secondary" onclick="this.closest('.overlay').remove()">閉じる</button>
+                </div>
+            `;
+            
+            modal.innerHTML = historyHTML;
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            
+            // オーバーレイクリックで閉じる
+            overlay.onclick = (e) => {
+                if (e.target === overlay) {
+                    overlay.remove();
+                }
+            };
+        }
+        window.showJournalHistory = showJournalHistory;
         
         // ジャーナルモーダルを開く
         function openJournalModal() {
