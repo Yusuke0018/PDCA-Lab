@@ -13773,10 +13773,13 @@
                     let dataToImport = null;
                     let exportDate = 'Unknown';
                     
+                    console.log('インポートデータ確認:', importedData);
+                    
                     // 新形式（v2.0）のチェック
                     if (importedData.version === '2.0' && importedData.data) {
                         dataToImport = importedData.data;
                         exportDate = importedData.exportDate || 'Unknown';
+                        console.log('v2.0形式でインポート');
                     }
                     // 旧形式（v1.0）のチェック
                     else if (importedData.version === '1.0') {
@@ -13790,14 +13793,66 @@
                             cards: importedData.cards || currentData.cards
                         };
                         exportDate = importedData.exportDate || 'Unknown';
+                        console.log('v1.0形式でインポート（変換）');
+                    }
+                    // エクスポートデータに直接アクセス（version無しだがdataプロパティあり）
+                    else if (importedData.data && typeof importedData.data === 'object') {
+                        dataToImport = importedData.data;
+                        exportDate = importedData.exportDate || 'Unknown';
+                        console.log('データプロパティからインポート');
                     }
                     // 直接データ形式（バージョンなし）
-                    else if (importedData.currentHypotheses !== undefined) {
+                    else if (importedData.currentHypotheses !== undefined || 
+                             importedData.pointSystem !== undefined ||
+                             importedData.dailyJournal !== undefined) {
                         dataToImport = importedData;
                         exportDate = 'Unknown';
+                        console.log('直接データ形式でインポート');
                     }
                     else {
-                        throw new Error('サポートされていないファイル形式です');
+                        console.error('認識できないデータ形式:', importedData);
+                        throw new Error('サポートされていないファイル形式です。\n\nPDCA-Labからエクスポートしたファイルを選択してください。');
+                    }
+                    
+                    // データの必須プロパティを確認・補完
+                    if (!dataToImport.currentHypotheses) dataToImport.currentHypotheses = [];
+                    if (!dataToImport.completedHypotheses) dataToImport.completedHypotheses = [];
+                    if (!dataToImport.cards) dataToImport.cards = { inventory: [], pendingPenalties: [] };
+                    if (!dataToImport.badges) dataToImport.badges = {};
+                    if (!dataToImport.pointSystem) {
+                        dataToImport.pointSystem = {
+                            currentPoints: 0,
+                            lifetimeEarned: 0,
+                            lifetimeSpent: 0,
+                            transactions: [],
+                            customRewards: []
+                        };
+                    }
+                    if (!dataToImport.dailyJournal) {
+                        dataToImport.dailyJournal = {
+                            entries: {},
+                            stats: {
+                                currentStreak: 0,
+                                longestStreak: 0,
+                                totalEntries: 0,
+                                lastEntry: null
+                            }
+                        };
+                    }
+                    if (!dataToImport.challengeSystem) {
+                        dataToImport.challengeSystem = {
+                            daily: [],
+                            weekly: [],
+                            custom: [],
+                            stats: {
+                                dailyStreak: 0,
+                                weeklyStreak: 0,
+                                totalCompleted: 0,
+                                dailyCompletedCount: 0,
+                                weeklyCompletedCount: 0
+                            },
+                            history: []
+                        };
                     }
                     
                     // 確認ダイアログ
