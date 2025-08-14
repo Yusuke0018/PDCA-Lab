@@ -2885,23 +2885,17 @@
             
             statusContainer.innerHTML = `
                 <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px; background: rgba(255, 255, 255, 0.05); border-radius: 8px;">
+                    <div class="journal-entry-item" data-type="morning" style="display: flex; align-items: center; justify-content: space-between; padding: 8px; background: rgba(255, 255, 255, 0.05); border-radius: 8px; cursor: ${hasMorning ? 'pointer' : 'default'};" ${hasMorning ? 'oncontextmenu="showJournalContextMenu(event, \'morning\'); return false;"' : ''}>
                         <span style="font-size: 14px;">🌅 朝のジャーナル</span>
                         ${hasMorning 
-                            ? `<div style="display: flex; align-items: center; gap: 8px;">
-                                <span style="color: #10b981; font-size: 12px;">✅ 記録済み (${morningTime})</span>
-                                <button onclick="deleteJournalEntry('morning')" style="padding: 2px 6px; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.5); border-radius: 4px; color: #ef4444; font-size: 11px; cursor: pointer;">削除</button>
-                              </div>`
+                            ? `<span style="color: #10b981; font-size: 12px;">✅ 記録済み (${morningTime})</span>`
                             : `<span style="color: #f59e0b; font-size: 12px;">⏳ まだ記録していません</span>`
                         }
                     </div>
-                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px; background: rgba(255, 255, 255, 0.05); border-radius: 8px;">
+                    <div class="journal-entry-item" data-type="evening" style="display: flex; align-items: center; justify-content: space-between; padding: 8px; background: rgba(255, 255, 255, 0.05); border-radius: 8px; cursor: ${hasEvening ? 'pointer' : 'default'};" ${hasEvening ? 'oncontextmenu="showJournalContextMenu(event, \'evening\'); return false;"' : ''}>
                         <span style="font-size: 14px;">🌙 夜のジャーナル</span>
                         ${hasEvening 
-                            ? `<div style="display: flex; align-items: center; gap: 8px;">
-                                <span style="color: #10b981; font-size: 12px;">✅ 記録済み (${eveningTime})</span>
-                                <button onclick="deleteJournalEntry('evening')" style="padding: 2px 6px; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.5); border-radius: 4px; color: #ef4444; font-size: 11px; cursor: pointer;">削除</button>
-                              </div>`
+                            ? `<span style="color: #10b981; font-size: 12px;">✅ 記録溂み (${eveningTime})</span>`
                             : `<span style="color: #f59e0b; font-size: 12px;">⏳ まだ記録していません</span>`
                         }
                     </div>
@@ -3369,6 +3363,60 @@
                     showNotification('🎉 30日連続達成！+20ptボーナス！', 'success');
                 }
             }
+        }
+        
+        // コンテキストメニューを表示
+        function showJournalContextMenu(event, type) {
+            event.preventDefault();
+            
+            // 既存のコンテキストメニューを削除
+            const existingMenu = document.querySelector('.context-menu');
+            if (existingMenu) {
+                existingMenu.remove();
+            }
+            
+            // コンテキストメニューを作成
+            const menu = document.createElement('div');
+            menu.className = 'context-menu';
+            menu.style.cssText = `
+                position: fixed;
+                left: ${event.clientX}px;
+                top: ${event.clientY}px;
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                padding: 4px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                z-index: 10000;
+                min-width: 120px;
+            `;
+            
+            menu.innerHTML = `
+                <div onclick="deleteJournalEntry('${type}'); this.parentElement.remove();" style="
+                    padding: 8px 12px;
+                    cursor: pointer;
+                    border-radius: 4px;
+                    color: #ef4444;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    transition: background 0.2s;
+                " onmouseover="this.style.background='rgba(239, 68, 68, 0.1)'" onmouseout="this.style.background='transparent'">
+                    🗑️ 削除
+                </div>
+            `;
+            
+            document.body.appendChild(menu);
+            
+            // クリックで閉じる
+            setTimeout(() => {
+                document.addEventListener('click', function closeMenu(e) {
+                    if (!menu.contains(e.target)) {
+                        menu.remove();
+                        document.removeEventListener('click', closeMenu);
+                    }
+                });
+            }, 100);
         }
         
         // ジャーナルエントリを削除
@@ -12655,14 +12703,70 @@
         // データのエクスポート（JSON）
         
         // 初期化
+        // タッチイベント処理を初期化
+        function initTouchHandlers() {
+            let touchTimer = null;
+            let touchTarget = null;
+            
+            document.addEventListener('touchstart', function(e) {
+                const target = e.target.closest('.journal-entry-item');
+                if (target && (target.dataset.type === 'morning' || target.dataset.type === 'evening')) {
+                    const data = loadData();
+                    const todayKey = dateKeyLocal(new Date());
+                    const todayEntry = data.dailyJournal?.entries?.[todayKey];
+                    
+                    // エントリが存在する場合のみ長押しを有効化
+                    const hasEntry = target.dataset.type === 'morning' 
+                        ? todayEntry?.morning?.timestamp
+                        : todayEntry?.evening?.timestamp;
+                    
+                    if (hasEntry) {
+                        touchTarget = target;
+                        touchTimer = setTimeout(() => {
+                            // 長押しでコンテキストメニューを表示
+                            const touch = e.touches[0];
+                            showJournalContextMenu({
+                                preventDefault: () => {},
+                                clientX: touch.clientX,
+                                clientY: touch.clientY
+                            }, target.dataset.type);
+                            
+                            // 振動フィードバック（対応デバイスのみ）
+                            if (navigator.vibrate) {
+                                navigator.vibrate(50);
+                            }
+                        }, 500); // 500ms長押し
+                    }
+                }
+            });
+            
+            document.addEventListener('touchend', function() {
+                if (touchTimer) {
+                    clearTimeout(touchTimer);
+                    touchTimer = null;
+                }
+                touchTarget = null;
+            });
+            
+            document.addEventListener('touchmove', function() {
+                if (touchTimer) {
+                    clearTimeout(touchTimer);
+                    touchTimer = null;
+                }
+                touchTarget = null;
+            });
+        }
+        
         // DOMが読み込まれたら各種初期化処理を実行
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => {
                 initializeApp();
+                initTouchHandlers();
             });
         } else {
             // すでにDOMが読み込まれている場合
             initializeApp();
+            initTouchHandlers();
         }
         
         function initializeApp() {
