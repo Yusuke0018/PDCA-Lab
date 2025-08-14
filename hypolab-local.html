@@ -412,6 +412,17 @@
             animation: shuffle 0.3s ease-in-out;
         }
 
+        @keyframes slideIn {
+            0% { 
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            100% { 
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
         /* カレンダー */
         .calendar-container {
             background: var(--surface);
@@ -1448,7 +1459,9 @@
                 padding: 8px 16px;
                 border-radius: 12px;
                 border: 1px solid rgba(251, 191, 36, 0.3);
-            ">
+                cursor: pointer;
+                position: relative;
+            " onclick="showLevelProgress()">
                 <span class="point-amount" style="font-weight: bold; color: #fbbf24;">💰 0pt</span>
                 <span class="level-info" style="font-size: 12px; color: var(--text-secondary);">Lv.1 初心者</span>
             </div>
@@ -5153,6 +5166,128 @@
         function showPointAnimation(points) {
             // 後で実装: +Xpt のフローティングアニメーション
             console.log(`+${points}pt 獲得！`);
+        }
+
+        // レベル進捗を表示
+        function showLevelProgress() {
+            const data = loadData();
+            const currentPoints = data.pointSystem.lifetimeEarned;
+            const levelInfo = calculateLevel(currentPoints);
+            
+            // 次のレベルまでの情報を計算
+            const nextLevelPoints = levelInfo.max + 1;
+            const pointsNeeded = nextLevelPoints - currentPoints;
+            const progressInLevel = currentPoints - levelInfo.min;
+            const levelRange = levelInfo.max - levelInfo.min + 1;
+            const progressPercent = Math.round((progressInLevel / levelRange) * 100);
+            
+            // 次のレベル名を取得
+            let nextLevelName = '超越者';
+            if (levelInfo.level < 10) {
+                nextLevelName = LEVEL_THRESHOLDS[levelInfo.level].name;
+            }
+            
+            // ポップアップを作成
+            const popup = document.createElement('div');
+            popup.id = 'level-progress-popup';
+            popup.style.cssText = `
+                position: fixed;
+                top: 80px;
+                right: 20px;
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: 12px;
+                padding: 16px;
+                z-index: 1000;
+                min-width: 280px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                animation: slideIn 0.2s ease-out;
+            `;
+            
+            popup.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h3 style="margin: 0; font-size: 16px;">📊 レベル進捗</h3>
+                    <button onclick="document.getElementById('level-progress-popup').remove()" style="
+                        background: none;
+                        border: none;
+                        color: var(--text-secondary);
+                        font-size: 20px;
+                        cursor: pointer;
+                        padding: 0;
+                        width: 24px;
+                        height: 24px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    ">×</button>
+                </div>
+                
+                <div style="background: var(--background); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span style="font-size: 18px; font-weight: bold; color: var(--primary);">
+                            Lv.${levelInfo.level} ${levelInfo.name}
+                        </span>
+                        <span style="font-size: 14px; color: var(--text-secondary);">
+                            ${currentPoints}pt
+                        </span>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.1); height: 8px; border-radius: 4px; overflow: hidden;">
+                        <div style="
+                            background: linear-gradient(90deg, #10b981, #3b82f6);
+                            height: 100%;
+                            width: ${progressPercent}%;
+                            transition: width 0.3s;
+                        "></div>
+                    </div>
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px; text-align: center;">
+                        ${progressPercent}% 完了
+                    </div>
+                </div>
+                
+                <div style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(236, 72, 153, 0.1)); padding: 12px; border-radius: 8px;">
+                    <div style="font-size: 14px; margin-bottom: 8px;">
+                        次のレベルまで
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span style="font-size: 24px; font-weight: bold; color: #8b5cf6;">
+                                ${pointsNeeded}pt
+                            </span>
+                            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
+                                Lv.${levelInfo.level + 1} ${nextLevelName}
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 12px; color: var(--text-secondary);">
+                                必要合計
+                            </div>
+                            <div style="font-size: 16px; font-weight: bold; color: #ec4899;">
+                                ${nextLevelPoints}pt
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // 既存のポップアップがあれば削除
+            const existingPopup = document.getElementById('level-progress-popup');
+            if (existingPopup) {
+                existingPopup.remove();
+            }
+            
+            // ポップアップを追加
+            document.body.appendChild(popup);
+            
+            // クリック外で閉じる処理
+            setTimeout(() => {
+                const closeOnClickOutside = (e) => {
+                    if (!popup.contains(e.target) && e.target.id !== 'point-display' && !document.getElementById('point-display').contains(e.target)) {
+                        popup.remove();
+                        document.removeEventListener('click', closeOnClickOutside);
+                    }
+                };
+                document.addEventListener('click', closeOnClickOutside);
+            }, 100);
         }
 
         // 連続ボーナスの計算
