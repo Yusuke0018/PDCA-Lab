@@ -650,6 +650,45 @@
             box-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
         }
 
+        /* 努力ボーナスボタンのエフェクト */
+        @keyframes effortPulse {
+            0% {
+                transform: scale(1);
+                box-shadow: 0 0 0 rgba(16, 185, 129, 0);
+            }
+            50% {
+                transform: scale(1.05);
+                box-shadow: 0 0 20px rgba(16, 185, 129, 0.5);
+            }
+            100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 rgba(16, 185, 129, 0);
+            }
+        }
+
+        @keyframes effortStar {
+            0% {
+                transform: translateY(0) rotate(0deg) scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-50px) rotate(360deg) scale(0);
+                opacity: 0;
+            }
+        }
+
+        .effort-click-effect {
+            animation: effortPulse 0.4s ease-out;
+        }
+
+        .effort-star-particle {
+            position: absolute;
+            font-size: 20px;
+            pointer-events: none;
+            animation: effortStar 0.8s ease-out forwards;
+            z-index: 1000;
+        }
+
         .day-cell.not-achieved {
             background: rgba(255, 255, 255, 0.05);
             color: var(--text-secondary);
@@ -1462,7 +1501,7 @@
                     <span id="effort-stars" style="font-size: 24px;">⭐ 無制限</span>
                     <span id="effort-count" style="color: var(--text-secondary); font-size: 14px;">今日0回使用</span>
                 </div>
-                <button class="btn btn-secondary" onclick="showEffortBonusDialog()" style="padding: 8px 16px; font-size: 14px;">
+                <button class="btn btn-secondary" id="effort-bonus-btn" onclick="handleEffortBonusClick(event); showEffortBonusDialog()" style="padding: 8px 16px; font-size: 14px; position: relative; overflow: visible;">
                     💪 努力を記録する (+1-3pt)
                 </button>
             </div>
@@ -4478,6 +4517,52 @@
             }
         }
         
+        // 努力ボーナスボタンクリック時のエフェクト
+        function handleEffortBonusClick(event) {
+            const button = event.currentTarget;
+            
+            // ボタンにパルスエフェクトを追加
+            button.classList.add('effort-click-effect');
+            setTimeout(() => {
+                button.classList.remove('effort-click-effect');
+            }, 400);
+            
+            // 星のパーティクルを生成
+            const buttonRect = button.getBoundingClientRect();
+            const particles = ['⭐', '✨', '💫', '🌟'];
+            
+            for (let i = 0; i < 5; i++) {
+                setTimeout(() => {
+                    const particle = document.createElement('div');
+                    particle.className = 'effort-star-particle';
+                    particle.textContent = particles[Math.floor(Math.random() * particles.length)];
+                    
+                    // ボタンの中心から少しランダムな位置に配置
+                    const offsetX = (Math.random() - 0.5) * 40;
+                    const offsetY = (Math.random() - 0.5) * 20;
+                    
+                    particle.style.left = (buttonRect.left + buttonRect.width / 2 + offsetX) + 'px';
+                    particle.style.top = (buttonRect.top + buttonRect.height / 2 + offsetY) + 'px';
+                    
+                    document.body.appendChild(particle);
+                    
+                    // アニメーション終了後に削除
+                    setTimeout(() => {
+                        particle.remove();
+                    }, 800);
+                }, i * 50); // 少しずつ遅らせて生成
+            }
+            
+            // クリック音（音が利用可能な場合）
+            try {
+                const audio = new Audio('data:audio/wav;base64,UklGRnQFAABXQVZFZm10IBAAAAABAAEAJxAAAEwgAAACABAA');
+                audio.volume = 0.3;
+                audio.play().catch(() => {}); // エラーを無視
+            } catch (e) {
+                // 音声再生に失敗しても続行
+            }
+        }
+
         // 努力ボーナスダイアログを表示（改善版：1-3pt選択可能）
         function showEffortBonusDialog() {
             // カスタムダイアログHTMLを作成
