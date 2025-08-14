@@ -1875,10 +1875,8 @@
                 </div>
                 <div class="achievement-chart" id="achievement-chart" style="display:grid; gap:16px;">
                     <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
-                        <h3 style="margin-bottom:8px; cursor: pointer; user-select: none;" onclick="toggleStatSection('weekday-stats')">
-                            <span id="weekday-stats-arrow">▶</span> ⏰ 曜日別達成率（毎日の習慣）
-                        </h3>
-                        <div id="weekday-stats" style="display: none;" style="display:flex; gap:3px; margin-top:8px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; justify-content: space-between;"></div>
+                        <h3 style="margin-bottom:8px;">⏰ 曜日別達成率（毎日の習慣）</h3>
+                        <div id="weekday-stats" style="display:flex; gap:3px; margin-top:8px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; justify-content: space-between;"></div>
                     </div>
                     <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
                         <h3 style="margin-bottom:8px; cursor: pointer; user-select: none;" onclick="toggleStatSection('achievement-level-distribution')">
@@ -1988,7 +1986,7 @@
                         <h3 style="margin-bottom:8px; cursor: pointer; user-select: none;" onclick="toggleStatSection('badge-collection')">
                             <span id="badge-collection-arrow">▶</span> 🏆 獲得バッジ
                         </h3>
-                        <div id="badge-collection" style="display: none;" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap:12px; margin-top:12px;"></div>
+                        <div id="badge-collection" style="display: none; grid-template-columns: repeat(3, 1fr); gap:12px; margin-top:12px;"></div>
                     </div>
                     <!-- チャレンジ統計セクション -->
                     <div class="stat-panel" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(236, 72, 153, 0.1)); padding: 16px; border-radius: 12px; border: 1px solid rgba(139, 92, 246, 0.3);">
