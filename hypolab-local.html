@@ -2888,14 +2888,20 @@
                     <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px; background: rgba(255, 255, 255, 0.05); border-radius: 8px;">
                         <span style="font-size: 14px;">🌅 朝のジャーナル</span>
                         ${hasMorning 
-                            ? `<span style="color: #10b981; font-size: 12px;">✅ 記録済み (${morningTime})</span>`
+                            ? `<div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="color: #10b981; font-size: 12px;">✅ 記録済み (${morningTime})</span>
+                                <button onclick="deleteJournalEntry('morning')" style="padding: 2px 6px; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.5); border-radius: 4px; color: #ef4444; font-size: 11px; cursor: pointer;">削除</button>
+                              </div>`
                             : `<span style="color: #f59e0b; font-size: 12px;">⏳ まだ記録していません</span>`
                         }
                     </div>
                     <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px; background: rgba(255, 255, 255, 0.05); border-radius: 8px;">
                         <span style="font-size: 14px;">🌙 夜のジャーナル</span>
                         ${hasEvening 
-                            ? `<span style="color: #10b981; font-size: 12px;">✅ 記録済み (${eveningTime})</span>`
+                            ? `<div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="color: #10b981; font-size: 12px;">✅ 記録済み (${eveningTime})</span>
+                                <button onclick="deleteJournalEntry('evening')" style="padding: 2px 6px; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.5); border-radius: 4px; color: #ef4444; font-size: 11px; cursor: pointer;">削除</button>
+                              </div>`
                             : `<span style="color: #f59e0b; font-size: 12px;">⏳ まだ記録していません</span>`
                         }
                     </div>
@@ -3362,6 +3368,111 @@
                     earnPoints(20, 'journal', '🎆 ジャーナル30日連続ボーナス');
                     showNotification('🎉 30日連続達成！+20ptボーナス！', 'success');
                 }
+            }
+        }
+        
+        // ジャーナルエントリを削除
+        function deleteJournalEntry(type) {
+            if (!confirm(`${type === 'morning' ? '朝' : '夜'}のジャーナルを削除しますか？\n獲得したポイントも減算されます。`)) {
+                return;
+            }
+            
+            let data = loadData();
+            const todayKey = dateKeyLocal(new Date());
+            
+            if (!data.dailyJournal || !data.dailyJournal.entries[todayKey]) {
+                showNotification('削除するジャーナルが見つかりません', 'error');
+                return;
+            }
+            
+            const entry = data.dailyJournal.entries[todayKey][type];
+            if (!entry) {
+                showNotification('削除するジャーナルが見つかりません', 'error');
+                return;
+            }
+            
+            // 獲得したポイントがある場合は減算
+            if (entry.pointsEarned && entry.pointsEarned > 0) {
+                console.log(`ジャーナル削除：${entry.pointsEarned}ポイント減算`);
+                
+                // 現在のブースト効果を考慮して元のポイントを計算
+                const basePoints = 1; // ジャーナルの基本ポイント
+                const boostedPoints = calculatePointsWithBoosts(basePoints, 'journal', null);
+                const actualPointsToDeduct = Math.round(boostedPoints);
+                
+                console.log(`基本ポイント: ${basePoints}, ブースト後: ${boostedPoints}, 減算額: ${actualPointsToDeduct}`);
+                
+                // ポイントを減算
+                data.pointSystem.currentPoints = Math.max(0, data.pointSystem.currentPoints - actualPointsToDeduct);
+                
+                // トランザクション記録
+                data.pointSystem.transactions.unshift({
+                    timestamp: new Date().toISOString(),
+                    type: 'spend',
+                    amount: actualPointsToDeduct,
+                    source: 'journal_delete',
+                    description: `${type === 'morning' ? '🌅 朝' : '🌙 夜'}のジャーナル削除による減算`,
+                    multiplier: 1.0,
+                    finalAmount: -actualPointsToDeduct
+                });
+                
+                // トランザクション履歴を最新100件に制限
+                if (data.pointSystem.transactions.length > 100) {
+                    data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100);
+                }
+            }
+            
+            // エントリを削除
+            delete data.dailyJournal.entries[todayKey][type];
+            
+            // 両方のエントリが削除された場合はその日のデータ自体を削除
+            if (!data.dailyJournal.entries[todayKey].morning && !data.dailyJournal.entries[todayKey].evening) {
+                delete data.dailyJournal.entries[todayKey];
+                
+                // ストリークを再計算
+                recalculateJournalStreak(data);
+            }
+            
+            // データを保存
+            saveData(data);
+            
+            // UI更新
+            updateJournalStatus();
+            updatePointDisplay();
+            
+            showNotification(`${type === 'morning' ? '🌅 朝' : '🌙 夜'}のジャーナルを削除しました`, 'info');
+        }
+        
+        // ジャーナルストリークを再計算
+        function recalculateJournalStreak(data) {
+            // 現在のストリークをリセット
+            data.dailyJournal.stats.currentStreak = 0;
+            
+            // 今日から遡って連続日数を計算
+            const today = new Date();
+            let checkDate = new Date(today);
+            let consecutiveDays = 0;
+            
+            while (true) {
+                const dateKey = dateKeyLocal(checkDate);
+                const entry = data.dailyJournal.entries[dateKey];
+                
+                // その日のエントリが完全でない場合は終了
+                if (!entry || !entry.morning || !entry.evening) {
+                    break;
+                }
+                
+                consecutiveDays++;
+                
+                // 前日をチェック
+                checkDate.setDate(checkDate.getDate() - 1);
+            }
+            
+            data.dailyJournal.stats.currentStreak = consecutiveDays;
+            
+            // 最長ストリークを更新
+            if (consecutiveDays > data.dailyJournal.stats.longestStreak) {
+                data.dailyJournal.stats.longestStreak = consecutiveDays;
             }
         }
         
