@@ -1542,7 +1542,27 @@
             </div>
             
             <div class="card">
-                <h2 style="margin-bottom: 16px;">現在の習慣</h2>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                    <h2>現在の習慣</h2>
+                    <!-- カテゴリフィルター -->
+                    <select id="category-filter" onchange="filterHabitsByCategory()" style="
+                        padding: 6px 12px;
+                        border: 1px solid var(--border);
+                        border-radius: 8px;
+                        background: var(--surface);
+                        color: var(--text-primary);
+                        font-size: 14px;
+                        cursor: pointer;
+                    ">
+                        <option value="all">📂 全て表示</option>
+                        <option value="study">📚 勉強</option>
+                        <option value="exercise">💪 運動</option>
+                        <option value="health">🧘 健康</option>
+                        <option value="work">💼 仕事</option>
+                        <option value="hobby">🎨 趣味</option>
+                        <option value="other">📝 その他</option>
+                    </select>
+                </div>
                 <div id="current-hypothesis-list" class="hypothesis-list">
                     <!-- 動的に生成 -->
                 </div>
@@ -7155,6 +7175,14 @@
             document.getElementById('cards-view').style.display = 'none';
             
             updateNavigation('home');
+            
+            // 保存されたカテゴリフィルターを復元
+            const savedCategory = localStorage.getItem('selectedCategory') || 'all';
+            const categoryFilter = document.getElementById('category-filter');
+            if (categoryFilter) {
+                categoryFilter.value = savedCategory;
+            }
+            
             updateCurrentHypothesisList();
             updatePerfectBonusIndicator();
             updatePenaltyIndicators();
@@ -7335,11 +7363,30 @@
             }
         }
 
+        // カテゴリで習慣をフィルタリング
+        function filterHabitsByCategory() {
+            const filter = document.getElementById('category-filter');
+            if (filter) {
+                // 選択中のカテゴリを保存
+                localStorage.setItem('selectedCategory', filter.value);
+                // 習慣リストを更新
+                updateCurrentHypothesisList();
+            }
+        }
+        window.filterHabitsByCategory = filterHabitsByCategory;
+        
         // 新規習慣作成画面を表示
         function showNewHypothesisView() {
             resetScrollToTop();
             document.getElementById('home-view').style.display = 'none';
             document.getElementById('new-hypothesis-view').style.display = 'block';
+            
+            // ホーム画面で選択していたカテゴリを自動設定
+            const selectedCategory = localStorage.getItem('selectedCategory');
+            const categorySelect = document.getElementById('hypothesis-category');
+            if (selectedCategory && selectedCategory !== 'all' && categorySelect) {
+                categorySelect.value = selectedCategory;
+            }
             document.getElementById('history-view').style.display = 'none';
             document.getElementById('stats-view').style.display = 'none';
             document.getElementById('points-view').style.display = 'none';
@@ -11085,8 +11132,22 @@
             }
             listContainer.innerHTML = '';
             
-            if (data.currentHypotheses.length === 0) {
-                listContainer.innerHTML = '<p style="color: var(--text-secondary);">現在進行中の習慣はありません</p>';
+            // フィルターの状態を取得
+            const categoryFilter = document.getElementById('category-filter');
+            const filterValue = categoryFilter ? categoryFilter.value : 'all';
+            
+            // フィルタリング
+            let filteredHypotheses = data.currentHypotheses;
+            if (filterValue !== 'all') {
+                filteredHypotheses = data.currentHypotheses.filter(h => h.category === filterValue);
+            }
+            
+            if (filteredHypotheses.length === 0) {
+                if (filterValue !== 'all') {
+                    listContainer.innerHTML = '<p style="color: var(--text-secondary);">このカテゴリの習慣はありません</p>';
+                } else {
+                    listContainer.innerHTML = '<p style="color: var(--text-secondary);">現在進行中の習慣はありません</p>';
+                }
                 return;
             }
             
@@ -11129,7 +11190,7 @@
             };
             
             // 習慣を頻度タイプ別、さらにカテゴリ別に分類
-            data.currentHypotheses.forEach(hypothesis => {
+            filteredHypotheses.forEach(hypothesis => {
                 // 休眠中の習慣は別グループに
                 if (hypothesis.isSleeping) {
                     const categoryInfo = data.categoryMaster[hypothesis.category || 'other'] || data.categoryMaster.other;
