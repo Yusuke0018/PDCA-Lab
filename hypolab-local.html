@@ -4653,37 +4653,10 @@
                     data.pointSystem.currentLevel = newLevel.level;
                     
                     // トランザクション記録
-                
-                if (challenge && data.challenges.completedThisWeek.includes(challengeId)) {
-                    // 完了リストから削除
-                    const index = data.challenges.completedThisWeek.indexOf(challengeId);
-                    if (index > -1) {
-                        data.challenges.completedThisWeek.splice(index, 1);
-                    }
-                    
-                    // 履歴から削除
-                    const historyIndex = data.challenges.history.findIndex(h => h.id === challengeId && h.type === 'weekly');
-                    if (historyIndex > -1) {
-                        data.challenges.history.splice(historyIndex, 1);
-                    }
-                    
-                    // 総達成数を減らす
-                    data.challenges.totalCompleted = Math.max(0, data.challenges.totalCompleted - 1);
-                    
-                    // ポイントを減算
-                    data.pointSystem.currentPoints = Math.max(0, data.pointSystem.currentPoints - challenge.points);
-                    data.pointSystem.lifetimeEarned = Math.max(0, data.pointSystem.lifetimeEarned - challenge.points);
-                    data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
-                    
-                    // レベル更新
-                    const newLevel = calculateLevel(data.pointSystem.lifetimeEarned);
-                    data.pointSystem.currentLevel = newLevel.level;
-                    
-                    // トランザクション記録
                     data.pointSystem.transactions.unshift({
                         timestamp: new Date().toISOString(),
                         type: 'spend',
-                        amount: challenge.points,
+                        amount: pointsToDeduct,
                         source: 'challenge_undo',
                         description: `チャレンジ取消: ${challenge.name}`
                     });
@@ -4694,7 +4667,7 @@
                     }
                     
                     saveData(data);
-                    showNotification(`チャレンジの達成を取り消しました (-${challenge.points}pt)`, 'info');
+                    showNotification(`取り消しました (-${pointsToDeduct}pt)`, 'info');
                 }
             }
             
@@ -4703,6 +4676,7 @@
             updatePointsView();
             updateChallengeStats();
         }
+
 
         // ポイントをすべてリセット（緊急時用・通常は非表示）
         // function resetAllPoints() {
