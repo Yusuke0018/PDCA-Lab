@@ -5158,14 +5158,18 @@
 
         // レベルアップ通知
         function showLevelUpNotification(oldLevel, newLevel) {
-            // 後で実装: モーダルやトーストでレベルアップを祝福
-            console.log(`🎉 レベルアップ！ Lv.${oldLevel} → Lv.${newLevel.level} ${newLevel.name}`);
+            // 優先度10で最優先表示
+            showNotification(
+                `🎉 レベルアップ！\nLv.${oldLevel} → Lv.${newLevel.level}\n${newLevel.name}`,
+                'success',
+                10
+            );
         }
 
         // ポイント獲得アニメーション
         function showPointAnimation(points) {
-            // 後で実装: +Xpt のフローティングアニメーション
-            console.log(`+${points}pt 獲得！`);
+            // 小さいポップアップで表示（優先度1）
+            showNotification(`+${points}pt 獲得！`, 'success', 1);
         }
 
         // レベル進捗を表示
@@ -5435,16 +5439,16 @@
                 totalHabits++;
             });
             
-            // コンボボーナス付与
+            // コンボボーナス付与（優先度4）
             if (achievedToday === 2) {
                 earnPoints(1, 'combo', '2習慣同時達成ボーナス');
-                showNotification('🎉 2習慣同時達成ボーナス! (+1pt)', 'success');
+                showNotification('🎉 2習慣同時達成ボーナス!\n+1pt', 'success', 4);
             } else if (achievedToday === 3) {
                 earnPoints(3, 'combo', '3習慣同時達成ボーナス');
-                showNotification('🔥 3習慣同時達成ボーナス! (+3pt)', 'success');
+                showNotification('🔥 3習慣同時達成ボーナス!\n+3pt', 'success', 4);
             } else if (totalHabits >= 4 && achievedToday === totalHabits) {
                 earnPoints(5, 'combo', '全習慣達成ボーナス');
-                showNotification('🏆 全習慣達成ボーナス! (+5pt)', 'success');
+                showNotification('🏆 全習慣達成！素晴らしい！\n+5pt', 'success', 4);
             }
         }
         
@@ -7830,20 +7834,23 @@
             const bonusPoints = Math.round(actualPoints * (multiplier - 1));
             earnPoints(actualPoints, 'habit', `${window.currentHypothesis.title} 達成`, multiplier, null, window.currentHypothesis.id);
             
-            // 連続達成ボーナスの表示
+            // 基本の達成通知（優先度2）
+            showNotification(`✅ ${window.currentHypothesis.title} 達成！\n+${basePoints}pt`, 'success', 2);
+            
+            // 連続達成ボーナスの表示（優先度5）
             if (multiplier > 1.0) {
                 let streakMessage = '';
                 if (streakDays >= 21) {
-                    streakMessage = `🌟 21日以上連続達成！ ボーナス+${bonusPoints}pt (×2.0)`;
+                    streakMessage = `🌟 21日以上連続達成！\nボーナス+${bonusPoints}pt (×2.0)`;
                 } else if (streakDays >= 14) {
-                    streakMessage = `⭐ 14日連続達成！ ボーナス+${bonusPoints}pt (×1.7)`;
+                    streakMessage = `⭐ 14日連続達成！\nボーナス+${bonusPoints}pt (×1.7)`;
                 } else if (streakDays >= 7) {
-                    streakMessage = `🔥 7日連続達成！ ボーナス+${bonusPoints}pt (×1.5)`;
+                    streakMessage = `🔥 7日連続達成！\nボーナス+${bonusPoints}pt (×1.5)`;
                 } else if (streakDays >= 3) {
-                    streakMessage = `✨ 3日連続達成！ ボーナス+${bonusPoints}pt (×1.2)`;
+                    streakMessage = `✨ 3日連続達成！\nボーナス+${bonusPoints}pt (×1.2)`;
                 }
                 if (streakMessage) {
-                    setTimeout(() => showNotification(streakMessage, 'success'), 500);
+                    showNotification(streakMessage, 'success', 5);
                 }
             }
             
@@ -12865,17 +12872,26 @@
                     // マイルストーン報酬を付与
                     if (milestone.rewards.includes('bonus_points')) {
                         earnPoints(daysNum * 5, 'milestone', `${hypothesis.title} ${days}日達成記念！`);
+                        // マイルストーン通知（優先度6）
+                        showNotification(
+                            `🏆 マイルストーン達成！\n${hypothesis.title}\n${days}日継続！\n+${daysNum * 5}pt`,
+                            'success',
+                            6
+                        );
                     }
                     if (milestone.rewards.includes('huge_bonus')) {
                         earnPoints(50, 'milestone', `${hypothesis.title} 21日達成おめでとう！`);
+                        // 21日達成は特別（優先度7）
+                        showNotification(
+                            `🎊 祝！21日達成！\n${hypothesis.title}\n習慣化成功！\n+50pt`,
+                            'success',
+                            7
+                        );
                     }
                     
                     // 通知済みとして記録
                     data.events.milestoneNotifications[`${hypothesis.id}_${days}`] = new Date().toISOString();
                     saveData(data);
-                    
-                    // 特別な通知を表示
-                    showMilestoneNotification(milestone, hypothesis.title);
                 }
             });
         }
@@ -14368,7 +14384,32 @@
             reader.readAsText(file);
         }
         
-        function showNotification(message, type = 'info') {
+        // 通知キューシステム
+        let notificationQueue = [];
+        let isShowingNotification = false;
+        
+        function showNotification(message, type = 'info', priority = 0) {
+            // 通知をキューに追加（priorityが高いものほど優先）
+            notificationQueue.push({ message, type, priority });
+            
+            // priorityでソート（高い順）
+            notificationQueue.sort((a, b) => b.priority - a.priority);
+            
+            // 表示中でなければ次の通知を表示
+            if (!isShowingNotification) {
+                showNextNotification();
+            }
+        }
+        
+        function showNextNotification() {
+            if (notificationQueue.length === 0) {
+                isShowingNotification = false;
+                return;
+            }
+            
+            isShowingNotification = true;
+            const { message, type } = notificationQueue.shift();
+            
             const notification = document.createElement('div');
             notification.style.cssText = `
                 position: fixed;
@@ -14383,15 +14424,27 @@
                 z-index: 3000;
                 animation: slideIn 0.3s ease-out;
                 max-width: 300px;
+                white-space: pre-line;
             `;
             notification.textContent = message;
             
             document.body.appendChild(notification);
             
+            // 表示時間を調整（重要な通知は長めに表示）
+            const displayTime = message.includes('レベルアップ') ? 4000 : 
+                               message.includes('達成率') ? 3500 : 
+                               3000;
+            
             setTimeout(() => {
                 notification.style.animation = 'slideOut 0.3s ease-out';
-                setTimeout(() => notification.remove(), 300);
-            }, 3000);
+                setTimeout(() => {
+                    notification.remove();
+                    // 少し間を空けて次の通知を表示
+                    setTimeout(() => {
+                        showNextNotification();
+                    }, 300);
+                }, 300);
+            }, displayTime);
         }
 
         // データのエクスポート（JSON）
