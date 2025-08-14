@@ -5168,8 +5168,8 @@
 
         // ポイント獲得アニメーション
         function showPointAnimation(points) {
-            // 小さいポップアップで表示（優先度1）
-            showNotification(`+${points}pt 獲得！`, 'success', 1);
+            // 重複表示を防ぐため、この関数では何もしない
+            // ポイント表示はearnPoints内のdescriptionで行う
         }
 
         // レベル進捗を表示
