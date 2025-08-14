@@ -11188,22 +11188,13 @@
             container.style.display = 'block';
         }
         
-        // 習慣データをエクスポート
+        // 習慣データをエクスポート（全データ版）
         function exportHabitData() {
             const data = loadData();
             const exportData = {
                 exportDate: new Date().toISOString(),
-                version: '1.0',
-                currentHabits: data.currentHypotheses,
-                completedHabits: data.completedHypotheses,
-                badges: data.badges,
-                cards: data.cards,
-                statistics: {
-                    totalHabits: data.currentHypotheses.length + data.completedHypotheses.length,
-                    activeHabits: data.currentHypotheses.length,
-                    completedHabits: data.completedHypotheses.length,
-                    totalBadges: Object.keys(data.badges || {}).length
-                }
+                version: '2.0',
+                data: data  // 全データをそのまま保存
             };
             
             // JSONファイルとしてダウンロード
@@ -11211,45 +11202,20 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `habit-data-${new Date().toISOString().split('T')[0]}.json`;
+            a.download = `pdca-lab-backup-${new Date().toISOString().split('T')[0]}.json`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
             
-            showNotification('📥 データをエクスポートしました', 'success');
+            showNotification('📤 全データをエクスポートしました', 'success');
         }
 
-        // データのインポート
-        function handleImportFile(event) {
-            const file = event.target.files && event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = () => {
-                try {
-                    const json = JSON.parse(reader.result);
-                    const normalized = normalizeImportedData(json);
-                    if (!normalized) {
-                        showNotification('⚠️ サポートされていないファイル形式です', 'error');
-                        return;
-                    }
-                    if (!confirm('現在のデータをインポートデータで上書きします。よろしいですか？\n（必要なら先にエクスポートでバックアップを保存してください）')) {
-                        return;
-                    }
-                    saveData(normalized);
-                    showNotification('✅ データをインポートしました', 'success');
-                    // UIをリフレッシュ
-                    showHomeView();
-                } catch (e) {
-                    console.error(e);
-                    showNotification('⚠️ インポート中にエラーが発生しました', 'error');
-                } finally {
-                    // 同じファイルを続けて選択できるように値をリセット
-                    event.target.value = '';
-                }
-            };
-            reader.readAsText(file);
-        }
+        // データのインポート（最初の関数は使用しない - 後の統一版を使用）
+        // function handleImportFile_old(event) {
+        //     // この関数は使用しない（後の統一版を使用）
+        //     return;
+        // }
 
         // インポートデータの正規化
         function normalizeImportedData(src) {
@@ -13561,7 +13527,7 @@
             }
         }
         
-        // データをインポート
+        // データをインポート（統一版）
         function handleImportFile(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -13571,34 +13537,53 @@
                 try {
                     const importedData = JSON.parse(e.target.result);
                     
-                    // バージョンチェック
-                    if (!importedData.version || !importedData.data) {
-                        throw new Error('無効なファイル形式です');
+                    let dataToImport = null;
+                    let exportDate = 'Unknown';
+                    
+                    // 新形式（v2.0）のチェック
+                    if (importedData.version === '2.0' && importedData.data) {
+                        dataToImport = importedData.data;
+                        exportDate = importedData.exportDate || 'Unknown';
+                    }
+                    // 旧形式（v1.0）のチェック
+                    else if (importedData.version === '1.0') {
+                        // 旧形式から新形式に変換
+                        const currentData = loadData();
+                        dataToImport = {
+                            ...currentData,
+                            currentHypotheses: importedData.currentHabits || importedData.currentHypotheses || [],
+                            completedHypotheses: importedData.completedHabits || importedData.completedHypotheses || [],
+                            badges: importedData.badges || {},
+                            cards: importedData.cards || currentData.cards
+                        };
+                        exportDate = importedData.exportDate || 'Unknown';
+                    }
+                    // 直接データ形式（バージョンなし）
+                    else if (importedData.currentHypotheses !== undefined) {
+                        dataToImport = importedData;
+                        exportDate = 'Unknown';
+                    }
+                    else {
+                        throw new Error('サポートされていないファイル形式です');
                     }
                     
                     // 確認ダイアログ
-                    if (!confirm(`${importedData.exportDate} にエクスポートされたデータをインポートします。\n\n現在のデータは上書きされます。続行しますか？`)) {
+                    const dateStr = exportDate !== 'Unknown' ? `${exportDate} にエクスポートされた` : '';
+                    if (!confirm(`${dateStr}データをインポートします。\n\n現在のデータは上書きされます。続行しますか？`)) {
                         event.target.value = ''; // ファイル選択をリセット
                         return;
                     }
                     
-                    // データをマージして保存
-                    const currentData = loadData();
-                    const mergedData = {
-                        ...currentData,
-                        ...importedData.data
-                    };
-                    
-                    // LocalStorageに保存
-                    localStorage.setItem('pdcaLabData', JSON.stringify(mergedData));
+                    // データを保存
+                    saveData(dataToImport);
                     
                     showNotification('📥 データのインポートが完了しました', 'success');
-                    console.log('データインポート完了:', mergedData);
+                    console.log('データインポート完了:', dataToImport);
                     
-                    // 3秒後にページをリロード
+                    // 2秒後にページをリロード
                     setTimeout(() => {
                         location.reload();
-                    }, 3000);
+                    }, 2000);
                     
                 } catch (error) {
                     console.error('インポートエラー:', error);
