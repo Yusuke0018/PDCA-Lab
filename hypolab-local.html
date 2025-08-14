@@ -6624,11 +6624,26 @@
             const reward = data.pointSystem.customRewards.find(r => r.id === rewardId);
             if (!reward) return;
             
+            // 値を事前にエスケープ
+            const escapedName = escapeHTML(reward.name);
+            const escapedEmoji = reward.emoji || '';
+            const escapedMemo = escapeHTML(reward.memo || '');
+            
             // モーダルを作成
             const modal = document.createElement('div');
             modal.className = 'overlay active';
             modal.innerHTML = `
-                <div class="modal" style="max-width: 400px;">
+                <div style="
+                        background: var(--surface);
+                        border-radius: 24px;
+                        padding: 32px;
+                        max-width: 400px;
+                        width: 100%;
+                        max-height: 90vh;
+                        overflow-y: auto;
+                        border: 1px solid var(--border);
+                        position: relative;
+                    ">
                     <div class="modal-header">
                         <h2>報酬を編集</h2>
                         <button class="close-btn" onclick="this.closest('.overlay').remove()">×</button>
@@ -6637,7 +6652,7 @@
                         <form onsubmit="window.saveEditedReward(event, '${rewardId}'); return false;" style="display: grid; gap: 16px;">
                             <div class="form-group">
                                 <label for="edit-reward-name">報酬の名前</label>
-                                <input type="text" id="edit-reward-name" value="${escapeHTML(reward.name)}" required autocomplete="off">
+                                <input type="text" id="edit-reward-name" value="${escapedName}" required autocomplete="off">
                             </div>
                             
                             <div class="form-group">
@@ -6647,7 +6662,7 @@
                             
                             <div class="form-group">
                                 <label for="edit-reward-emoji">アイコン（絵文字）</label>
-                                <input type="text" id="edit-reward-emoji" value="${reward.emoji || ''}" maxlength="2" autocomplete="off">
+                                <input type="text" id="edit-reward-emoji" value="${escapedEmoji}" maxlength="2" autocomplete="off">
                             </div>
                             
                             <div class="form-group">
@@ -6665,7 +6680,7 @@
                             
                             <div class="form-group">
                                 <label for="edit-reward-memo">メモ（任意）</label>
-                                <textarea id="edit-reward-memo" autocomplete="off">${reward.memo || ''}</textarea>
+                                <textarea id="edit-reward-memo" autocomplete="off">${escapedMemo}</textarea>
                             </div>
                             
                             <button type="submit" class="btn btn-primary" style="width: 100%;">
