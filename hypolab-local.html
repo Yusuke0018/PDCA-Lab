@@ -7849,13 +7849,14 @@
                 const totalDeduction = actualPoints + comboDeduction;
                 data.pointSystem.currentPoints = Math.max(0, data.pointSystem.currentPoints - totalDeduction);
                 
-                // トランザクション記録
+                // トランザクション記録（habitIdを含める）
                 data.pointSystem.transactions.unshift({
                     type: 'deduct',
                     amount: totalDeduction,
                     source: 'habit_cancel',
                     description: `${window.currentHypothesis.title} 取り消し${comboDeduction > 0 ? ' (コンボボーナス含む)' : ''}`,
-                    timestamp: new Date().toISOString()
+                    timestamp: new Date().toISOString(),
+                    habitId: window.currentHypothesis.id
                 });
                 
                 // トランザクション履歴を100件に制限
@@ -11334,7 +11335,8 @@
             // トランザクションから集計
             if (data.pointSystem && data.pointSystem.transactions) {
                 data.pointSystem.transactions.forEach(t => {
-                    if (t.type === 'earn' && t.source === 'habit') {
+                    // earnタイプかつhabitソースのトランザクションのみを集計（取り消しは除外）
+                    if (t.type === 'earn' && t.source === 'habit' && !t.description.includes('取り消し')) {
                         // habitIdがある場合はそれを使用、なければdescriptionから習慣名を抽出
                         let targetHabitId = t.habitId;
                         
