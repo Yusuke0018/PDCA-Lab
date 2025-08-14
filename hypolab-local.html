@@ -1952,6 +1952,12 @@
                     </div>
                     <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
                         <h3 style="margin-bottom:8px;">🏆 習慣ランキング</h3>
+                        <!-- タブ切り替え -->
+                        <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+                            <button id="ranking-achievement-tab" onclick="showAchievementRanking()" style="flex: 1; padding: 6px; font-size: 12px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer;">達成率</button>
+                            <button id="ranking-points-tab" onclick="showPointsRanking()" style="flex: 1; padding: 6px; font-size: 12px; background: var(--surface); color: var(--text-primary); border: none; border-radius: 6px; cursor: pointer;">ポイント</button>
+                            <button id="ranking-streak-tab" onclick="showStreakRanking()" style="flex: 1; padding: 6px; font-size: 12px; background: var(--surface); color: var(--text-primary); border: none; border-radius: 6px; cursor: pointer;">連続</button>
+                        </div>
                         <div id="ranking-list" style="display:grid; gap:8px;"></div>
                     </div>
                     <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
@@ -10975,7 +10981,29 @@
                 `;
             }
 
-            // 習慣ランキング（達成率Top5）
+            // 習慣ランキングを初期表示
+            showAchievementRanking();
+            
+            // バッジコレクションを表示
+            displayBadgeCollection();
+            
+            // ポイント統計を表示
+            updatePointStatistics();
+        }
+        
+        // 達成率ランキングを表示
+        function showAchievementRanking() {
+            const data = loadData();
+            const all = data.currentHypotheses.concat(data.completedHypotheses || []);
+            
+            // タブのスタイル更新
+            document.getElementById('ranking-achievement-tab').style.background = 'var(--primary)';
+            document.getElementById('ranking-achievement-tab').style.color = 'white';
+            document.getElementById('ranking-points-tab').style.background = 'var(--surface)';
+            document.getElementById('ranking-points-tab').style.color = 'var(--text-primary)';
+            document.getElementById('ranking-streak-tab').style.background = 'var(--surface)';
+            document.getElementById('ranking-streak-tab').style.color = 'var(--text-primary)';
+            
             const ranking = all.map(h=>{
                 const s = new Date(h.startDate); s.setHours(0,0,0,0);
                 const intensity = h.intensity||{};
@@ -10988,21 +11016,226 @@
                 const rate = (h.totalDays||0)>0 ? Math.floor(Math.min(100,(weighted/(h.totalDays))*100)) : 0;
                 return { id:h.id, title:h.title, rate, totalDays:h.totalDays||0 };
             }).sort((a,b)=> b.rate - a.rate).slice(0,5);
+            
             const rankDiv = document.getElementById('ranking-list');
             if (rankDiv){
                 rankDiv.innerHTML = ranking.map((r,idx)=>`
-                    <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;padding:8px;border:1px solid var(--border);border-radius:10px;">
-                        <div><span style="font-weight:800;">#${idx+1}</span> ${escapeHTML(r.title||'Untitled')}</div>
-                        <div style="color:var(--text-secondary);">${r.totalDays}日 / <span style="color:#10b981;font-weight:700;">${r.rate}%</span></div>
+                    <div class="ranking-item" style="display:flex;justify-content:space-between;gap:12px;align-items:center;padding:8px;border:1px solid var(--border);border-radius:10px;background: ${
+                        idx === 0 ? 'linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1))' :
+                        idx === 1 ? 'linear-gradient(135deg, rgba(192, 192, 192, 0.1), rgba(128, 128, 128, 0.1))' :
+                        idx === 2 ? 'linear-gradient(135deg, rgba(205, 127, 50, 0.1), rgba(165, 87, 10, 0.1))' :
+                        'rgba(0,0,0,0.1)'
+                    };">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 20px;">${idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx+1}`}</span>
+                            <span>${escapeHTML(r.title||'Untitled')}</span>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 14px; font-weight: bold; color: #10b981;">${r.rate}%</div>
+                            <div style="font-size: 10px; color: var(--text-secondary);">${r.totalDays}日間</div>
+                        </div>
                     </div>
                 `).join('');
             }
+        }
+        
+        // ポイントランキングを表示
+        function showPointsRanking() {
+            const data = loadData();
+            const all = data.currentHypotheses.concat(data.completedHypotheses || []);
             
-            // バッジコレクションを表示
-            displayBadgeCollection();
+            // タブのスタイル更新
+            document.getElementById('ranking-achievement-tab').style.background = 'var(--surface)';
+            document.getElementById('ranking-achievement-tab').style.color = 'var(--text-primary)';
+            document.getElementById('ranking-points-tab').style.background = 'var(--primary)';
+            document.getElementById('ranking-points-tab').style.color = 'white';
+            document.getElementById('ranking-streak-tab').style.background = 'var(--surface)';
+            document.getElementById('ranking-streak-tab').style.color = 'var(--text-primary)';
             
-            // ポイント統計を表示
-            updatePointStatistics();
+            // トランザクションから習慣別ポイントを集計
+            const habitPoints = {};
+            
+            // 各習慣の初期化
+            all.forEach(h => {
+                habitPoints[h.id] = {
+                    id: h.id,
+                    title: h.title,
+                    totalPoints: 0,
+                    achievementCount: 0,
+                    bonusPoints: 0,
+                    averagePoints: 0
+                };
+            });
+            
+            // トランザクションから集計
+            if (data.pointSystem && data.pointSystem.transactions) {
+                data.pointSystem.transactions.forEach(t => {
+                    if (t.type === 'earn' && t.source === 'habit' && t.habitId) {
+                        if (habitPoints[t.habitId]) {
+                            habitPoints[t.habitId].totalPoints += t.finalAmount || t.amount;
+                            habitPoints[t.habitId].achievementCount++;
+                            
+                            // ブーストポイントを計算
+                            if (t.multiplier && t.multiplier > 1) {
+                                const bonus = (t.finalAmount || t.amount) - t.amount;
+                                habitPoints[t.habitId].bonusPoints += bonus;
+                            }
+                        }
+                    }
+                });
+            }
+            
+            // 平均ポイントを計算してソート
+            const ranking = Object.values(habitPoints)
+                .map(h => {
+                    h.averagePoints = h.achievementCount > 0 ? 
+                        Math.round(h.totalPoints / h.achievementCount * 10) / 10 : 0;
+                    return h;
+                })
+                .filter(h => h.totalPoints > 0)
+                .sort((a, b) => b.totalPoints - a.totalPoints)
+                .slice(0, 5);
+            
+            const rankDiv = document.getElementById('ranking-list');
+            if (rankDiv){
+                if (ranking.length === 0) {
+                    rankDiv.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 20px;">まだポイント獲得履歴がありません</div>';
+                } else {
+                    rankDiv.innerHTML = ranking.map((r,idx)=>`
+                        <div class="ranking-item" style="display:flex;justify-content:space-between;gap:12px;align-items:center;padding:8px;border:1px solid var(--border);border-radius:10px;background: ${
+                            idx === 0 ? 'linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1))' :
+                            idx === 1 ? 'linear-gradient(135deg, rgba(192, 192, 192, 0.1), rgba(128, 128, 128, 0.1))' :
+                            idx === 2 ? 'linear-gradient(135deg, rgba(205, 127, 50, 0.1), rgba(165, 87, 10, 0.1))' :
+                            'rgba(0,0,0,0.1)'
+                        };">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-size: 20px;">${idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx+1}`}</span>
+                                <div>
+                                    <div>${escapeHTML(r.title||'Untitled')}</div>
+                                    <div style="font-size: 10px; color: var(--text-secondary);">
+                                        ${r.achievementCount}回達成 · 平均${r.averagePoints}pt
+                                        ${r.bonusPoints > 0 ? ` · 🚀+${r.bonusPoints}pt` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 16px; font-weight: bold; color: #fbbf24;">${r.totalPoints}pt</div>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            }
+        }
+        
+        // 連続ランキングを表示
+        function showStreakRanking() {
+            const data = loadData();
+            const all = data.currentHypotheses.concat(data.completedHypotheses || []);
+            
+            // タブのスタイル更新
+            document.getElementById('ranking-achievement-tab').style.background = 'var(--surface)';
+            document.getElementById('ranking-achievement-tab').style.color = 'var(--text-primary)';
+            document.getElementById('ranking-points-tab').style.background = 'var(--surface)';
+            document.getElementById('ranking-points-tab').style.color = 'var(--text-primary)';
+            document.getElementById('ranking-streak-tab').style.background = 'var(--primary)';
+            document.getElementById('ranking-streak-tab').style.color = 'white';
+            
+            // 各習慣の連続日数を計算
+            const ranking = all.map(h => {
+                let currentStreak = 0;
+                let longestStreak = 0;
+                let tempStreak = 0;
+                const today = new Date();
+                
+                // 過去60日間をチェック
+                for (let i = 59; i >= 0; i--) {
+                    const date = new Date(today);
+                    date.setDate(date.getDate() - i);
+                    const dateKey = dateKeyLocal(date);
+                    
+                    if ((h.achievements || {})[dateKey]) {
+                        tempStreak++;
+                        if (i === 0) currentStreak = tempStreak; // 今日まで続いている
+                    } else {
+                        if (tempStreak > longestStreak) {
+                            longestStreak = tempStreak;
+                        }
+                        if (i === 0) currentStreak = 0; // 今日は達成していない
+                        tempStreak = 0;
+                    }
+                }
+                
+                if (tempStreak > longestStreak) {
+                    longestStreak = tempStreak;
+                }
+                
+                // 昨日までの連続を確認
+                if (currentStreak === 0) {
+                    const yesterday = new Date(today);
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    const yesterdayKey = dateKeyLocal(yesterday);
+                    
+                    if ((h.achievements || {})[yesterdayKey]) {
+                        // 昨日までの連続を数える
+                        for (let i = 1; i <= 60; i++) {
+                            const date = new Date(today);
+                            date.setDate(date.getDate() - i);
+                            const dateKey = dateKeyLocal(date);
+                            
+                            if ((h.achievements || {})[dateKey]) {
+                                currentStreak++;
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                return {
+                    id: h.id,
+                    title: h.title,
+                    currentStreak,
+                    longestStreak: Math.max(currentStreak, longestStreak),
+                    totalDays: Object.keys(h.achievements || {}).length
+                };
+            })
+            .filter(h => h.currentStreak > 0 || h.longestStreak > 0)
+            .sort((a, b) => b.currentStreak - a.currentStreak || b.longestStreak - a.longestStreak)
+            .slice(0, 5);
+            
+            const rankDiv = document.getElementById('ranking-list');
+            if (rankDiv){
+                if (ranking.length === 0) {
+                    rankDiv.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 20px;">まだ連続記録がありません</div>';
+                } else {
+                    rankDiv.innerHTML = ranking.map((r,idx)=>`
+                        <div class="ranking-item" style="display:flex;justify-content:space-between;gap:12px;align-items:center;padding:8px;border:1px solid var(--border);border-radius:10px;background: ${
+                            idx === 0 ? 'linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1))' :
+                            idx === 1 ? 'linear-gradient(135deg, rgba(192, 192, 192, 0.1), rgba(128, 128, 128, 0.1))' :
+                            idx === 2 ? 'linear-gradient(135deg, rgba(205, 127, 50, 0.1), rgba(165, 87, 10, 0.1))' :
+                            'rgba(0,0,0,0.1)'
+                        };">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-size: 20px;">${idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx+1}`}</span>
+                                <div>
+                                    <div>${escapeHTML(r.title||'Untitled')}</div>
+                                    <div style="font-size: 10px; color: var(--text-secondary);">
+                                        最長${r.longestStreak}日 · 累計${r.totalDays}日
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 16px; font-weight: bold; color: ${r.currentStreak > 0 ? '#f59e0b' : '#6b7280'};">
+                                    ${r.currentStreak > 0 ? '🔥' : ''} ${r.currentStreak}日
+                                </div>
+                                <div style="font-size: 10px; color: var(--text-secondary);">
+                                    ${r.currentStreak > 0 ? '連続中' : '中断中'}
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            }
         }
         
         // バッジコレクションを表示
