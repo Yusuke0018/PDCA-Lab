@@ -2884,7 +2884,6 @@
             { id: 'category_master', name: '同じカテゴリーの習慣を3つ達成', points: 4, icon: '📊', checkFunction: 'checkCategoryMaster' },
             { id: 'early_bird', name: '午前中に習慣を2つ以上達成', points: 3, icon: '🐦', checkFunction: 'checkEarlyBird' },
             { id: 'if_then_execute', name: 'IF-THENルールを3回実行', points: 4, icon: '🔄', checkFunction: 'checkIfThenExecute' },
-            { id: 'declaration_master', name: '今日の宣言をすべて実行', points: 5, icon: '📢', checkFunction: 'checkDeclarationMaster' },
             { id: 'variety_day', name: '4種類の異なるカテゴリーを達成', points: 6, icon: '🌈', checkFunction: 'checkVarietyDay' },
             { id: 'consistency_bonus', name: '同じ時間帯に習慣を実行', points: 3, icon: '⏰', checkFunction: 'checkConsistencyBonus' },
             { id: 'effort_bonus_max', name: '努力ボーナスを最大まで使用', points: 4, icon: '💪', checkFunction: 'checkEffortBonusMax' },
@@ -2911,7 +2910,6 @@
             { id: 'week_card_collector', name: 'カードを5枚以上獲得', points: 20, icon: '🎴', checkFunction: 'checkWeekCardCollector' },
             { id: 'week_comeback', name: '3日サボってから復活', points: 15, icon: '💪', checkFunction: 'checkWeekComeback' },
             { id: 'week_habit_combo', name: '習慣コンボを10回達成', points: 18, icon: '🔥', checkFunction: 'checkWeekHabitCombo' },
-            { id: 'week_declaration_perfect', name: '宣言を100%実行（7日間）', points: 25, icon: '📢', checkFunction: 'checkWeekDeclarationPerfect' },
             { id: 'week_challenge_master', name: 'デイリーチャレンジ7連続達成', points: 20, icon: '🏆', checkFunction: 'checkWeekChallengeMaster' }
         ];
 
@@ -7608,7 +7606,6 @@
                 shortTermOnly: window.shortTermOnly || false,
                 benefit: benefit,
                 ifThen: ifThen,
-                declarations: {},
                 frequency: frequencyData  // 頻度設定を追加
             };
             
@@ -7971,12 +7968,8 @@
             // ストリークと強度（Intensity）UIを更新
             renderIntensityPanel();
 
-            // 朝の1行宣言/IF-THEN
-            renderAffirmationAndBenefit();
+            // IF-THENパネル
             renderIfThenPanel();
-
-            // 朝だけ自動でバナー（/モーダル）を展開
-            maybeAutoAffirmationPrompt();
             
             // 追加のUI更新があればここで実行
         }
@@ -8548,13 +8541,6 @@
                 multBadge.style.cssText = 'position:absolute;bottom:6px;right:6px;font-size:10px;color:#94a3b8;';
                 multBadge.textContent = `×${mult.toFixed(1)}`;
                 dayCell.appendChild(multBadge);
-                // 朝の宣言済みドット
-                if (window.currentHypothesis.declarations && window.currentHypothesis.declarations[dateKey]) {
-                    const dot = document.createElement('div');
-                    dot.style.cssText = 'position:absolute;top:6px;right:6px;color:#f59e0b;font-size:10px;';
-                    dot.textContent = '●';
-                    dayCell.appendChild(dot);
-                }
                 
                 // 対象外の日はクリック不可
                 if (!isTargetDay || !canClickToday) {
@@ -9355,8 +9341,6 @@
             }
             streakEl.textContent = `🔥 連続達成日数: ${streak}日`;
 
-            // 朝の1行宣言パネルを更新
-            renderAffirmationAndBenefit();
             
             // カテゴリ変更パネルを表示
             renderCategoryPanel();
@@ -9922,183 +9906,6 @@
             renderIntensityPanel();
         }
 
-        function renderAffirmationAndBenefit() {
-            if (!window.currentHypothesis) return;
-            const hyp = window.currentHypothesis;
-            const todayKey = dateKeyLocal(new Date());
-            
-            // 日付が変わったら宣言状態をリセット
-            const lastCheckKey = 'lastAffirmationCheck';
-            const lastCheck = localStorage.getItem(lastCheckKey);
-            const currentDate = todayKey;
-            
-            if (lastCheck !== currentDate) {
-                // 日付が変わったので、今日の宣言がないことを確認
-                localStorage.setItem(lastCheckKey, currentDate);
-            }
-            // 互換対応: 旧実装でUTCキーに保存された本日の宣言をローカルキーへ移行
-            if (hyp.declarations && !hyp.declarations[todayKey]) {
-                const utcKey = new Date().toISOString().split('T')[0];
-                if (hyp.declarations[utcKey]) {
-                    hyp.declarations[todayKey] = hyp.declarations[utcKey];
-                    const data = loadData();
-                    const idx = data.currentHypotheses.findIndex(h => h.id === hyp.id);
-                    if (idx !== -1) {
-                        data.currentHypotheses[idx] = hyp;
-                        saveData(data);
-                    }
-                }
-            }
-            const affirmed = hyp.declarations && hyp.declarations[todayKey];
-            const benefitText = escapeHTML(hyp.benefit || '（未設定）');
-
-            // Sticky 上部バナー（スマホで見やすい）
-            const progressView = document.getElementById('progress-view');
-            let banner = document.getElementById('affirmation-banner');
-            if (!banner) {
-                banner = document.createElement('div');
-                banner.id = 'affirmation-banner';
-                progressView.insertBefore(banner, progressView.firstChild);
-            }
-            banner.style.cssText = [
-                'position: sticky',
-                'top: 0',
-                'z-index: 200',
-                'margin: -8px -8px 12px -8px',
-                'padding: 16px',
-                affirmed
-                  ? 'background: linear-gradient(135deg,#10b981 0%,#059669 100%)'
-                  : 'background: linear-gradient(135deg,#10b981 0%,#3b82f6 100%)',
-                'color:#fff',
-                'border-radius: 0 0 16px 16px',
-                'box-shadow: 0 6px 20px rgba(0,0,0,0.25)'
-            ].join(';');
-
-            if (!affirmed) {
-                banner.innerHTML = `
-                    <div style="display:flex;flex-direction:column;gap:10px;">
-                        <div style="font-size:14px;opacity:0.95;">🗣️ 今日の宣言</div>
-                        <div style="font-size:18px;line-height:1.35;font-weight:800;">この習慣を実証することで<br><span style=\"text-decoration:underline\">${benefitText}</span> となる</div>
-                        <button id="affirm-btn" class="btn" style="width:100%;padding:14px 16px;background:rgba(255,255,255,0.15);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,0.35);">
-                            ✅ 今日の宣言を記録する
-                        </button>
-                    </div>
-                `;
-            } else {
-                banner.innerHTML = `
-                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-                        <div style="font-weight:800;">✅ 今日の宣言 済み</div>
-                        <div style="font-size:12px;opacity:0.9;">${new Date().toLocaleDateString('ja-JP')}</div>
-                    </div>
-                `;
-            }
-
-            const btn = document.getElementById('affirm-btn');
-            if (btn) btn.onclick = () => {
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-                setTimeout(affirmToday, 120);
-            };
-
-            // カード内ミニパネル（編集用）
-            const panel = document.getElementById('affirmation-panel');
-            if (panel) {
-                panel.innerHTML = `
-                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px;">
-                        <div style="flex:1;">
-                            <div style="font-weight:700;color:var(--text-secondary);">朝の1行宣言</div>
-                            <div style="color: var(--text-secondary);">この習慣を実証することで <span style=\"color: var(--text-primary); font-weight:700;\">${benefitText}</span> となる</div>
-                        </div>
-                        <div>
-                            <button class="btn btn-secondary" id="edit-benefit-btn">編集</button>
-                        </div>
-                    </div>
-                `;
-                const edit = document.getElementById('edit-benefit-btn');
-                if (edit) edit.onclick = editBenefit;
-            }
-        }
-
-        function affirmToday() {
-            const todayKey = dateKeyLocal(new Date());
-            if (!window.currentHypothesis.declarations) window.currentHypothesis.declarations = {};
-            window.currentHypothesis.declarations[todayKey] = { affirmed: true, at: new Date().toISOString() };
-            const data = loadData();
-            const idx = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
-            if (idx !== -1) data.currentHypotheses[idx] = window.currentHypothesis;
-            saveData(data);
-            if (navigator.vibrate) navigator.vibrate([20, 40]);
-            showNotification('🗣️ 今日の宣言を記録しました', 'success');
-            updateCalendar();
-            renderAffirmationAndBenefit();
-        }
-
-        function editBenefit() {
-            const current = window.currentHypothesis?.benefit || '';
-            const value = prompt('朝の1行宣言（期待する変化）を入力', current);
-            if (value == null) return;
-            const v = value.trim();
-            if (!v) return;
-            window.currentHypothesis.benefit = v.slice(0, 140);
-            const data = loadData();
-            const idx = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
-            if (idx !== -1) data.currentHypotheses[idx] = window.currentHypothesis;
-            saveData(data);
-            renderAffirmationAndBenefit();
-        }
-
-        // 朝だけ自動でバナー展開/モーダル提示
-        function maybeAutoAffirmationPrompt() {
-            if (!window.currentHypothesis) return;
-            const now = new Date();
-            const hour = now.getHours();
-            // 朝判定（5:00〜12:00）
-            const isMorning = hour >= 5 && hour < 12;
-            const todayKey = dateKeyLocal(now);
-            const hyp = window.currentHypothesis;
-            const alreadyAffirmed = hyp.declarations && hyp.declarations[todayKey];
-            if (!isMorning || alreadyAffirmed) return;
-
-            const data = loadData();
-            data.meta = data.meta || {};
-            data.meta.affirmPrompt = data.meta.affirmPrompt || {};
-            const key = hyp.id + ':' + todayKey;
-            if (data.meta.affirmPrompt[key]) return; // 今日の催促は済み
-
-            // モーダルで強調表示
-            showMorningAffirmationModal(() => {
-                data.meta.affirmPrompt[key] = true;
-                saveData(data);
-            });
-        }
-
-        function showMorningAffirmationModal(onClose) {
-            const overlay = document.createElement('div');
-            overlay.className = 'overlay active';
-            overlay.style.backdropFilter = 'blur(6px)';
-            const modal = document.createElement('div');
-            modal.className = 'skip-modal active';
-            modal.style.maxWidth = '520px';
-            modal.style.padding = '20px';
-            const benefitText = escapeHTML(window.currentHypothesis?.benefit || '（未設定）');
-            modal.innerHTML = `
-                <div class="modal-header">
-                    <h3>🗣️ 朝の1行宣言</h3>
-                    <p>この習慣を実証することで <strong>${benefitText}</strong> となる</p>
-                </div>
-                <div class="modal-footer" style="display:flex;gap:8px;">
-                    <button class="button secondary" id="affirm-later">後で</button>
-                    <button class="button primary" id="affirm-now">今すぐ宣言する</button>
-                </div>
-            `;
-            overlay.appendChild(modal);
-            document.body.appendChild(overlay);
-            const close = () => { overlay.remove(); onClose && onClose(); };
-            document.getElementById('affirm-later').onclick = close;
-            document.getElementById('affirm-now').onclick = () => {
-                affirmToday();
-                close();
-            };
-        }
 
         function renderIfThenPanel() {
             const panel = document.getElementById('ifthen-panel');
@@ -11423,25 +11230,17 @@
                         <span>💪 直近:</span> ${badges.join(' ')}
                     </div>` : ''}
                     ${(() => {
-                        // 今日の宣言状態をチェック（深夜対応）
                         const todayKey = getActivityDateKey();
-                        const isAffirmed = hypothesis.declarations && hypothesis.declarations[todayKey];
                         const isAchievedToday = hypothesis.achievements && hypothesis.achievements[todayKey];
                         
-                        return `
-                            ${isAchievedToday ? `
-                                <div style="position: absolute; top: 10px; right: 10px; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;">
-                                    <div style="position: relative; width: 100%; height: 100%; transform: rotate(-10deg);">
-                                        <div style="position: absolute; inset: 0; border: 3px solid #dc2626; border-radius: 50%; background: rgba(220, 38, 38, 0.05);"></div>
-                                        <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: bold; color: #dc2626; font-family: serif;">完</div>
-                                    </div>
+                        return isAchievedToday ? `
+                            <div style="position: absolute; top: 10px; right: 10px; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;">
+                                <div style="position: relative; width: 100%; height: 100%; transform: rotate(-10deg);">
+                                    <div style="position: absolute; inset: 0; border: 3px solid #dc2626; border-radius: 50%; background: rgba(220, 38, 38, 0.05);"></div>
+                                    <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: bold; color: #dc2626; font-family: serif;">完</div>
                                 </div>
-                            ` : ''}
-                            <div style="margin-top: 8px; padding: 6px 10px; background: ${isAffirmed ? 'rgba(16,185,129,0.1)' : 'rgba(245,158,11,0.1)'}; border-radius: 8px; display: flex; align-items: center; gap: 6px;">
-                                <span style="font-size: 12px; color: ${isAffirmed ? '#10b981' : '#f59e0b'};">
-                                    ${isAffirmed ? '✅ 今日の宣言: 済' : '⏰ 今日の宣言: 未'}
-                                </span>
-                            </div>`;
+                            </div>
+                        ` : '';
                     })()}
                 `;
                 
