@@ -6898,6 +6898,10 @@
         
         // ホーム画面のトグルを閉じる
         function closeHomeToggles() {
+            // ホームの統計系トグル（バッジ含む）をいったん全て閉じる
+            if (typeof closeAllStatToggles === 'function') {
+                closeAllStatToggles();
+            }
             // ジャーナル履歴の各エントリを閉じる
             const journalEntries = document.querySelectorAll('.journal-entry');
             journalEntries.forEach(entry => {
