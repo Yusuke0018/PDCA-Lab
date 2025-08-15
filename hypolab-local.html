@@ -1440,12 +1440,15 @@
             }
             #badge-collection {
                 grid-template-columns: repeat(3, 1fr) !important;
-                gap: 6px !important;
+                gap: 4px !important;
             }
             #badge-collection > div {
-                font-size: 10px !important;
-                padding: 6px !important;
-                min-height: 70px !important;
+                font-size: 9px !important;
+                padding: 4px !important;
+                min-height: 65px !important;
+            }
+            #badge-collection > div > div:first-child {
+                font-size: 24px !important;
             }
             #achievement-level-distribution > div {
                 margin-bottom: 6px !important;
@@ -1476,6 +1479,13 @@
             .progress-bar { height: 10px; }
             label { font-size: 14px; }
             input, textarea { font-size: 15px; }
+            
+            /* バッジ表示を確実に3列にする */
+            #badge-collection {
+                display: grid !important;
+                grid-template-columns: repeat(3, 1fr) !important;
+                gap: 4px !important;
+            }
         }
     </style>
 </head>
@@ -2049,7 +2059,7 @@
                         <h3 style="margin-bottom:8px; cursor: pointer; user-select: none;" onclick="toggleStatSection('badge-collection')">
                             <span id="badge-collection-arrow">▶</span> 🏆 獲得バッジ
                         </h3>
-                        <div id="badge-collection" style="display: none; grid-template-columns: repeat(3, 1fr); gap:8px; margin-top:12px;"></div>
+                        <div id="badge-collection" style="display: none; display: grid; grid-template-columns: repeat(3, 1fr) !important; gap:8px; margin-top:12px;"></div>
                     </div>
                     <!-- チャレンジ統計セクション -->
                     <div class="stat-panel" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(236, 72, 153, 0.1)); padding: 16px; border-radius: 12px; border: 1px solid rgba(139, 92, 246, 0.3);">
@@ -6842,8 +6852,13 @@
             
             if (!content) return;
             
-            if (content.style.display === 'none') {
-                content.style.display = 'block';
+            if (content.style.display === 'none' || content.style.display === '') {
+                // バッジコレクションの場合はgridを維持
+                if (sectionId === 'badge-collection') {
+                    content.style.display = 'grid';
+                } else {
+                    content.style.display = 'block';
+                }
                 if (arrow) arrow.textContent = '▼';
             } else {
                 content.style.display = 'none';
