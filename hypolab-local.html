@@ -2757,24 +2757,7 @@
 
         // カードマスターデータ
         const CARD_MASTER = {
-            skip_ticket: {
-                id: 'skip_ticket',
-                type: 'reward',
-                name: 'スキップチケット',
-                description: '使った日を達成済みにできる',
-                icon: '⏭️',
-                rarity: 'common',
-                color: '#3b82f6'
-            },
-            achievement_boost: {
-                id: 'achievement_boost',
-                type: 'reward',
-                name: '達成ブースト',
-                description: '任意の2日を達成済みにできる',
-                icon: '🌟',
-                rarity: 'rare',
-                color: '#10b981'
-            },
+            // 旧カード（廃止）：skip_ticket, achievement_boost などはプールから除外
             perfect_bonus: {
                 id: 'perfect_bonus',
                 type: 'reward',
@@ -2839,15 +2822,7 @@
                 rarity: 'rare',
                 color: '#10b981'
             },
-            achievement_booster: {
-                id: 'achievement_booster',
-                type: 'reward',
-                name: '達成率ブースター',
-                description: '最終達成率に+15%のボーナス',
-                icon: '📈',
-                rarity: 'common',
-                color: '#3b82f6'
-            },
+            // 旧カード（廃止）：achievement_booster はプールから除外
             chaos_vortex: {
                 id: 'chaos_vortex',
                 type: 'penalty',
@@ -2857,15 +2832,7 @@
                 rarity: 'rare',
                 color: '#dc2626'
             },
-            second_chance: {
-                id: 'second_chance',
-                type: 'reward',
-                name: 'セカンドチャンス',
-                description: '習慣終了後でも3日分追加で挑戦できる',
-                icon: '🎯',
-                rarity: 'rare',
-                color: '#10b981'
-            },
+            // 旧カード（廃止）：second_chance はプールから除外
             // 新規追加カード - 報酬カード
             event_trigger: {
                 id: 'event_trigger',
@@ -2912,15 +2879,7 @@
                 rarity: 'legendary',
                 color: '#a855f7'
             },
-            quick_start: {
-                id: 'quick_start',
-                type: 'reward',
-                name: 'クイックスタート',
-                description: '次の習慣の最初の3日が自動達成',
-                icon: '⚡',
-                rarity: 'rare',
-                color: '#14b8a6'
-            },
+            // 旧カード（廃止）：quick_start はプールから除外
             streak_bonus: {
                 id: 'streak_bonus',
                 type: 'reward',
@@ -8724,17 +8683,16 @@
             // 追加のUI更新があればここで実行
         }
 
-        // カード使用ボタンの更新
+        // カード使用ボタンの更新（有効な報酬カードがある場合のみ）
         function updateCardUseButton() {
             const data = loadData();
-            const hasSkipTicket = data.cards.inventory.some(card => card.cardId === 'skip_ticket' && !card.used);
-            
+            const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start','second_chance']);
+            const hasUsable = (data.cards.inventory || []).some(card => {
+                const def = CARD_MASTER[card.cardId];
+                return def && def.type === 'reward' && !card.used && !DISABLED_CARDS.has(card.cardId);
+            });
             const cardUseSection = document.getElementById('card-use-section');
-            if (hasSkipTicket) {
-                cardUseSection.style.display = 'block';
-            } else {
-                cardUseSection.style.display = 'none';
-            }
+            cardUseSection.style.display = hasUsable ? 'block' : 'none';
         }
 
         // カード使用メニューを表示
@@ -8745,10 +8703,11 @@
             
             container.innerHTML = '';
             
-            // 使用可能なカードを集計
+            // 使用可能なカードを集計（無効カードは除外）
+            const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start','second_chance']);
             const usableCards = {};
             data.cards.inventory.forEach(card => {
-                if (!card.used && CARD_MASTER[card.cardId] && CARD_MASTER[card.cardId].type === 'reward') {
+                if (!card.used && CARD_MASTER[card.cardId] && CARD_MASTER[card.cardId].type === 'reward' && !DISABLED_CARDS.has(card.cardId)) {
                     usableCards[card.cardId] = (usableCards[card.cardId] || 0) + 1;
                 }
             });
@@ -8789,8 +8748,6 @@
                         cardDiv.onclick = () => useMissionMaster();
                     } else if (cardId === 'rainbow_boost') {
                         cardDiv.onclick = () => useRainbowBoost();
-                    } else if (cardId === 'quick_start') {
-                        cardDiv.onclick = () => useQuickStart();
                     } else if (cardId === 'streak_bonus') {
                         cardDiv.onclick = () => useStreakBonus();
                     } else if (cardId === 'lucky_seven') {
@@ -9972,8 +9929,7 @@
                 progressFill.style.background = 'var(--gradient-3)';
             }
 
-            // サプライズブースト（毎日10% / 7,14,21日は100%）
-            maybeTriggerDailySurprise(daysPassed, 0.10);
+            // サプライズブーストは廃止（以前のランダム付与は削除）
             
             // アクティブな効果を表示
             const data = loadData();
@@ -9999,20 +9955,7 @@
                 }
             }
 
-            // サプライズブーストの表示
-            if (data.cards && data.cards.activeEffects) {
-                const surprise = data.cards.activeEffects.find(effect => 
-                    effect.cardId === 'surprise_boost' && 
-                    (!effect.targetHypothesisId || effect.targetHypothesisId === window.currentHypothesis.id)
-                );
-                if (surprise) {
-                    hasActiveEffects = true;
-                    const effectElement = document.createElement('div');
-                    effectElement.style.cssText = 'background: rgba(59, 130, 246, 0.2); color: #3b82f6; padding: 4px 12px; border-radius: 16px; font-size: 12px; border: 1px solid #3b82f6;';
-                    effectElement.textContent = '🎁 サプライズブースト（次の結果でレア率UP）';
-                    activeEffectsList.appendChild(effectElement);
-                }
-            }
+            // サプライズブーストの表示は廃止
             
             // ハードモードのチェック
             if (window.currentHypothesis.hardMode) {
@@ -11652,11 +11595,15 @@
                                     acquiredDate: new Date().toISOString(),
                                     used: false
                                 });
+                                // カード図鑑へ登録
+                                try { registerCardToAlbum(cardId); } catch (e) { /* noop */ }
                             } else if (card.type === 'penalty') {
                                 data.cards.pendingPenalties.push({
                                     cardId: cardId,
                                     acquiredDate: new Date().toISOString()
                                 });
+                                // ペナルティも図鑑に登録
+                                try { registerCardToAlbum(cardId); } catch (e) { /* noop */ }
                             }
                         }
                     });
@@ -12463,36 +12410,28 @@
                     effect.cardId === 'perfect_bonus' && !effect.targetHypothesisId
                 );
             }
-            // サプライズブーストが有効かチェック
-            let hasSurpriseBoost = false;
-            if (data.cards && data.cards.activeEffects) {
-                hasSurpriseBoost = data.cards.activeEffects.some(effect => 
-                    effect.cardId === 'surprise_boost' && (!effect.targetHypothesisId || effect.targetHypothesisId === hypothesis.id)
-                );
-            }
+            // サプライズブーストは廃止
             
             if (achievementRate === 100) {
                 // 100%達成: 期間ボーナスでレア率上昇
                 const rand = Math.random();
                 
-                // 新カードを含む報酬カードプール
+                // 報酬カードプール（新方針）
                 const legendaryCards = [
-                    'perfect_bonus', 'second_chance', 'achievement_booster',
-                    'event_trigger', 'event_combo', 'point_gem', 
-                    'mission_master', 'rainbow_boost', 'quick_start',
-                    'streak_bonus', 'lucky_seven', 'conversion_magic'
+                    'perfect_bonus', 'event_combo', 'rainbow_boost',
+                    'lucky_seven', 'mission_master', 'conversion_magic'
                 ];
                 const rareCards = [
-                    'achievement_boost', 'protect_shield', 'skip_ticket'
+                    'protect_shield', 'event_trigger', 'point_gem', 'streak_bonus'
                 ];
                 const commonCards = [
-                    'skip_ticket', 'destiny_dice'
+                    'point_gem'
                 ];
                 
                 // 期間ボーナスを加味したレアリティ判定
-                const baseLegendaryChance = hasSurpriseBoost ? 0.25 : 0.15;
+                const baseLegendaryChance = 0.15;
                 const legendaryChance = baseLegendaryChance + (durationBonus * 0.5); // 期間ボーナスの半分をレジェンダリーに
-                const rareChance = hasSurpriseBoost ? 0.45 : 0.35;
+                const rareChance = 0.35;
                 const adjustedRareChance = rareChance + (durationBonus * 0.3); // 期間ボーナスの30%をレアに
                 
                 if (rand < legendaryChance) {
@@ -12536,14 +12475,14 @@
                 const rand = Math.random();
                 
                 const rareCards = [
-                    'achievement_boost', 'protect_shield', 'skip_ticket'
+                    'protect_shield', 'event_trigger', 'point_gem', 'streak_bonus'
                 ];
                 const commonCards = [
-                    'skip_ticket', 'destiny_dice'
+                    'point_gem'
                 ];
                 
                 // 期間ボーナスを加味したレア率
-                const baseRareChance = hasSurpriseBoost ? 0.35 : 0.2;
+                const baseRareChance = 0.2;
                 const rareChance = baseRareChance + durationBonus; // 期間ボーナスをそのまま加算
                 
                 if (rand < rareChance) {
@@ -12559,12 +12498,9 @@
                 // 59%以下: ペナルティカード（期間が長いほど強いペナルティ）
                 const rand = Math.random();
                 
-                // 新カードを含むペナルティカードプール
-                const commonPenalties = ['extension_card', 'short_term', 'achievement_decrease'];
-                const rarePenalties = [
-                    'hard_mode', 'reset_risk', 'event_seal', 
-                    'mission_addition', 'slowdown', 'reverse_curse'
-                ];
+                // ペナルティカードプール（新方針：5枚）
+                const commonPenalties = ['slowdown', 'event_seal', 'mission_overload'];
+                const rarePenalties = ['hard_mode', 'reverse_curse'];
                 
                 // 期間が長いほどレアペナルティ率上昇（逆効果）
                 const rarePenaltyChance = 0.6 + (durationBonus * 0.5);
@@ -12579,83 +12515,12 @@
                     cards.push(selectedCard);
                 }
             }
-            // 60-79%は何も獲得しない
-            // サプライズブーストは結果確定時に消費
-            if (hasSurpriseBoost && data.cards && data.cards.activeEffects) {
-                data.cards.activeEffects = data.cards.activeEffects.filter(effect =>
-                    !(effect.cardId === 'surprise_boost' && (!effect.targetHypothesisId || effect.targetHypothesisId === hypothesis.id))
-                );
-                saveData(data);
-                setTimeout(() => {
-                    showCardEffect('🎁 サプライズブースト消費', '今回の抽選でレア率が上がりました', '#3b82f6');
-                }, 500);
-            }
+            // 60-79%は何も獲得しない（サプライズブーストは廃止）
             
             return cards;
         }
 
-        // サプライズブースト: 毎日10%、7/14/21日は100%でグローバル付与
-        function maybeTriggerDailySurprise(daysPassed, baseProb = 0.10) {
-            try {
-                const data = loadData();
-                data.events = data.events || {};
-                const todayKey = dateKeyLocal(new Date());
-
-                // 同一日に複数回評価しない
-                if (data.events.lastSurpriseCheck === todayKey) {
-                    return;
-                }
-                data.events.lastSurpriseCheck = todayKey;
-
-                // 7/14/21日目は100%
-                const milestones = [7, 14, 21];
-                let prob = milestones.includes(daysPassed) ? 1.0 : baseProb;
-
-                if (Math.random() < prob) {
-                    if (!data.cards.activeEffects) data.cards.activeEffects = [];
-                    // グローバル効果（どの習慣にも有効）
-                    data.cards.activeEffects.push({
-                        cardId: 'surprise_boost',
-                        activatedDate: new Date().toISOString()
-                    });
-                    data.events.lastSurpriseGranted = todayKey;
-                    saveData(data);
-                    showCardEffect('🎉 サプライズ！', '次のカード抽選でレア率UP！', '#3b82f6');
-                    if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
-                } else {
-                    // チェックのみ保存
-                    saveData(data);
-                }
-            } catch (e) {
-                // 失敗しても動作に影響を与えない
-                console.warn('maybeTriggerDailySurprise error', e);
-            }
-        }
-
-        // サプライズ演出（7/14/21日目で一度だけ発火）
-        function triggerSurpriseIfNeeded(hyp, daysPassed) {
-            if (!hyp) return;
-            const milestones = [7, 14, 21];
-            hyp.surpriseHits = hyp.surpriseHits || [];
-            if (!milestones.includes(daysPassed)) return;
-            if (hyp.surpriseHits.includes(daysPassed)) return;
-            hyp.surpriseHits.push(daysPassed);
-            const data = loadData();
-            // 効果をアクティブ化（この習慣に紐づけ）
-            if (!data.cards.activeEffects) data.cards.activeEffects = [];
-            data.cards.activeEffects.push({
-                cardId: 'surprise_boost',
-                activatedDate: new Date().toISOString(),
-                targetHypothesisId: hyp.id
-            });
-            // 保存
-            const idx = data.currentHypotheses.findIndex(h => h.id === hyp.id);
-            if (idx !== -1) data.currentHypotheses[idx] = hyp;
-            saveData(data);
-            // 演出
-            showCardEffect('🎉 サプライズ！', '次のカード抽選でレア率UP！', '#3b82f6');
-            if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
-        }
+        // サプライズブースト関連の機能は廃止
 
         // 履歴画面を表示
         function showHistoryView() {
