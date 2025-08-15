@@ -14726,6 +14726,7 @@
                 );
                 if (sealEffect) {
                     saveData(data);
+                    updateEventDisplay();
                     return; // イベント封印中は何もしない
                 }
             }
@@ -14907,8 +14908,12 @@
             
             if (!eventContainer) return;
             
-            if (!data.events || data.events.activeBoosts.length === 0) {
-                eventContainer.style.display = 'none';
+            if (!data.events || !data.events.activeBoosts || data.events.activeBoosts.length === 0) {
+                eventContainer.style.display = 'block';
+                eventContainer.innerHTML = `
+                    <h3 style="margin-bottom: 8px; font-size: 14px; opacity: 0.9;">🎉 アクティブイベント</h3>
+                    <p style="margin: 0; font-size: 12px; color: var(--text-secondary);">今日はイベントはありません。</p>
+                `;
             } else {
                 eventContainer.style.display = 'block';
                 eventContainer.innerHTML = `
