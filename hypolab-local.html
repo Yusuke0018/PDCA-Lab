@@ -8476,9 +8476,9 @@
                         weekInfo.innerHTML = `
                             <span>第${weekNum}週</span>
                             <div class="progress">
-                                <span>${weekData.achieved}/${weekData.required}回</span>
+                                <span>${weekData.achieved}/${weekData.required}回${weekData.achieved > weekData.required ? ' ✨' : ''}</span>
                                 <div class="progress-bar">
-                                    <div class="progress-fill" style="width: ${progressPercent}%"></div>
+                                    <div class="progress-fill" style="width: ${progressPercent}%; ${weekData.achieved > weekData.required ? 'background: linear-gradient(90deg, #10b981, #3b82f6);' : ''}"></div>
                                 </div>
                             </div>
                         `;
@@ -8496,15 +8496,10 @@
                         // 特定曜日の場合：該当する曜日のみ対象
                         isTargetDay = frequency.weekdays.includes(cellDate.getDay());
                     } else if (frequency.type === 'weekly') {
-                        // 週●回の場合：週の達成上限をチェック
+                        // 週●回の場合：上限を超えても記録可能にする
+                        // すべての日をクリック可能にする
                         const weekData = weeklyAchievements.get(weekNum);
-                        if (weekData && weekData.achieved >= weekData.required) {
-                            const dateKey = dateKeyLocal(cellDate);
-                            // すでに達成済みの日は対象、それ以外は対象外
-                            if (!window.currentHypothesis.achievements || !window.currentHypothesis.achievements[dateKey]) {
-                                canClickToday = false;
-                            }
-                        }
+                        // 制限を削除：常にクリック可能
                     }
                     // daily の場合はすべて対象
                 }
@@ -8547,13 +8542,7 @@
                     dayCell.classList.add('not-target');
                     dayCell.style.cursor = 'not-allowed';
                     
-                    // 週●回で上限に達した場合の特別な表示
-                    if (frequency && frequency.type === 'weekly' && !canClickToday && isTargetDay) {
-                        const badge = document.createElement('div');
-                        badge.style.cssText = 'position:absolute;top:2px;left:2px;font-size:10px;color:#f59e0b;background:rgba(245,158,11,0.2);padding:2px 4px;border-radius:4px;';
-                        badge.textContent = '達成済';
-                        dayCell.appendChild(badge);
-                    }
+                    // 週●回で目標達成済みでも追加記録可能なのでバッジ表示を削除
                 } else if (cellDate > today && !window.skipTicketMode) {
                     dayCell.classList.add('future');
                 } else if (window.currentHypothesis.achievements[dateKey]) {
@@ -8945,11 +8934,8 @@
                     }
                 }
                 
-                // 達成しようとしている場合、上限チェック
-                if (!window.currentHypothesis.achievements[dateKey] && weekAchieved >= frequency.count) {
-                    showNotification(`⚠️ 今週はすでに${frequency.count}回達成済みです`, 'warning');
-                    return;
-                }
+                // 週●回の制限を削除：目標回数に達成してもそれ以上記録可能
+                // 達成済みかどうかのみチェック（トグル処理のため）
             }
             
             if (!window.currentHypothesis.achievements[dateKey]) {
