@@ -5,8 +5,8 @@
             });
         }
 
-        // ローカルストレージのキー
-        const STORAGE_KEY = 'hypolab_local_data';
+        // ローカルストレージのキー（モジュール存在時は再定義しない）
+        window.STORAGE_KEY = window.STORAGE_KEY || 'hypolab_local_data';
 
         // 現在の習慣
         let currentHypothesis = null;
@@ -2744,7 +2744,7 @@
         // ========== ポイントシステム関連の関数 ==========
         
         // レベル設定（より長期的な目標設定）
-        const LEVEL_THRESHOLDS = [
+        window.LEVEL_THRESHOLDS = window.LEVEL_THRESHOLDS || [
             { level: 1, name: '初心者', min: 0, max: 75 },           // 50 → 75 (1.5倍)
             { level: 2, name: '見習い', min: 76, max: 225 },         // 150 → 225 (1.5倍)
             { level: 3, name: '習慣家', min: 226, max: 450 },        // 300 → 450 (1.5倍)
@@ -2757,8 +2757,8 @@
             { level: 10, name: '超越者', min: 3901, max: Infinity }
         ];
 
-        // 現在のレベルを計算
-        function calculateLevel(lifetimeEarned) {
+        // 現在のレベルを計算（モジュール存在時は再定義しない）
+        window.calculateLevel = window.calculateLevel || function(lifetimeEarned) {
             for (const threshold of LEVEL_THRESHOLDS) {
                 if (lifetimeEarned <= threshold.max) {
                     return threshold;
