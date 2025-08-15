@@ -13909,6 +13909,9 @@
             { id: 'point_rain', name: '💰 ポイントレイン', description: '最初の3回達成で+3ptボーナス', effect: 'achievement_bonus', value: 3 },
             { id: 'golden_day', name: '✨ ゴールデンデー', description: '全ポイント+2の固定ボーナス', effect: 'flat_bonus', value: 2 },
             
+            // 時間系イベント
+            { id: 'early_bird_special', name: '🌅 早起き特典', description: '朝6-9時の達成で×1.2', effect: 'time_bonus', hours: [6,7,8,9], multiplier: 1.2 },
+            { id: 'night_owl_boost', name: '🦉 夜型ボーナス', description: '20-23時の達成で×1.2', effect: 'time_bonus', hours: [20,21,22,23], multiplier: 1.2 },
             { id: 'lucky_hour', name: '⏰ ラッキーアワー', description: '11時と17時の達成で+3pt', effect: 'lucky_time', hours: [11,17], bonus: 3 },
             
             // カテゴリ系イベント
