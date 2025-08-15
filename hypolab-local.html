@@ -42,19 +42,27 @@
             --safe-top: env(safe-area-inset-top, 0px);
         }
 
-        /* ライトテーマ - モダンで洗練された配色 */
+        /* ライトテーマ - スタイリッシュで視認性の高い配色 */
         :root.light-theme {
-            --primary: #16a34a;
-            --secondary: #3b82f6;
-            --background: #fafafa;
+            /* ブランド */
+            --primary: #16a34a; /* エメラルド */
+            --secondary: #0ea5e9; /* スカイ */
+            /* サーフェス */
+            --background: #f8fafc; /* クールなホワイト */
             --surface: #ffffff;
-            --surface-light: #f3f4f6;
-            --text-primary: #111827;
-            --text-secondary: #4b5563;
-            --border: rgba(0, 0, 0, 0.06);
-            --gradient-1: linear-gradient(135deg, #34d399 0%, #60a5fa 100%);
+            --surface-light: #f1f5f9; /* ごく薄いグレー */
+            /* テキスト */
+            --text-primary: #0f172a; /* ほぼ黒に近い紺 */
+            --text-secondary: #475569; /* ミッドグレー */
+            /* 枠線・セパレーター */
+            --border: rgba(15, 23, 42, 0.06);
+            /* グラデーション（少しだけ鮮やかに） */
+            --gradient-1: linear-gradient(135deg, #22c55e 0%, #06b6d4 100%);
             --gradient-2: linear-gradient(135deg, #a78bfa 0%, #f472b6 100%);
-            --gradient-3: linear-gradient(135deg, #fbbf24 0%, #f87171 100%);
+            --gradient-3: linear-gradient(135deg, #fde047 0%, #fb7185 100%);
+            /* シャドウ（トークン） */
+            --shadow-1: 0 6px 16px rgba(15, 23, 42, 0.06);
+            --shadow-2: 0 12px 28px rgba(15, 23, 42, 0.08);
         }
 
         /* 基本スタイル */
@@ -275,7 +283,7 @@
 
         .btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 30px rgba(16, 185, 129, 0.3);
+            box-shadow: 0 10px 28px rgba(34, 197, 94, 0.22);
         }
 
         .btn:active {
@@ -294,6 +302,20 @@
             box-shadow: 0 10px 30px rgba(71, 85, 105, 0.3);
             border-color: var(--primary);
         }
+
+        /* ライトテーマ時の微調整 */
+        :root.light-theme .btn-secondary {
+            background: var(--surface-light);
+            border-color: var(--border);
+        }
+        :root.light-theme .btn-secondary:hover {
+            background: #e7eef6;
+            border-color: rgba(15, 23, 42, 0.12);
+            box-shadow: var(--shadow-1);
+        }
+        :root.light-theme .progress-bar { background: #e5e7eb; }
+        :root.light-theme .card { box-shadow: var(--shadow-1); }
+        :root.light-theme .card:hover { box-shadow: var(--shadow-2); }
 
         /* 習慣リスト */
         .hypothesis-list {
