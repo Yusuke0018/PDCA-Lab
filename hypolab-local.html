@@ -5540,48 +5540,12 @@
             
             // 使用回数を記録（上限なし）
             data.pointSystem.dailyEffortUsed = (data.pointSystem.dailyEffortUsed || 0) + 1;
-            
-            // ポイント追加（直接処理）
-            data.pointSystem.currentPoints += points;
-            data.pointSystem.lifetimeEarned += points;
-            data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
-            
-            // レベル更新
-            const newLevel = calculateLevel(data.pointSystem.lifetimeEarned);
-            const oldLevel = data.pointSystem.currentLevel;
-            data.pointSystem.currentLevel = newLevel.level;
-            
-            // トランザクション記録
-            data.pointSystem.transactions.unshift({
-                timestamp: new Date().toISOString(),
-                type: 'earn',
-                amount: points,
-                source: 'effort_bonus',
-                description: reason || `努力ボーナス (${points}pt)`,
-                finalAmount: points
-            });
-            
-            // トランザクション履歴を最新100件に制限
-            if (data.pointSystem.transactions.length > 100) {
-                data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100);
-            }
-            
+            // 獲得処理は earnPoints を通してブースト（ポイントジェム等）を適用
             saveData(data);
-            
-            // レベルアップ通知
-            if (newLevel.level > oldLevel) {
-                showLevelUpNotification(oldLevel, newLevel);
-            }
-            
-            // ポイント獲得アニメーション
-            showPointAnimation(points);
-            
-            // UI更新
-            updatePointDisplay();
+            const final = earnPoints(points, 'effort_bonus', reason || `努力ボーナス (${points}pt)`);
             updatePointsView();
             updateStatistics();
-            
-            return true;
+            return final >= 0;
         }
 
         // ポイント表示を更新
