@@ -2960,6 +2960,52 @@
                 rarity: 'rare',
                 color: '#059669'
             },
+            // 新規追加（楽しい効果系 報酬カード）
+            combo_chain: {
+                id: 'combo_chain',
+                type: 'reward',
+                name: 'コンボチェーン',
+                description: '今日のコンボボーナスが2倍になる',
+                icon: '🧩',
+                rarity: 'rare',
+                color: '#22c55e'
+            },
+            sparkle_streak: {
+                id: 'sparkle_streak',
+                type: 'reward',
+                name: 'スパークルストリーク',
+                description: '今日の最初の3回の達成に追加ボーナス（+3/+5/+8）',
+                icon: '🎆',
+                rarity: 'rare',
+                color: '#f97316'
+            },
+            category_festival: {
+                id: 'category_festival',
+                type: 'reward',
+                name: 'カテゴリーフェス',
+                description: '選んだカテゴリの達成が今日×1.5',
+                icon: '🎪',
+                rarity: 'rare',
+                color: '#8b5cf6'
+            },
+            happy_hour: {
+                id: 'happy_hour',
+                type: 'reward',
+                name: 'ハッピーアワー',
+                description: '指定1時間の達成は+10pt',
+                icon: '⏰',
+                rarity: 'common',
+                color: '#06b6d4'
+            },
+            mystery_box: {
+                id: 'mystery_box',
+                type: 'reward',
+                name: 'ミステリーボックス',
+                description: '今日の最初の達成でサプライズ報酬！',
+                icon: '🎁',
+                rarity: 'rare',
+                color: '#f59e0b'
+            },
             double_or_nothing: {
                 id: 'double_or_nothing',
                 type: 'penalty',
@@ -5501,6 +5547,37 @@
                 const effects = boost.notes && boost.notes.length ? boost.notes.join(' / ') : '効果適用';
                 showCardEffect(title, `+${finalAmount}pt (${effects})`, '#06b6d4');
             }
+
+            // ミステリーボックス効果（今日の最初の習慣達成で発火）
+            try {
+                if (source === 'habit' && data.cards && data.cards.activeEffects) {
+                    const todayKey = dateKeyLocal(new Date());
+                    const mbox = data.cards.activeEffects.find(e => e.type === 'mystery_reward' && e.dayKey === todayKey && !e.claimed);
+                    if (mbox) {
+                        const pool = mbox.options || ['points15','event_trigger','protect_shield'];
+                        const pick = pool[Math.floor(Math.random() * pool.length)];
+                        if (pick === 'points15') {
+                            // 追加ポイント
+                            data.pointSystem.currentPoints += 15;
+                            data.pointSystem.lifetimeEarned += 15;
+                            data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
+                            data.pointSystem.transactions.unshift({ timestamp:new Date().toISOString(), type:'earn', amount:15, finalAmount:15, source:'mystery', description:'ミステリーボックス(+15pt)' });
+                            showCardEffect('🎁 ミステリーボックス！','+15pt を獲得','\#f59e0b');
+                        } else if (pick === 'event_trigger') {
+                            // カード付与
+                            data.cards.inventory.push({ cardId:'event_trigger', acquiredDate:new Date().toISOString(), used:false });
+                            if (typeof registerCardToAlbum === 'function') { registerCardToAlbum('event_trigger'); }
+                            showCardEffect('🎁 ミステリーボックス！','カード：イベントトリガー','\#f59e0b');
+                        } else if (pick === 'protect_shield') {
+                            data.cards.inventory.push({ cardId:'protect_shield', acquiredDate:new Date().toISOString(), used:false });
+                            if (typeof registerCardToAlbum === 'function') { registerCardToAlbum('protect_shield'); }
+                            showCardEffect('🎁 ミステリーボックス！','カード：プロテクトシールド','\#f59e0b');
+                        }
+                        mbox.claimed = true;
+                        saveData(data);
+                    }
+                }
+            } catch (e) { /* noop */ }
             
             // UI更新
             updatePointDisplay();
@@ -8754,8 +8831,18 @@
                         cardDiv.onclick = () => useConversionMagic();
                     } else if (cardId === 'fate_dice') {
                         cardDiv.onclick = () => useFateDice();
+                    } else if (cardId === 'combo_chain') {
+                        cardDiv.onclick = () => useComboChain();
+                    } else if (cardId === 'sparkle_streak') {
+                        cardDiv.onclick = () => useSparkleStreak();
+                    } else if (cardId === 'category_festival') {
+                        cardDiv.onclick = () => useCategoryFestival();
+                    } else if (cardId === 'happy_hour') {
+                        cardDiv.onclick = () => useHappyHour();
+                    } else if (cardId === 'mystery_box') {
+                        cardDiv.onclick = () => useMysteryBox();
                     }
-                    
+
                     container.appendChild(cardDiv);
                 });
             } else {
@@ -9988,7 +10075,30 @@
                 }
             }
 
-            // サプライズブーストの表示は廃止
+            // 追加の効果バッジ表示
+            if (data.cards && data.cards.activeEffects) {
+                const ae = data.cards.activeEffects;
+                const todayKey = dateKeyLocal(new Date());
+                const addBadge = (text, style) => { hasActiveEffects = true; const el = document.createElement('div'); el.style.cssText = style; el.textContent = text; activeEffectsList.appendChild(el); };
+                if (ae.find(e => e.type === 'combo_multiplier')) {
+                    addBadge('🧩 コンボ×2', 'background: rgba(34,197,94,0.2); color:#22c55e; padding:4px 12px; border-radius:16px; font-size:12px; border:1px solid #22c55e;');
+                }
+                const catFest = ae.find(e => e.type === 'category_theme_boost');
+                if (catFest) {
+                    addBadge(`🎪 ${catFest.target}×${catFest.multiplier || 1.5}`, 'background: rgba(139,92,246,0.2); color:#8b5cf6; padding:4px 12px; border-radius:16px; font-size:12px; border:1px solid #8b5cf6;');
+                }
+                if (ae.find(e => e.type === 'time_window_bonus')) {
+                    addBadge('⏰ ハッピーアワー +10', 'background: rgba(6,182,212,0.2); color:#06b6d4; padding:4px 12px; border-radius:16px; font-size:12px; border:1px solid #06b6d4;');
+                }
+                const spark = ae.find(e => e.type === 'streak_spark' && e.dayKey === todayKey);
+                if (spark) {
+                    const left = Math.max(0, (spark.bonuses ? spark.bonuses.length : 0) - (spark.count || 0));
+                    addBadge(`🎆 スパークル ${left}回残り`, 'background: rgba(249,115,22,0.2); color:#f97316; padding:4px 12px; border-radius:16px; font-size:12px; border:1px solid #f97316;');
+                }
+                if (ae.find(e => e.cardId === 'mystery_box' && e.dayKey === todayKey && !e.claimed)) {
+                    addBadge('🎁 ミステリー待機中', 'background: rgba(245,158,11,0.2); color:#f59e0b; padding:4px 12px; border-radius:16px; font-size:12px; border:1px solid #f59e0b;');
+                }
+            }
             
             // ハードモードのチェック
             if (window.currentHypothesis.hardMode) {
@@ -14936,6 +15046,26 @@
                 // レインボーブースト（カテゴリーにのみ）
                 const rainbow = data.cards.activeEffects.find(e => e.type === 'all_category_boost' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
                 if (rainbow && category) { multiplier *= rainbow.multiplier; notes.push(`RainbowBoost ×${rainbow.multiplier}`); }
+                // コンボチェーン（コンボのみ倍化）
+                const comboChain = data.cards.activeEffects.find(e => e.type === 'combo_multiplier' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
+                if (comboChain && source === 'combo') { multiplier *= (comboChain.value || 2.0); notes.push(`Combo ×${comboChain.value || 2.0}`); }
+                // カテゴリーフェス（対象カテゴリだけ）
+                const catFest = data.cards.activeEffects.find(e => e.type === 'category_theme_boost' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
+                if (catFest && category && catFest.target === category) { multiplier *= (catFest.multiplier || 1.5); notes.push(`Festival(${category}) ×${catFest.multiplier || 1.5}`); }
+                // ハッピーアワー（指定時間帯に+10）
+                const hh = data.cards.activeEffects.find(e => e.type === 'time_window_bonus' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
+                if (hh) { bonus += (hh.value || 10); notes.push(`HappyHour +${hh.value || 10}`); }
+                // スパークルストリーク（今日の最初の3回の達成だけボーナス）
+                const todayKey = dateKeyLocal(new Date());
+                const spark = data.cards.activeEffects.find(e => e.type === 'streak_spark' && e.dayKey === todayKey && (e.count || 0) < (e.bonuses ? e.bonuses.length : 0));
+                if (spark && source === 'habit') {
+                    const idx = spark.count || 0;
+                    const add = (spark.bonuses && spark.bonuses[idx]) ? spark.bonuses[idx] : 0;
+                    if (add > 0) { bonus += add; notes.push(`Sparkle +${add}`); }
+                    // カウントを進めて保存
+                    spark.count = idx + 1;
+                    saveData(data);
+                }
                 // スローダウン
                 const slow = data.cards.activeEffects.find(e => e.type === 'slowdown' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
                 if (slow) { multiplier *= 0.5; notes.push('Slowdown ×0.5'); }
@@ -15687,6 +15817,92 @@
             
             saveData(data);
             showNotification('🎪 明日は必ずイベントが発生します！', 'success');
+            updateCardUseButton();
+        }
+
+        // コンボチェーン: 今日のコンボ×2
+        function useComboChain() {
+            closeCardUseMenu();
+            const data = loadData();
+            const idx = data.cards.inventory.findIndex(c => c.cardId === 'combo_chain' && !c.used);
+            if (idx === -1) { showNotification('⚠️ コンボチェーンがありません', 'error'); return; }
+            data.cards.inventory[idx].used = true;
+            data.cards.inventory[idx].usedDate = new Date().toISOString();
+            const start = new Date();
+            const end = new Date(); end.setHours(23,59,59,999);
+            if (!data.cards.activeEffects) data.cards.activeEffects = [];
+            data.cards.activeEffects.push({ cardId:'combo_chain', type:'combo_multiplier', value:2.0, startDate:start.toISOString(), endDate:end.toISOString() });
+            saveData(data);
+            showCardEffect('🧩 コンボチェーン発動！','今日のコンボは×2','\#22c55e');
+            updateCardUseButton();
+        }
+
+        // スパークルストリーク: 今日の最初の3回 達成に+3/+5/+8
+        function useSparkleStreak() {
+            closeCardUseMenu();
+            const data = loadData();
+            const idx = data.cards.inventory.findIndex(c => c.cardId === 'sparkle_streak' && !c.used);
+            if (idx === -1) { showNotification('⚠️ スパークルストリークがありません', 'error'); return; }
+            data.cards.inventory[idx].used = true;
+            data.cards.inventory[idx].usedDate = new Date().toISOString();
+            const start = new Date();
+            const end = new Date(); end.setHours(23,59,59,999);
+            const dayKey = dateKeyLocal(new Date());
+            if (!data.cards.activeEffects) data.cards.activeEffects = [];
+            data.cards.activeEffects.push({ cardId:'sparkle_streak', type:'streak_spark', bonuses:[3,5,8], count:0, dayKey, startDate:start.toISOString(), endDate:end.toISOString() });
+            saveData(data);
+            showCardEffect('🎆 スパークルストリーク！','今日の最初の3回の達成で追加ボーナス','\#f97316');
+            updateCardUseButton();
+        }
+
+        // カテゴリーフェス: 指定カテゴリ×1.5（今日）
+        function useCategoryFestival() {
+            closeCardUseMenu();
+            const data = loadData();
+            const idx = data.cards.inventory.findIndex(c => c.cardId === 'category_festival' && !c.used);
+            if (idx === -1) { showNotification('⚠️ カテゴリーフェスがありません', 'error'); return; }
+            // カテゴリ選択（簡易UI）
+            const options = ['study','exercise','health','work','hobby','other'];
+            const label = prompt('対象カテゴリを入力 (study/exercise/health/work/hobby/other):','exercise');
+            const target = options.includes((label||'').trim()) ? (label||'').trim() : null;
+            if (!target) { showNotification('⚠️ 無効なカテゴリです', 'error'); return; }
+            data.cards.inventory[idx].used = true; data.cards.inventory[idx].usedDate = new Date().toISOString();
+            const start = new Date(); const end = new Date(); end.setHours(23,59,59,999);
+            if (!data.cards.activeEffects) data.cards.activeEffects = [];
+            data.cards.activeEffects.push({ cardId:'category_festival', type:'category_theme_boost', target, multiplier:1.5, startDate:start.toISOString(), endDate:end.toISOString() });
+            saveData(data);
+            showCardEffect('🎪 カテゴリーフェス！', `${target} が×1.5`, '\#8b5cf6');
+            updateCardUseButton();
+        }
+
+        // ハッピーアワー: 今から60分 +10pt
+        function useHappyHour() {
+            closeCardUseMenu();
+            const data = loadData();
+            const idx = data.cards.inventory.findIndex(c => c.cardId === 'happy_hour' && !c.used);
+            if (idx === -1) { showNotification('⚠️ ハッピーアワーがありません', 'error'); return; }
+            data.cards.inventory[idx].used = true; data.cards.inventory[idx].usedDate = new Date().toISOString();
+            const start = new Date();
+            const end = new Date(start.getTime() + 60 * 60 * 1000);
+            if (!data.cards.activeEffects) data.cards.activeEffects = [];
+            data.cards.activeEffects.push({ cardId:'happy_hour', type:'time_window_bonus', value:10, startDate:start.toISOString(), endDate:end.toISOString() });
+            saveData(data);
+            showCardEffect('⏰ ハッピーアワー！','60分間 +10pt','\#06b6d4');
+            updateCardUseButton();
+        }
+
+        // ミステリーボックス: 今日の最初の達成でサプライズ
+        function useMysteryBox() {
+            closeCardUseMenu();
+            const data = loadData();
+            const idx = data.cards.inventory.findIndex(c => c.cardId === 'mystery_box' && !c.used);
+            if (idx === -1) { showNotification('⚠️ ミステリーボックスがありません', 'error'); return; }
+            data.cards.inventory[idx].used = true; data.cards.inventory[idx].usedDate = new Date().toISOString();
+            const dayKey = dateKeyLocal(new Date());
+            if (!data.cards.activeEffects) data.cards.activeEffects = [];
+            data.cards.activeEffects.push({ cardId:'mystery_box', type:'mystery_reward', dayKey, claimed:false, options:['points15','event_trigger','protect_shield'] });
+            saveData(data);
+            showCardEffect('🎁 ミステリーボックス！','今日の最初の達成でサプライズ','\#f59e0b');
             updateCardUseButton();
         }
 
