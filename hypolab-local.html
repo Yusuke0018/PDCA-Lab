@@ -1488,6 +1488,9 @@
                 gap: 4px !important;
             }
         }
+    
+    /* ===== 共通: 非表示制御 ===== */
+    .is-hidden { display: none !important; }
     </style>
 </head>
 <body>
@@ -2031,7 +2034,7 @@
                         <h3 style="margin-bottom:8px; cursor: pointer; user-select: none;" onclick="toggleStatSection('intensity-stats')">
                             <span id="intensity-stats-arrow">▶</span> 🧩 強度ラベル使用割合
                         </h3>
-                        <div id="intensity-stats" style="display: none; gap:12px; align-items:center; flex-wrap:wrap; justify-content:center;">
+                        <div id="intensity-stats" class="is-hidden" style="gap:12px; align-items:center; flex-wrap:wrap; justify-content:center;">
                             <svg id="donut-intensity" width="160" height="160" viewBox="0 0 160 160" style="flex-shrink: 0;"></svg>
                             <div id="donut-legend" style="display:grid; gap:6px; font-size:12px; min-width: 100px;"></div>
                         </div>
@@ -2040,13 +2043,13 @@
                         <h3 style="margin-bottom:8px; cursor: pointer; user-select: none;" onclick="toggleStatSection('streak-stats')">
                             <span id="streak-stats-arrow">▶</span> 🔥 連続達成日数
                         </h3>
-                        <div id="streak-stats" style="display: none;" style="display:flex; gap:16px; font-weight:700;"></div>
+                        <div id="streak-stats" class="is-hidden" style="display:flex; gap:16px; font-weight:700;"></div>
                     </div>
                     <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
                         <h3 style="margin-bottom:8px; cursor: pointer; user-select: none;" onclick="toggleStatSection('ranking-content')">
                             <span id="ranking-content-arrow">▶</span> 🏆 習慣ランキング
                         </h3>
-                        <div id="ranking-content" style="display: none;">
+                        <div id="ranking-content" class="is-hidden">
                         <!-- タブ切り替え -->
                         <div style="display: flex; gap: 8px; margin-bottom: 12px;">
                             <button id="ranking-achievement-tab" onclick="showAchievementRanking()" style="flex: 1; padding: 6px; font-size: 12px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer;">達成率</button>
@@ -2060,14 +2063,14 @@
                         <h3 style="margin-bottom:8px; cursor: pointer; user-select: none;" onclick="toggleStatSection('badge-collection')">
                             <span id="badge-collection-arrow">▶</span> 🏆 獲得バッジ
                         </h3>
-                        <div id="badge-collection" style="display: none; grid-template-columns: repeat(3, 1fr) !important; gap:8px; margin-top:12px;"></div>
+                        <div id="badge-collection" class="is-hidden" style="grid-template-columns: repeat(3, 1fr) !important; gap:8px; margin-top:12px;"></div>
                     </div>
                     <!-- チャレンジ統計セクション -->
                     <div class="stat-panel" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(236, 72, 153, 0.1)); padding: 16px; border-radius: 12px; border: 1px solid rgba(139, 92, 246, 0.3);">
                         <h3 style="margin-bottom:12px; cursor: pointer; user-select: none;" onclick="toggleStatSection('challenge-stats-content')">
                             <span id="challenge-stats-content-arrow">▶</span> 🎯 チャレンジ統計
                         </h3>
-                        <div id="challenge-stats-content" style="display: none;">
+                        <div id="challenge-stats-content" class="is-hidden">
                             <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px;">
                             <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
                                 <div id="challenge-streak" style="font-size: 24px; font-weight: bold; color: #fbbf24;">0</div>
@@ -6846,19 +6849,17 @@
             }
         }
         
-        // 統計セクションのトグル関数
+        // 統計セクションのトグル関数（クラス制御に統一）
         window.toggleStatSection = function(sectionId) {
             const content = document.getElementById(sectionId);
             const arrow = document.getElementById(sectionId + '-arrow');
-            
             if (!content) return;
-            
-            // 現在の表示状態を取得（computedStyleで実際の表示状態を確認）
-            const computedDisplay = window.getComputedStyle(content).display;
-            const isHidden = computedDisplay === 'none';
-            
+
+            const isHidden = content.classList.contains('is-hidden') || window.getComputedStyle(content).display === 'none';
+
             if (isHidden) {
-                // バッジコレクションの場合はgridを維持
+                content.classList.remove('is-hidden');
+                // 表示レイアウトを適用
                 if (sectionId === 'badge-collection') {
                     content.style.display = 'grid';
                 } else {
@@ -6866,8 +6867,8 @@
                 }
                 if (arrow) arrow.textContent = '▼';
             } else {
-                // gridでもblockでも、表示されていれば隠す
-                content.style.display = 'none';
+                // 非表示クラスを付与（!importantで確実に隠す）
+                content.classList.add('is-hidden');
                 if (arrow) arrow.textContent = '▶';
             }
         }
@@ -6888,7 +6889,7 @@
                 const content = document.getElementById(sectionId);
                 const arrow = document.getElementById(sectionId + '-arrow');
                 if (content) {
-                    content.style.display = 'none';
+                    content.classList.add('is-hidden');
                 }
                 if (arrow) {
                     arrow.textContent = '▶';
