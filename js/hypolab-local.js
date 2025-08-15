@@ -1,0 +1,14245 @@
+        // PWA: service worker 登録
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js').catch(() => {});
+            });
+        }
+
+        // ローカルストレージのキー
+        const STORAGE_KEY = 'hypolab_local_data';
+
+        // 現在の習慣
+        let currentHypothesis = null;
+        let selectedDuration = null;
+
+        // HTMLエスケープ（XSS対策）
+        function escapeHTML(str) {
+            if (str == null) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        // ローカルタイムのYYYY-MM-DDキーを生成（UTCズレ防止）
+        function dateKeyLocal(date) {
+            const d = new Date(date);
+            d.setHours(0, 0, 0, 0);
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
+        // 目標日数を頻度に基づいて算出（カード付与・完了判定用）
+        function getTargetDaysForHypothesis(hypothesis) {
+            if (!hypothesis) return 0;
+
+            const startDate = new Date(hypothesis.startDate);
+            const today = new Date();
+            startDate.setHours(0, 0, 0, 0);
+            today.setHours(0, 0, 0, 0);
+
+            // 経過日数（開始日を1日目として計算）
+            const timeDiff = today.getTime() - startDate.getTime();
+            const rawDaysPassed = Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1);
+            const daysPassed = hypothesis.isUnlimited
+                ? rawDaysPassed
+                : Math.min(rawDaysPassed, hypothesis.totalDays);
+
+            // デフォルトは毎日
+            let targetDays = daysPassed;
+            const frequency = hypothesis.frequency;
+
+            if (frequency) {
+                if (frequency.type === 'weekly') {
+                    // 週単位: 経過週数 × 週あたりの回数（ただし daysPassed を上限）
+                    const weeks = Math.ceil(daysPassed / 7);
+                    targetDays = Math.min(weeks * frequency.count, daysPassed);
+                } else if (frequency.type === 'weekdays') {
+                    // 特定曜日のみカウント
+                    targetDays = 0;
+                    for (let i = 0; i < daysPassed; i++) {
+                        const checkDate = new Date(startDate);
+                        checkDate.setDate(startDate.getDate() + i);
+                        if (frequency.weekdays.includes(checkDate.getDay())) {
+                            targetDays++;
+                        }
+                    }
+                }
+            }
+
+            return targetDays;
+        }
+        
+        // 習慣・ジャーナル用の日付キーを取得（深夜2時まで前日扱い）
+        function getActivityDateKey(date = new Date()) {
+            const now = new Date(date);
+            const hour = now.getHours();
+            
+            // 0時〜2時の場合は前日の日付として扱う
+            if (hour < 2) {
+                const yesterday = new Date(now);
+                yesterday.setDate(yesterday.getDate() - 1);
+                return dateKeyLocal(yesterday);
+            }
+            
+            return dateKeyLocal(now);
+        }
+
+        // カードマスターデータ
+        const CARD_MASTER = {
+            // 旧カード（廃止）：skip_ticket, achievement_boost などはプールから除外
+            perfect_bonus: {
+                id: 'perfect_bonus',
+                type: 'reward',
+                name: 'パーフェクトボーナス',
+                description: '次の習慣で100%達成時、報酬カード2枚獲得',
+                icon: '🎯',
+                rarity: 'legendary',
+                color: '#f59e0b'
+            },
+            extension_card: {
+                id: 'extension_card',
+                type: 'penalty',
+                name: '延長カード',
+                description: '次の習慣が3日間延長される',
+                icon: '⏰',
+                rarity: 'common',
+                color: '#ef4444'
+            },
+            hard_mode: {
+                id: 'hard_mode',
+                type: 'penalty',
+                name: 'ハードモード',
+                description: '次の習慣は達成率90%以上でないとカードを獲得できない',
+                icon: '⚡',
+                rarity: 'rare',
+                color: '#dc2626'
+            },
+            reset_risk: {
+                id: 'reset_risk',
+                type: 'penalty',
+                name: 'リセットリスク',
+                description: '3日連続で未達成だと全ての達成がリセットされる',
+                icon: '🔄',
+                rarity: 'rare',
+                color: '#dc2626'
+            },
+            short_term: {
+                id: 'short_term',
+                type: 'penalty',
+                name: '短期集中',
+                description: '次の習慣は必ず短期間（3-5日）になる',
+                icon: '⏱️',
+                rarity: 'common',
+                color: '#ef4444'
+            },
+            achievement_decrease: {
+                id: 'achievement_decrease',
+                type: 'penalty',
+                name: '達成率減少',
+                description: '最終達成率から10%引かれる',
+                icon: '📉',
+                rarity: 'common',
+                color: '#ef4444'
+            },
+            // 新しいカード
+            protect_shield: {
+                id: 'protect_shield',
+                type: 'reward',
+                name: 'プロテクトシールド',
+                description: '次の習慣でペナルティカードを無効化する',
+                icon: '🛡️',
+                rarity: 'rare',
+                color: '#10b981'
+            },
+            // 旧カード（廃止）：achievement_booster はプールから除外
+            chaos_vortex: {
+                id: 'chaos_vortex',
+                type: 'penalty',
+                name: '混乱の渦',
+                description: '達成/未達成がランダムで3日分入れ替わる',
+                icon: '🌀',
+                rarity: 'rare',
+                color: '#dc2626'
+            },
+            // 旧カード（廃止）：second_chance はプールから除外
+            // 新規追加カード - 報酬カード
+            event_trigger: {
+                id: 'event_trigger',
+                type: 'reward',
+                name: 'イベントトリガー',
+                description: '明日のイベント発生確率を100%にする',
+                icon: '🎪',
+                rarity: 'rare',
+                color: '#8b5cf6'
+            },
+            event_combo: {
+                id: 'event_combo',
+                type: 'reward',
+                name: 'イベントコンボ',
+                description: '3日間連続でイベントが発生する',
+                icon: '🔮',
+                rarity: 'legendary',
+                color: '#ec4899'
+            },
+            point_gem: {
+                id: 'point_gem',
+                type: 'reward',
+                name: 'ポイントジェム',
+                description: '明日1日限定でポイントが1.2倍になる',
+                icon: '💎',
+                rarity: 'rare',
+                color: '#06b6d4'
+            },
+            mission_master: {
+                id: 'mission_master',
+                type: 'reward',
+                name: 'ミッションマスター',
+                description: '今日のミッションが自動達成される',
+                icon: '🎯',
+                rarity: 'legendary',
+                color: '#f59e0b'
+            },
+            rainbow_boost: {
+                id: 'rainbow_boost',
+                type: 'reward',
+                name: 'レインボーブースト',
+                description: '全カテゴリーの習慣が今日は2倍ポイント',
+                icon: '🌈',
+                rarity: 'legendary',
+                color: '#a855f7'
+            },
+            // 旧カード（廃止）：quick_start はプールから除外
+            streak_bonus: {
+                id: 'streak_bonus',
+                type: 'reward',
+                name: '連続達成ボーナス',
+                description: '7日連続達成でレアカード確定',
+                icon: '🔥',
+                rarity: 'rare',
+                color: '#f97316'
+            },
+            lucky_seven: {
+                id: 'lucky_seven',
+                type: 'reward',
+                name: 'ラッキーセブン',
+                description: '今日から7日間、カードドロップ率2倍',
+                icon: '🎰',
+                rarity: 'legendary',
+                color: '#eab308'
+            },
+            // 新規追加カード - ペナルティカード
+            event_seal: {
+                id: 'event_seal',
+                type: 'penalty',
+                name: 'イベント封印',
+                description: '3日間イベントが発生しない',
+                icon: '🌑',
+                rarity: 'common',
+                color: '#64748b'
+            },
+            mission_overload: {
+                id: 'mission_overload',
+                type: 'penalty',
+                name: 'ミッション追加',
+                description: '今日のミッションが2つ追加される',
+                icon: '⛓️',
+                rarity: 'rare',
+                color: '#991b1b'
+            },
+            slowdown: {
+                id: 'slowdown',
+                type: 'penalty',
+                name: 'スローダウン',
+                description: '3日間獲得ポイントが0.5倍',
+                icon: '🕸️',
+                rarity: 'common',
+                color: '#7c2d12'
+            },
+            reverse_curse: {
+                id: 'reverse_curse',
+                type: 'penalty',
+                name: '逆転の呪い',
+                description: '3日間、達成と未達成の効果が反転',
+                icon: '🎭',
+                rarity: 'legendary',
+                color: '#581c87'
+            },
+            // 新規追加カード - 特殊カード
+            conversion_magic: {
+                id: 'conversion_magic',
+                type: 'reward',
+                name: '変換の魔法',
+                description: 'ペナルティカード1枚を報酬カードに変換',
+                icon: '🪄',
+                rarity: 'legendary',
+                color: '#0891b2'
+            },
+            fate_dice: {
+                id: 'fate_dice',
+                type: 'reward',
+                name: '運命のダイス',
+                description: 'ランダムで報酬かペナルティ効果が発動（50/50）',
+                icon: '🎲',
+                rarity: 'rare',
+                color: '#059669'
+            },
+            // 新規追加（楽しい効果系 報酬カード）
+            combo_chain: {
+                id: 'combo_chain',
+                type: 'reward',
+                name: 'コンボチェーン',
+                description: '今日のコンボボーナスが2倍になる',
+                icon: '🧩',
+                rarity: 'rare',
+                color: '#22c55e'
+            },
+            sparkle_streak: {
+                id: 'sparkle_streak',
+                type: 'reward',
+                name: 'スパークルストリーク',
+                description: '今日の最初の3回の達成に追加ボーナス（+3/+5/+8）',
+                icon: '🎆',
+                rarity: 'rare',
+                color: '#f97316'
+            },
+            category_festival: {
+                id: 'category_festival',
+                type: 'reward',
+                name: 'カテゴリーフェス',
+                description: '選んだカテゴリの達成が今日×1.5',
+                icon: '🎪',
+                rarity: 'rare',
+                color: '#8b5cf6'
+            },
+            happy_hour: {
+                id: 'happy_hour',
+                type: 'reward',
+                name: 'ハッピーアワー',
+                description: '指定1時間の達成は+10pt',
+                icon: '⏰',
+                rarity: 'common',
+                color: '#06b6d4'
+            },
+            mystery_box: {
+                id: 'mystery_box',
+                type: 'reward',
+                name: 'ミステリーボックス',
+                description: '今日の最初の達成でサプライズ報酬！',
+                icon: '🎁',
+                rarity: 'rare',
+                color: '#f59e0b'
+            },
+            double_or_nothing: {
+                id: 'double_or_nothing',
+                type: 'penalty',
+                name: 'ダブルオアナッシング',
+                description: '次の習慣で100%達成しないとペナルティカード2枚',
+                icon: '⚠️',
+                rarity: 'rare',
+                color: '#dc2626'
+            }
+        };
+
+        // イベント機能 一時停止フラグ（URL/LocalStorageで切替可）
+        // 優先度: URLパラメータ ?events=on|off > localStorage('hypolab_events_disabled') > 既定true
+        const EVENTS_DISABLED = (() => {
+            try {
+                const q = new URLSearchParams(location.search).get('events');
+                if (q === 'on' || q === 'enable') return false;
+                if (q === 'off' || q === 'disable') return true;
+            } catch (_) {}
+            try {
+                const v = localStorage.getItem('hypolab_events_disabled');
+                if (v === 'true') return true;
+                if (v === 'false') return false;
+            } catch (_) {}
+            return true; // 既定で停止
+        })();
+        // 手動切替用ヘルパー
+        window.enableEvents = () => { try { localStorage.setItem('hypolab_events_disabled','false'); } catch(_){} location.reload(); };
+        window.disableEvents = () => { try { localStorage.setItem('hypolab_events_disabled','true'); } catch(_){} location.reload(); };
+
+        // 期間中イベント定義
+        const HABIT_EVENTS = {
+            // マイルストーンイベント（7/14/21日達成時）
+            milestones: {
+                7: {
+                    title: '🎊 1週間達成おめでとう！',
+                    message: '習慣化への第一歩を踏み出しました！',
+                    rewards: ['bonus_points', 'motivation_boost']
+                },
+                14: {
+                    title: '🎉 2週間達成おめでとう！',
+                    message: '習慣が身についてきています！',
+                    rewards: ['bonus_points', 'special_card']
+                },
+                21: {
+                    title: '🏆 3週間達成おめでとう！',
+                    message: '習慣化まであと一歩！素晴らしい！',
+                    rewards: ['huge_bonus', 'rare_card', 'achievement_unlock']
+                }
+            },
+            
+            // ランダムブーストイベント
+            boosts: [
+                // ポイント系ブースト
+                {
+                    id: 'double_points',
+                    name: '💰 ダブルポイントデー',
+                    description: '今日だけ全てのポイントが2倍！',
+                    condition: () => Math.random() < 0.1,  // 10%の確率
+                    effect: { type: 'global_multiplier', value: 2.0 },
+                    rarity: 'legendary',
+                    duration: 'today'
+                },
+                
+                // カテゴリー系ブースト
+                {
+                    id: 'exercise_fever',
+                    name: '💪 運動フィーバー',
+                    description: '運動カテゴリーの習慣が2倍ポイント！',
+                    condition: () => Math.random() < 0.15,  // 15%の確率
+                    effect: { type: 'category_multiplier', target: 'exercise', value: 2.0 },
+                    rarity: 'uncommon',
+                    duration: 'today'
+                },
+                {
+                    id: 'study_power',
+                    name: '📚 勉強パワーアップ',
+                    description: '勉強カテゴリーの習慣が2倍ポイント！',
+                    condition: () => Math.random() < 0.15,  // 15%の確率
+                    effect: { type: 'category_multiplier', target: 'study', value: 2.0 },
+                    rarity: 'uncommon',
+                    duration: 'today'
+                },
+                
+                // 連続達成系ブースト
+                {
+                    id: 'streak_bonus',
+                    name: '🔥 連続達成ボーナス',
+                    description: '7日以上連続達成でボーナスポイント！',
+                    condition: (data) => {
+                        // 7日以上連続達成している習慣がある場合
+                        return data.currentHypotheses.some(h => {
+                            const achievements = Object.keys(h.achievements || {});
+                            if (achievements.length < 7) return false;
+                            
+                            // 直近7日間の連続をチェック
+                            const sortedDates = achievements.sort().slice(-7);
+                            const startDate = new Date(sortedDates[0]);
+                            const endDate = new Date(sortedDates[6]);
+                            const daysDiff = Math.floor((endDate - startDate) / (1000 * 60 * 60 * 24));
+                            return daysDiff === 6; // 7日連続
+                        });
+                    },
+                    effect: { type: 'streak_bonus', value: 10 },
+                    rarity: 'rare',
+                    duration: 'today'
+                },
+                
+                // 時間帯系ブースト
+                
+                // 特殊系ブースト
+                {
+                    id: 'perfect_day',
+                    name: '✨ パーフェクトデー',
+                    description: '今日全ての習慣を達成すると+30ポイント！',
+                    condition: () => Math.random() < 0.05,  // 5%の確率
+                    effect: { type: 'perfect_bonus', value: 30 },
+                    rarity: 'legendary',
+                    duration: 'today'
+                },
+                
+                
+            ]
+        };
+
+        // チャレンジマスターデータ
+        const DAILY_CHALLENGES = [
+            // 生活改善系
+            { id: 'meditation_5min', name: '5分間瞑想', points: 3, icon: '🧘' },
+            { id: 'no_device_30min', name: '30分間電子機器に触らない', points: 4, icon: '📵' },
+            { id: 'burpee_plus10', name: 'バーピー+10回', points: 5, icon: '💪' },
+            { id: 'reading_plus5', name: '読書+5分', points: 3, icon: '📚' },
+            { id: 'english_review', name: '英語復習', points: 3, icon: '🌍' },
+            { id: 'gratitude_journal', name: '感謝日記を1つ書く', points: 2, icon: '📝' },
+            { id: 'water_plus1', name: '水を追加で1杯飲む', points: 2, icon: '💧' },
+            { id: 'use_stairs', name: '階段を使う', points: 2, icon: '🪜' },
+            { id: 'deep_breath_10', name: '深呼吸10回', points: 2, icon: '🫁' },
+            { id: 'organize_one', name: '1つ片付ける', points: 2, icon: '🧹' },
+            { id: 'say_thanks', name: '誰かに「ありがとう」を伝える', points: 3, icon: '🙏' },
+            { id: 'stretch_5min', name: 'ストレッチ5分', points: 3, icon: '🤸' },
+            { id: 'learn_word', name: '新しい単語を1つ覚える', points: 3, icon: '📖' },
+            { id: 'plank_plus10', name: 'プランク+10秒', points: 4, icon: '🏋️' },
+            { id: 'mindful_eating', name: 'スマホを見ずに食事', points: 3, icon: '🍽️' },
+            
+            // 習慣達成ミッション系
+            { id: 'complete_3_habits', name: '今日3つ以上の習慣を達成', points: 5, icon: '🎯', checkFunction: 'checkComplete3Habits' },
+            { id: 'morning_routine', name: '朝の習慣をすべて完了', points: 4, icon: '🌅', checkFunction: 'checkMorningRoutine' },
+            { id: 'high_intensity_day', name: '今日すべて高強度(×1.2)で達成', points: 6, icon: '🔥', checkFunction: 'checkHighIntensityDay' },
+            { id: 'perfect_streak', name: '3日連続で全習慣達成', points: 8, icon: '⚡', checkFunction: 'checkPerfectStreak' },
+            { id: 'category_master', name: '同じカテゴリーの習慣を3つ達成', points: 4, icon: '📊', checkFunction: 'checkCategoryMaster' },
+            { id: 'early_bird', name: '午前中に習慣を2つ以上達成', points: 3, icon: '🐦', checkFunction: 'checkEarlyBird' },
+            { id: 'if_then_execute', name: 'IF-THENルールを3回実行', points: 4, icon: '🔄', checkFunction: 'checkIfThenExecute' },
+            { id: 'variety_day', name: '4種類の異なるカテゴリーを達成', points: 6, icon: '🌈', checkFunction: 'checkVarietyDay' },
+            { id: 'consistency_bonus', name: '同じ時間帯に習慣を実行', points: 3, icon: '⏰', checkFunction: 'checkConsistencyBonus' },
+            { id: 'effort_bonus_max', name: '努力ボーナスを最大まで使用', points: 4, icon: '💪', checkFunction: 'checkEffortBonusMax' },
+            { id: 'habit_and_challenge', name: '習慣とチャレンジを両方達成', points: 5, icon: '🏆', checkFunction: 'checkHabitAndChallenge' }
+        ];
+
+        const WEEKLY_CHALLENGES = [
+            // 生活改善系
+            { id: 'new_habit', name: '新しい習慣を作る', points: 15, icon: '🌱' },
+            { id: 'walking_plus1', name: 'ウォーキング週一回追加', points: 10, icon: '🚶' },
+            { id: 'room_cleanup', name: '部屋の大掃除（1エリア）', points: 12, icon: '🧼' },
+            { id: 'talk_stranger', name: '知らない人と会話する', points: 15, icon: '💬' },
+            { id: 'early_rise_3days', name: '早起き3日連続', points: 20, icon: '🌅' },
+            { id: 'try_new_sport', name: '新しい運動を試す', points: 12, icon: '🏃' },
+            { id: 'read_book', name: '本を1冊読み切る', points: 25, icon: '📕' },
+            { id: 'volunteer', name: '寄付/ボランティア活動', points: 20, icon: '🤝' },
+            
+            // 週間習慣ミッション系
+            { id: 'week_perfect', name: '今週すべての習慣を90%以上達成', points: 30, icon: '💯', checkFunction: 'checkWeekPerfect' },
+            { id: 'week_consistency', name: '毎日同じ時間に習慣を実行', points: 20, icon: '⏰', checkFunction: 'checkWeekConsistency' },
+            { id: 'week_intensity_up', name: '週の後半は強度を上げて達成', points: 18, icon: '📈', checkFunction: 'checkWeekIntensityUp' },
+            { id: 'week_all_categories', name: '全カテゴリーを週3回以上達成', points: 25, icon: '🌈', checkFunction: 'checkWeekAllCategories' },
+            { id: 'week_if_then_master', name: 'IF-THENルールを20回以上実行', points: 22, icon: '🔄', checkFunction: 'checkWeekIfThenMaster' },
+            { id: 'week_card_collector', name: 'カードを5枚以上獲得', points: 20, icon: '🎴', checkFunction: 'checkWeekCardCollector' },
+            { id: 'week_comeback', name: '3日サボってから復活', points: 15, icon: '💪', checkFunction: 'checkWeekComeback' },
+            { id: 'week_habit_combo', name: '習慣コンボを10回達成', points: 18, icon: '🔥', checkFunction: 'checkWeekHabitCombo' },
+            { id: 'week_challenge_master', name: 'デイリーチャレンジ7連続達成', points: 20, icon: '🏆', checkFunction: 'checkWeekChallengeMaster' }
+        ];
+
+        // データの読み込み
+        function loadData() {
+            const data = localStorage.getItem(STORAGE_KEY);
+            if (!data) {
+                return {
+                    currentHypotheses: [],
+                    completedHypotheses: [],
+                    cards: {
+                        inventory: [],
+                        pendingPenalties: []
+                    },
+                    challenges: {
+                        daily: null,
+                        weekly: null,
+                        completedToday: [],
+                        completedThisWeek: [],
+                        lastDailyReset: new Date().toDateString(),
+                        lastWeeklyReset: new Date().toISOString(),
+                        history: [],
+                        streak: 0,
+                        lastStreakDate: null,
+                        totalCompleted: 0,
+                        customChallenges: []
+                    },
+                    events: {
+                        activeBoosts: [],
+                        lastEventCheck: new Date().toISOString(),
+                        milestoneNotifications: {},
+                        eventHistory: [],
+                        boostEnabled: true
+                    },
+                    meta: {}
+                };
+            }
+            const parsed = JSON.parse(data);
+            // 旧バージョンのデータ対応
+            if (!parsed.cards) {
+                parsed.cards = {
+                    inventory: [],
+                    pendingPenalties: []
+                };
+            }
+            if (!parsed.completedHypotheses) {
+                parsed.completedHypotheses = [];
+            }
+            if (!parsed.currentHypotheses) {
+                parsed.currentHypotheses = [];
+            }
+            if (!parsed.meta) {
+                parsed.meta = {};
+            }
+            // ポイントシステムがない場合は初期化
+            if (!parsed.pointSystem) {
+                parsed.pointSystem = {
+                    currentPoints: 0,
+                    lifetimeEarned: 0,
+                    lifetimeSpent: 0,
+                    currentLevel: 1,
+                    levelProgress: 0,
+                    streakMultiplier: 1.0,
+                    dailyEffortUsed: 0,
+                    dailyEffortLastReset: new Date().toDateString(),
+                    customRewards: [],
+                    transactions: []
+                };
+            }
+            // チャレンジシステムがない場合は初期化
+            if (!parsed.challenges) {
+                parsed.challenges = {
+                    daily: null,
+                    weekly: null,
+                    completedToday: [],
+                    completedThisWeek: [],
+                    lastDailyReset: new Date().toDateString(),
+                    lastWeeklyReset: new Date().toISOString(),
+                    history: [],
+                    streak: 0,
+                    lastStreakDate: null,
+                    totalCompleted: 0,
+                    customChallenges: []
+                };
+            }
+            // チャレンジ履歴がない場合は初期化
+            if (!parsed.challenges.history) parsed.challenges.history = [];
+            if (parsed.challenges.streak === undefined) parsed.challenges.streak = 0;
+            if (!parsed.challenges.lastStreakDate) parsed.challenges.lastStreakDate = null;
+            if (parsed.challenges.totalCompleted === undefined) parsed.challenges.totalCompleted = 0;
+            if (!parsed.challenges.customChallenges) parsed.challenges.customChallenges = [];
+            // イベントシステムがない場合は初期化
+            if (!parsed.events) {
+                parsed.events = {
+                    activeBoosts: [],
+                    lastEventCheck: new Date().toISOString(),
+                    milestoneNotifications: {},
+                    eventHistory: [],
+                    boostEnabled: true
+                };
+            }
+            
+            // 旧カテゴリーを新カテゴリーにマッピング
+            const categoryMapping = {
+                'reading': 'hobby',    // 読書 → 趣味
+                'wellness': 'health'   // 養生 → 健康
+            };
+            
+            // 現在の習慣のカテゴリーを更新
+            if (parsed.currentHypotheses) {
+                parsed.currentHypotheses.forEach(h => {
+                    if (categoryMapping[h.category]) {
+                        h.category = categoryMapping[h.category];
+                    }
+                });
+            }
+            
+            // 完了済み習慣のカテゴリーも更新
+            if (parsed.completedHypotheses) {
+                parsed.completedHypotheses.forEach(h => {
+                    if (categoryMapping[h.category]) {
+                        h.category = categoryMapping[h.category];
+                    }
+                });
+            }
+            
+            // 日付が変わったら努力ポイントとデイリーチャレンジをリセット
+            const today = new Date().toDateString();
+            if (parsed.pointSystem && parsed.pointSystem.dailyEffortLastReset !== today) {
+                parsed.pointSystem.dailyEffortUsed = 0;
+                parsed.pointSystem.dailyEffortLastReset = today;
+            }
+            if (parsed.challenges && parsed.challenges.lastDailyReset !== today) {
+                parsed.challenges.daily = null;
+                parsed.challenges.completedToday = [];
+                parsed.challenges.lastDailyReset = today;
+            }
+            // 週が変わったらウィークリーチャレンジをリセット
+            const weekStart = new Date();
+            weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+            weekStart.setHours(0, 0, 0, 0);
+            if (parsed.challenges && new Date(parsed.challenges.lastWeeklyReset) < weekStart) {
+                parsed.challenges.weekly = null;
+                parsed.challenges.completedThisWeek = [];
+                parsed.challenges.lastWeeklyReset = weekStart.toISOString();
+            }
+            return parsed;
+        }
+
+        // データの保存
+        function saveData(data) {
+            // 週末スペシャルの値を保存前に検証
+            if (data.events && data.events.activeBoosts) {
+                data.events.activeBoosts = data.events.activeBoosts.map(boost => {
+                    if (boost.eventId === 'weekend_special') {
+                        // 週末スペシャルは必ず1.2倍に修正
+                        boost.value = 1.2;
+                        boost.description = '週末はポイント1.2倍！';
+                    }
+                    return boost;
+                });
+            }
+            
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        }
+
+        // ========== デイリージャーナル関連の関数 ==========
+        
+        // ジャーナルステータスを更新
+        function updateJournalStatus() {
+            const data = loadData();
+            const todayKey = getJournalDateKey(); // 深夜対忌の日付キー
+            const statusContainer = document.getElementById('journal-status');
+            
+            if (!statusContainer) return;
+            
+            // データ構造の初期化
+            if (!data.dailyJournal) {
+                data.dailyJournal = {
+                    entries: {},
+                    stats: {
+                        currentStreak: 0,
+                        longestStreak: 0,
+                        totalEntries: 0,
+                        lastEntry: null
+                    },
+                    settings: {
+                        morningReminderTime: "06:00",
+                        eveningReminderTime: "21:00",
+                        remindersEnabled: true
+                    }
+                };
+                saveData(data);
+            }
+            
+            const todayEntry = data.dailyJournal.entries[todayKey] || {};
+            const hasMorning = todayEntry.morning && todayEntry.morning.timestamp;
+            const hasEvening = todayEntry.evening && todayEntry.evening.timestamp;
+            
+            const morningTime = hasMorning ? new Date(todayEntry.morning.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '';
+            const eveningTime = hasEvening ? new Date(todayEntry.evening.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '';
+            
+            // 過去のジャーナルを取得（最大5日分）
+            const pastJournals = [];
+            const dates = Object.keys(data.dailyJournal.entries || {})
+                .sort((a, b) => b.localeCompare(a))
+                .slice(0, 5);
+            
+            dates.forEach(dateKey => {
+                const entry = data.dailyJournal.entries[dateKey];
+                if (entry && (entry.morning || entry.evening)) {
+                    pastJournals.push({ dateKey, entry });
+                }
+            });
+            
+            statusContainer.innerHTML = `
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <!-- 今日のジャーナル -->
+                    <div class="journal-entry-item ${hasMorning ? 'expandable' : ''}" data-type="morning" data-date="${todayKey}" 
+                        style="background: rgba(255, 255, 255, 0.05); border-radius: 8px; overflow: hidden; transition: all 0.3s;"
+                        ${hasMorning ? 'oncontextmenu="showJournalContextMenu(event, \'morning\'); return false;"' : ''}>
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; cursor: ${hasMorning ? 'pointer' : 'default'};" 
+                            ${hasMorning ? 'onclick="toggleJournalExpand(this.parentElement, \'morning\', \'' + todayKey + '\')"}' : ''}>
+                            <span style="font-size: 14px;">🌅 朝のジャーナル</span>
+                            ${hasMorning 
+                                ? `<div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="color: #10b981; font-size: 12px;">✅ ${morningTime}</span>
+                                    <span class="expand-icon" style="font-size: 12px; transition: transform 0.3s;">▼</span>
+                                  </div>`
+                                : `<span style="color: #f59e0b; font-size: 12px;">⏳ まだ記録していません</span>`
+                            }
+                        </div>
+                        ${hasMorning ? `
+                            <div class="journal-content" style="display: none; padding: 0 12px 12px; border-top: 1px solid var(--border);">
+                                <div style="margin-top: 12px;">
+                                    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">体調: ${['😫', '😟', '😐', '🙂', '😊'][todayEntry.morning.condition - 1]} (${todayEntry.morning.condition}/5)</div>
+                                    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">気分: ${['😔', '😕', '😐', '😌', '😄'][todayEntry.morning.mood - 1]} (${todayEntry.morning.mood}/5)</div>
+                                    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">最優先事項:</div>
+                                    <div style="font-size: 13px; background: var(--surface); padding: 8px; border-radius: 6px; margin-top: 4px;">${todayEntry.morning.priority || 'なし'}</div>
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                    
+                    <div class="journal-entry-item ${hasEvening ? 'expandable' : ''}" data-type="evening" data-date="${todayKey}"
+                        style="background: rgba(255, 255, 255, 0.05); border-radius: 8px; overflow: hidden; transition: all 0.3s;"
+                        ${hasEvening ? 'oncontextmenu="showJournalContextMenu(event, \'evening\'); return false;"' : ''}>
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; cursor: ${hasEvening ? 'pointer' : 'default'};" 
+                            ${hasEvening ? 'onclick="toggleJournalExpand(this.parentElement, \'evening\', \'' + todayKey + '\')"}' : ''}>
+                            <span style="font-size: 14px;">🌙 夜のジャーナル</span>
+                            ${hasEvening 
+                                ? `<div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="color: #10b981; font-size: 12px;">✅ ${eveningTime}</span>
+                                    <span class="expand-icon" style="font-size: 12px; transition: transform 0.3s;">▼</span>
+                                  </div>`
+                                : `<span style="color: #f59e0b; font-size: 12px;">⏳ まだ記録していません</span>`
+                            }
+                        </div>
+                        ${hasEvening ? `
+                            <div class="journal-content" style="display: none; padding: 0 12px 12px; border-top: 1px solid var(--border);">
+                                <div style="margin-top: 12px;">
+                                    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">うまくいったこと:</div>
+                                    <div style="font-size: 13px; background: var(--surface); padding: 8px; border-radius: 6px; margin-bottom: 8px;">${todayEntry.evening.success || 'なし'}</div>
+                                    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">改善点:</div>
+                                    <div style="font-size: 13px; background: var(--surface); padding: 8px; border-radius: 6px;">${todayEntry.evening.improvement || 'なし'}</div>
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                    
+                    ${data.dailyJournal.stats.currentStreak > 0 ? `
+                        <div style="text-align: center; padding: 4px; background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1)); border-radius: 8px; margin-top: 4px;">
+                            <span style="font-size: 12px; color: #fbbf24;">🔥 ${data.dailyJournal.stats.currentStreak}日連続記録中！</span>
+                        </div>
+                    ` : ''}
+                    
+                    <!-- 過去のジャーナル履歴ボタン -->
+                    ${pastJournals.length > 1 ? `
+                        <button onclick="showJournalHistory()" style="
+                            margin-top: 8px;
+                            padding: 10px;
+                            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1));
+                            border: 1px solid rgba(59, 130, 246, 0.3);
+                            border-radius: 8px;
+                            color: var(--text-primary);
+                            cursor: pointer;
+                            font-size: 13px;
+                            transition: all 0.3s;
+                        " onmouseover="this.style.background='linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2))'" 
+                           onmouseout="this.style.background='linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1))'">
+                            📚 過去のジャーナルを見る
+                        </button>
+                    ` : ''}
+                </div>
+            `;
+        }
+        
+        // ジャーナル用の日付キーを取得（getActivityDateKeyを使用）
+        function getJournalDateKey() {
+            return getActivityDateKey();
+        }
+        
+        // ジャーナルエントリの展開/折りたたみ
+        function toggleJournalExpand(element, type, dateKey) {
+            const content = element.querySelector('.journal-content');
+            const icon = element.querySelector('.expand-icon');
+            
+            if (content) {
+                if (content.style.display === 'none') {
+                    content.style.display = 'block';
+                    if (icon) icon.style.transform = 'rotate(180deg)';
+                } else {
+                    content.style.display = 'none';
+                    if (icon) icon.style.transform = 'rotate(0deg)';
+                }
+            }
+        }
+        window.toggleJournalExpand = toggleJournalExpand;
+        
+        // 過去のジャーナル履歴を表示
+        function showJournalHistory() {
+            const data = loadData();
+            const entries = data.dailyJournal.entries || {};
+            
+            // 日付順にソート（新しい順）
+            const sortedDates = Object.keys(entries)
+                .filter(key => entries[key].morning || entries[key].evening)
+                .sort((a, b) => b.localeCompare(a))
+                .slice(0, 30); // 最大30日分
+            
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay active';
+            overlay.style.backdropFilter = 'blur(6px)';
+            
+            const modal = document.createElement('div');
+            modal.className = 'skip-modal active';
+            modal.style.maxWidth = '600px';
+            modal.style.maxHeight = '80vh';
+            modal.style.overflow = 'auto';
+            modal.style.padding = '24px';
+            
+            let historyHTML = `
+                <div class="modal-header" style="margin-bottom: 20px; position: sticky; top: -24px; background: var(--surface); padding: 24px 0 12px; margin-top: -24px; z-index: 10;">
+                    <h3 style="font-size: 20px; margin-bottom: 8px;">📚 ジャーナル履歴</h3>
+                    <p style="color: var(--text-secondary); font-size: 14px;">過去30日間の記録</p>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+            `;
+            
+            sortedDates.forEach(dateKey => {
+                const entry = entries[dateKey];
+                const date = new Date(dateKey);
+                const dateStr = date.toLocaleDateString('ja-JP', { 
+                    month: 'numeric', 
+                    day: 'numeric', 
+                    weekday: 'short' 
+                });
+                
+                historyHTML += `
+                    <div style="border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: rgba(255, 255, 255, 0.02);">
+                        <div style="padding: 12px; background: rgba(255, 255, 255, 0.03); border-bottom: 1px solid var(--border);">
+                            <strong style="font-size: 14px;">📅 ${dateStr}</strong>
+                        </div>
+                `;
+                
+                if (entry.morning) {
+                    const morningTime = new Date(entry.morning.timestamp).toLocaleTimeString('ja-JP', { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                    });
+                    historyHTML += `
+                        <div class="history-journal-item" style="padding: 12px; border-bottom: 1px solid var(--border);">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <span style="font-size: 14px; font-weight: 600;">🌅 朝のジャーナル</span>
+                                <span style="font-size: 11px; color: var(--text-secondary);">${morningTime}</span>
+                            </div>
+                            <div style="font-size: 12px; color: var(--text-secondary); display: flex; gap: 12px; margin-bottom: 6px;">
+                                <span>体調: ${['😫', '😟', '😐', '🙂', '😊'][entry.morning.condition - 1]} ${entry.morning.condition}/5</span>
+                                <span>気分: ${['😔', '😕', '😐', '😌', '😄'][entry.morning.mood - 1]} ${entry.morning.mood}/5</span>
+                            </div>
+                            <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">最優先事項:</div>
+                            <div style="font-size: 13px; background: var(--surface); padding: 8px; border-radius: 6px;">
+                                ${entry.morning.priority || 'なし'}
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                if (entry.evening) {
+                    const eveningTime = new Date(entry.evening.timestamp).toLocaleTimeString('ja-JP', { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                    });
+                    historyHTML += `
+                        <div class="history-journal-item" style="padding: 12px;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <span style="font-size: 14px; font-weight: 600;">🌙 夜のジャーナル</span>
+                                <span style="font-size: 11px; color: var(--text-secondary);">${eveningTime}</span>
+                            </div>
+                            <div style="margin-bottom: 8px;">
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">うまくいったこと:</div>
+                                <div style="font-size: 13px; background: var(--surface); padding: 8px; border-radius: 6px;">
+                                    ${entry.evening.success || 'なし'}
+                                </div>
+                            </div>
+                            <div>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">改善点:</div>
+                                <div style="font-size: 13px; background: var(--surface); padding: 8px; border-radius: 6px;">
+                                    ${entry.evening.improvement || 'なし'}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                historyHTML += `</div>`;
+            });
+            
+            historyHTML += `
+                </div>
+                <div class="modal-footer" style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px; position: sticky; bottom: -24px; background: var(--surface); padding: 12px 0 0; margin-bottom: -24px;">
+                    <button class="button secondary" onclick="this.closest('.overlay').remove()">閉じる</button>
+                </div>
+            `;
+            
+            modal.innerHTML = historyHTML;
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            
+            // オーバーレイクリックで閉じる
+            overlay.onclick = (e) => {
+                if (e.target === overlay) {
+                    overlay.remove();
+                }
+            };
+        }
+        window.showJournalHistory = showJournalHistory;
+        
+        // ジャーナルモーダルを開く
+        function openJournalModal() {
+            const data = loadData();
+            const todayKey = getJournalDateKey(); // 深夜対応の日付キー
+            const todayEntry = data.dailyJournal.entries[todayKey] || {};
+            const currentHour = new Date().getHours();
+            
+            // 朝か夜かを判定（12時を境に、ただし深夜2時まで夜扱い）
+            const isMorning = currentHour >= 2 && currentHour < 12;
+            const showMorning = isMorning || !todayEntry.morning;
+            
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay active';
+            overlay.style.backdropFilter = 'blur(6px)';
+            
+            const modal = document.createElement('div');
+            modal.className = 'skip-modal active';
+            modal.style.maxWidth = '520px';
+            modal.style.padding = '24px';
+            
+            if (showMorning) {
+                // 朝のジャーナル
+                modal.innerHTML = `
+                    <div class="modal-header" style="margin-bottom: 20px;">
+                        <h3 style="font-size: 20px; margin-bottom: 8px;">🌅 朝のジャーナル</h3>
+                        <p style="color: var(--text-secondary); font-size: 14px;">今日のスタートを記録しましょう</p>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 12px; font-weight: 600;">体調はどうですか？</label>
+                        <div id="condition-selector" style="display: flex; gap: 12px; justify-content: space-between;">
+                            ${[1,2,3,4,5].map(i => `
+                                <button class="mood-btn" data-value="${i}" style="
+                                    flex: 1;
+                                    padding: 12px;
+                                    border: 2px solid var(--border);
+                                    border-radius: 12px;
+                                    background: var(--surface);
+                                    cursor: pointer;
+                                    transition: all 0.3s;
+                                    text-align: center;
+                                ">
+                                    <div style="font-size: 24px; margin-bottom: 4px;">${['😫', '😟', '😐', '🙂', '😊'][i-1]}</div>
+                                    <div style="font-size: 12px; color: var(--text-secondary);">${i}</div>
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 12px; font-weight: 600;">気分はどうですか？</label>
+                        <div id="mood-selector" style="display: flex; gap: 12px; justify-content: space-between;">
+                            ${[1,2,3,4,5].map(i => `
+                                <button class="mood-btn" data-value="${i}" style="
+                                    flex: 1;
+                                    padding: 12px;
+                                    border: 2px solid var(--border);
+                                    border-radius: 12px;
+                                    background: var(--surface);
+                                    cursor: pointer;
+                                    transition: all 0.3s;
+                                    text-align: center;
+                                ">
+                                    <div style="font-size: 24px; margin-bottom: 4px;">${['😔', '😕', '😐', '😌', '😄'][i-1]}</div>
+                                    <div style="font-size: 12px; color: var(--text-secondary);">${i}</div>
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 24px;">
+                        <label style="display: block; margin-bottom: 12px; font-weight: 600;">今日の最優先事項は？</label>
+                        <textarea id="priority-input" placeholder="例: プロジェクトXの企画書を完成させる" 
+                            style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; 
+                            background: var(--surface); color: var(--text-primary); min-height: 80px; resize: vertical;"
+                            maxlength="200">${todayEntry.morning?.priority || ''}</textarea>
+                        <div style="text-align: right; margin-top: 4px;">
+                            <span id="priority-count" style="font-size: 12px; color: var(--text-secondary);">0/200</span>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-footer" style="display: flex; gap: 12px; justify-content: flex-end;">
+                        <button class="button secondary" onclick="this.closest('.overlay').remove()">キャンセル</button>
+                        <button class="button primary" onclick="saveMorningJournal()" style="background: linear-gradient(135deg, #a855f7 0%, #3b82f6 100%);">
+                            📝 保存して+1pt獲得
+                        </button>
+                    </div>
+                `;
+            } else {
+                // 夜のジャーナル
+                modal.innerHTML = `
+                    <div class="modal-header" style="margin-bottom: 20px;">
+                        <h3 style="font-size: 20px; margin-bottom: 8px;">🌙 夜のジャーナル</h3>
+                        <p style="color: var(--text-secondary); font-size: 14px;">今日を振り返ってみましょう</p>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 12px; font-weight: 600;">今日うまくいったことは？</label>
+                        <textarea id="success-input" placeholder="例: 企画書を予定通り完成できた。チームとの連携もスムーズだった" 
+                            style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; 
+                            background: var(--surface); color: var(--text-primary); min-height: 100px; resize: vertical;"
+                            maxlength="300">${todayEntry.evening?.success || ''}</textarea>
+                        <div style="text-align: right; margin-top: 4px;">
+                            <span id="success-count" style="font-size: 12px; color: var(--text-secondary);">0/300</span>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 24px;">
+                        <label style="display: block; margin-bottom: 12px; font-weight: 600;">改善点は？</label>
+                        <textarea id="improvement-input" placeholder="例: 時間配分をもっと計画的にすべきだった" 
+                            style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; 
+                            background: var(--surface); color: var(--text-primary); min-height: 100px; resize: vertical;"
+                            maxlength="300">${todayEntry.evening?.improvement || ''}</textarea>
+                        <div style="text-align: right; margin-top: 4px;">
+                            <span id="improvement-count" style="font-size: 12px; color: var(--text-secondary);">0/300</span>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-footer" style="display: flex; gap: 12px; justify-content: flex-end;">
+                        <button class="button secondary" onclick="this.closest('.overlay').remove()">キャンセル</button>
+                        <button class="button primary" onclick="saveEveningJournal()" style="background: linear-gradient(135deg, #a855f7 0%, #3b82f6 100%);">
+                            📝 保存して+1pt獲得
+                        </button>
+                    </div>
+                `;
+            }
+            
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            
+            // イベントリスナーを設定
+            setTimeout(() => {
+                if (showMorning) {
+                    // 体調セレクター
+                    document.querySelectorAll('#condition-selector .mood-btn').forEach(btn => {
+                        btn.onclick = () => {
+                            document.querySelectorAll('#condition-selector .mood-btn').forEach(b => {
+                                b.style.border = '2px solid var(--border)';
+                                b.style.background = 'var(--surface)';
+                            });
+                            btn.style.border = '2px solid #10b981';
+                            btn.style.background = 'rgba(16, 185, 129, 0.1)';
+                            btn.dataset.selected = 'true';
+                        };
+                        // 既存の値があれば選択
+                        if (todayEntry.morning?.condition == btn.dataset.value) {
+                            btn.click();
+                        }
+                    });
+                    
+                    // 気分セレクター
+                    document.querySelectorAll('#mood-selector .mood-btn').forEach(btn => {
+                        btn.onclick = () => {
+                            document.querySelectorAll('#mood-selector .mood-btn').forEach(b => {
+                                b.style.border = '2px solid var(--border)';
+                                b.style.background = 'var(--surface)';
+                            });
+                            btn.style.border = '2px solid #3b82f6';
+                            btn.style.background = 'rgba(59, 130, 246, 0.1)';
+                            btn.dataset.selected = 'true';
+                        };
+                        // 既存の値があれば選択
+                        if (todayEntry.morning?.mood == btn.dataset.value) {
+                            btn.click();
+                        }
+                    });
+                    
+                    // 文字数カウント
+                    const priorityInput = document.getElementById('priority-input');
+                    const priorityCount = document.getElementById('priority-count');
+                    priorityInput.oninput = () => {
+                        priorityCount.textContent = `${priorityInput.value.length}/200`;
+                    };
+                    priorityInput.oninput();
+                } else {
+                    // 文字数カウント
+                    const successInput = document.getElementById('success-input');
+                    const successCount = document.getElementById('success-count');
+                    const improvementInput = document.getElementById('improvement-input');
+                    const improvementCount = document.getElementById('improvement-count');
+                    
+                    successInput.oninput = () => {
+                        successCount.textContent = `${successInput.value.length}/300`;
+                    };
+                    improvementInput.oninput = () => {
+                        improvementCount.textContent = `${improvementInput.value.length}/300`;
+                    };
+                    successInput.oninput();
+                    improvementInput.oninput();
+                }
+            }, 100);
+        }
+        
+        // 朝のジャーナルを保存
+        function saveMorningJournal() {
+            let data = loadData();
+            const todayKey = getJournalDateKey(); // 深夜対応の日付キー
+            
+            // 選択された値を取得
+            const conditionBtn = document.querySelector('#condition-selector .mood-btn[data-selected="true"]');
+            const moodBtn = document.querySelector('#mood-selector .mood-btn[data-selected="true"]');
+            const priority = document.getElementById('priority-input').value.trim();
+            
+            if (!conditionBtn || !moodBtn || !priority) {
+                showNotification('すべての項目を入力してください', 'error');
+                return;
+            }
+            
+            // データを保存
+            if (!data.dailyJournal.entries[todayKey]) {
+                data.dailyJournal.entries[todayKey] = {};
+            }
+            
+            console.log('朝のジャーナル：既存データ =', data.dailyJournal.entries[todayKey].morning);
+            const isFirstTime = !data.dailyJournal.entries[todayKey].morning;
+            console.log('朝のジャーナル：初回判定 =', isFirstTime);
+            
+            data.dailyJournal.entries[todayKey].morning = {
+                condition: parseInt(conditionBtn.dataset.value),
+                mood: parseInt(moodBtn.dataset.value),
+                priority: priority,
+                timestamp: new Date().toISOString(),
+                pointsEarned: isFirstTime ? 1 : 0
+            };
+            
+            // ストリークを更新
+            updateJournalStreak(data);
+            
+            // ジャーナルデータを保存
+            // 最後にアクティブイベントをサニタイズ＆重複排除
+            try {
+                if (data.events && Array.isArray(data.events.activeBoosts)) {
+                    let boosts = data.events.activeBoosts.map(b => {
+                        if (b && b.eventId === 'weekend_special') {
+                            b.value = 1.2;
+                            b.description = '週末はポイント1.2倍！';
+                        }
+                        return b;
+                    }).filter(b => {
+                        if (!b) return false;
+                        if (b.eventId === 'weekend_special') {
+                            const desc = String(b.description || '');
+                            if (desc.includes('1.5') || desc.includes('×1.5')) return false;
+                        }
+                        return true;
+                    });
+                    const dedup = new Map();
+                    for (const b of boosts) {
+                        const key = b && b.eventId ? `id:${b.eventId}` : `name:${b?.name || ''}|desc:${b?.description || ''}`;
+                        dedup.set(key, b);
+                    }
+                    data.events.activeBoosts = Array.from(dedup.values());
+                }
+            } catch (_) { /* noop */ }
+
+            saveData(data);
+            
+            // ポイントを付与（初回のみ）
+            if (isFirstTime) {
+                console.log('朝のジャーナル：初回記録なのでポイント付与');
+                earnPoints(1, 'journal', '🌅 朝のジャーナル記録');
+            }
+            
+            // UIを更新
+            updateJournalStatus();
+            
+            // モーダルを閉じる
+            document.querySelector('.overlay').remove();
+            
+            showNotification('🌅 朝のジャーナルを記録しました！', 'success');
+        }
+        
+        // 夜のジャーナルを保存
+        function saveEveningJournal() {
+            let data = loadData();
+            const todayKey = getJournalDateKey(); // 深夜対応の日付キー
+            
+            const success = document.getElementById('success-input').value.trim();
+            const improvement = document.getElementById('improvement-input').value.trim();
+            
+            if (!success || !improvement) {
+                showNotification('すべての項目を入力してください', 'error');
+                return;
+            }
+            
+            // データを保存
+            if (!data.dailyJournal.entries[todayKey]) {
+                data.dailyJournal.entries[todayKey] = {};
+            }
+            
+            console.log('夜のジャーナル：既存データ =', data.dailyJournal.entries[todayKey].evening);
+            const isFirstTime = !data.dailyJournal.entries[todayKey].evening;
+            console.log('夜のジャーナル：初回判定 =', isFirstTime);
+            
+            data.dailyJournal.entries[todayKey].evening = {
+                success: success,
+                improvement: improvement,
+                timestamp: new Date().toISOString(),
+                pointsEarned: isFirstTime ? 1 : 0
+            };
+            
+            // ストリークを更新
+            updateJournalStreak(data);
+            
+            // ジャーナルデータを保存
+            saveData(data);
+            
+            // ポイントを付与（初回のみ）
+            if (isFirstTime) {
+                console.log('夜のジャーナル：初回記録なのでポイント付与');
+                earnPoints(1, 'journal', '🌙 夜のジャーナル記録');
+            }
+            
+            // UIを更新
+            updateJournalStatus();
+            
+            // モーダルを閉じる
+            document.querySelector('.overlay').remove();
+            
+            showNotification('🌙 夜のジャーナルを記録しました！', 'success');
+        }
+        
+        // ジャーナル統計を更新
+        function updateJournalStats() {
+            const data = loadData();
+            const container = document.getElementById('journal-stats-content');
+            
+            if (!container || !data.dailyJournal) return;
+            
+            const entries = data.dailyJournal.entries || {};
+            const entryDates = Object.keys(entries).sort();
+            
+            // 基本統計
+            const totalEntries = entryDates.length;
+            const morningEntries = entryDates.filter(date => entries[date].morning).length;
+            const eveningEntries = entryDates.filter(date => entries[date].evening).length;
+            const completeEntries = entryDates.filter(date => entries[date].morning && entries[date].evening).length;
+            
+            // 最近7日間の体調・気分を計算
+            const last7Days = entryDates.slice(-7);
+            let avgCondition = 0;
+            let avgMood = 0;
+            let conditionCount = 0;
+            let moodCount = 0;
+            
+            last7Days.forEach(date => {
+                if (entries[date].morning) {
+                    if (entries[date].morning.condition) {
+                        avgCondition += entries[date].morning.condition;
+                        conditionCount++;
+                    }
+                    if (entries[date].morning.mood) {
+                        avgMood += entries[date].morning.mood;
+                        moodCount++;
+                    }
+                }
+            });
+            
+            if (conditionCount > 0) avgCondition = (avgCondition / conditionCount).toFixed(1);
+            if (moodCount > 0) avgMood = (avgMood / moodCount).toFixed(1);
+            
+            // よくできたことTOP3を抽出
+            const successWords = {};
+            const improvementWords = {};
+            
+            entryDates.forEach(date => {
+                if (entries[date].evening) {
+                    // 簡単な単語抽出（名詞っぽいもの）
+                    if (entries[date].evening.success) {
+                        const words = entries[date].evening.success.match(/[一-龥]{2,}/g) || [];
+                        words.forEach(word => {
+                            successWords[word] = (successWords[word] || 0) + 1;
+                        });
+                    }
+                    if (entries[date].evening.improvement) {
+                        const words = entries[date].evening.improvement.match(/[一-龥]{2,}/g) || [];
+                        words.forEach(word => {
+                            improvementWords[word] = (improvementWords[word] || 0) + 1;
+                        });
+                    }
+                }
+            });
+            
+            const topSuccess = Object.entries(successWords)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 3)
+                .map(([word, count]) => `${word} (${count}回)`);
+            
+            const topImprovement = Object.entries(improvementWords)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 3)
+                .map(([word, count]) => `${word} (${count}回)`);
+            
+            // 過去30日間のデータを取得（感情推移グラフ用）
+            const last30Days = [];
+            const today = new Date();
+            for (let i = 29; i >= 0; i--) {
+                const date = new Date(today);
+                date.setDate(date.getDate() - i);
+                const dateKey = dateKeyLocal(date);
+                const entry = entries[dateKey];
+                
+                last30Days.push({
+                    date: (date.getMonth() + 1) + '/' + date.getDate(),
+                    condition: entry?.morning?.condition || null,
+                    mood: entry?.morning?.mood || null,
+                    hasData: !!(entry?.morning)
+                });
+            }
+            
+            // 曜日別パターン分析
+            const weekdayStats = {
+                0: { name: '日', condition: [], mood: [], records: 0 },
+                1: { name: '月', condition: [], mood: [], records: 0 },
+                2: { name: '火', condition: [], mood: [], records: 0 },
+                3: { name: '水', condition: [], mood: [], records: 0 },
+                4: { name: '木', condition: [], mood: [], records: 0 },
+                5: { name: '金', condition: [], mood: [], records: 0 },
+                6: { name: '土', condition: [], mood: [], records: 0 }
+            };
+            
+            entryDates.forEach(dateStr => {
+                const [year, month, day] = dateStr.split('-').map(Number);
+                const date = new Date(year, month - 1, day);
+                const weekday = date.getDay();
+                const entry = entries[dateStr];
+                
+                if (entry.morning) {
+                    weekdayStats[weekday].records++;
+                    if (entry.morning.condition) {
+                        weekdayStats[weekday].condition.push(entry.morning.condition);
+                    }
+                    if (entry.morning.mood) {
+                        weekdayStats[weekday].mood.push(entry.morning.mood);
+                    }
+                }
+            });
+            
+            // 曜日別平均を計算
+            const weekdayAverages = Object.entries(weekdayStats).map(([day, stats]) => {
+                const avgCondition = stats.condition.length > 0 
+                    ? (stats.condition.reduce((a, b) => a + b, 0) / stats.condition.length).toFixed(1)
+                    : null;
+                const avgMood = stats.mood.length > 0
+                    ? (stats.mood.reduce((a, b) => a + b, 0) / stats.mood.length).toFixed(1)
+                    : null;
+                
+                return {
+                    day: parseInt(day),
+                    name: stats.name,
+                    avgCondition,
+                    avgMood,
+                    records: stats.records
+                };
+            });
+            
+            // ベスト＆ワースト曜日を特定
+            const validWeekdays = weekdayAverages.filter(d => d.avgCondition && d.avgMood);
+            const bestDay = validWeekdays.length > 0 
+                ? validWeekdays.reduce((best, current) => {
+                    const bestScore = parseFloat(best.avgCondition) + parseFloat(best.avgMood);
+                    const currentScore = parseFloat(current.avgCondition) + parseFloat(current.avgMood);
+                    return currentScore > bestScore ? current : best;
+                })
+                : null;
+            
+            const worstDay = validWeekdays.length > 0
+                ? validWeekdays.reduce((worst, current) => {
+                    const worstScore = parseFloat(worst.avgCondition) + parseFloat(worst.avgMood);
+                    const currentScore = parseFloat(current.avgCondition) + parseFloat(current.avgMood);
+                    return currentScore < worstScore ? current : worst;
+                })
+                : null;
+            
+            container.innerHTML = `
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px;">
+                    <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                        <div style="font-size: 24px; font-weight: bold; color: #a855f7;">${data.dailyJournal.stats.currentStreak}</div>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">現在のストリーク</div>
+                    </div>
+                    <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                        <div style="font-size: 24px; font-weight: bold; color: #3b82f6;">${completeEntries}</div>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">完全記録日数</div>
+                    </div>
+                    <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                        <div style="font-size: 24px; font-weight: bold; color: #10b981;">${avgCondition || '-'}</div>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">平均体調 (7日)</div>
+                    </div>
+                    <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                        <div style="font-size: 24px; font-weight: bold; color: #f59e0b;">${avgMood || '-'}</div>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">平均気分 (7日)</div>
+                    </div>
+                </div>
+                
+                ${
+                    // 感情推移グラフ
+                    last30Days.some(d => d.hasData) ? `
+                    <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                        <h4 style="font-size: 14px; margin-bottom: 12px; color: var(--text-primary);">📈 感情推移（30日間）</h4>
+                        <div style="position: relative; height: 120px; border-left: 2px solid var(--border); border-bottom: 2px solid var(--border);">
+                            <div style="position: absolute; left: -20px; top: 0; font-size: 10px; color: var(--text-secondary);">5</div>
+                            <div style="position: absolute; left: -20px; top: 50%; transform: translateY(-50%); font-size: 10px; color: var(--text-secondary);">3</div>
+                            <div style="position: absolute; left: -20px; bottom: 0; font-size: 10px; color: var(--text-secondary);">1</div>
+                            
+                            <!-- 体調の線 -->
+                            <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                <polyline
+                                    points="${last30Days.map((d, i) => {
+                                        if (!d.condition) return null;
+                                        const x = (i / 29) * 100;
+                                        const y = 100 - ((d.condition - 1) / 4) * 100;
+                                        return `${x},${y}`;
+                                    }).filter(p => p).join(' ')}"
+                                    fill="none"
+                                    stroke="#10b981"
+                                    stroke-width="2"
+                                    opacity="0.8"
+                                />
+                                <!-- 気分の線 -->
+                                <polyline
+                                    points="${last30Days.map((d, i) => {
+                                        if (!d.mood) return null;
+                                        const x = (i / 29) * 100;
+                                        const y = 100 - ((d.mood - 1) / 4) * 100;
+                                        return `${x},${y}`;
+                                    }).filter(p => p).join(' ')}"
+                                    fill="none"
+                                    stroke="#f59e0b"
+                                    stroke-width="2"
+                                    opacity="0.8"
+                                />
+                            </svg>
+                            
+                            <!-- 日付ラベル -->
+                            <div style="display: flex; justify-content: space-between; position: absolute; bottom: -20px; left: 0; right: 0; font-size: 10px; color: var(--text-secondary);">
+                                <span>${last30Days[0].date}</span>
+                                <span>${last30Days[14].date}</span>
+                                <span>${last30Days[29].date}</span>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 16px; margin-top: 24px; font-size: 11px;">
+                            <span style="color: #10b981;">● 体調</span>
+                            <span style="color: #f59e0b;">● 気分</span>
+                        </div>
+                    </div>
+                ` : ''
+                }
+                
+                ${
+                    // 曜日別パターン
+                    validWeekdays.length > 0 ? `
+                    <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                        <h4 style="font-size: 14px; margin-bottom: 12px; color: var(--text-primary);">🗓️ 曜日別パターン</h4>
+                        <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 12px;">
+                            ${weekdayAverages.map(day => `
+                                <div style="text-align: center; padding: 8px 4px; background: ${
+                                    bestDay && day.day === bestDay.day ? 'rgba(16, 185, 129, 0.2)' :
+                                    worstDay && day.day === worstDay.day ? 'rgba(239, 68, 68, 0.2)' :
+                                    'rgba(255,255,255,0.05)'
+                                }; border-radius: 6px; border: 1px solid ${
+                                    bestDay && day.day === bestDay.day ? 'rgba(16, 185, 129, 0.5)' :
+                                    worstDay && day.day === worstDay.day ? 'rgba(239, 68, 68, 0.5)' :
+                                    'transparent'
+                                };">
+                                    <div style="font-size: 12px; font-weight: bold; margin-bottom: 4px;">${day.name}</div>
+                                    <div style="font-size: 10px; color: #10b981;">😊 ${day.avgCondition || '-'}</div>
+                                    <div style="font-size: 10px; color: #f59e0b;">💭 ${day.avgMood || '-'}</div>
+                                    <div style="font-size: 9px; color: var(--text-secondary); margin-top: 2px;">${day.records}回</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        ${bestDay ? `
+                            <div style="display: flex; gap: 12px; font-size: 11px;">
+                                <span style="color: #10b981;">✨ 最も調子が良い: ${bestDay.name}曜日</span>
+                                ${worstDay ? `<span style="color: #ef4444;">📊 調子が低い: ${worstDay.name}曜日</span>` : ''}
+                            </div>
+                        ` : ''}
+                    </div>
+                ` : ''
+                }
+                
+                ${topSuccess.length > 0 ? `
+                    <div style="background: rgba(16, 185, 129, 0.1); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
+                        <h4 style="font-size: 14px; margin-bottom: 8px; color: #10b981;">🏆 よくできたこと TOP3</h4>
+                        <ol style="margin: 0; padding-left: 20px; font-size: 12px; color: var(--text-secondary);">
+                            ${topSuccess.map(item => `<li>${item}</li>`).join('')}
+                        </ol>
+                    </div>
+                ` : ''}
+                
+                ${topImprovement.length > 0 ? `
+                    <div style="background: rgba(245, 158, 11, 0.1); padding: 12px; border-radius: 8px;">
+                        <h4 style="font-size: 14px; margin-bottom: 8px; color: #f59e0b;">💡 改善テーマ TOP3</h4>
+                        <ol style="margin: 0; padding-left: 20px; font-size: 12px; color: var(--text-secondary);">
+                            ${topImprovement.map(item => `<li>${item}</li>`).join('')}
+                        </ol>
+                    </div>
+                ` : ''}
+                
+                ${totalEntries === 0 ? `
+                    <div style="text-align: center; padding: 20px; color: var(--text-secondary); font-size: 14px;">
+                        まだジャーナルの記録がありません
+                    </div>
+                ` : ''}
+                
+                ${
+                    // 月別記録率と感情推移
+                    totalEntries > 0 ? `
+                    <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; margin-top: 16px;">
+                        <h4 style="font-size: 14px; margin-bottom: 12px; color: var(--text-primary);">📅 月別記録状況</h4>
+                        ${generateMonthlyStats(entries)}
+                    </div>
+                ` : ''
+                }
+                
+                ${
+                    // 時間帯別記録パターン
+                    totalEntries > 0 ? `
+                    <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; margin-top: 16px;">
+                        <h4 style="font-size: 14px; margin-bottom: 12px; color: var(--text-primary);">⏰ 記録時間帯分析</h4>
+                        ${generateTimePatternAnalysis(entries)}
+                    </div>
+                ` : ''
+                }
+                
+                ${
+                    // 感情と習慣達成率の相関
+                    totalEntries > 0 && data.currentHypotheses && data.currentHypotheses.length > 0 ? `
+                    <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; margin-top: 16px;">
+                        <h4 style="font-size: 14px; margin-bottom: 12px; color: var(--text-primary);">🔗 感情と習慣の相関</h4>
+                        ${generateEmotionHabitCorrelation(entries, data.currentHypotheses)}
+                    </div>
+                ` : ''
+                }
+                
+                ${
+                    // キーワードクラウド
+                    totalEntries > 10 ? `
+                    <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; margin-top: 16px;">
+                        <h4 style="font-size: 14px; margin-bottom: 12px; color: var(--text-primary);">☁️ よく使うキーワード</h4>
+                        ${generateWordCloud(entries)}
+                    </div>
+                ` : ''
+                }
+            `;
+        }
+        
+        // 月別統計を生成
+        function generateMonthlyStats(entries) {
+            const monthlyData = {};
+            
+            // エントリを月別に集計
+            Object.entries(entries).forEach(([dateStr, entry]) => {
+                const [year, month] = dateStr.split('-');
+                const monthKey = `${year}-${month}`;
+                
+                if (!monthlyData[monthKey]) {
+                    monthlyData[monthKey] = {
+                        total: 0,
+                        morning: 0,
+                        evening: 0,
+                        complete: 0,
+                        conditions: [],
+                        moods: []
+                    };
+                }
+                
+                monthlyData[monthKey].total++;
+                if (entry.morning) {
+                    monthlyData[monthKey].morning++;
+                    if (entry.morning.condition) monthlyData[monthKey].conditions.push(entry.morning.condition);
+                    if (entry.morning.mood) monthlyData[monthKey].moods.push(entry.morning.mood);
+                }
+                if (entry.evening) monthlyData[monthKey].evening++;
+                if (entry.morning && entry.evening) monthlyData[monthKey].complete++;
+            });
+            
+            // 最新6ヶ月分を表示
+            const sortedMonths = Object.keys(monthlyData).sort().slice(-6);
+            
+            return `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(60px, 1fr)); gap: 8px;">
+                    ${sortedMonths.map(monthKey => {
+                        const data = monthlyData[monthKey];
+                        const [year, month] = monthKey.split('-');
+                        const daysInMonth = new Date(year, month, 0).getDate();
+                        const recordRate = Math.round((data.complete / daysInMonth) * 100);
+                        const avgCondition = data.conditions.length > 0 
+                            ? (data.conditions.reduce((a, b) => a + b, 0) / data.conditions.length).toFixed(1)
+                            : '-';
+                        const avgMood = data.moods.length > 0
+                            ? (data.moods.reduce((a, b) => a + b, 0) / data.moods.length).toFixed(1)
+                            : '-';
+                        
+                        return `
+                            <div style="text-align: center; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 6px;">
+                                <div style="font-size: 11px; font-weight: bold; margin-bottom: 4px;">${parseInt(month)}月</div>
+                                <div style="font-size: 18px; font-weight: bold; color: ${
+                                    recordRate >= 80 ? '#10b981' :
+                                    recordRate >= 50 ? '#f59e0b' :
+                                    '#ef4444'
+                                };">${recordRate}%</div>
+                                <div style="font-size: 9px; color: var(--text-secondary); margin-top: 2px;">
+                                    😊${avgCondition} 💭${avgMood}
+                                </div>
+                                <div style="font-size: 9px; color: var(--text-secondary);">
+                                    ${data.complete}/${daysInMonth}日
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+        
+        // 時間帯別パターン分析を生成
+        function generateTimePatternAnalysis(entries) {
+            const timePatterns = {
+                morning: { early: 0, normal: 0, late: 0 },  // 早朝(~7時)、通常(7-9時)、遅め(9時~)
+                evening: { early: 0, normal: 0, late: 0 }   // 早め(~20時)、通常(20-22時)、深夜(22時~)
+            };
+            
+            Object.entries(entries).forEach(([dateStr, entry]) => {
+                if (entry.morning && entry.morning.timestamp) {
+                    const hour = new Date(entry.morning.timestamp).getHours();
+                    if (hour < 7) timePatterns.morning.early++;
+                    else if (hour < 9) timePatterns.morning.normal++;
+                    else timePatterns.morning.late++;
+                }
+                if (entry.evening && entry.evening.timestamp) {
+                    const hour = new Date(entry.evening.timestamp).getHours();
+                    if (hour < 20) timePatterns.evening.early++;
+                    else if (hour < 22) timePatterns.evening.normal++;
+                    else timePatterns.evening.late++;
+                }
+            });
+            
+            const totalMorning = timePatterns.morning.early + timePatterns.morning.normal + timePatterns.morning.late;
+            const totalEvening = timePatterns.evening.early + timePatterns.evening.normal + timePatterns.evening.late;
+            
+            return `
+                <div style="display: grid; gap: 12px;">
+                    <div>
+                        <div style="font-size: 12px; margin-bottom: 8px; color: var(--text-secondary);">🌅 朝のジャーナル</div>
+                        <div style="display: flex; gap: 4px; align-items: center;">
+                            <span style="font-size: 10px; width: 60px;">早朝(~7時)</span>
+                            <div style="flex: 1; height: 20px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+                                <div style="width: ${totalMorning > 0 ? (timePatterns.morning.early / totalMorning * 100) : 0}%; height: 100%; background: #3b82f6;"></div>
+                            </div>
+                            <span style="font-size: 10px; width: 30px; text-align: right;">${timePatterns.morning.early}</span>
+                        </div>
+                        <div style="display: flex; gap: 4px; align-items: center;">
+                            <span style="font-size: 10px; width: 60px;">通常(7-9時)</span>
+                            <div style="flex: 1; height: 20px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+                                <div style="width: ${totalMorning > 0 ? (timePatterns.morning.normal / totalMorning * 100) : 0}%; height: 100%; background: #10b981;"></div>
+                            </div>
+                            <span style="font-size: 10px; width: 30px; text-align: right;">${timePatterns.morning.normal}</span>
+                        </div>
+                        <div style="display: flex; gap: 4px; align-items: center;">
+                            <span style="font-size: 10px; width: 60px;">遅め(9時~)</span>
+                            <div style="flex: 1; height: 20px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+                                <div style="width: ${totalMorning > 0 ? (timePatterns.morning.late / totalMorning * 100) : 0}%; height: 100%; background: #f59e0b;"></div>
+                            </div>
+                            <span style="font-size: 10px; width: 30px; text-align: right;">${timePatterns.morning.late}</span>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <div style="font-size: 12px; margin-bottom: 8px; color: var(--text-secondary);">🌙 夜のジャーナル</div>
+                        <div style="display: flex; gap: 4px; align-items: center;">
+                            <span style="font-size: 10px; width: 60px;">早め(~20時)</span>
+                            <div style="flex: 1; height: 20px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+                                <div style="width: ${totalEvening > 0 ? (timePatterns.evening.early / totalEvening * 100) : 0}%; height: 100%; background: #3b82f6;"></div>
+                            </div>
+                            <span style="font-size: 10px; width: 30px; text-align: right;">${timePatterns.evening.early}</span>
+                        </div>
+                        <div style="display: flex; gap: 4px; align-items: center;">
+                            <span style="font-size: 10px; width: 60px;">通常(20-22時)</span>
+                            <div style="flex: 1; height: 20px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+                                <div style="width: ${totalEvening > 0 ? (timePatterns.evening.normal / totalEvening * 100) : 0}%; height: 100%; background: #10b981;"></div>
+                            </div>
+                            <span style="font-size: 10px; width: 30px; text-align: right;">${timePatterns.evening.normal}</span>
+                        </div>
+                        <div style="display: flex; gap: 4px; align-items: center;">
+                            <span style="font-size: 10px; width: 60px;">深夜(22時~)</span>
+                            <div style="flex: 1; height: 20px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+                                <div style="width: ${totalEvening > 0 ? (timePatterns.evening.late / totalEvening * 100) : 0}%; height: 100%; background: #f59e0b;"></div>
+                            </div>
+                            <span style="font-size: 10px; width: 30px; text-align: right;">${timePatterns.evening.late}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 感情と習慣達成率の相関を生成
+        function generateEmotionHabitCorrelation(entries, hypotheses) {
+            const correlationData = {
+                highMood: { achieved: 0, total: 0 },  // 気分4-5の時
+                midMood: { achieved: 0, total: 0 },   // 気分3の時
+                lowMood: { achieved: 0, total: 0 }    // 気分1-2の時
+            };
+            
+            Object.entries(entries).forEach(([dateStr, entry]) => {
+                if (!entry.morning || !entry.morning.mood) return;
+                
+                const mood = entry.morning.mood;
+                let dayAchieved = 0;
+                let dayTotal = 0;
+                
+                // その日の習慣達成状況を集計
+                hypotheses.forEach(hyp => {
+                    if (hyp.achievements && hyp.achievements[dateStr]) {
+                        dayAchieved++;
+                    }
+                    dayTotal++;
+                });
+                
+                if (dayTotal > 0) {
+                    if (mood >= 4) {
+                        correlationData.highMood.achieved += dayAchieved;
+                        correlationData.highMood.total += dayTotal;
+                    } else if (mood === 3) {
+                        correlationData.midMood.achieved += dayAchieved;
+                        correlationData.midMood.total += dayTotal;
+                    } else {
+                        correlationData.lowMood.achieved += dayAchieved;
+                        correlationData.lowMood.total += dayTotal;
+                    }
+                }
+            });
+            
+            const highRate = correlationData.highMood.total > 0 
+                ? Math.round((correlationData.highMood.achieved / correlationData.highMood.total) * 100)
+                : 0;
+            const midRate = correlationData.midMood.total > 0
+                ? Math.round((correlationData.midMood.achieved / correlationData.midMood.total) * 100)
+                : 0;
+            const lowRate = correlationData.lowMood.total > 0
+                ? Math.round((correlationData.lowMood.achieved / correlationData.lowMood.total) * 100)
+                : 0;
+            
+            return `
+                <div style="display: grid; gap: 8px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 12px; width: 80px;">😄 気分良好時</span>
+                        <div style="flex: 1; height: 24px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; position: relative;">
+                            <div style="width: ${highRate}%; height: 100%; background: linear-gradient(90deg, #10b981, #3b82f6);"></div>
+                            <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 11px; font-weight: bold;">${highRate}%</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 12px; width: 80px;">😐 気分普通時</span>
+                        <div style="flex: 1; height: 24px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; position: relative;">
+                            <div style="width: ${midRate}%; height: 100%; background: linear-gradient(90deg, #f59e0b, #eab308);"></div>
+                            <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 11px; font-weight: bold;">${midRate}%</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 12px; width: 80px;">😔 気分低調時</span>
+                        <div style="flex: 1; height: 24px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; position: relative;">
+                            <div style="width: ${lowRate}%; height: 100%; background: linear-gradient(90deg, #ef4444, #dc2626);"></div>
+                            <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 11px; font-weight: bold;">${lowRate}%</span>
+                        </div>
+                    </div>
+                    <div style="margin-top: 8px; padding: 8px; background: rgba(59, 130, 246, 0.1); border-radius: 6px;">
+                        <p style="font-size: 11px; color: var(--text-secondary); margin: 0;">
+                            ${highRate > lowRate + 10 ? '💡 気分が良い日は習慣達成率も高い傾向があります！' :
+                              lowRate > highRate + 10 ? '💪 気分が低い日でも頑張って習慣を続けています！' :
+                              '📊 気分に関わらず安定して習慣を続けています！'}
+                        </p>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // ワードクラウドを生成
+        function generateWordCloud(entries) {
+            const words = {};
+            
+            // すべてのテキストから単語を抽出
+            Object.values(entries).forEach(entry => {
+                const texts = [];
+                if (entry.morning) {
+                    if (entry.morning.priority) texts.push(entry.morning.priority);
+                }
+                if (entry.evening) {
+                    if (entry.evening.success) texts.push(entry.evening.success);
+                    if (entry.evening.improvement) texts.push(entry.evening.improvement);
+                }
+                
+                // 2文字以上の漢字・ひらがな・カタカナを抽出
+                texts.forEach(text => {
+                    const matches = text.match(/[一-龥ぁ-んァ-ヶー]{2,}/g) || [];
+                    matches.forEach(word => {
+                        // よくある助詞や接続詞を除外
+                        if (!['です', 'ます', 'した', 'こと', 'もの', 'ため', 'から', 'まで', 'など', 'より'].includes(word)) {
+                            words[word] = (words[word] || 0) + 1;
+                        }
+                    });
+                });
+            });
+            
+            // 頻度順にソートして上位20個を取得
+            const sortedWords = Object.entries(words)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 20);
+            
+            if (sortedWords.length === 0) {
+                return '<div style="text-align: center; padding: 20px; color: var(--text-secondary); font-size: 12px;">キーワードを抽出中...</div>';
+            }
+            
+            // 最大頻度を取得してサイズを正規化
+            const maxCount = sortedWords[0][1];
+            
+            return `
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; padding: 12px;">
+                    ${sortedWords.map(([word, count]) => {
+                        const size = 12 + (count / maxCount) * 16; // 12px〜28pxの範囲
+                        const opacity = 0.5 + (count / maxCount) * 0.5; // 0.5〜1.0の範囲
+                        const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+                        const color = colors[Math.floor(Math.random() * colors.length)];
+                        
+                        return `
+                            <span style="
+                                font-size: ${size}px;
+                                color: ${color};
+                                opacity: ${opacity};
+                                padding: 4px 8px;
+                                background: rgba(255,255,255,0.05);
+                                border-radius: 4px;
+                                cursor: default;
+                                transition: all 0.2s;
+                            " title="${count}回使用">
+                                ${word}
+                            </span>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+
+        // ジャーナルストリークを更新
+        function updateJournalStreak(data) {
+            const today = new Date();
+            const todayKey = dateKeyLocal(today);
+            
+            // 今日のエントリが完全かチェック
+            const todayEntry = data.dailyJournal.entries[todayKey];
+            const isComplete = todayEntry && todayEntry.morning && todayEntry.evening;
+            
+            if (isComplete) {
+                // 昨日のエントリをチェック
+                const yesterday = new Date(today);
+                yesterday.setDate(yesterday.getDate() - 1);
+                const yesterdayKey = dateKeyLocal(yesterday);
+                const yesterdayEntry = data.dailyJournal.entries[yesterdayKey];
+                
+                if (yesterdayEntry && yesterdayEntry.morning && yesterdayEntry.evening) {
+                    // 連続を継続
+                    data.dailyJournal.stats.currentStreak++;
+                } else {
+                    // 新しいストリークを開始
+                    data.dailyJournal.stats.currentStreak = 1;
+                }
+                
+                // 最長ストリークを更新
+                if (data.dailyJournal.stats.currentStreak > data.dailyJournal.stats.longestStreak) {
+                    data.dailyJournal.stats.longestStreak = data.dailyJournal.stats.currentStreak;
+                }
+                
+                // 統計を更新
+                data.dailyJournal.stats.lastEntry = todayKey;
+                data.dailyJournal.stats.totalEntries++;
+                
+                // ストリークボーナス
+                if (data.dailyJournal.stats.currentStreak === 7) {
+                    earnPoints(5, 'journal', '🔥 ジャーナル7日連続ボーナス');
+                    showNotification('🎆 7日連続達成！+5ptボーナス！', 'success');
+                } else if (data.dailyJournal.stats.currentStreak === 30) {
+                    earnPoints(20, 'journal', '🎆 ジャーナル30日連続ボーナス');
+                    showNotification('🎉 30日連続達成！+20ptボーナス！', 'success');
+                }
+            }
+        }
+        
+        // コンテキストメニューを表示
+        function showJournalContextMenu(event, type) {
+            event.preventDefault();
+            
+            // 既存のコンテキストメニューを削除
+            const existingMenu = document.querySelector('.context-menu');
+            if (existingMenu) {
+                existingMenu.remove();
+            }
+            
+            // コンテキストメニューを作成
+            const menu = document.createElement('div');
+            menu.className = 'context-menu';
+            menu.style.cssText = `
+                position: fixed;
+                left: ${event.clientX}px;
+                top: ${event.clientY}px;
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                padding: 4px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                z-index: 10000;
+                min-width: 120px;
+            `;
+            
+            menu.innerHTML = `
+                <div onclick="deleteJournalEntry('${type}'); this.parentElement.remove();" style="
+                    padding: 8px 12px;
+                    cursor: pointer;
+                    border-radius: 4px;
+                    color: #ef4444;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    transition: background 0.2s;
+                " onmouseover="this.style.background='rgba(239, 68, 68, 0.1)'" onmouseout="this.style.background='transparent'">
+                    🗑️ 削除
+                </div>
+            `;
+            
+            document.body.appendChild(menu);
+            
+            // クリックで閉じる
+            setTimeout(() => {
+                document.addEventListener('click', function closeMenu(e) {
+                    if (!menu.contains(e.target)) {
+                        menu.remove();
+                        document.removeEventListener('click', closeMenu);
+                    }
+                });
+            }, 100);
+        }
+        
+        // ジャーナルエントリを削除
+        function deleteJournalEntry(type) {
+            if (!confirm(`${type === 'morning' ? '朝' : '夜'}のジャーナルを削除しますか？\n獲得したポイントも減算されます。`)) {
+                return;
+            }
+            
+            let data = loadData();
+            const todayKey = getJournalDateKey(); // 深夜対応の日付キー
+            
+            if (!data.dailyJournal || !data.dailyJournal.entries[todayKey]) {
+                showNotification('削除するジャーナルが見つかりません', 'error');
+                return;
+            }
+            
+            const entry = data.dailyJournal.entries[todayKey][type];
+            if (!entry) {
+                showNotification('削除するジャーナルが見つかりません', 'error');
+                return;
+            }
+            
+            // 獲得したポイントがある場合は減算
+            if (entry.pointsEarned && entry.pointsEarned > 0) {
+                console.log(`ジャーナル削除：${entry.pointsEarned}ポイント減算`);
+                
+                // 現在のブースト効果を考慮して元のポイントを計算
+                const basePoints = 1; // ジャーナルの基本ポイント
+                const boostedPoints = calculatePointsWithBoosts(basePoints, 'journal', null);
+                const actualPointsToDeduct = Math.round(boostedPoints);
+                
+                console.log(`基本ポイント: ${basePoints}, ブースト後: ${boostedPoints}, 減算額: ${actualPointsToDeduct}`);
+                
+                // ポイントを減算
+                data.pointSystem.currentPoints = Math.max(0, data.pointSystem.currentPoints - actualPointsToDeduct);
+                
+                // トランザクション記録
+                data.pointSystem.transactions.unshift({
+                    timestamp: new Date().toISOString(),
+                    type: 'spend',
+                    amount: actualPointsToDeduct,
+                    source: 'journal_delete',
+                    description: `${type === 'morning' ? '🌅 朝' : '🌙 夜'}のジャーナル削除による減算`,
+                    multiplier: 1.0,
+                    finalAmount: -actualPointsToDeduct
+                });
+                
+                // トランザクション履歴を最新100件に制限
+                if (data.pointSystem.transactions.length > 100) {
+                    data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100);
+                }
+            }
+            
+            // エントリを削除
+            delete data.dailyJournal.entries[todayKey][type];
+            
+            // 両方のエントリが削除された場合はその日のデータ自体を削除
+            if (!data.dailyJournal.entries[todayKey].morning && !data.dailyJournal.entries[todayKey].evening) {
+                delete data.dailyJournal.entries[todayKey];
+                
+                // ストリークを再計算
+                recalculateJournalStreak(data);
+            }
+            
+            // データを保存
+            saveData(data);
+            
+            // UI更新
+            updateJournalStatus();
+            updatePointDisplay();
+            
+            showNotification(`${type === 'morning' ? '🌅 朝' : '🌙 夜'}のジャーナルを削除しました`, 'info');
+        }
+        
+        // ジャーナルストリークを再計算
+        function recalculateJournalStreak(data) {
+            // 現在のストリークをリセット
+            data.dailyJournal.stats.currentStreak = 0;
+            
+            // 今日から遡って連続日数を計算
+            const today = new Date();
+            let checkDate = new Date(today);
+            let consecutiveDays = 0;
+            
+            while (true) {
+                const dateKey = dateKeyLocal(checkDate);
+                const entry = data.dailyJournal.entries[dateKey];
+                
+                // その日のエントリが完全でない場合は終了
+                if (!entry || !entry.morning || !entry.evening) {
+                    break;
+                }
+                
+                consecutiveDays++;
+                
+                // 前日をチェック
+                checkDate.setDate(checkDate.getDate() - 1);
+            }
+            
+            data.dailyJournal.stats.currentStreak = consecutiveDays;
+            
+            // 最長ストリークを更新
+            if (consecutiveDays > data.dailyJournal.stats.longestStreak) {
+                data.dailyJournal.stats.longestStreak = consecutiveDays;
+            }
+        }
+        
+        // ========== チャレンジシステム関連の関数 ==========
+        
+        // チャレンジを更新
+        function updateChallenges() {
+            const data = loadData();
+            
+            // カスタムチャレンジを取得
+            const customDailyChallenges = (data.challenges.customChallenges || [])
+                .filter(c => c.type === 'daily');
+            const customWeeklyChallenges = (data.challenges.customChallenges || [])
+                .filter(c => c.type === 'weekly');
+            
+            // デイリーチャレンジプールを作成（既定 + カスタム）
+            const allDailyChallenges = [...DAILY_CHALLENGES, ...customDailyChallenges];
+            
+            // デイリーチャレンジ
+            const dailyContainer = document.getElementById('daily-challenge-container');
+            if (!data.challenges.daily) {
+                // ランダムにデイリーチャレンジを選択
+                const randomDaily = allDailyChallenges[Math.floor(Math.random() * allDailyChallenges.length)];
+                data.challenges.daily = randomDaily;
+                saveData(data);
+            }
+            
+            if (dailyContainer) {
+                const daily = data.challenges.daily;
+                const isCompleted = data.challenges.completedToday.includes(daily.id);
+                
+                // チェック関数は無効化（手動トグルのみ）
+                let isAutoCheckable = false;
+                let isAutoCompleted = false;
+                
+                dailyContainer.innerHTML = `
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span style="font-size: 24px;">${daily.icon}</span>
+                            <div>
+                                <div style="font-weight: bold; ${isCompleted ? 'text-decoration: line-through; color: var(--text-secondary);' : ''}">${daily.name}</div>
+                                <div style="font-size: 12px; color: var(--text-secondary);">
+                                    報酬: ${daily.points}pt
+                                    ${daily.id.startsWith('custom_') ? ' (カスタム)' : ''}
+                                </div>
+                            </div>
+                        </div>
+                        ${!isCompleted ? `
+                            <button class="btn btn-primary" 
+                                onclick="completeChallenge('daily', '${daily.id}')" 
+                                style="padding: 8px 16px; font-size: 14px; background: linear-gradient(135deg, #667eea, #764ba2); border: none; color: white; font-weight: 600;">
+                                完了にする
+                            </button>
+                        ` : `
+                            <button class="btn btn-secondary" 
+                                onclick="completeChallenge('daily', '${daily.id}')" 
+                                style="padding: 8px 16px; font-size: 14px; background: #ef4444; border: none; color: white; font-weight: 600;">
+                                ↩️ 取り消す
+                            </button>
+                        `}
+                    </div>
+                `;
+            }
+            
+            // ウィークリーチャレンジプールを作成（既定 + カスタム）
+            const allWeeklyChallenges = [...WEEKLY_CHALLENGES, ...customWeeklyChallenges];
+            
+            // ウィークリーチャレンジ
+            const weeklyContainer = document.getElementById('weekly-challenge-container');
+            if (!data.challenges.weekly) {
+                // ランダムにウィークリーチャレンジを選択
+                const randomWeekly = allWeeklyChallenges[Math.floor(Math.random() * allWeeklyChallenges.length)];
+                data.challenges.weekly = randomWeekly;
+                saveData(data);
+            }
+            
+            if (weeklyContainer) {
+                const weekly = data.challenges.weekly;
+                const isCompleted = data.challenges.completedThisWeek.includes(weekly.id);
+                
+                weeklyContainer.innerHTML = `
+                    <h4 style="margin-bottom: 8px; font-size: 14px; color: var(--text-secondary);">📅 今週のチャレンジ</h4>
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span style="font-size: 24px;">${weekly.icon}</span>
+                            <div>
+                                <div style="font-weight: bold; ${isCompleted ? 'text-decoration: line-through; color: var(--text-secondary);' : ''}">${weekly.name}</div>
+                                <div style="font-size: 12px; color: var(--text-secondary);">報酬: ${weekly.points}pt${weekly.id.startsWith('custom_') ? ' (カスタム)' : ''}</div>
+                            </div>
+                        </div>
+                        ${!isCompleted ? `
+                            <button class="btn btn-primary" 
+                                onclick="completeChallenge('weekly', '${weekly.id}')" 
+                                style="padding: 8px 16px; font-size: 14px; background: linear-gradient(135deg, #667eea, #764ba2); border: none; color: white; font-weight: 600;">
+                                完了にする
+                            </button>
+                        ` : `
+                            <button class="btn btn-secondary" 
+                                onclick="completeChallenge('weekly', '${weekly.id}')" 
+                                style="padding: 8px 16px; font-size: 14px; background: #ef4444; border: none; color: white; font-weight: 600;">
+                                ↩️ 取り消す
+                            </button>
+                        `}
+                    </div>
+                `;
+            }
+        }
+        
+        // 現在のブースト倍率を取得
+        function getBoostMultiplier() {
+            const data = loadData();
+            let multiplier = 1.0;
+            
+            // アクティブなカード効果を確認
+            if (data.cards && data.cards.activeEffects) {
+                data.cards.activeEffects.forEach(effect => {
+                    if (effect.cardId === 'double_points') {
+                        multiplier = Math.max(multiplier, 2.0);
+                    } else if (effect.cardId === 'triple_points') {
+                        multiplier = Math.max(multiplier, 3.0);
+                    } else if (effect.cardId === 'power_boost') {
+                        multiplier = Math.max(multiplier, 1.5);
+                    }
+                });
+            }
+            
+            // 連続達成ボーナス（7日以上で+10%）
+            if (data.challenges && data.challenges.streak >= 7) {
+                multiplier *= 1.1;
+            }
+            
+            // 完璧な週ボーナス（週に7日すべて達成で+20%）
+            const weekStart = new Date();
+            weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+            let perfectWeek = true;
+            for (let i = 0; i < 7; i++) {
+                const checkDate = new Date(weekStart);
+                checkDate.setDate(checkDate.getDate() + i);
+                if (checkDate > new Date()) break;
+                
+                // その日にチャレンジが完了しているかチェック
+                const dateStr = checkDate.toDateString();
+                const hasCompletion = data.challenges.history.some(h => {
+                    const completedDate = new Date(h.completedAt).toDateString();
+                    return completedDate === dateStr;
+                });
+                
+                if (!hasCompletion && checkDate.toDateString() !== new Date().toDateString()) {
+                    perfectWeek = false;
+                    break;
+                }
+            }
+            
+            if (perfectWeek && new Date().getDay() === 6) { // 土曜日にボーナス
+                multiplier *= 1.2;
+            }
+            
+            return multiplier;
+        }
+        
+        // チャレンジを完了（トグル機能付き）
+        function completeChallenge(type, challengeId) {
+            const data = loadData();
+            const today = new Date().toDateString();
+            
+            if (type === 'daily') {
+                // 既定のチャレンジまたはカスタムチャレンジから検索
+                let challenge = DAILY_CHALLENGES.find(c => c.id === challengeId);
+                if (!challenge && data.challenges.customChallenges) {
+                    challenge = data.challenges.customChallenges.find(c => c.id === challengeId && c.type === 'daily');
+                }
+                
+                if (challenge) {
+                    // 既に完了している場合は取り消し
+                    if (data.challenges.completedToday.includes(challengeId)) {
+                        undoChallenge(type, challengeId);
+                        return;
+                    }
+                    
+                    // 完了処理
+                    data.challenges.completedToday.push(challengeId);
+                    
+                    // 履歴に追加
+                    data.challenges.history.unshift({
+                        id: challengeId,
+                        name: challenge.name,
+                        type: 'daily',
+                        points: challenge.points,
+                        completedAt: new Date().toISOString(),
+                        isCustom: challengeId.startsWith('custom_')
+                    });
+                    
+                    // ストリークを更新
+                    if (data.challenges.lastStreakDate !== today) {
+                        const yesterday = new Date();
+                        yesterday.setDate(yesterday.getDate() - 1);
+                        const yesterdayStr = yesterday.toDateString();
+                        
+                        if (data.challenges.lastStreakDate === yesterdayStr) {
+                            data.challenges.streak++;
+                        } else {
+                            data.challenges.streak = 1;
+                        }
+                        data.challenges.lastStreakDate = today;
+                    }
+                    
+                    data.challenges.totalCompleted++;
+                    
+                    // 履歴は最新100件のみ保存
+                    if (data.challenges.history.length > 100) {
+                        data.challenges.history = data.challenges.history.slice(0, 100);
+                    }
+                    
+                    saveData(data);
+                    
+                    // ボーナスを考慮してポイント獲得
+                    const boostMultiplier = getBoostMultiplier();
+                    const earnedPoints = Math.floor(challenge.points * boostMultiplier);
+                    earnPoints(earnedPoints, 'daily_challenge', `デイリーチャレンジ: ${challenge.name}`);
+                    
+                    if (boostMultiplier > 1) {
+                        showNotification(`🎉 デイリーチャレンジ完了！ +${earnedPoints}pt (ブースト${boostMultiplier}x)`, 'success');
+                    } else {
+                        showNotification(`🎉 デイリーチャレンジ完了！ +${earnedPoints}pt`, 'success');
+                    }
+                }
+            } else if (type === 'weekly') {
+                // 既定のチャレンジまたはカスタムチャレンジから検索
+                let challenge = WEEKLY_CHALLENGES.find(c => c.id === challengeId);
+                if (!challenge && data.challenges.customChallenges) {
+                    challenge = data.challenges.customChallenges.find(c => c.id === challengeId && c.type === 'weekly');
+                }
+                
+                if (challenge) {
+                    // 既に完了している場合は取り消し
+                    if (data.challenges.completedThisWeek.includes(challengeId)) {
+                        undoChallenge(type, challengeId);
+                        return;
+                    }
+                    
+                    // 完了処理
+                    data.challenges.completedThisWeek.push(challengeId);
+                    
+                    // 履歴に追加
+                    data.challenges.history.unshift({
+                        id: challengeId,
+                        name: challenge.name,
+                        type: 'weekly',
+                        points: challenge.points,
+                        completedAt: new Date().toISOString(),
+                        isCustom: challengeId.startsWith('custom_')
+                    });
+                    
+                    data.challenges.totalCompleted++;
+                    
+                    // 履歴は最新100件のみ保存
+                    if (data.challenges.history.length > 100) {
+                        data.challenges.history = data.challenges.history.slice(0, 100);
+                    }
+                    
+                    saveData(data);
+                    
+                    // ボーナスを考慮してポイント獲得
+                    const boostMultiplier = getBoostMultiplier();
+                    const earnedPoints = Math.floor(challenge.points * boostMultiplier);
+                    earnPoints(earnedPoints, 'weekly_challenge', `ウィークリーチャレンジ: ${challenge.name}`);
+                    
+                    if (boostMultiplier > 1) {
+                        showNotification(`🎉 ウィークリーチャレンジ完了！ +${earnedPoints}pt (ブースト${boostMultiplier}x)`, 'success');
+                    } else {
+                        showNotification(`🎉 ウィークリーチャレンジ完了！ +${earnedPoints}pt`, 'success');
+                    }
+                }
+            }
+            updateChallenges();
+            updatePointDisplay();
+            updatePointsView();
+            updateChallengeStats();
+        }
+        
+        // チャレンジ達成を取り消す（確認なしで即座に実行）
+        function undoChallenge(type, challengeId) {
+            const data = loadData();
+            
+            if (type === 'daily') {
+                // 既定のチャレンジまたはカスタムチャレンジから検索
+                let challenge = DAILY_CHALLENGES.find(c => c.id === challengeId);
+                if (!challenge && data.challenges.customChallenges) {
+                    challenge = data.challenges.customChallenges.find(c => c.id === challengeId && c.type === 'daily');
+                }
+                
+                if (challenge && data.challenges.completedToday.includes(challengeId)) {
+                    // 完了リストから削除
+                    const index = data.challenges.completedToday.indexOf(challengeId);
+                    if (index > -1) {
+                        data.challenges.completedToday.splice(index, 1);
+                    }
+                    
+                    // 最新の履歴エントリを探す
+                    const historyEntry = data.challenges.history.find(h => h.id === challengeId && h.type === 'daily');
+                    let pointsToDeduct = challenge.points;
+                    
+                    // 履歴エントリから実際に獲得したポイントを取得（ブースト考慮）
+                    if (historyEntry) {
+                        const historyIndex = data.challenges.history.indexOf(historyEntry);
+                        if (historyIndex > -1) {
+                            // トランザクション履歴から実際の獲得ポイントを探す
+                            const recentTransaction = data.pointSystem.transactions.find(t => 
+                                t.source === 'daily_challenge' && 
+                                t.description === `デイリーチャレンジ: ${challenge.name}` &&
+                                Math.abs(new Date(t.timestamp).getTime() - new Date(historyEntry.completedAt).getTime()) < 1000
+                            );
+                            
+                            if (recentTransaction) {
+                                pointsToDeduct = recentTransaction.amount;
+                            }
+                            
+                            data.challenges.history.splice(historyIndex, 1);
+                        }
+                    }
+                    
+                    // 総達成数を減らす
+                    data.challenges.totalCompleted = Math.max(0, data.challenges.totalCompleted - 1);
+                    
+                    // ストリークの再計算（今日の他のチャレンジが完了していない場合）
+                    const today = new Date().toDateString();
+                    if (data.challenges.completedToday.length === 0 && data.challenges.lastStreakDate === today) {
+                        data.challenges.streak = Math.max(0, data.challenges.streak - 1);
+                        // 前日の日付に戻す
+                        const yesterday = new Date();
+                        yesterday.setDate(yesterday.getDate() - 1);
+                        data.challenges.lastStreakDate = yesterday.toDateString();
+                    }
+                    
+                    // ポイントを減算（実際に獲得した分だけ）
+                    data.pointSystem.currentPoints = Math.max(0, data.pointSystem.currentPoints - pointsToDeduct);
+                    data.pointSystem.lifetimeEarned = Math.max(0, data.pointSystem.lifetimeEarned - pointsToDeduct);
+                    data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
+                    
+                    // レベル更新
+                    const newLevel = calculateLevel(data.pointSystem.lifetimeEarned);
+                    data.pointSystem.currentLevel = newLevel.level;
+                    
+                    // トランザクション記録
+                    data.pointSystem.transactions.unshift({
+                        timestamp: new Date().toISOString(),
+                        type: 'spend',
+                        amount: pointsToDeduct,
+                        source: 'challenge_undo',
+                        description: `チャレンジ取消: ${challenge.name}`
+                    });
+                    
+                    // トランザクション履歴を制限
+                    if (data.pointSystem.transactions.length > 100) {
+                        data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100);
+                    }
+                    
+                    saveData(data);
+                    showNotification(`取り消しました (-${pointsToDeduct}pt)`, 'info');
+                }
+            } else if (type === 'weekly') {
+                // 既定のチャレンジまたはカスタムチャレンジから検索
+                let challenge = WEEKLY_CHALLENGES.find(c => c.id === challengeId);
+                if (!challenge && data.challenges.customChallenges) {
+                    challenge = data.challenges.customChallenges.find(c => c.id === challengeId && c.type === 'weekly');
+                }
+                
+                if (challenge && data.challenges.completedThisWeek.includes(challengeId)) {
+                    // 完了リストから削除
+                    const index = data.challenges.completedThisWeek.indexOf(challengeId);
+                    if (index > -1) {
+                        data.challenges.completedThisWeek.splice(index, 1);
+                    }
+                    
+                    // 最新の履歴エントリを探す
+                    const historyEntry = data.challenges.history.find(h => h.id === challengeId && h.type === 'weekly');
+                    let pointsToDeduct = challenge.points;
+                    
+                    // 履歴エントリから実際に獲得したポイントを取得（ブースト考慮）
+                    if (historyEntry) {
+                        const historyIndex = data.challenges.history.indexOf(historyEntry);
+                        if (historyIndex > -1) {
+                            // トランザクション履歴から実際の獲得ポイントを探す
+                            const recentTransaction = data.pointSystem.transactions.find(t => 
+                                t.source === 'weekly_challenge' && 
+                                t.description === `ウィークリーチャレンジ: ${challenge.name}` &&
+                                Math.abs(new Date(t.timestamp).getTime() - new Date(historyEntry.completedAt).getTime()) < 1000
+                            );
+                            
+                            if (recentTransaction) {
+                                pointsToDeduct = recentTransaction.amount;
+                            }
+                            
+                            data.challenges.history.splice(historyIndex, 1);
+                        }
+                    }
+                    
+                    // 総達成数を減らす
+                    data.challenges.totalCompleted = Math.max(0, data.challenges.totalCompleted - 1);
+                    
+                    // ポイントを減算（実際に獲得した分だけ）
+                    data.pointSystem.currentPoints = Math.max(0, data.pointSystem.currentPoints - pointsToDeduct);
+                    data.pointSystem.lifetimeEarned = Math.max(0, data.pointSystem.lifetimeEarned - pointsToDeduct);
+                    data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
+                    
+                    // レベル更新
+                    const newLevel = calculateLevel(data.pointSystem.lifetimeEarned);
+                    data.pointSystem.currentLevel = newLevel.level;
+                    
+                    // トランザクション記録
+                    data.pointSystem.transactions.unshift({
+                        timestamp: new Date().toISOString(),
+                        type: 'spend',
+                        amount: pointsToDeduct,
+                        source: 'challenge_undo',
+                        description: `チャレンジ取消: ${challenge.name}`
+                    });
+                    
+                    // トランザクション履歴を制限
+                    if (data.pointSystem.transactions.length > 100) {
+                        data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100);
+                    }
+                    
+                    saveData(data);
+                    showNotification(`取り消しました (-${pointsToDeduct}pt)`, 'info');
+                }
+            }
+            
+            updateChallenges();
+            updatePointDisplay();
+            updatePointsView();
+            updateChallengeStats();
+        }
+
+
+        // ポイントをすべてリセット（緊急時用・通常は非表示）
+        // function resetAllPoints() {
+        //     if (!confirm('⚠️ 警告\n\nすべてのポイントと履歴を削除します。\nこの操作は取り消せません。\n\n本当に実行しますか？')) {
+        //         return;
+        //     }
+        //     
+        //     if (!confirm('⚠️ 最終確認\n\n本当にすべてのポイントをリセットしますか？')) {
+        //         return;
+        //     }
+        //     
+        //     const data = loadData();
+        //     
+        //     // ポイントシステムをリセット
+        //     data.pointSystem.currentPoints = 0;
+        //     data.pointSystem.lifetimeEarned = 0;
+        //     data.pointSystem.lifetimeSpent = 0;
+        //     data.pointSystem.currentLevel = 1;
+        //     data.pointSystem.levelProgress = 0;
+        //     data.pointSystem.transactions = [];
+        //     
+        //     saveData(data);
+        //     
+        //     // UI更新
+        //     updatePointDisplay();
+        //     updatePointsView();
+        //     showNotification('ポイントをリセットしました', 'success');
+        // }
+
+        // チャレンジ統計を更新
+        function updateChallengeStats() {
+            const data = loadData();
+            const challenges = data.challenges;
+            
+            // 連続達成日数
+            const streakEl = document.getElementById('challenge-streak');
+            if (streakEl) {
+                streakEl.textContent = challenges.streak || 0;
+            }
+            
+            // 累計完了数
+            const totalEl = document.getElementById('total-challenges-completed');
+            if (totalEl) {
+                totalEl.textContent = challenges.totalCompleted || 0;
+            }
+            
+            // デイリー達成率を計算
+            const dailyHistory = challenges.history.filter(h => h.type === 'daily');
+            const last30Days = dailyHistory.filter(h => {
+                const date = new Date(h.completedAt);
+                const daysDiff = (new Date() - date) / (1000 * 60 * 60 * 24);
+                return daysDiff <= 30;
+            });
+            const dailyRate = last30Days.length > 0 ? Math.round((last30Days.length / 30) * 100) : 0;
+            const dailyRateEl = document.getElementById('daily-completion-rate');
+            if (dailyRateEl) {
+                dailyRateEl.textContent = `${dailyRate}%`;
+            }
+            
+            // ウィークリー達成率を計算
+            const weeklyHistory = challenges.history.filter(h => h.type === 'weekly');
+            const last8Weeks = weeklyHistory.filter(h => {
+                const date = new Date(h.completedAt);
+                const weeksDiff = (new Date() - date) / (1000 * 60 * 60 * 24 * 7);
+                return weeksDiff <= 8;
+            });
+            const weeklyRate = last8Weeks.length > 0 ? Math.round((last8Weeks.length / 8) * 100) : 0;
+            const weeklyRateEl = document.getElementById('weekly-completion-rate');
+            if (weeklyRateEl) {
+                weeklyRateEl.textContent = `${weeklyRate}%`;
+            }
+            
+            // お気に入りチャレンジ（よく達成するチャレンジ）
+            const favoriteContainer = document.getElementById('favorite-challenges');
+            if (favoriteContainer) {
+                const challengeCounts = {};
+                challenges.history.forEach(h => {
+                    if (!challengeCounts[h.id]) {
+                        challengeCounts[h.id] = { name: h.name, count: 0, type: h.type };
+                    }
+                    challengeCounts[h.id].count++;
+                });
+                
+                const sortedChallenges = Object.entries(challengeCounts)
+                    .sort((a, b) => b[1].count - a[1].count)
+                    .slice(0, 5);
+                
+                if (sortedChallenges.length > 0) {
+                    favoriteContainer.innerHTML = sortedChallenges.map(([id, data]) => `
+                        <div style="display: flex; justify-content: space-between; padding: 8px; background: rgba(139, 92, 246, 0.1); border-radius: 8px;">
+                            <span style="font-size: 12px;">${data.name}</span>
+                            <span style="font-size: 12px; color: var(--text-secondary);">${data.count}回</span>
+                        </div>
+                    `).join('');
+                } else {
+                    favoriteContainer.innerHTML = '<p style="color: var(--text-secondary); font-size: 12px;">まだデータがありません</p>';
+                }
+            }
+            
+            // 最近のチャレンジ達成
+            const recentContainer = document.getElementById('recent-challenges');
+            if (recentContainer) {
+                const recent = challenges.history.slice(0, 10);
+                if (recent.length > 0) {
+                    recentContainer.innerHTML = recent.map(h => {
+                        const date = new Date(h.completedAt);
+                        const dateStr = `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+                        const typeIcon = h.type === 'daily' ? '📅' : '📆';
+                        return `
+                            <div style="display: flex; justify-content: space-between; padding: 6px; background: rgba(0, 0, 0, 0.1); border-radius: 6px;">
+                                <span>${typeIcon} ${h.name}</span>
+                                <span style="color: var(--text-secondary);">${dateStr}</span>
+                            </div>
+                        `;
+                    }).join('');
+                } else {
+                    recentContainer.innerHTML = '<p style="color: var(--text-secondary);">まだチャレンジを達成していません</p>';
+                }
+            }
+        }
+
+        // カスタムチャレンジ作成フォーム表示
+        function showChallengeCreation() {
+            document.getElementById('reward-creation-form').style.display = 'none';
+            document.getElementById('challenge-creation-form').style.display = 'block';
+            document.getElementById('reward-creation-btn').style.background = '';
+            document.getElementById('reward-creation-btn').style.color = '';
+            document.getElementById('challenge-creation-btn').style.background = 'var(--primary)';
+            document.getElementById('challenge-creation-btn').style.color = 'white';
+            updateCustomChallengesList();
+        }
+        
+        // 報酬作成フォーム表示
+        function showRewardCreation() {
+            document.getElementById('reward-creation-form').style.display = 'block';
+            document.getElementById('challenge-creation-form').style.display = 'none';
+            document.getElementById('reward-creation-btn').style.background = 'var(--primary)';
+            document.getElementById('reward-creation-btn').style.color = 'white';
+            document.getElementById('challenge-creation-btn').style.background = '';
+            document.getElementById('challenge-creation-btn').style.color = '';
+        }
+        
+        // チャレンジポイント更新
+        function updateChallengePoints(value) {
+            document.getElementById('challenge-points-display').textContent = `${value}pt`;
+            document.getElementById('challenge-points').value = value;
+        }
+        
+        // カスタムチャレンジ作成
+        function createCustomChallenge(event) {
+            event.preventDefault();
+            const data = loadData();
+            
+            const challenge = {
+                id: `custom_${Date.now()}`,
+                name: document.getElementById('challenge-name').value,
+                type: document.getElementById('challenge-type').value,
+                points: parseInt(document.getElementById('challenge-points').value),
+                icon: document.getElementById('challenge-emoji').value || '🎯',
+                category: document.getElementById('challenge-category').value,
+                isCustom: true,
+                createdAt: new Date().toISOString()
+            };
+            
+            data.challenges.customChallenges.push(challenge);
+            saveData(data);
+            
+            // フォームをリセット
+            document.getElementById('challenge-name').value = '';
+            document.getElementById('challenge-emoji').value = '';
+            document.getElementById('challenge-points-slider').value = 5;
+            updateChallengePoints(5);
+            
+            showNotification('カスタムチャレンジを作成しました！', 'success');
+            updateCustomChallengesList();
+        }
+        
+        // カスタムチャレンジリストを更新
+        function updateCustomChallengesList() {
+            const data = loadData();
+            const container = document.getElementById('custom-challenges-list');
+            
+            if (container) {
+                if (data.challenges.customChallenges.length === 0) {
+                    container.innerHTML = '<p style="color: var(--text-secondary); font-size: 12px;">まだカスタムチャレンジを作成していません</p>';
+                } else {
+                    container.innerHTML = data.challenges.customChallenges.map(challenge => `
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px; background: rgba(139, 92, 246, 0.1); border-radius: 8px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span>${challenge.icon}</span>
+                                <div>
+                                    <div style="font-size: 12px; font-weight: bold;">${challenge.name}</div>
+                                    <div style="font-size: 10px; color: var(--text-secondary);">${challenge.type === 'daily' ? 'デイリー' : 'ウィークリー'} / ${challenge.points}pt</div>
+                                </div>
+                            </div>
+                            <button class="btn btn-secondary" onclick="deleteCustomChallenge('${challenge.id}')" style="padding: 4px 8px; font-size: 10px;">
+                                削除
+                            </button>
+                        </div>
+                    `).join('');
+                }
+            }
+        }
+        
+        // カスタムチャレンジを削除
+        function deleteCustomChallenge(challengeId) {
+            if (confirm('このカスタムチャレンジを削除しますか？')) {
+                const data = loadData();
+                data.challenges.customChallenges = data.challenges.customChallenges.filter(c => c.id !== challengeId);
+                saveData(data);
+                updateCustomChallengesList();
+                showNotification('カスタムチャレンジを削除しました', 'info');
+            }
+        }
+
+        // ========== ポイントシステム関連の関数 ==========
+        
+        // レベル設定（より長期的な目標設定）
+        const LEVEL_THRESHOLDS = [
+            { level: 1, name: '初心者', min: 0, max: 75 },           // 50 → 75 (1.5倍)
+            { level: 2, name: '見習い', min: 76, max: 225 },         // 150 → 225 (1.5倍)
+            { level: 3, name: '習慣家', min: 226, max: 450 },        // 300 → 450 (1.5倍)
+            { level: 4, name: '実践者', min: 451, max: 750 },        // 500 → 750 (1.5倍)
+            { level: 5, name: '達人', min: 751, max: 1125 },         // 750 → 1125 (1.5倍)
+            { level: 6, name: 'マスター', min: 1126, max: 1650 },    // 1100 → 1650 (1.5倍)
+            { level: 7, name: 'グランドマスター', min: 1651, max: 2250 }, // 1500 → 2250 (1.5倍)
+            { level: 8, name: 'レジェンド', min: 2251, max: 3000 },  // 2000 → 3000 (1.5倍)
+            { level: 9, name: '神', min: 3001, max: 3900 },          // 2600 → 3900 (1.5倍)
+            { level: 10, name: '超越者', min: 3901, max: Infinity }
+        ];
+
+        // 現在のレベルを計算
+        function calculateLevel(lifetimeEarned) {
+            for (const threshold of LEVEL_THRESHOLDS) {
+                if (lifetimeEarned <= threshold.max) {
+                    return threshold;
+                }
+            }
+            // レベル10以上の計算
+            const extraPoints = lifetimeEarned - 2601;
+            const extraLevels = Math.floor(extraPoints / 700);
+            return {
+                level: 10 + extraLevels,
+                name: '超越者',
+                min: 2601 + (extraLevels * 700),
+                max: 2601 + ((extraLevels + 1) * 700)
+            };
+        }
+
+        // ポイント獲得処理（habitIdパラメータを追加）
+        function earnPoints(amount, source, description, multiplier = 1.0, category = null, habitId = null, meta = {}) {
+            console.log('earnPoints呼び出し:', {amount, source, description, habitId});
+            const data = loadData();
+            
+            // ブースト効果（詳細）を適用
+            const boost = calculatePointsWithBoostsDetailed(amount, source, category);
+            const finalAmount = Math.round((boost.finalPoints) * multiplier);
+            console.log('計算後のポイント:', finalAmount, '詳細:', boost.notes);
+            
+            // ポイント追加
+            const beforePoints = data.pointSystem.currentPoints;
+            data.pointSystem.currentPoints += finalAmount;
+            data.pointSystem.lifetimeEarned += finalAmount;
+            data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
+            console.log('ポイント更新:', beforePoints, '→', data.pointSystem.currentPoints);
+            
+            // レベル更新
+            const newLevel = calculateLevel(data.pointSystem.lifetimeEarned);
+            const oldLevel = data.pointSystem.currentLevel;
+            data.pointSystem.currentLevel = newLevel.level;
+            
+            // トランザクション記録（habitIdを含める）
+            const transaction = {
+                timestamp: new Date().toISOString(),
+                type: 'earn',
+                amount: amount,
+                source: source,
+                description: description,
+                multiplier: multiplier,
+                finalAmount: finalAmount
+            };
+            
+            // habitIdがある場合は追加
+            if (habitId) {
+                transaction.habitId = habitId;
+            }
+            
+            // 追加メタ
+            if (boost && boost.notes && boost.notes.length > 0) {
+                transaction.appliedEffects = boost.notes;
+            }
+            if (meta && typeof meta === 'object') {
+                transaction.meta = meta;
+            }
+            data.pointSystem.transactions.unshift(transaction);
+            
+            // トランザクション履歴を最新100件に制限
+            if (data.pointSystem.transactions.length > 100) {
+                data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100);
+            }
+            
+            saveData(data);
+            
+            // レベルアップ通知
+            if (newLevel.level > oldLevel) {
+                showLevelUpNotification(oldLevel, newLevel);
+            }
+            
+            // ポイント獲得アニメーション
+            showPointAnimation(finalAmount);
+            // 効果の演出（ブーストがある場合）
+            if ((boost.multiplierTotal && boost.multiplierTotal !== 1) || (boost.bonusTotal && boost.bonusTotal !== 0)) {
+                const title = '💎 ポイントブースト！';
+                const effects = boost.notes && boost.notes.length ? boost.notes.join(' / ') : '効果適用';
+                showCardEffect(title, `+${finalAmount}pt (${effects})`, '#06b6d4');
+            }
+
+            // ミステリーボックス効果（今日の最初の習慣達成で発火）
+            try {
+                if (source === 'habit' && data.cards && data.cards.activeEffects) {
+                    const todayKey = dateKeyLocal(new Date());
+                    const mbox = data.cards.activeEffects.find(e => e.type === 'mystery_reward' && e.dayKey === todayKey && !e.claimed);
+                    if (mbox) {
+                        const pool = mbox.options || ['points15','event_trigger','point_gem'];
+                        const pick = pool[Math.floor(Math.random() * pool.length)];
+                        if (pick === 'points15') {
+                            // 追加ポイント
+                            data.pointSystem.currentPoints += 15;
+                            data.pointSystem.lifetimeEarned += 15;
+                            data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
+                            data.pointSystem.transactions.unshift({ timestamp:new Date().toISOString(), type:'earn', amount:15, finalAmount:15, source:'mystery', description:'ミステリーボックス(+15pt)' });
+                            showCardEffect('🎁 ミステリーボックス！','+15pt を獲得','\#f59e0b');
+                        } else if (pick === 'event_trigger') {
+                            // カード付与
+                            data.cards.inventory.push({ cardId:'event_trigger', acquiredDate:new Date().toISOString(), used:false });
+                            // ドロップ履歴に追加
+                            try {
+                                if (!data.cards.dropHistory) data.cards.dropHistory = [];
+                                data.cards.dropHistory.unshift('event_trigger');
+                                if (data.cards.dropHistory.length > 100) data.cards.dropHistory = data.cards.dropHistory.slice(0,100);
+                            } catch(_){}
+                            showCardEffect('🎁 ミステリーボックス！','カード：イベントトリガー','\#f59e0b');
+                        } else if (pick === 'point_gem') {
+                            data.cards.inventory.push({ cardId:'point_gem', acquiredDate:new Date().toISOString(), used:false });
+                            try {
+                                if (!data.cards.dropHistory) data.cards.dropHistory = [];
+                                data.cards.dropHistory.unshift('point_gem');
+                                if (data.cards.dropHistory.length > 100) data.cards.dropHistory = data.cards.dropHistory.slice(0,100);
+                            } catch(_){}
+                            showCardEffect('🎁 ミステリーボックス！','カード：ポイントジェム','\#f59e0b');
+                        }
+                        mbox.claimed = true;
+                        saveData(data);
+                    }
+                }
+            } catch (e) { /* noop */ }
+            
+            // UI更新
+            updatePointDisplay();
+            
+            return finalAmount;
+        }
+
+        // ポイント消費処理
+        function spendPoints(amount, rewardName) {
+            const data = loadData();
+            
+            if (data.pointSystem.currentPoints < amount) {
+                return false; // ポイント不足
+            }
+            
+            // ポイント消費
+            data.pointSystem.currentPoints -= amount;
+            data.pointSystem.lifetimeSpent += amount;
+            
+            // トランザクション記録
+            data.pointSystem.transactions.unshift({
+                timestamp: new Date().toISOString(),
+                type: 'spend',
+                amount: amount,
+                source: 'reward',
+                description: rewardName
+            });
+            
+            // トランザクション履歴を制限
+            if (data.pointSystem.transactions.length > 100) {
+                data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100);
+            }
+            
+            saveData(data);
+            
+            // UI更新
+            updatePointDisplay();
+            
+            return true;
+        }
+
+        // 努力ボーナスポイント獲得（改善版：何度でも使用可能、1-3pt選択）
+        function addEffortBonus(points, reason = '') {
+            // ポイント数のバリデーション
+            if (points < 1 || points > 3) {
+                return false;
+            }
+            
+            const data = loadData();
+            
+            // 使用回数を記録（上限なし）
+            data.pointSystem.dailyEffortUsed = (data.pointSystem.dailyEffortUsed || 0) + 1;
+            // 獲得処理は earnPoints を通してブースト（ポイントジェム等）を適用
+            saveData(data);
+            const final = earnPoints(points, 'effort_bonus', reason || `努力ボーナス (${points}pt)`);
+            updatePointsView();
+            updateStatistics();
+            return final >= 0;
+        }
+
+        // ポイント表示を更新
+        function updatePointDisplay() {
+            const data = loadData();
+            const pointDisplay = document.getElementById('point-display');
+            const levelInfo = calculateLevel(data.pointSystem.lifetimeEarned);
+            console.log('updatePointDisplay: 現在のポイント =', data.pointSystem.currentPoints);
+            
+            if (pointDisplay) {
+                const multiplier = data.pointSystem.streakMultiplier || 1.0;
+                pointDisplay.innerHTML = `
+                    <span class="point-amount">💰 ${data.pointSystem.currentPoints}pt</span>
+                    <span class="level-info">Lv.${levelInfo.level} ${levelInfo.name}</span>
+                    ${multiplier > 1 ? `<span class="multiplier">🔥×${multiplier.toFixed(1)}</span>` : ''}
+                `;
+            }
+            
+            // 努力ボーナスエリアの表示も更新
+            updateEffortBonusArea();
+        }
+        
+        // 努力ボーナス表示を更新（改善版：使用回数表示）
+        function updateEffortBonusDisplay() {
+            const data = loadData();
+            const usedToday = data.pointSystem.dailyEffortUsed || 0;
+            const effortStars = document.getElementById('effort-stars');
+            const effortCount = document.getElementById('effort-count');
+            
+            if (effortStars) {
+                // 今日の使用回数を星で表示（最大10個まで表示）
+                let stars = '';
+                const displayCount = Math.min(usedToday, 10);
+                for (let i = 0; i < displayCount; i++) {
+                    stars += '⭐';
+                }
+                if (usedToday > 10) {
+                    stars += `+${usedToday - 10}`;
+                }
+                if (usedToday === 0) {
+                    stars = '💪 まだ使っていません';
+                }
+                effortStars.textContent = stars;
+            }
+            
+            if (effortCount) {
+                effortCount.textContent = `今日${usedToday}回使用`;
+            }
+        }
+        
+        // 努力ボーナスボタンクリック時のエフェクト
+        function handleEffortBonusClick(event) {
+            const button = event.currentTarget;
+            
+            // ボタンにパルスエフェクトを追加
+            button.classList.add('effort-click-effect');
+            setTimeout(() => {
+                button.classList.remove('effort-click-effect');
+            }, 400);
+            
+            // 星のパーティクルを生成
+            const buttonRect = button.getBoundingClientRect();
+            const particles = ['⭐', '✨', '💫', '🌟'];
+            
+            for (let i = 0; i < 5; i++) {
+                setTimeout(() => {
+                    const particle = document.createElement('div');
+                    particle.className = 'effort-star-particle';
+                    particle.textContent = particles[Math.floor(Math.random() * particles.length)];
+                    
+                    // ボタンの中心から少しランダムな位置に配置
+                    const offsetX = (Math.random() - 0.5) * 40;
+                    const offsetY = (Math.random() - 0.5) * 20;
+                    
+                    particle.style.left = (buttonRect.left + buttonRect.width / 2 + offsetX) + 'px';
+                    particle.style.top = (buttonRect.top + buttonRect.height / 2 + offsetY) + 'px';
+                    
+                    document.body.appendChild(particle);
+                    
+                    // アニメーション終了後に削除
+                    setTimeout(() => {
+                        particle.remove();
+                    }, 800);
+                }, i * 50); // 少しずつ遅らせて生成
+            }
+            
+            // クリック音（音が利用可能な場合）
+            try {
+                const audio = new Audio('data:audio/wav;base64,UklGRnQFAABXQVZFZm10IBAAAAABAAEAJxAAAEwgAAACABAA');
+                audio.volume = 0.3;
+                audio.play().catch(() => {}); // エラーを無視
+            } catch (e) {
+                // 音声再生に失敗しても続行
+            }
+        }
+
+        // 努力ボーナスダイアログを表示（改善版：1-3pt選択可能）
+        function showEffortBonusDialog() {
+            // カスタムダイアログHTMLを作成
+            const dialogHTML = `
+                <div id="effort-dialog" style="
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    background: var(--surface);
+                    border: 2px solid var(--primary);
+                    border-radius: 16px;
+                    padding: 24px;
+                    z-index: 10000;
+                    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+                    max-width: 90%;
+                    width: 320px;
+                ">
+                    <h3 style="margin-bottom: 16px; color: var(--primary);">💪 今日の目標</h3>
+                    <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 16px;">達成したい目標を設定し、完了したらポイントを獲得します</p>
+                    <div style="margin-bottom: 12px;">
+                        <label style="display: block; margin-bottom: 8px; color: var(--text-secondary);">種類を選択</label>
+                        <select id="effort-type" style="
+                            width: 100%;
+                            padding: 8px;
+                            background: var(--background);
+                            border: 1px solid var(--border);
+                            border-radius: 8px;
+                            color: var(--text-primary);
+                            margin-bottom: 12px;
+                        ">
+                            <option value="morning">🌅 早起き・朝活</option>
+                            <option value="exercise">💪 運動・トレーニング</option>
+                            <option value="study">📚 勉強・学習</option>
+                            <option value="work">💼 仕事・作業</option>
+                            <option value="health">🥗 健康・食事</option>
+                            <option value="cleaning">🧹 掃除・整理整頓</option>
+                            <option value="mindfulness">🧘 瞑想・リラックス</option>
+                            <option value="social">👥 人間関係・交流</option>
+                            <option value="creative">🎨 創造・趣味</option>
+                            <option value="challenge">🎯 新しい挑戦</option>
+                            <option value="other">✨ その他</option>
+                        </select>
+                    </div>
+                    <div style="margin-bottom: 16px;">
+                        <label style="display: block; margin-bottom: 8px; color: var(--text-secondary);">詳細（任意）</label>
+                        <input type="text" id="effort-reason" placeholder="例: 6時に起きて朝活した" style="
+                            width: 100%;
+                            padding: 8px;
+                            background: var(--background);
+                            border: 1px solid var(--border);
+                            border-radius: 8px;
+                            color: var(--text-primary);
+                        ">
+                    </div>
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 12px; color: var(--text-secondary);">獲得ポイント</label>
+                        <div style="display: flex; gap: 8px;">
+                            <button onclick="selectEffortPoints(1)" id="effort-1pt" class="effort-point-btn" style="
+                                flex: 1;
+                                padding: 12px;
+                                background: var(--surface-light);
+                                border: 2px solid var(--border);
+                                border-radius: 8px;
+                                color: var(--text-primary);
+                                cursor: pointer;
+                                font-size: 16px;
+                                font-weight: bold;
+                            ">1pt<br><small style="font-size: 11px; opacity: 0.8;">軽い努力</small></button>
+                            <button onclick="selectEffortPoints(2)" id="effort-2pt" class="effort-point-btn" style="
+                                flex: 1;
+                                padding: 12px;
+                                background: var(--primary);
+                                border: 2px solid var(--primary);
+                                border-radius: 8px;
+                                color: white;
+                                cursor: pointer;
+                                font-size: 16px;
+                                font-weight: bold;
+                            ">2pt<br><small style="font-size: 11px; opacity: 0.8;">普通の努力</small></button>
+                            <button onclick="selectEffortPoints(3)" id="effort-3pt" class="effort-point-btn" style="
+                                flex: 1;
+                                padding: 12px;
+                                background: var(--surface-light);
+                                border: 2px solid var(--border);
+                                border-radius: 8px;
+                                color: var(--text-primary);
+                                cursor: pointer;
+                                font-size: 16px;
+                                font-weight: bold;
+                            ">3pt<br><small style="font-size: 11px; opacity: 0.8;">大きな努力</small></button>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button onclick="confirmEffortBonus()" style="
+                            flex: 1;
+                            padding: 12px;
+                            background: var(--primary);
+                            border: none;
+                            border-radius: 8px;
+                            color: white;
+                            cursor: pointer;
+                            font-weight: bold;
+                        ">目標を設定</button>
+                        <button onclick="closeEffortDialog()" style="
+                            flex: 1;
+                            padding: 12px;
+                            background: var(--surface-light);
+                            border: none;
+                            border-radius: 8px;
+                            color: var(--text-primary);
+                            cursor: pointer;
+                        ">キャンセル</button>
+                    </div>
+                </div>
+                <div id="effort-overlay" onclick="closeEffortDialog()" style="
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(0,0,0,0.5);
+                    z-index: 9999;
+                "></div>
+            `;
+            
+            // ダイアログを表示
+            const dialogContainer = document.createElement('div');
+            dialogContainer.innerHTML = dialogHTML;
+            document.body.appendChild(dialogContainer);
+            
+            // デフォルトで2ptを選択
+            window.selectedEffortPoints = 2;
+        }
+        
+        // 努力ポイントを選択
+        function selectEffortPoints(points) {
+            window.selectedEffortPoints = points;
+            // ボタンのスタイルを更新
+            document.querySelectorAll('.effort-point-btn').forEach(btn => {
+                btn.style.background = 'var(--surface-light)';
+                btn.style.borderColor = 'var(--border)';
+                btn.style.color = 'var(--text-primary)';
+            });
+            const selectedBtn = document.getElementById(`effort-${points}pt`);
+            if (selectedBtn) {
+                selectedBtn.style.background = 'var(--primary)';
+                selectedBtn.style.borderColor = 'var(--primary)';
+                selectedBtn.style.color = 'white';
+            }
+        }
+        
+        // 努力ボーナスを確定
+        function confirmEffortBonus() {
+            const typeSelect = document.getElementById('effort-type');
+            const typeText = typeSelect.options[typeSelect.selectedIndex].text;
+            const detail = document.getElementById('effort-reason').value;
+            const points = window.selectedEffortPoints || 2;
+            
+            // 予定として追加
+            addEffortBonusPlan(points, typeText, detail);
+            
+            // 成功メッセージ
+            const message = document.createElement('div');
+            message.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: var(--primary);
+                color: white;
+                padding: 20px 40px;
+                border-radius: 20px;
+                font-size: 18px;
+                font-weight: 600;
+                z-index: 10001;
+                animation: fadeInOut 2s ease-out;
+            `;
+            message.textContent = `📋 目標を設定しました`;
+            document.body.appendChild(message);
+            setTimeout(() => message.remove(), 2000);
+            
+            closeEffortDialog();
+        }
+        
+        // 努力ボーナスの目標を追加
+        function addEffortBonusPlan(points, type, reason = '') {
+            // ポイント数のバリデーション
+            if (!points || points < 1 || points > 3) {
+                return;
+            }
+            
+            const data = loadData();
+            const today = dateKeyLocal(new Date());
+            
+            // 努力ボーナスの予定リストを初期化
+            if (!data.effortBonusPlans) data.effortBonusPlans = {};
+            if (!data.effortBonusPlans[today]) data.effortBonusPlans[today] = [];
+            
+            // 新しい予定を追加
+            const plan = {
+                id: 'effort_' + Date.now(),
+                points: points,
+                type: type,
+                reason: reason,
+                completed: false,
+                createdAt: new Date().toISOString()
+            };
+            
+            data.effortBonusPlans[today].push(plan);
+            saveData(data);
+            
+            // 努力ボーナスエリアを更新
+            updateEffortBonusArea();
+        }
+        
+        // 努力ボーナスの目標を完了
+        function completeEffortBonusPlan(planId) {
+            const data = loadData();
+            const today = dateKeyLocal(new Date());
+            
+            if (!data.effortBonusPlans || !data.effortBonusPlans[today]) return;
+            
+            const plan = data.effortBonusPlans[today].find(p => p.id === planId);
+            if (!plan || plan.completed) return;
+            
+            // 完了状態に変更
+            plan.completed = true;
+            plan.completedAt = new Date().toISOString();
+            
+            // 使用回数を記録
+            data.pointSystem.dailyEffortUsed = (data.pointSystem.dailyEffortUsed || 0) + 1;
+            
+            // ポイント追加（直接処理）
+            data.pointSystem.currentPoints += plan.points;
+            data.pointSystem.lifetimeEarned += plan.points;
+            data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
+            
+            // レベル更新
+            const newLevel = calculateLevel(data.pointSystem.lifetimeEarned);
+            const oldLevel = data.pointSystem.currentLevel;
+            data.pointSystem.currentLevel = newLevel.level;
+            
+            // トランザクション記録
+            data.pointSystem.transactions.unshift({
+                timestamp: new Date().toISOString(),
+                type: 'earn',
+                amount: plan.points,
+                source: 'effort_bonus',
+                description: plan.reason || `努力ボーナス: ${plan.type} (${plan.points}pt)`,
+                finalAmount: plan.points
+            });
+            
+            // トランザクション履歴を最新100件に制限
+            if (data.pointSystem.transactions.length > 100) {
+                data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100);
+            }
+            
+            saveData(data);
+            updatePointDisplay();
+            updateEffortBonusArea();
+            
+            // エフェクトを表示
+            const button = document.getElementById('effort-plan-' + planId);
+            if (button) {
+                showFloatingPoints(plan.points, button);
+            }
+            playPointSound();
+            
+            // レベルアップ通知
+            if (newLevel.level > oldLevel) {
+                showLevelUpNotification(oldLevel, newLevel);
+            }
+        }
+        
+        // 努力ボーナスの目標を削除
+        function deleteEffortBonusPlan(planId) {
+            const data = loadData();
+            const today = dateKeyLocal(new Date());
+            
+            if (!data.effortBonusPlans || !data.effortBonusPlans[today]) return;
+            
+            // 予定を削除
+            data.effortBonusPlans[today] = data.effortBonusPlans[today].filter(p => p.id !== planId);
+            
+            saveData(data);
+            updateEffortBonusArea();
+        }
+        
+        // テーマ切り替え関数
+        function toggleTheme() {
+            const root = document.documentElement;
+            const currentTheme = localStorage.getItem('theme') || 'dark';
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            if (newTheme === 'light') {
+                root.classList.add('light-theme');
+                document.getElementById('theme-icon').textContent = '☀️';
+            } else {
+                root.classList.remove('light-theme');
+                document.getElementById('theme-icon').textContent = '🌙';
+            }
+            
+            localStorage.setItem('theme', newTheme);
+        }
+        
+        // テーマを初期化
+        function initializeTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            const root = document.documentElement;
+            
+            if (savedTheme === 'light') {
+                root.classList.add('light-theme');
+                document.getElementById('theme-icon').textContent = '☀️';
+            } else {
+                root.classList.remove('light-theme');
+                document.getElementById('theme-icon').textContent = '🌙';
+            }
+        }
+        
+        // windowオブジェクトに登録
+        window.toggleTheme = toggleTheme;
+        window.initializeTheme = initializeTheme;
+        
+        // 努力ボーナスエリアを更新
+        function updateEffortBonusArea() {
+            const data = loadData();
+            const today = dateKeyLocal(new Date());
+            const plans = data.effortBonusPlans && data.effortBonusPlans[today] ? data.effortBonusPlans[today] : [];
+            
+            const container = document.getElementById('effort-bonus-plans');
+            if (!container) return;
+            
+            if (plans.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-secondary); font-size: 14px; margin: 8px 0;">設定された目標はありません</p>';
+            } else {
+                container.innerHTML = '';
+                plans.forEach(plan => {
+                    const planDiv = document.createElement('div');
+                    planDiv.style.cssText = `
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        padding: 8px;
+                        margin-bottom: 8px;
+                        background: ${plan.completed ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255, 255, 255, 0.05)'};
+                        border: 1px solid ${plan.completed ? 'rgba(16, 185, 129, 0.3)' : 'rgba(255, 255, 255, 0.1)'};
+                        border-radius: 8px;
+                        transition: all 0.3s ease;
+                    `;
+                    
+                    const leftDiv = document.createElement('div');
+                    leftDiv.style.cssText = 'display: flex; align-items: center; gap: 8px; flex: 1;';
+                    
+                    const icon = document.createElement('span');
+                    icon.style.fontSize = '20px';
+                    icon.textContent = plan.completed ? '✅' : '📋';
+                    leftDiv.appendChild(icon);
+                    
+                    const textDiv = document.createElement('div');
+                    textDiv.style.cssText = 'flex: 1;';
+                    
+                    const typeText = document.createElement('div');
+                    typeText.style.cssText = `
+                        font-size: 14px;
+                        font-weight: 500;
+                        ${plan.completed ? 'text-decoration: line-through; opacity: 0.7;' : ''}
+                    `;
+                    typeText.textContent = `${plan.type} (+${plan.points}pt)`;
+                    textDiv.appendChild(typeText);
+                    
+                    if (plan.reason) {
+                        const reasonText = document.createElement('div');
+                        reasonText.style.cssText = 'font-size: 12px; color: var(--text-secondary); margin-top: 2px;';
+                        reasonText.textContent = plan.reason;
+                        textDiv.appendChild(reasonText);
+                    }
+                    
+                    leftDiv.appendChild(textDiv);
+                    planDiv.appendChild(leftDiv);
+                    
+                    const buttonsDiv = document.createElement('div');
+                    buttonsDiv.style.cssText = 'display: flex; gap: 4px;';
+                    
+                    if (!plan.completed) {
+                        // 完了ボタン
+                        const completeBtn = document.createElement('button');
+                        completeBtn.id = 'effort-plan-' + plan.id;
+                        completeBtn.className = 'btn btn-primary';
+                        completeBtn.style.cssText = 'padding: 4px 8px; font-size: 12px;';
+                        completeBtn.textContent = '完了';
+                        completeBtn.onclick = () => completeEffortBonusPlan(plan.id);
+                        buttonsDiv.appendChild(completeBtn);
+                        
+                        // 削除ボタン
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.className = 'btn btn-secondary';
+                        deleteBtn.style.cssText = 'padding: 4px 8px; font-size: 12px; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3);';
+                        deleteBtn.textContent = '削除';
+                        deleteBtn.onclick = () => {
+                            if (confirm('この目標を削除しますか？')) {
+                                deleteEffortBonusPlan(plan.id);
+                            }
+                        };
+                        buttonsDiv.appendChild(deleteBtn);
+                    }
+                    
+                    planDiv.appendChild(buttonsDiv);
+                    container.appendChild(planDiv);
+                });
+            }
+            
+            // 努力ボーナスカードの更新も行う
+            const effortCard = document.getElementById('effort-bonus-card');
+            if (effortCard) {
+                const usedToday = data.pointSystem.dailyEffortUsed || 0;
+                const pendingCount = plans.filter(p => !p.completed).length;
+                const completedCount = plans.filter(p => p.completed).length;
+                
+                effortCard.innerHTML = `
+                    <h3 class="card-title">💪 努力ボーナス</h3>
+                    <p style="margin-bottom: 12px;">今日達成したい目標を設定してポイントを獲得しましょう！</p>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <span style="color: var(--text-secondary); font-size: 14px;">
+                            未完了: ${pendingCount}件 | 完了: ${completedCount}件
+                        </span>
+                        <span style="font-size: 24px;">${completedCount > 0 ? '⭐'.repeat(Math.min(completedCount, 5)) : '🌱'}</span>
+                    </div>
+                    <button class="btn btn-secondary" onclick="handleEffortBonusClick(event); showEffortBonusDialog()" style="width: 100%; padding: 10px; font-size: 14px; position: relative; overflow: visible;">
+                        💪 目標を追加する (+1-3pt)
+                    </button>
+                `;
+            }
+        }
+
+        // ===== FAB（クイックアクション） =====
+        function toggleFab() {
+            const fab = document.getElementById('fab');
+            if (!fab) return;
+            const open = fab.classList.toggle('open');
+            const main = document.getElementById('fab-main');
+            if (main) main.textContent = open ? '×' : '＋';
+        }
+        window.toggleFab = toggleFab;
+
+        // ===== Celebration: Confetti + Mini Modal =====
+        function showConfetti(duration = 1200, count = 24) {
+            const colors = ['#22c55e','#06b6d4','#f59e0b','#ef4444','#8b5cf6'];
+            for (let i = 0; i < count; i++) {
+                const piece = document.createElement('div');
+                piece.className = 'confetti';
+                const size = 6 + Math.random() * 6;
+                piece.style.width = size + 'px';
+                piece.style.height = (size * 1.2) + 'px';
+                piece.style.left = (Math.random() * 100) + 'vw';
+                piece.style.background = colors[i % colors.length];
+                piece.style.transform = `translateY(-20vh) rotate(${Math.random()*360}deg)`;
+                piece.style.animation = `confettiFall ${0.9 + Math.random()*0.6}s ease-out forwards`;
+                piece.style.animationDelay = (Math.random()*0.2) + 's';
+                document.body.appendChild(piece);
+                setTimeout(() => piece.remove(), duration + 600);
+            }
+        }
+
+        function showMiniModal(title, desc, actions = []) {
+            const modal = document.createElement('div');
+            modal.className = 'mini-modal';
+            const actionsHtml = actions.map(a => `<button onclick=\"${a.onclick}\">${a.label}</button>`).join('');
+            modal.innerHTML = `<div class=\"title\">${title}</div><div class=\"desc\">${desc}</div>${actions.length?`<div class=\"actions\">${actionsHtml}</div>`:''}`;
+            document.body.appendChild(modal);
+            setTimeout(() => { modal.style.opacity = '0'; modal.style.transform = 'translate(-50%, -6px)'; }, 1500);
+            setTimeout(() => modal.remove(), 1800);
+        }
+
+        function showLevelUpCelebration(oldLevel, newLevel) {
+            showConfetti(1200, 28);
+            showMiniModal('🎉 レベルアップ！', `Lv.${oldLevel} → Lv.${newLevel.level}｜${newLevel.name}`,[
+                { label: '進捗を見る', onclick: 'showLevelProgress()' },
+                { label: 'バッジを見る', onclick: "(function(){ showStatsView(); setTimeout(()=>toggleStatSection('badge-collection'), 120); })()" }
+            ]);
+        }
+        window.showLevelUpCelebration = showLevelUpCelebration;
+
+        function showBadgeShowcase(emoji, name){
+            const box = document.createElement('div');
+            box.className = 'badge-showcase';
+            box.innerHTML = `<div class=\"emoji\">${emoji}</div><div class=\"name\">${name}</div>`;
+            document.body.appendChild(box);
+            setTimeout(()=>{ box.style.opacity='0'; box.style.transform='translate(-50%,-54%)'; }, 900);
+            setTimeout(()=> box.remove(), 1200);
+        }
+        window.showBadgeShowcase = showBadgeShowcase;
+
+        function openRewardsUseFlow(){
+            showPointsView();
+            setTimeout(()=>{
+                try{ showRewardsTab(); }catch(e){}
+                const list = document.getElementById('rewards-list');
+                if (list){ list.scrollIntoView({behavior:'smooth', block:'start'}); list.classList.add('pulse-highlight'); setTimeout(()=> list.classList.remove('pulse-highlight'), 1800); }
+            }, 80);
+        }
+        window.openRewardsUseFlow = openRewardsUseFlow;
+
+        // quickAchieveToday は仕様変更により削除
+        
+        // Window オブジェクトに関数を登録
+        window.addEffortBonusPlan = addEffortBonusPlan;
+        window.completeEffortBonusPlan = completeEffortBonusPlan;
+        window.deleteEffortBonusPlan = deleteEffortBonusPlan;
+        window.updateEffortBonusArea = updateEffortBonusArea;
+        
+        // ダイアログを閉じる
+        function closeEffortDialog() {
+            const dialog = document.getElementById('effort-dialog');
+            const overlay = document.getElementById('effort-overlay');
+            if (dialog && dialog.parentElement) {
+                dialog.parentElement.remove();
+            }
+        }
+
+        // レベルアップ通知
+        function showLevelUpNotification(oldLevel, newLevel) {
+            // 軽量な祝祭演出＋短い通知
+            try { showLevelUpCelebration(oldLevel, newLevel); } catch(e) {}
+            showNotification(`Lv.${oldLevel} → Lv.${newLevel.level}｜${newLevel.name}`, 'success', 6);
+        }
+
+        // ポイント獲得アニメーション
+        function showPointAnimation(points) {
+            // 重複表示を防ぐため、この関数では何もしない
+            // ポイント表示はearnPoints内のdescriptionで行う
+        }
+
+        // レベル進捗を表示
+        function showLevelProgress() {
+            const data = loadData();
+            const currentPoints = data.pointSystem.lifetimeEarned;
+            const levelInfo = calculateLevel(currentPoints);
+            
+            // 次のレベルまでの情報を計算
+            const nextLevelPoints = levelInfo.max + 1;
+            const pointsNeeded = nextLevelPoints - currentPoints;
+            const progressInLevel = currentPoints - levelInfo.min;
+            const levelRange = levelInfo.max - levelInfo.min + 1;
+            const progressPercent = Math.round((progressInLevel / levelRange) * 100);
+            
+            // 次のレベル名を取得
+            let nextLevelName = '超越者';
+            if (levelInfo.level < 10) {
+                nextLevelName = LEVEL_THRESHOLDS[levelInfo.level].name;
+            }
+            
+            // ポップアップを作成
+            const popup = document.createElement('div');
+            popup.id = 'level-progress-popup';
+            popup.style.cssText = `
+                position: fixed;
+                top: 80px;
+                right: 20px;
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: 12px;
+                padding: 16px;
+                z-index: 1000;
+                min-width: 280px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                animation: slideIn 0.2s ease-out;
+            `;
+            
+            popup.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h3 style="margin: 0; font-size: 16px;">📊 レベル進捗</h3>
+                    <button onclick="document.getElementById('level-progress-popup').remove()" style="
+                        background: none;
+                        border: none;
+                        color: var(--text-secondary);
+                        font-size: 20px;
+                        cursor: pointer;
+                        padding: 0;
+                        width: 24px;
+                        height: 24px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    ">×</button>
+                </div>
+                
+                <div style="background: var(--background); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span style="font-size: 18px; font-weight: bold; color: var(--primary);">
+                            Lv.${levelInfo.level} ${levelInfo.name}
+                        </span>
+                        <span style="font-size: 14px; color: var(--text-secondary);">
+                            ${currentPoints}pt
+                        </span>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.1); height: 8px; border-radius: 4px; overflow: hidden;">
+                        <div style="
+                            background: linear-gradient(90deg, #10b981, #3b82f6);
+                            height: 100%;
+                            width: ${progressPercent}%;
+                            transition: width 0.3s;
+                        "></div>
+                    </div>
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px; text-align: center;">
+                        ${progressPercent}% 完了
+                    </div>
+                </div>
+                
+                <div style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(236, 72, 153, 0.1)); padding: 12px; border-radius: 8px;">
+                    <div style="font-size: 14px; margin-bottom: 8px;">
+                        次のレベルまで
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span style="font-size: 24px; font-weight: bold; color: #8b5cf6;">
+                                ${pointsNeeded}pt
+                            </span>
+                            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
+                                Lv.${levelInfo.level + 1} ${nextLevelName}
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 12px; color: var(--text-secondary);">
+                                必要合計
+                            </div>
+                            <div style="font-size: 16px; font-weight: bold; color: #ec4899;">
+                                ${nextLevelPoints}pt
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // 既存のポップアップがあれば削除
+            const existingPopup = document.getElementById('level-progress-popup');
+            if (existingPopup) {
+                existingPopup.remove();
+            }
+            
+            // ポップアップを追加
+            document.body.appendChild(popup);
+            
+            // クリック外で閉じる処理
+            setTimeout(() => {
+                const closeOnClickOutside = (e) => {
+                    if (!popup.contains(e.target) && e.target.id !== 'point-display' && !document.getElementById('point-display').contains(e.target)) {
+                        popup.remove();
+                        document.removeEventListener('click', closeOnClickOutside);
+                    }
+                };
+                document.addEventListener('click', closeOnClickOutside);
+            }, 100);
+        }
+
+        // 連続ボーナスの計算
+        function calculateStreakMultiplier(streakDays) {
+            if (streakDays >= 21) return 2.0;
+            if (streakDays >= 14) return 1.7;
+            if (streakDays >= 7) return 1.5;
+            if (streakDays >= 3) return 1.2;
+            return 1.0;
+        }
+
+        // 現在の連続日数を計算
+        function calculateCurrentStreak(hypothesis) {
+            if (!hypothesis.achievements) return 0;
+            
+            const today = new Date();
+            let streak = 0;
+            let checkDate = new Date(today);
+            
+            // 今日から遡って連続達成をカウント
+            while (true) {
+                const dateKey = dateKeyLocal(checkDate);
+                if (hypothesis.achievements[dateKey]) {
+                    streak++;
+                    checkDate.setDate(checkDate.getDate() - 1);
+                } else {
+                    break;
+                }
+            }
+            
+            return streak;
+        }
+
+        // 開始日の設定関数
+        function setStartDate(type) {
+            const todayBtn = document.getElementById('start-today-btn');
+            const laterBtn = document.getElementById('start-later-btn');
+            const dateInput = document.getElementById('habit-start-date');
+            const dateDisplay = document.getElementById('start-date-display');
+            const selectedDateSpan = document.getElementById('selected-start-date');
+            
+            if (!todayBtn || !laterBtn || !dateInput || !dateDisplay || !selectedDateSpan) {
+                // 新規作成画面の要素がまだ存在しない場合はリターン
+                return;
+            }
+            
+            if (type === 'today') {
+                // 今日から開始
+                const today = new Date();
+                const dateStr = today.toISOString().split('T')[0];
+                
+                // ボタンのスタイルを更新
+                todayBtn.style.background = 'var(--primary)';
+                todayBtn.style.color = 'white';
+                laterBtn.style.background = 'var(--surface-light)';
+                laterBtn.style.color = 'var(--text-primary)';
+                
+                // 日付入力を非表示
+                dateInput.style.display = 'none';
+                dateInput.value = dateStr;
+                
+                // 開始日表示を更新
+                dateDisplay.style.display = 'block';
+                selectedDateSpan.textContent = formatDateJapanese(today);
+                
+                // グローバル変数に保存
+                window.selectedStartDate = dateStr;
+            }
+        }
+        
+        function showDatePicker() {
+            const todayBtn = document.getElementById('start-today-btn');
+            const laterBtn = document.getElementById('start-later-btn');
+            const dateInput = document.getElementById('habit-start-date');
+            const dateDisplay = document.getElementById('start-date-display');
+            
+            if (!todayBtn || !laterBtn || !dateInput || !dateDisplay) {
+                return;
+            }
+            
+            // ボタンのスタイルを更新
+            laterBtn.style.background = 'var(--primary)';
+            laterBtn.style.color = 'white';
+            todayBtn.style.background = 'var(--surface-light)';
+            todayBtn.style.color = 'var(--text-primary)';
+            
+            // 日付入力を表示
+            dateInput.style.display = 'block';
+            
+            // 最小値を今日に設定
+            const today = new Date();
+            const minDate = today.toISOString().split('T')[0];
+            dateInput.min = minDate;
+            
+            // 最大値を30日後に設定
+            const maxDate = new Date();
+            maxDate.setDate(maxDate.getDate() + 30);
+            dateInput.max = maxDate.toISOString().split('T')[0];
+            
+            // デフォルト値を明日に設定
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            dateInput.value = tomorrow.toISOString().split('T')[0];
+            
+            // 開始日表示を更新
+            updateStartDateDisplay();
+        }
+        
+        function updateStartDateDisplay() {
+            const dateInput = document.getElementById('habit-start-date');
+            const dateDisplay = document.getElementById('start-date-display');
+            const selectedDateSpan = document.getElementById('selected-start-date');
+            
+            if (dateInput && dateInput.value && dateDisplay && selectedDateSpan) {
+                const selectedDate = new Date(dateInput.value);
+                dateDisplay.style.display = 'block';
+                selectedDateSpan.textContent = formatDateJapanese(selectedDate);
+                
+                // グローバル変数に保存
+                window.selectedStartDate = dateInput.value;
+            }
+        }
+        
+        function formatDateJapanese(date) {
+            const year = date.getFullYear();
+            const month = date.getMonth() + 1;
+            const day = date.getDate();
+            const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+            const weekday = weekdays[date.getDay()];
+            
+            return `${year}年${month}月${day}日(${weekday})`;
+        }
+        
+        // コンボボーナスのチェックと付与
+        function checkAndAwardComboBonus(dateKey) {
+            const data = loadData();
+            let achievedToday = 0;
+            let totalHabits = 0;
+            
+            // 今日達成した習慣数をカウント
+            data.currentHypotheses.forEach(h => {
+                if (h.achievements && h.achievements[dateKey]) {
+                    achievedToday++;
+                }
+                totalHabits++;
+            });
+            
+            // コンボボーナス付与（優先度4）
+            if (achievedToday === 2) {
+                const added = earnPoints(1, 'combo', '2習慣同時達成ボーナス', 1.0, null, null, { dateKey });
+                const d0 = loadData();
+                if (!d0.meta) d0.meta = {};
+                if (!d0.meta.comboAwards) d0.meta.comboAwards = {};
+                d0.meta.comboAwards[dateKey] = (d0.meta.comboAwards[dateKey] || 0) + added;
+                saveData(d0);
+                showNotification('🎉 2習慣同時達成ボーナス!\n+1pt', 'success', 4);
+            } else if (achievedToday === 3) {
+                const added = earnPoints(3, 'combo', '3習慣同時達成ボーナス', 1.0, null, null, { dateKey });
+                const d0 = loadData();
+                if (!d0.meta) d0.meta = {};
+                if (!d0.meta.comboAwards) d0.meta.comboAwards = {};
+                d0.meta.comboAwards[dateKey] = (d0.meta.comboAwards[dateKey] || 0) + added;
+                saveData(d0);
+                showNotification('🔥 3習慣同時達成ボーナス!\n+3pt', 'success', 4);
+            } else if (totalHabits >= 4 && achievedToday === totalHabits) {
+                const added = earnPoints(5, 'combo', '全習慣達成ボーナス', 1.0, null, null, { dateKey });
+                const d0 = loadData();
+                if (!d0.meta) d0.meta = {};
+                if (!d0.meta.comboAwards) d0.meta.comboAwards = {};
+                d0.meta.comboAwards[dateKey] = (d0.meta.comboAwards[dateKey] || 0) + added;
+                saveData(d0);
+                showNotification('🏆 全習慣達成！素晴らしい！\n+5pt', 'success', 4);
+            }
+
+            // イベント：パーフェクトデー（全習慣達成で追加ポイント）
+            try {
+                const ev = loadData().events || {};
+                const boosts = Array.isArray(ev.activeBoosts) ? ev.activeBoosts : [];
+                const perfect = boosts.find(b => b && b.effect && b.effect.type === 'perfect_bonus');
+                if (perfect && totalHabits > 0 && achievedToday === totalHabits) {
+                    const d1 = loadData();
+                    if (!d1.meta) d1.meta = {};
+                    if (!d1.meta.eventAwards) d1.meta.eventAwards = {};
+                    const already = d1.meta.eventAwards[dateKey] || 0;
+                    if (already === 0) {
+                        const val = (perfect.effect && typeof perfect.effect.value === 'number') ? perfect.effect.value : 30;
+                        const gained = earnPoints(val, 'event', 'パーフェクトデーボーナス', 1.0, null, null, { dateKey, eventId: perfect.id });
+                        const d2 = loadData();
+                        if (!d2.meta) d2.meta = {};
+                        if (!d2.meta.eventAwards) d2.meta.eventAwards = {};
+                        d2.meta.eventAwards[dateKey] = (d2.meta.eventAwards[dateKey] || 0) + gained;
+                        saveData(d2);
+                        showNotification(`✨ パーフェクトデー達成！\n+${gained}pt`, 'success', 5);
+                    }
+                }
+            } catch (_) { /* noop */ }
+        }
+        
+        // ポイント統計を更新（統計画面用）
+        function updatePointStatistics() {
+            const data = loadData();
+            const ps = data.pointSystem;
+            
+            // 現在のポイント
+            const currentPointsEl = document.getElementById('current-points-stat');
+            if (currentPointsEl) {
+                currentPointsEl.textContent = ps.currentPoints.toLocaleString();
+            }
+            
+            // 累計獲得
+            const lifetimeEarnedEl = document.getElementById('lifetime-earned-stat');
+            if (lifetimeEarnedEl) {
+                lifetimeEarnedEl.textContent = ps.lifetimeEarned.toLocaleString();
+            }
+            
+            // 累計消費
+            const lifetimeSpentEl = document.getElementById('lifetime-spent-stat');
+            if (lifetimeSpentEl) {
+                lifetimeSpentEl.textContent = ps.lifetimeSpent.toLocaleString();
+            }
+            
+            // 現在のレベル
+            const levelInfo = calculateLevel(ps.lifetimeEarned);
+            const currentLevelEl = document.getElementById('current-level-stat');
+            if (currentLevelEl) {
+                currentLevelEl.textContent = `Lv.${levelInfo.level}`;
+                currentLevelEl.title = levelInfo.name; // ツールチップでレベル名表示
+            }
+            
+            // レベル進捗バー
+            const progressInLevel = ps.lifetimeEarned - levelInfo.min;
+            const levelRange = levelInfo.max - levelInfo.min;
+            const progressPercent = Math.min(100, (progressInLevel / levelRange) * 100);
+            
+            const levelProgressLabel = document.getElementById('level-progress-label');
+            if (levelProgressLabel) {
+                levelProgressLabel.textContent = `Lv.${levelInfo.level + 1} ${levelInfo.level < 10 ? LEVEL_THRESHOLDS[levelInfo.level].name : '超越者'} まで`;
+            }
+            
+            const levelProgressText = document.getElementById('level-progress-text');
+            if (levelProgressText) {
+                const remaining = levelInfo.max - ps.lifetimeEarned + 1;
+                levelProgressText.textContent = `あと${remaining}pt`;
+            }
+            
+            const levelProgressBar = document.getElementById('level-progress-bar');
+            if (levelProgressBar) {
+                levelProgressBar.style.width = `${progressPercent}%`;
+            }
+            
+            // ポイント推移グラフ（30日間）
+            const pointTrendEl = document.getElementById('point-trend-graph');
+            if (pointTrendEl && ps.transactions.length > 0) {
+                const last30Days = generatePointTrendData(ps.transactions, 30);
+                pointTrendEl.innerHTML = `
+                    <h4 style="font-size: 14px; margin-bottom: 12px;">📈 ポイント推移（30日間）</h4>
+                    <div style="position: relative; height: 120px; border-left: 2px solid var(--border); border-bottom: 2px solid var(--border);">
+                        ${generatePointTrendGraph(last30Days)}
+                    </div>
+                `;
+            }
+            
+            // ソース別獲得統計（削除済み）
+            // この機能は不要なため削除しました
+            
+            // 時間帯別獲得パターン
+            const timePatternEl = document.getElementById('point-time-pattern');
+            if (timePatternEl && ps.transactions.length > 0) {
+                const timePattern = analyzeTimePattern(ps.transactions);
+                timePatternEl.innerHTML = `
+                    <h4 style="font-size: 14px; margin-bottom: 12px;">⏰ 時間帯別獲得パターン</h4>
+                    <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px;">
+                        ${generateTimePatternHTML(timePattern)}
+                    </div>
+                `;
+            }
+            
+            // ブースト効果分析
+            const boostAnalysisEl = document.getElementById('boost-effect-analysis');
+            if (boostAnalysisEl && ps.transactions.length > 0) {
+                const boostStats = analyzeBoostEffects(ps.transactions);
+                boostAnalysisEl.innerHTML = `
+                    <h4 style="font-size: 14px; margin-bottom: 12px;">🚀 ブースト効果分析</h4>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+                        ${generateBoostStatsHTML(boostStats)}
+                    </div>
+                `;
+            }
+            
+            // 最近のトランザクション
+            const recentTransEl = document.getElementById('recent-transactions');
+            if (recentTransEl) {
+                const recentTrans = ps.transactions.slice(0, 10); // 最新10件
+                
+                if (recentTrans.length === 0) {
+                    recentTransEl.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 8px;">まだ取引履歴がありません</div>';
+                } else {
+                    recentTransEl.innerHTML = recentTrans.map(t => {
+                        const date = new Date(t.timestamp);
+                        const dateStr = `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+                        const icon = t.type === 'earn' ? '➕' : '➖';
+                        const color = t.type === 'earn' ? '#10b981' : '#ef4444';
+                        const amount = t.type === 'earn' ? 
+                            (t.finalAmount || t.amount) : 
+                            t.amount;
+                        
+                        return `
+                            <div style="display: flex; justify-content: space-between; padding: 4px 8px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                                <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                    ${icon} ${escapeHTML(t.description)}
+                                </span>
+                                <span style="color: ${color}; font-weight: bold; margin-left: 8px;">
+                                    ${t.type === 'earn' ? '+' : '-'}${amount}pt
+                                </span>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            }
+        }
+        
+        // ポイント推移データを生成
+        function generatePointTrendData(transactions, days) {
+            const today = new Date();
+            const dailyPoints = {};
+            let cumulativePoints = 0;
+            
+            // 日付別にトランザクションを集計
+            for (let i = days - 1; i >= 0; i--) {
+                const date = new Date(today);
+                date.setDate(date.getDate() - i);
+                const dateKey = dateKeyLocal(date);
+                dailyPoints[dateKey] = { earned: 0, spent: 0, cumulative: 0 };
+            }
+            
+            // トランザクションを日付順にソート（古い順）
+            const sortedTrans = [...transactions].reverse();
+            
+            sortedTrans.forEach(t => {
+                const date = new Date(t.timestamp);
+                const dateKey = dateKeyLocal(date);
+                
+                if (dailyPoints[dateKey]) {
+                    if (t.type === 'earn') {
+                        dailyPoints[dateKey].earned += t.finalAmount || t.amount;
+                        cumulativePoints += t.finalAmount || t.amount;
+                    } else {
+                        dailyPoints[dateKey].spent += t.amount;
+                        cumulativePoints -= t.amount;
+                    }
+                    dailyPoints[dateKey].cumulative = cumulativePoints;
+                }
+            });
+            
+            return dailyPoints;
+        }
+        
+        // ポイント推移グラフを生成
+        function generatePointTrendGraph(dailyPoints) {
+            const dates = Object.keys(dailyPoints);
+            const maxPoints = Math.max(...dates.map(d => dailyPoints[d].cumulative), 1);
+            
+            const points = dates.map((date, i) => {
+                const x = (i / (dates.length - 1)) * 100;
+                const y = 100 - (dailyPoints[date].cumulative / maxPoints) * 100;
+                return `${x},${y}`;
+            }).join(' ');
+            
+            return `
+                <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" viewBox="0 0 100 100" preserveAspectRatio="none">
+                    <polyline
+                        points="${points}"
+                        fill="none"
+                        stroke="#fbbf24"
+                        stroke-width="2"
+                        opacity="0.8"
+                    />
+                </svg>
+                <div style="position: absolute; left: -30px; top: 0; font-size: 10px; color: var(--text-secondary);">${maxPoints}</div>
+                <div style="position: absolute; left: -20px; bottom: 0; font-size: 10px; color: var(--text-secondary);">0</div>
+            `;
+        }
+        
+        // ソース別ポイント分析
+        function analyzePointSources(transactions) {
+            const sources = {};
+            
+            transactions.forEach(t => {
+                if (t.type === 'earn') {
+                    const source = t.source || 'その他';
+                    if (!sources[source]) {
+                        sources[source] = { count: 0, total: 0, average: 0 };
+                    }
+                    sources[source].count++;
+                    sources[source].total += t.finalAmount || t.amount;
+                }
+            });
+            
+            // 平均を計算
+            Object.keys(sources).forEach(key => {
+                sources[key].average = Math.round(sources[key].total / sources[key].count * 10) / 10;
+            });
+            
+            return sources;
+        }
+        
+        // ソース統計HTMLを生成
+        function generateSourceStatsHTML(sourceStats) {
+            const sourceNames = {
+                'habit': '🎯 習慣達成',
+                'journal': '📝 ジャーナル',
+                'challenge': '🏆 チャレンジ',
+                'effort': '💪 努力ボーナス',
+                'streak': '🔥 ストリーク',
+                'その他': '✨ その他'
+            };
+            
+            return Object.entries(sourceStats)
+                .sort((a, b) => b[1].total - a[1].total)
+                .map(([source, stats]) => `
+                    <div style="display: flex; justify-content: space-between; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                        <span>${sourceNames[source] || source}</span>
+                        <div style="text-align: right;">
+                            <span style="color: #fbbf24; font-weight: bold;">${stats.total}pt</span>
+                            <span style="color: var(--text-secondary); font-size: 10px; margin-left: 8px;">
+                                (${stats.count}回, 平均${stats.average}pt)
+                            </span>
+                        </div>
+                    </div>
+                `).join('');
+        }
+        
+        // 時間帯別パターン分析
+        function analyzeTimePattern(transactions) {
+            const timeSlots = {
+                '早朝': { hours: [4, 5, 6, 7], count: 0, total: 0 },
+                '朝': { hours: [8, 9, 10, 11], count: 0, total: 0 },
+                '昼': { hours: [12, 13, 14, 15], count: 0, total: 0 },
+                '夕方': { hours: [16, 17, 18, 19], count: 0, total: 0 },
+                '夜': { hours: [20, 21, 22, 23], count: 0, total: 0 },
+                '深夜': { hours: [0, 1, 2, 3], count: 0, total: 0 }
+            };
+            
+            transactions.forEach(t => {
+                if (t.type === 'earn') {
+                    const hour = new Date(t.timestamp).getHours();
+                    Object.entries(timeSlots).forEach(([name, slot]) => {
+                        if (slot.hours.includes(hour)) {
+                            slot.count++;
+                            slot.total += t.finalAmount || t.amount;
+                        }
+                    });
+                }
+            });
+            
+            return timeSlots;
+        }
+        
+        // 時間帯パターンHTMLを生成
+        function generateTimePatternHTML(timePattern) {
+            const maxTotal = Math.max(...Object.values(timePattern).map(s => s.total), 1);
+            
+            return Object.entries(timePattern).map(([name, stats]) => {
+                const heightPercent = (stats.total / maxTotal) * 100;
+                return `
+                    <div style="text-align: center;">
+                        <div style="position: relative; height: 60px; display: flex; align-items: flex-end;">
+                            <div style="
+                                width: 100%;
+                                height: ${heightPercent}%;
+                                background: linear-gradient(to top, #fbbf24, #f59e0b);
+                                border-radius: 4px 4px 0 0;
+                                opacity: ${stats.total > 0 ? 1 : 0.3};
+                            "></div>
+                        </div>
+                        <div style="font-size: 10px; margin-top: 4px;">${name}</div>
+                        <div style="font-size: 9px; color: var(--text-secondary);">${stats.total}pt</div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // ブースト効果分析
+        function analyzeBoostEffects(transactions) {
+            const boostStats = {
+                totalBoosted: 0,
+                totalNormal: 0,
+                countBoosted: 0,
+                countNormal: 0,
+                maxMultiplier: 1,
+                averageMultiplier: 1
+            };
+            
+            let multiplierSum = 0;
+            let multiplierCount = 0;
+            
+            transactions.forEach(t => {
+                if (t.type === 'earn') {
+                    const multiplier = t.multiplier || 1;
+                    if (multiplier > 1) {
+                        boostStats.countBoosted++;
+                        boostStats.totalBoosted += t.finalAmount || t.amount;
+                        boostStats.maxMultiplier = Math.max(boostStats.maxMultiplier, multiplier);
+                    } else {
+                        boostStats.countNormal++;
+                        boostStats.totalNormal += t.amount;
+                    }
+                    multiplierSum += multiplier;
+                    multiplierCount++;
+                }
+            });
+            
+            if (multiplierCount > 0) {
+                boostStats.averageMultiplier = Math.round(multiplierSum / multiplierCount * 10) / 10;
+            }
+            
+            return boostStats;
+        }
+        
+        // ブースト統計HTMLを生成
+        function generateBoostStatsHTML(boostStats) {
+            const boostPercentage = boostStats.countBoosted + boostStats.countNormal > 0
+                ? Math.round(boostStats.countBoosted / (boostStats.countBoosted + boostStats.countNormal) * 100)
+                : 0;
+            
+            return `
+                <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                    <div style="font-size: 20px; font-weight: bold; color: #f59e0b;">${boostStats.totalBoosted}pt</div>
+                    <div style="font-size: 11px; color: var(--text-secondary);">ブースト獲得</div>
+                    <div style="font-size: 10px; color: var(--text-secondary); margin-top: 4px;">${boostPercentage}%がブースト</div>
+                </div>
+                <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                    <div style="font-size: 20px; font-weight: bold; color: #10b981;">×${boostStats.averageMultiplier}</div>
+                    <div style="font-size: 11px; color: var(--text-secondary);">平均倍率</div>
+                    <div style="font-size: 10px; color: var(--text-secondary); margin-top: 4px;">最大 ×${boostStats.maxMultiplier}</div>
+                </div>
+            `;
+        }
+
+        // ポイント画面を表示
+        function showPointsView() {
+            resetScrollToTop();
+            document.getElementById('home-view').style.display = 'none';
+            document.getElementById('new-hypothesis-view').style.display = 'none';
+            document.getElementById('shuffle-view').style.display = 'none';
+            document.getElementById('progress-view').style.display = 'none';
+            document.getElementById('history-view').style.display = 'none';
+            document.getElementById('stats-view').style.display = 'none';
+            document.getElementById('points-view').style.display = 'block';
+            document.getElementById('cards-view').style.display = 'none';
+            
+            updateNavigation('points');
+            updatePointsView();
+            showRewardsTab(); // デフォルトで報酬タブを表示
+            
+            // ポイント画面ではヘッダーのポイント表示を再表示
+            const pointDisplay = document.getElementById('point-display');
+            if (pointDisplay) {
+                pointDisplay.style.display = 'flex';
+            }
+        }
+        
+        // ポイント画面の更新
+        function updatePointsView() {
+            const data = loadData();
+            const ps = data.pointSystem;
+            
+            // 現在のポイント
+            const pointsCurrent = document.getElementById('points-current');
+            if (pointsCurrent) {
+                pointsCurrent.textContent = ps.currentPoints.toLocaleString();
+            }
+            
+            // 累計ポイント
+            const pointsLifetime = document.getElementById('points-lifetime');
+            if (pointsLifetime) {
+                pointsLifetime.textContent = ps.lifetimeEarned.toLocaleString();
+            }
+            
+            // レベル
+            const levelInfo = calculateLevel(ps.lifetimeEarned);
+            const pointsLevel = document.getElementById('points-level');
+            const pointsLevelName = document.getElementById('points-level-name');
+            if (pointsLevel) {
+                pointsLevel.textContent = `Lv.${levelInfo.level}`;
+            }
+            if (pointsLevelName) {
+                pointsLevelName.textContent = levelInfo.name;
+            }
+        }
+        
+        // 報酬タブを表示
+        function showRewardsTab() {
+            document.getElementById('rewards-tab-content').style.display = 'block';
+            document.getElementById('history-tab-content').style.display = 'none';
+            document.getElementById('create-tab-content').style.display = 'none';
+            
+            // タブボタンのスタイル更新
+            document.getElementById('rewards-tab').style.background = 'var(--primary)';
+            document.getElementById('rewards-tab').style.color = 'white';
+            document.getElementById('history-tab').style.background = '';
+            document.getElementById('history-tab').style.color = '';
+            document.getElementById('create-tab').style.background = '';
+            document.getElementById('create-tab').style.color = '';
+            
+            updateRewardsList();
+        }
+        
+        // 履歴タブを表示
+        function showHistoryTab() {
+            document.getElementById('rewards-tab-content').style.display = 'none';
+            document.getElementById('history-tab-content').style.display = 'block';
+            document.getElementById('create-tab-content').style.display = 'none';
+            
+            // タブボタンのスタイル更新
+            document.getElementById('rewards-tab').style.background = '';
+            document.getElementById('rewards-tab').style.color = '';
+            document.getElementById('history-tab').style.background = 'var(--primary)';
+            document.getElementById('history-tab').style.color = 'white';
+            document.getElementById('create-tab').style.background = '';
+            document.getElementById('create-tab').style.color = '';
+            
+            updatePointsHistory();
+        }
+        
+        // 作成タブを表示
+        function showCreateTab() {
+            document.getElementById('rewards-tab-content').style.display = 'none';
+            document.getElementById('history-tab-content').style.display = 'none';
+            document.getElementById('create-tab-content').style.display = 'block';
+            
+            // タブボタンのスタイル更新
+            document.getElementById('rewards-tab').style.background = '';
+            document.getElementById('rewards-tab').style.color = '';
+            document.getElementById('history-tab').style.background = '';
+            document.getElementById('history-tab').style.color = '';
+            document.getElementById('create-tab').style.background = 'var(--primary)';
+            document.getElementById('create-tab').style.color = 'white';
+        }
+        
+        // 報酬リストを更新
+        function updateRewardsList() {
+            const data = loadData();
+            const rewardsList = document.getElementById('rewards-list');
+            if (!rewardsList) return;
+            
+            // 統計を更新
+            updateRewardsStatistics();
+            
+            if (!data.pointSystem.customRewards || data.pointSystem.customRewards.length === 0) {
+                rewardsList.innerHTML = `
+                    <div style="text-align: center; color: var(--text-secondary); padding: 40px;">
+                        報酬がまだありません<br>
+                        「➕ 作成」タブから報酬を追加してください
+                    </div>
+                `;
+                return;
+            }
+            
+            // 報酬カードを生成
+            rewardsList.innerHTML = data.pointSystem.customRewards
+                .filter(r => !r.isArchived)
+                .sort((a, b) => {
+                    if (a.isFavorite && !b.isFavorite) return -1;
+                    if (!a.isFavorite && b.isFavorite) return 1;
+                    return a.cost - b.cost;
+                })
+                .map(reward => {
+                    const canAfford = data.pointSystem.currentPoints >= reward.cost;
+                    return `
+                        <div style="
+                            background: ${canAfford ? 'var(--surface)' : 'rgba(51, 65, 85, 0.3)'};
+                            padding: 16px;
+                            border-radius: 12px;
+                            border: 1px solid ${canAfford ? 'var(--border)' : 'rgba(255,255,255,0.05)'};
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
+                            opacity: ${canAfford ? '1' : '0.6'};
+                        ">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <span style="font-size: 24px;">${reward.emoji || '🎁'}</span>
+                                <div>
+                                    <div style="font-weight: bold; font-size: 16px; margin-bottom: 4px;">${escapeHTML(reward.name)}</div>
+                                    <div style="font-size: 13px; color: var(--text-secondary);">
+                                        ${escapeHTML(reward.category)} ${reward.memo ? '• ' + escapeHTML(reward.memo) : ''}
+                                    </div>
+                                    <div style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">
+                                        使用回数: ${reward.timesUsed || 0}回
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <div style="display: flex; flex-direction: column; align-items: flex-end;">
+                                    <div style="font-size: 18px; font-weight: bold; color: ${canAfford ? '#fbbf24' : 'var(--text-secondary)'};">
+                                        ${reward.cost}pt
+                                    </div>
+                                    ${canAfford ? `
+                                        <button class="btn btn-secondary" onclick="useReward('${reward.id}')" style="padding: 8px 16px; font-size: 14px;">
+                                            使用
+                                        </button>
+                                    ` : `
+                                        <span style="font-size: 10px; color: var(--text-secondary);">不足</span>
+                                    `}
+                                </div>
+                                <button onclick="showRewardMenu(event, '${reward.id}')" style="
+                                    background: var(--surface-light);
+                                    border: 1px solid var(--border);
+                                    border-radius: 8px;
+                                    color: var(--text);
+                                    cursor: pointer;
+                                    padding: 12px;
+                                    font-size: 20px;
+                                    width: 44px;
+                                    height: 44px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    transition: all 0.2s;
+                                    flex-shrink: 0;
+                                " onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background='var(--surface-light)'">
+                                    ⋮
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+        }
+        
+        // 履歴を更新
+        function updatePointsHistory() {
+            const data = loadData();
+            const historyEl = document.getElementById('points-history');
+            if (!historyEl) return;
+            
+            if (!data.pointSystem.transactions || data.pointSystem.transactions.length === 0) {
+                historyEl.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 40px;">取引履歴がありません</div>';
+                return;
+            }
+            
+            historyEl.innerHTML = data.pointSystem.transactions.map(t => {
+                const date = new Date(t.timestamp);
+                const dateStr = `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+                const icon = t.type === 'earn' ? '➕' : '➖';
+                const color = t.type === 'earn' ? '#10b981' : '#ef4444';
+                const amount = t.type === 'earn' ? (t.finalAmount || t.amount) : t.amount;
+                
+                return `
+                    <div style="
+                        display: flex;
+                        justify-content: space-between;
+                        padding: 12px;
+                        background: var(--surface);
+                        border-radius: 8px;
+                        border: 1px solid var(--border);
+                    ">
+                        <div>
+                            <div style="font-weight: bold;">${icon} ${escapeHTML(t.description)}</div>
+                            <div style="font-size: 12px; color: var(--text-secondary);">${dateStr}</div>
+                        </div>
+                        <div style="font-size: 20px; font-weight: bold; color: ${color};">
+                            ${t.type === 'earn' ? '+' : '-'}${amount}pt
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // 報酬を作成
+        function createReward(event) {
+            event.preventDefault();
+            
+            const name = document.getElementById('reward-name').value;
+            const cost = parseInt(document.getElementById('reward-cost').value);
+            const emoji = document.getElementById('reward-emoji').value || '🎁';
+            const category = document.getElementById('reward-category').value;
+            const memo = document.getElementById('reward-memo').value;
+            
+            const data = loadData();
+            
+            // 新しい報酬を追加
+            const newReward = {
+                id: 'reward_' + Date.now(),
+                name: name,
+                cost: cost,
+                emoji: emoji,
+                category: category,
+                memo: memo,
+                timesUsed: 0,
+                isFavorite: false,
+                isArchived: false,
+                createdAt: new Date().toISOString()
+            };
+            
+            if (!data.pointSystem.customRewards) {
+                data.pointSystem.customRewards = [];
+            }
+            data.pointSystem.customRewards.push(newReward);
+            
+            saveData(data);
+            
+            // フォームをリセット
+            document.getElementById('reward-name').value = '';
+            document.getElementById('reward-cost').value = '';
+            document.getElementById('reward-emoji').value = '';
+            document.getElementById('reward-memo').value = '';
+            
+            // 報酬タブに切り替え
+            showRewardsTab();
+            
+            showNotification('✨ 報酬を作成しました！', 'success');
+        }
+        
+        // 報酬統計を更新
+        function updateRewardsStatistics() {
+            const data = loadData();
+            const rewards = data.pointSystem.customRewards || [];
+            
+            // 基本統計
+            const totalCount = rewards.filter(r => !r.isArchived).length;
+            const countEl = document.getElementById('total-rewards-count');
+            if (countEl) countEl.textContent = totalCount;
+            
+            const totalUsed = rewards.reduce((sum, r) => sum + (r.timesUsed || 0), 0);
+            const usedEl = document.getElementById('total-rewards-used');
+            if (usedEl) usedEl.textContent = totalUsed;
+            
+            const totalSpent = rewards.reduce((sum, r) => sum + (r.cost * (r.timesUsed || 0)), 0);
+            const spentEl = document.getElementById('total-rewards-spent');
+            if (spentEl) spentEl.textContent = totalSpent + 'pt';
+            
+            // 詳細統計を更新
+            updateDetailedRewardStatistics();
+        }
+        
+        // 詳細統計パネルの表示切り替え
+        window.toggleRewardStatistics = function() {
+            const panel = document.getElementById('reward-statistics-panel');
+            const btn = document.getElementById('toggle-reward-stats-btn');
+            
+            if (panel.style.display === 'none') {
+                panel.style.display = 'block';
+                btn.textContent = '📊 統計を隠す';
+                updateDetailedRewardStatistics();
+            } else {
+                panel.style.display = 'none';
+                btn.textContent = '📊 詳細統計を見る';
+            }
+        }
+        
+        // 統計セクションのトグル関数（クラス制御に統一）
+        window.toggleStatSection = function(sectionId) {
+            const content = document.getElementById(sectionId);
+            const arrow = document.getElementById(sectionId + '-arrow');
+            if (!content) return;
+
+            const isHidden = content.classList.contains('is-hidden') || window.getComputedStyle(content).display === 'none';
+
+            if (isHidden) {
+                content.classList.remove('is-hidden');
+                // 表示レイアウトを適用
+                if (sectionId === 'badge-collection') {
+                    content.style.display = 'grid';
+                } else {
+                    content.style.display = 'block';
+                }
+                if (arrow) arrow.textContent = '▼';
+            } else {
+                // 非表示クラスを付与（!importantで確実に隠す）
+                content.classList.add('is-hidden');
+                if (arrow) arrow.textContent = '▶';
+            }
+        }
+        
+        // すべての統計トグルを閉じる
+        function closeAllStatToggles() {
+            const toggleSections = [
+                'achievement-level-distribution',
+                'journal-stats-content',
+                'point-stats-content',
+                'badge-collection',
+                'challenge-stats-content',
+                'habit-report',
+                'ranking-content'
+            ];
+            
+            toggleSections.forEach(sectionId => {
+                const content = document.getElementById(sectionId);
+                const arrow = document.getElementById(sectionId + '-arrow');
+                if (content) {
+                    content.classList.add('is-hidden');
+                }
+                if (arrow) {
+                    arrow.textContent = '▶';
+                }
+            });
+        }
+        
+        // ホーム画面のトグルを閉じる
+        function closeHomeToggles() {
+            // ホームの統計系トグル（バッジ含む）をいったん全て閉じる
+            if (typeof closeAllStatToggles === 'function') {
+                closeAllStatToggles();
+            }
+            // ジャーナル履歴の各エントリを閉じる
+            const journalEntries = document.querySelectorAll('.journal-entry');
+            journalEntries.forEach(entry => {
+                const content = entry.querySelector('.journal-content');
+                const arrow = entry.querySelector('.journal-arrow');
+                if (content) {
+                    content.style.display = 'none';
+                }
+                if (arrow) {
+                    arrow.style.transform = 'rotate(0deg)';
+                }
+            });
+
+            // カテゴリセクション（id="content-..."）を全て閉じる＋トグル矢印をリセット
+            const categoryContents = document.querySelectorAll('[id^="content-"]');
+            categoryContents.forEach(el => {
+                el.style.maxHeight = '0';
+            });
+            const categoryToggles = document.querySelectorAll('[id^="toggle-"]');
+            categoryToggles.forEach(tg => {
+                tg.textContent = '▶';
+            });
+
+            // LocalStorageのカテゴリトグル状態も全てfalseにリセット
+            try {
+                const states = JSON.parse(localStorage.getItem('categoryToggleStates') || '{}');
+                const keys = Object.keys(states);
+                if (keys.length > 0) {
+                    keys.forEach(k => { states[k] = false; });
+                    localStorage.setItem('categoryToggleStates', JSON.stringify(states));
+                }
+            } catch (e) {
+                // noop
+            }
+        }
+        
+        // 詳細な報酬統計を更新
+        function updateDetailedRewardStatistics() {
+            const data = loadData();
+            const rewards = data.pointSystem.customRewards || [];
+            const transactions = data.pointSystem.transactions || [];
+            
+            // 人気報酬ランキング
+            updatePopularRewards(rewards);
+            
+            // カテゴリー別統計
+            updateCategoryStatistics(rewards);
+            
+            // 時間帯別使用パターン
+            updateRewardTimePattern(transactions.filter(t => t.type === 'spend'));
+            
+            // コスト分析
+            updateCostAnalysis(rewards);
+            
+            // 最近使用した報酬
+            updateRecentUsedRewards(transactions.filter(t => t.type === 'spend'));
+        }
+        
+        // 人気報酬ランキングを更新
+        function updatePopularRewards(rewards) {
+            const el = document.getElementById('popular-rewards');
+            if (!el) return;
+            
+            const sortedRewards = rewards
+                .filter(r => !r.isArchived && r.timesUsed > 0)
+                .sort((a, b) => (b.timesUsed || 0) - (a.timesUsed || 0))
+                .slice(0, 5);
+            
+            if (sortedRewards.length === 0) {
+                el.innerHTML = '<div style="color: var(--text-secondary); text-align: center;">まだ使用された報酬がありません</div>';
+                return;
+            }
+            
+            el.innerHTML = sortedRewards.map((reward, index) => {
+                const rank = index + 1;
+                const rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}.`;
+                const usageRate = rewards.filter(r => !r.isArchived).length > 0 ? 
+                    Math.round((reward.timesUsed || 0) / rewards.reduce((sum, r) => sum + (r.timesUsed || 0), 0) * 100) : 0;
+                
+                return `
+                    <div style="
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        padding: 12px;
+                        background: ${rank === 1 ? 'linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1))' : 'rgba(0,0,0,0.2)'};
+                        border-radius: 8px;
+                        ${rank === 1 ? 'border: 1px solid rgba(251, 191, 36, 0.3);' : ''}
+                    ">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span style="font-size: 20px;">${rankEmoji}</span>
+                            <div>
+                                <div style="font-weight: bold;">${reward.emoji} ${escapeHTML(reward.name)}</div>
+                                <div style="font-size: 12px; color: var(--text-secondary);">
+                                    ${reward.cost}pt • ${reward.timesUsed}回使用 (${usageRate}%)
+                                </div>
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 18px; font-weight: bold; color: #ef4444;">
+                                ${reward.cost * (reward.timesUsed || 0)}pt
+                            </div>
+                            <div style="font-size: 10px; color: var(--text-secondary);">総消費</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // カテゴリー別統計を更新
+        function updateCategoryStatistics(rewards) {
+            const el = document.getElementById('category-statistics');
+            if (!el) return;
+            
+            const categories = {};
+            rewards.filter(r => !r.isArchived).forEach(reward => {
+                const category = reward.category || 'その他';
+                if (!categories[category]) {
+                    categories[category] = {
+                        count: 0,
+                        timesUsed: 0,
+                        totalSpent: 0,
+                        avgCost: 0
+                    };
+                }
+                categories[category].count++;
+                categories[category].timesUsed += reward.timesUsed || 0;
+                categories[category].totalSpent += (reward.timesUsed || 0) * reward.cost;
+                categories[category].avgCost += reward.cost;
+            });
+            
+            // 平均コストを計算
+            Object.keys(categories).forEach(cat => {
+                if (categories[cat].count > 0) {
+                    categories[cat].avgCost = Math.round(categories[cat].avgCost / categories[cat].count);
+                }
+            });
+            
+            const categoryEmojis = {
+                '休憩': '🍵',
+                '娯楽': '🎮',
+                '食事': '🍰',
+                '買い物': '🛍️',
+                '体験': '🎭',
+                '自由時間': '⏰',
+                'その他': '📦'
+            };
+            
+            const sortedCategories = Object.entries(categories)
+                .sort((a, b) => b[1].timesUsed - a[1].timesUsed);
+            
+            if (sortedCategories.length === 0) {
+                el.innerHTML = '<div style="color: var(--text-secondary); text-align: center;">カテゴリーデータがありません</div>';
+                return;
+            }
+            
+            el.innerHTML = sortedCategories.map(([category, stats]) => `
+                <div style="
+                    padding: 12px;
+                    background: rgba(0,0,0,0.2);
+                    border-radius: 8px;
+                ">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span style="font-weight: bold; font-size: 16px;">
+                            ${categoryEmojis[category] || '📦'} ${category}
+                        </span>
+                        <span style="color: var(--text-secondary); font-size: 12px;">
+                            ${stats.count}個
+                        </span>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-size: 12px;">
+                        <div style="text-align: center;">
+                            <div style="font-weight: bold; color: #fbbf24;">${stats.timesUsed}</div>
+                            <div style="color: var(--text-secondary);">使用回数</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-weight: bold; color: #ef4444;">${stats.totalSpent}pt</div>
+                            <div style="color: var(--text-secondary);">総消費</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-weight: bold; color: #10b981;">${stats.avgCost}pt</div>
+                            <div style="color: var(--text-secondary);">平均コスト</div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // 時間帯別使用パターンを更新
+        function updateRewardTimePattern(spendTransactions) {
+            const el = document.getElementById('reward-time-pattern');
+            if (!el) return;
+            
+            const timeSlots = {
+                '早朝': { hours: [4, 5, 6, 7], count: 0, emoji: '🌅' },
+                '朝': { hours: [8, 9, 10, 11], count: 0, emoji: '☀️' },
+                '昼': { hours: [12, 13, 14, 15], count: 0, emoji: '🌞' },
+                '夕方': { hours: [16, 17, 18, 19], count: 0, emoji: '🌆' },
+                '夜': { hours: [20, 21, 22, 23], count: 0, emoji: '🌙' },
+                '深夜': { hours: [0, 1, 2, 3], count: 0, emoji: '🌛' }
+            };
+            
+            spendTransactions.forEach(t => {
+                const hour = new Date(t.timestamp).getHours();
+                Object.entries(timeSlots).forEach(([name, slot]) => {
+                    if (slot.hours.includes(hour)) {
+                        slot.count++;
+                    }
+                });
+            });
+            
+            const maxCount = Math.max(...Object.values(timeSlots).map(s => s.count), 1);
+            
+            el.innerHTML = Object.entries(timeSlots).map(([name, stats]) => {
+                const heightPercent = (stats.count / maxCount) * 100;
+                const isActive = stats.count > 0;
+                
+                return `
+                    <div style="text-align: center;">
+                        <div style="font-size: 20px; margin-bottom: 4px;">${stats.emoji}</div>
+                        <div style="
+                            position: relative;
+                            height: 60px;
+                            display: flex;
+                            align-items: flex-end;
+                            margin-bottom: 4px;
+                        ">
+                            <div style="
+                                width: 100%;
+                                height: ${heightPercent}%;
+                                background: ${isActive ? 'linear-gradient(to top, #8b5cf6, #ec4899)' : 'rgba(0,0,0,0.2)'};
+                                border-radius: 4px 4px 0 0;
+                                transition: all 0.3s;
+                            "></div>
+                        </div>
+                        <div style="font-size: 10px; font-weight: bold;">${name}</div>
+                        <div style="font-size: 9px; color: var(--text-secondary);">${stats.count}回</div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // コスト分析を更新
+        function updateCostAnalysis(rewards) {
+            const el = document.getElementById('cost-analysis');
+            if (!el) return;
+            
+            const activeRewards = rewards.filter(r => !r.isArchived);
+            if (activeRewards.length === 0) {
+                el.innerHTML = '<div style="color: var(--text-secondary); text-align: center; grid-column: 1 / -1;">報酬データがありません</div>';
+                return;
+            }
+            
+            const costs = activeRewards.map(r => r.cost);
+            const avgCost = Math.round(costs.reduce((a, b) => a + b, 0) / costs.length);
+            const minCost = Math.min(...costs);
+            const maxCost = Math.max(...costs);
+            const medianCost = costs.sort((a, b) => a - b)[Math.floor(costs.length / 2)];
+            
+            // コスト効率（使用回数/コスト）
+            const efficiency = activeRewards
+                .filter(r => r.timesUsed > 0)
+                .map(r => ({
+                    name: r.name,
+                    emoji: r.emoji,
+                    efficiency: (r.timesUsed || 0) / r.cost,
+                    cost: r.cost,
+                    timesUsed: r.timesUsed
+                }))
+                .sort((a, b) => b.efficiency - a.efficiency)
+                .slice(0, 3);
+            
+            el.innerHTML = `
+                <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+                        <div style="text-align: center;">
+                            <div style="font-size: 20px; font-weight: bold; color: #fbbf24;">${avgCost}pt</div>
+                            <div style="font-size: 10px; color: var(--text-secondary);">平均コスト</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 20px; font-weight: bold; color: #8b5cf6;">${medianCost}pt</div>
+                            <div style="font-size: 10px; color: var(--text-secondary);">中央値</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 20px; font-weight: bold; color: #10b981;">${minCost}pt</div>
+                            <div style="font-size: 10px; color: var(--text-secondary);">最小</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 20px; font-weight: bold; color: #ef4444;">${maxCost}pt</div>
+                            <div style="font-size: 10px; color: var(--text-secondary);">最大</div>
+                        </div>
+                    </div>
+                </div>
+                <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                    <div style="font-weight: bold; margin-bottom: 8px; font-size: 14px;">💎 コスパ最強TOP3</div>
+                    ${efficiency.length > 0 ? efficiency.map((r, i) => `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; ${i < efficiency.length - 1 ? 'border-bottom: 1px solid rgba(255,255,255,0.1);' : ''}">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span>${r.emoji}</span>
+                                <span style="font-size: 12px;">${escapeHTML(r.name)}</span>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 12px; font-weight: bold; color: #10b981;">
+                                    ${(r.efficiency * 100).toFixed(1)}%
+                                </div>
+                                <div style="font-size: 10px; color: var(--text-secondary);">
+                                    ${r.timesUsed}回/${r.cost}pt
+                                </div>
+                            </div>
+                        </div>
+                    `).join('') : '<div style="color: var(--text-secondary); text-align: center; font-size: 12px;">使用データがありません</div>'}
+                </div>
+            `;
+        }
+        
+        // 最近使用した報酬を更新
+        function updateRecentUsedRewards(spendTransactions) {
+            const el = document.getElementById('recent-used-rewards');
+            if (!el) return;
+            
+            const recent = spendTransactions
+                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+                .slice(0, 5);
+            
+            if (recent.length === 0) {
+                el.innerHTML = '<div style="color: var(--text-secondary); text-align: center;">まだ報酬を使用していません</div>';
+                return;
+            }
+            
+            el.innerHTML = recent.map(t => {
+                const date = new Date(t.timestamp);
+                const dateStr = `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+                const timeDiff = Date.now() - date.getTime();
+                const hoursAgo = Math.floor(timeDiff / (1000 * 60 * 60));
+                const daysAgo = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+                const timeAgo = daysAgo > 0 ? `${daysAgo}日前` : hoursAgo > 0 ? `${hoursAgo}時間前` : '今日';
+                
+                return `
+                    <div style="
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        padding: 8px;
+                        background: rgba(0,0,0,0.2);
+                        border-radius: 8px;
+                    ">
+                        <div>
+                            <div style="font-weight: bold; font-size: 14px;">${escapeHTML(t.description)}</div>
+                            <div style="font-size: 11px; color: var(--text-secondary);">${dateStr} (${timeAgo})</div>
+                        </div>
+                        <div style="font-size: 16px; font-weight: bold; color: #ef4444;">-${t.amount}pt</div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // 報酬メニューを表示
+        function showRewardMenu(event, rewardId) {
+            event.stopPropagation();
+            event.preventDefault();
+            
+            // 既存のメニューを削除
+            const existingMenu = document.querySelector('.reward-menu');
+            if (existingMenu) {
+                existingMenu.remove();
+            }
+            
+            // メニューを作成
+            const menu = document.createElement('div');
+            menu.className = 'reward-menu';
+            
+            // ボタンの位置を取得
+            const button = event.currentTarget;
+            const rect = button.getBoundingClientRect();
+            
+            // メニューの位置を計算（ボタンの下に表示）
+            const menuTop = rect.bottom + 8;
+            const menuLeft = Math.max(8, rect.right - 180); // 右寄せで表示
+            
+            menu.style.cssText = `
+                position: fixed;
+                left: ${menuLeft}px;
+                top: ${menuTop}px;
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: 12px;
+                padding: 8px;
+                box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+                z-index: 10000;
+                min-width: 160px;
+            `;
+            
+            menu.innerHTML = `
+                <div onclick="window.editReward('${rewardId}'); this.parentElement.remove();" style="
+                    padding: 12px 16px;
+                    cursor: pointer;
+                    border-radius: 8px;
+                    transition: background 0.2s;
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    font-size: 16px;
+                " onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background='transparent'">
+                    ✏️ 編集
+                </div>
+                <div onclick="window.deleteReward('${rewardId}'); this.parentElement.remove();" style="
+                    padding: 12px 16px;
+                    cursor: pointer;
+                    border-radius: 8px;
+                    color: #ef4444;
+                    transition: background 0.2s;
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    font-size: 16px;
+                " onmouseover="this.style.background='rgba(239, 68, 68, 0.1)'" onmouseout="this.style.background='transparent'">
+                    🗑️ 削除
+                </div>
+            `;
+            
+            document.body.appendChild(menu);
+            
+            // 画面外にはみ出す場合は位置を調整
+            const menuRect = menu.getBoundingClientRect();
+            if (menuRect.bottom > window.innerHeight) {
+                menu.style.top = (rect.top - menuRect.height - 8) + 'px';
+            }
+            if (menuRect.right > window.innerWidth) {
+                menu.style.left = (window.innerWidth - menuRect.width - 8) + 'px';
+            }
+            
+            // クリックで閉じる
+            setTimeout(() => {
+                document.addEventListener('click', function closeMenu(e) {
+                    if (!menu.contains(e.target)) {
+                        menu.remove();
+                        document.removeEventListener('click', closeMenu);
+                    }
+                });
+            }, 100);
+        }
+        
+        // 報酬を編集
+        window.editReward = function(rewardId) {
+            const data = loadData();
+            const reward = data.pointSystem.customRewards.find(r => r.id === rewardId);
+            if (!reward) return;
+            
+            // 値を事前にエスケープ
+            const escapedName = escapeHTML(reward.name);
+            const escapedEmoji = reward.emoji || '';
+            const escapedMemo = escapeHTML(reward.memo || '');
+            
+            // モーダルを作成
+            const modal = document.createElement('div');
+            modal.className = 'overlay active';
+            modal.innerHTML = `
+                <div style="
+                        background: var(--surface);
+                        border-radius: 24px;
+                        padding: 32px;
+                        max-width: 400px;
+                        width: 100%;
+                        max-height: 90vh;
+                        overflow-y: auto;
+                        border: 1px solid var(--border);
+                        position: relative;
+                    ">
+                    <div class="modal-header">
+                        <h2>報酬を編集</h2>
+                        <button class="close-btn" onclick="this.closest('.overlay').remove()">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <form onsubmit="window.saveEditedReward(event, '${rewardId}'); return false;" style="display: grid; gap: 16px;">
+                            <div class="form-group">
+                                <label for="edit-reward-name">報酬の名前</label>
+                                <input type="text" id="edit-reward-name" value="${escapedName}" required autocomplete="off">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="edit-reward-cost">必要ポイント</label>
+                                <input type="number" id="edit-reward-cost" value="${reward.cost}" required min="1" max="999" autocomplete="off">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="edit-reward-emoji">アイコン（絵文字）</label>
+                                <input type="text" id="edit-reward-emoji" value="${escapedEmoji}" maxlength="2" autocomplete="off">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="edit-reward-category">カテゴリー</label>
+                                <select id="edit-reward-category">
+                                    <option value="休憩" ${reward.category === '休憩' ? 'selected' : ''}>🍵 休憩</option>
+                                    <option value="娯楽" ${reward.category === '娯楽' ? 'selected' : ''}>🎮 娯楽</option>
+                                    <option value="食事" ${reward.category === '食事' ? 'selected' : ''}>🍰 食事</option>
+                                    <option value="買い物" ${reward.category === '買い物' ? 'selected' : ''}>🛍️ 買い物</option>
+                                    <option value="体験" ${reward.category === '体験' ? 'selected' : ''}>🎭 体験</option>
+                                    <option value="自由時間" ${reward.category === '自由時間' ? 'selected' : ''}>⏰ 自由時間</option>
+                                    <option value="その他" ${reward.category === 'その他' ? 'selected' : ''}>📦 その他</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="edit-reward-memo">メモ（任意）</label>
+                                <textarea id="edit-reward-memo" autocomplete="off">${escapedMemo}</textarea>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary" style="width: 100%;">
+                                💾 保存
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+        }
+        
+        // 編集した報酬を保存
+        window.saveEditedReward = function(event, rewardId) {
+            event.preventDefault();
+            
+            const data = loadData();
+            const rewardIndex = data.pointSystem.customRewards.findIndex(r => r.id === rewardId);
+            if (rewardIndex === -1) return;
+            
+            const reward = data.pointSystem.customRewards[rewardIndex];
+            
+            // 更新
+            reward.name = document.getElementById('edit-reward-name').value.trim();
+            reward.cost = parseInt(document.getElementById('edit-reward-cost').value);
+            reward.emoji = document.getElementById('edit-reward-emoji').value.trim() || '🎁';
+            reward.category = document.getElementById('edit-reward-category').value;
+            reward.memo = document.getElementById('edit-reward-memo').value.trim();
+            
+            saveData(data);
+            updateRewardsList();
+            updateRewardsStatistics();
+            
+            // モーダルを閉じる
+            const overlay = event.target.closest('.overlay');
+            if (overlay) {
+                overlay.remove();
+            }
+            
+            showNotification('✅ 報酬を更新しました', 'success');
+        }
+        
+        // 報酬を削除
+        window.deleteReward = function(rewardId) {
+            if (!confirm('この報酬を削除しますか？')) return;
+            
+            const data = loadData();
+            const rewardIndex = data.pointSystem.customRewards.findIndex(r => r.id === rewardId);
+            if (rewardIndex === -1) return;
+            
+            // 削除
+            data.pointSystem.customRewards.splice(rewardIndex, 1);
+            
+            saveData(data);
+            updateRewardsList();
+            
+            showNotification('🗑️ 報酬を削除しました', 'success');
+        }
+        
+        // 報酬を使用
+        function useReward(rewardId) {
+            const data = loadData();
+            const reward = data.pointSystem.customRewards.find(r => r.id === rewardId);
+            
+            if (!reward) return;
+            
+            if (data.pointSystem.currentPoints < reward.cost) {
+                showNotification('ポイントが不足しています', 'error');
+                return;
+            }
+            
+            // 確認ダイアログ
+            if (!confirm(`「${reward.name}」を ${reward.cost}pt で使用しますか？`)) {
+                return;
+            }
+            
+            // ポイントを消費
+            if (spendPoints(reward.cost, reward.name)) {
+                // 使用回数を増やす
+                reward.timesUsed = (reward.timesUsed || 0) + 1;
+                
+                const updatedData = loadData();
+                const rewardIndex = updatedData.pointSystem.customRewards.findIndex(r => r.id === rewardId);
+                if (rewardIndex !== -1) {
+                    updatedData.pointSystem.customRewards[rewardIndex] = reward;
+                    saveData(updatedData);
+                }
+                
+                showNotification(`🎉 「${reward.name}」を使用しました！`, 'success');
+                updatePointsView();
+                updateRewardsList();
+            }
+        }
+        
+        // 報酬メニューのトグル（お気に入り、編集、削除など）
+        function toggleRewardMenu(rewardId) {
+            // 簡単な実装として削除のみ
+            if (confirm('この報酬を削除しますか？')) {
+                const data = loadData();
+                data.pointSystem.customRewards = data.pointSystem.customRewards.filter(r => r.id !== rewardId);
+                saveData(data);
+                updateRewardsList();
+                showNotification('報酬を削除しました', 'info');
+            }
+        }
+
+        // ========== ポイントシステム関連の関数ここまで ==========
+
+        // ナビゲーションを更新
+        function updateNavigation(activeView) {
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            const activeBtn = document.querySelector(`[data-view="${activeView}"]`);
+            if (activeBtn) {
+                activeBtn.classList.add('active');
+            }
+            
+            // ページインジケーターを更新
+            const viewIndex = views.indexOf(activeView);
+            if (viewIndex !== -1) {
+                document.querySelectorAll('.dot').forEach((dot, index) => {
+                    if (index === viewIndex) {
+                        dot.style.background = 'var(--primary)';
+                        dot.style.width = '8px';
+                        dot.style.height = '8px';
+                    } else {
+                        dot.style.background = 'var(--surface-light)';
+                        dot.style.width = '6px';
+                        dot.style.height = '6px';
+                    }
+                });
+            }
+
+            // スライドピル（下線インジケーター）を移動
+            try {
+                const navContent = document.querySelector('.nav-content');
+                const indicator = document.getElementById('nav-indicator');
+                if (navContent && indicator && activeBtn) {
+                    const left = activeBtn.offsetLeft - navContent.scrollLeft;
+                    const width = activeBtn.offsetWidth;
+                    indicator.style.width = width + 'px';
+                    indicator.style.transform = `translateX(${left}px)`;
+                }
+            } catch (e) {
+                // noop
+            }
+
+            // エッジナブの表示制御（進捗/シャッフルでは非表示）
+            try {
+                const leftNub = document.getElementById('edge-nub-left');
+                const rightNub = document.getElementById('edge-nub-right');
+                if (leftNub && rightNub) {
+                    const hideOn = ['progress','shuffle'];
+                    const show = !hideOn.includes(activeView);
+                    leftNub.style.display = show ? 'flex' : 'none';
+                    rightNub.style.display = show ? 'flex' : 'none';
+                }
+            } catch (_) {}
+        }
+
+        // ホーム画面を表示
+        function showHomeView() {
+            resetScrollToTop();
+            document.getElementById('home-view').style.display = 'block';
+            document.getElementById('new-hypothesis-view').style.display = 'none';
+            document.getElementById('shuffle-view').style.display = 'none';
+            document.getElementById('progress-view').style.display = 'none';
+            document.getElementById('history-view').style.display = 'none';
+            document.getElementById('stats-view').style.display = 'none';
+            document.getElementById('points-view').style.display = 'none';
+            document.getElementById('cards-view').style.display = 'none';
+            
+            updateNavigation('home');
+            
+            // カテゴリドロップダウンを更新
+            updateCategoryDropdowns();
+            
+            // 保存されたカテゴリフィルターを復元
+            const savedCategory = localStorage.getItem('selectedCategory') || 'all';
+            const categoryFilter = document.getElementById('category-filter');
+            if (categoryFilter) {
+                categoryFilter.value = savedCategory;
+            }
+            
+            updateCurrentHypothesisList();
+            updatePerfectBonusIndicator();
+            updatePenaltyIndicators();
+            updateChallenges();
+            updateJournalStatus();  // ジャーナルステータスを更新
+            
+            // イベント表示を更新（スマホ対応）
+            try {
+                updateEventDisplay();
+            } catch (e) {
+                console.error('イベント表示エラー:', e);
+            }
+            
+            // ホーム画面ではヘッダーのポイント表示を再表示
+            const pointDisplay = document.getElementById('point-display');
+            if (pointDisplay) {
+                pointDisplay.style.display = 'flex';
+            }
+
+            // 前回デブリーフのミニバナー
+            const data = loadData();
+            const home = document.getElementById('home-view');
+            let banner = document.getElementById('last-debrief-banner');
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.id = 'last-debrief-banner';
+                banner.style.cssText = 'margin:12px 0;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text-secondary);';
+                home.insertBefore(banner, home.firstChild);
+            }
+            if (data.meta && data.meta.lastDebrief) {
+                const d = data.meta.lastDebrief;
+                const dt = new Date(d.at).toLocaleDateString('ja-JP');
+                banner.innerHTML = `📝 前回の気づき（${dt} / 満足度${d.score}/5）: <span style=\"color:var(--text-primary)\">${(d.note||'').replace(/</g,'&lt;')}</span>`;
+                banner.style.display = 'block';
+            } else {
+                banner.style.display = 'none';
+            }
+            
+            // ホーム画面のすべてのトグルを確実に閉じる
+            setTimeout(() => {
+                closeHomeToggles();
+            }, 100);
+        }
+        
+        // 習慣の休眠モード切り替え
+        function toggleSleepMode() {
+            const data = loadData();
+            const hyp = data.currentHypotheses.find(h => h.id === window.currentHypothesis.id);
+            
+            if (!hyp) return;
+            
+            if (hyp.isSleeping) {
+                // 休眠解除
+                hyp.isSleeping = false;
+                hyp.sleepEndDate = new Date().toISOString();
+                
+                // 休眠期間を記録（統計用）
+                if (!hyp.sleepHistory) hyp.sleepHistory = [];
+                hyp.sleepHistory.push({
+                    startDate: hyp.sleepStartDate,
+                    endDate: hyp.sleepEndDate,
+                    duration: Math.floor((new Date(hyp.sleepEndDate) - new Date(hyp.sleepStartDate)) / (1000 * 60 * 60 * 24))
+                });
+                
+                delete hyp.sleepStartDate;
+                delete hyp.sleepEndDate;
+                
+                showNotification('🌅 習慣を再開しました！', 'success');
+            } else {
+                // 休眠開始
+                if (confirm('この習慣を休眠させますか？\n\n休眠中は：\n• 達成率の計算から除外されます\n• ストリークは保持されます\n• いつでも再開できます')) {
+                    hyp.isSleeping = true;
+                    hyp.sleepStartDate = new Date().toISOString();
+                    
+                    showNotification('😴 習慣を休眠させました', 'info');
+                }
+            }
+            
+            saveData(data);
+            window.currentHypothesis = hyp;
+            showProgressView(hyp.id);
+        }
+
+        // ペナルティインジケーターを更新
+        function updatePenaltyIndicators() {
+            // 既存のインジケーターを削除
+            document.querySelectorAll('.penalty-indicator').forEach(el => el.remove());
+            
+            let indicatorTop = 130; // パーフェクトボーナスの下から開始
+            
+            // ハードモード
+            if (window.currentHypothesis && window.currentHypothesis.hardMode) {
+                const indicator = document.createElement('div');
+                indicator.className = 'penalty-indicator';
+                indicator.style.cssText = `
+                    position: fixed;
+                    top: ${indicatorTop}px;
+                    right: 20px;
+                    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+                    color: white;
+                    padding: 8px 16px;
+                    border-radius: 16px;
+                    font-weight: 600;
+                    font-size: 14px;
+                    box-shadow: 0 4px 20px rgba(220, 38, 38, 0.3);
+                    animation: pulse 2s infinite;
+                    z-index: 100;
+                `;
+                indicator.innerHTML = '⚡ ハードモード（90%以上必要）';
+                document.body.appendChild(indicator);
+                indicatorTop += 50;
+            }
+            
+            // リセットリスク
+            if (window.currentHypothesis && window.currentHypothesis.resetRisk) {
+                const indicator = document.createElement('div');
+                indicator.className = 'penalty-indicator';
+                indicator.style.cssText = `
+                    position: fixed;
+                    top: ${indicatorTop}px;
+                    right: 20px;
+                    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+                    color: white;
+                    padding: 8px 16px;
+                    border-radius: 16px;
+                    font-weight: 600;
+                    font-size: 14px;
+                    box-shadow: 0 4px 20px rgba(220, 38, 38, 0.3);
+                    animation: pulse 2s infinite;
+                    z-index: 100;
+                `;
+                indicator.innerHTML = '🔄 リセットリスク適用中';
+                document.body.appendChild(indicator);
+                indicatorTop += 50;
+            }
+            
+            // 達成率減少
+            if (window.currentHypothesis && window.currentHypothesis.achievementDecrease) {
+                const indicator = document.createElement('div');
+                indicator.className = 'penalty-indicator';
+                indicator.style.cssText = `
+                    position: fixed;
+                    top: ${indicatorTop}px;
+                    right: 20px;
+                    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+                    color: white;
+                    padding: 8px 16px;
+                    border-radius: 16px;
+                    font-weight: 600;
+                    font-size: 14px;
+                    box-shadow: 0 4px 20px rgba(239, 68, 68, 0.3);
+                    animation: pulse 2s infinite;
+                    z-index: 100;
+                `;
+                indicator.innerHTML = `📉 達成率-${window.currentHypothesis.achievementDecrease}%`;
+                document.body.appendChild(indicator);
+            }
+        }
+        
+        // パーフェクトボーナスインジケーターを更新
+        function updatePerfectBonusIndicator() {
+            const data = loadData();
+            const hasActiveBonus = data.cards && data.cards.activeEffects && 
+                data.cards.activeEffects.some(effect => effect.cardId === 'perfect_bonus');
+            
+            // 既存のインジケーターを削除
+            const existingIndicator = document.getElementById('perfect-bonus-indicator');
+            if (existingIndicator) {
+                existingIndicator.remove();
+            }
+            
+            if (hasActiveBonus) {
+                const indicator = document.createElement('div');
+                indicator.id = 'perfect-bonus-indicator';
+                indicator.style.cssText = `
+                    position: fixed;
+                    top: 80px;
+                    right: 20px;
+                    background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+                    color: white;
+                    padding: 12px 24px;
+                    border-radius: 20px;
+                    font-weight: 600;
+                    box-shadow: 0 4px 20px rgba(245, 158, 11, 0.3);
+                    animation: pulse 2s infinite;
+                    z-index: 100;
+                `;
+                indicator.innerHTML = '🎯 パーフェクトボーナス適用中';
+                document.body.appendChild(indicator);
+            }
+        }
+
+        // カテゴリで習慣をフィルタリング
+        function filterHabitsByCategory() {
+            const filter = document.getElementById('category-filter');
+            if (filter) {
+                // 選択中のカテゴリを保存
+                localStorage.setItem('selectedCategory', filter.value);
+                // 習慣リストを更新
+                updateCurrentHypothesisList();
+            }
+        }
+        window.filterHabitsByCategory = filterHabitsByCategory;
+        
+        // 新規習慣作成画面を表示
+        function showNewHypothesisView() {
+            resetScrollToTop();
+            document.getElementById('home-view').style.display = 'none';
+            document.getElementById('new-hypothesis-view').style.display = 'block';
+            
+            // カテゴリドロップダウンを更新
+            updateCategoryDropdowns();
+            
+            // ホーム画面で選択していたカテゴリを自動設定
+            const selectedCategory = localStorage.getItem('selectedCategory');
+            const categorySelect = document.getElementById('hypothesis-category');
+            if (selectedCategory && selectedCategory !== 'all' && categorySelect) {
+                categorySelect.value = selectedCategory;
+            }
+            document.getElementById('history-view').style.display = 'none';
+            document.getElementById('stats-view').style.display = 'none';
+            document.getElementById('points-view').style.display = 'none';
+            document.getElementById('cards-view').style.display = 'none';
+            
+            updateNavigation('new');
+            
+            // 新規作成画面ではヘッダーのポイント表示を再表示
+            const pointDisplay = document.getElementById('point-display');
+            if (pointDisplay) {
+                pointDisplay.style.display = 'flex';
+            }
+            
+            // フォームをリセット
+            document.getElementById('hypothesis-title').value = '';
+            document.getElementById('hypothesis-description').value = '';
+            const benefitEl = document.getElementById('hypothesis-benefit');
+            if (benefitEl) benefitEl.value = '';
+            // 入力にフォーカス
+            const titleInput = document.getElementById('hypothesis-title');
+            if (titleInput) {
+                setTimeout(() => titleInput.focus(), 0);
+            }
+            // IF-THEN初期行
+            const list = document.getElementById('ifthen-list');
+            if (list) { list.innerHTML = ''; addIfThenRow(); }
+            selectedDuration = null;
+            document.querySelectorAll('.duration-option').forEach(opt => {
+                opt.classList.remove('selected');
+                opt.classList.remove('disabled');
+                opt.style.opacity = '1';
+                opt.onclick = function() { selectDuration(this.dataset.duration); };
+            });
+            
+            // 開始日を今日にリセット
+            window.selectedStartDate = null;
+            setStartDate('today');
+            
+            // 短期集中ペナルティが有効な場合
+            if (window.shortTermOnly) {
+                // 中期間と長期間を無効化
+                ['medium', 'long'].forEach(duration => {
+                    const opt = document.querySelector(`[data-duration="${duration}"]`);
+                    if (opt) {
+                        opt.classList.add('disabled');
+                        opt.style.opacity = '0.5';
+                        opt.onclick = null;
+                    }
+                });
+                
+                // 警告メッセージを表示
+                showCardEffect('短期集中ペナルティ適用中！', '短期間（3-7日）のみ選択可能です', '#ef4444');
+            }
+            
+            // 頻度設定UIの初期化
+            document.querySelectorAll('input[name="frequency"]').forEach(radio => {
+                radio.checked = radio.value === 'daily';
+            });
+            document.getElementById('weekly-count').disabled = true;
+            document.getElementById('weekdays-selector').style.display = 'none';
+            document.querySelectorAll('input[name="weekday"]').forEach(cb => {
+                cb.checked = false;
+            });
+            
+            // 頻度設定のイベントリスナー
+            const freqRadios = document.querySelectorAll('input[name="frequency"]');
+            freqRadios.forEach(radio => {
+                radio.addEventListener('change', function() {
+                    const weeklyCount = document.getElementById('weekly-count');
+                    const weekdaysSelector = document.getElementById('weekdays-selector');
+                    
+                    // すべて無効化
+                    weeklyCount.disabled = true;
+                    weekdaysSelector.style.display = 'none';
+                    
+                    // 選択されたものだけ有効化
+                    if (this.value === 'weekly') {
+                        weeklyCount.disabled = false;
+                        weeklyCount.focus();
+                    } else if (this.value === 'weekdays') {
+                        weekdaysSelector.style.display = 'block';
+                    }
+                    
+                    // 期間表示を更新
+                    updateDurationDisplay(this.value);
+                });
+            });
+            
+            // 初期状態設定
+            document.getElementById('freq-daily').checked = true;
+        }
+
+        // 頻度に応じて期間表示を更新
+        function updateDurationDisplay(frequencyType) {
+            const shortText = document.getElementById('duration-short-text');
+            const mediumText = document.getElementById('duration-medium-text');
+            const longText = document.getElementById('duration-long-text');
+            
+            if (!shortText || !mediumText || !longText) return;
+            
+            if (frequencyType === 'weekly' || frequencyType === 'weekdays') {
+                // 週単位で表示
+                shortText.textContent = '2〜4週間';
+                mediumText.textContent = '5〜7週間';
+                longText.textContent = '8〜10週間';
+            } else {
+                // 日単位で表示（毎日の場合）
+                shortText.textContent = '3〜7日';
+                mediumText.textContent = '8〜14日';
+                longText.textContent = '15〜30日';
+            }
+        }
+        
+        // 検証期間を選択
+        function selectDuration(duration) {
+            selectedDuration = duration;
+            document.querySelectorAll('.duration-option').forEach(opt => {
+                opt.classList.remove('selected');
+            });
+            document.querySelector(`[data-duration="${duration}"]`).classList.add('selected');
+        }
+
+        // 新規作成フォーム: IF-THEN行追加
+        function addIfThenRow() {
+            const list = document.getElementById('ifthen-list');
+            if (!list) return;
+            const row = document.createElement('div');
+            row.className = 'ifthen-row';
+            row.style.cssText = 'display:flex; gap:8px; align-items:center;';
+            row.innerHTML = `
+                <input type="text" class="if-input" placeholder="もし（例: 朝アラームが鳴ったら）" style="flex:1;" />
+                <span style="color: var(--text-secondary);">→</span>
+                <input type="text" class="then-input" placeholder="なら（例: 1分だけ座る）" style="flex:1;" />
+                <button type="button" class="btn btn-secondary" onclick="this.parentElement.remove()">削除</button>
+            `;
+            list.appendChild(row);
+        }
+
+        // 習慣を作成
+        function createHypothesis(event) {
+            event.preventDefault();
+            
+            // 短期集中ペナルティのチェック
+            if (window.shortTermOnly) {
+                selectedDuration = 'short';
+                window.shortTermOnly = false; // 効果を消費
+            }
+            
+            if (!selectedDuration) {
+                alert('検証期間を選択してください');
+                return;
+            }
+            
+            const title = document.getElementById('hypothesis-title').value.trim();
+            const description = document.getElementById('hypothesis-description').value.trim();
+            const category = document.getElementById('hypothesis-category').value;
+            const benefit = (document.getElementById('hypothesis-benefit')?.value || '').trim();
+
+            if (!title || !description) {
+                alert('タイトルと詳細を入力してください');
+                return;
+            }
+            if (title.length > 100) {
+                alert('タイトルは100文字以内で入力してください');
+                return;
+            }
+            if (description.length > 1000) {
+                alert('詳細は1000文字以内で入力してください');
+                return;
+            }
+            if (!benefit) {
+                alert('朝の1行宣言（期待する変化）を入力してください');
+                return;
+            }
+            
+            // IF-THEN収集
+            const ifThen = [];
+            document.querySelectorAll('#ifthen-list .ifthen-row').forEach(row => {
+                const ifv = row.querySelector('.if-input')?.value.trim() || '';
+                const thenv = row.querySelector('.then-input')?.value.trim() || '';
+                if (ifv && thenv) {
+                    ifThen.push({ id: Date.now().toString() + Math.random(), if: ifv, then: thenv });
+                }
+            });
+
+            // 頻度設定を取得
+            const frequencyType = document.querySelector('input[name="frequency"]:checked').value;
+            let frequencyData = { type: frequencyType };
+            
+            if (frequencyType === 'weekly') {
+                frequencyData.count = parseInt(document.getElementById('weekly-count').value);
+            } else if (frequencyType === 'weekdays') {
+                const selectedDays = [];
+                document.querySelectorAll('input[name="weekday"]:checked').forEach(cb => {
+                    selectedDays.push(parseInt(cb.value));
+                });
+                if (selectedDays.length === 0) {
+                    alert('少なくとも1つの曜日を選択してください');
+                    return;
+                }
+                frequencyData.weekdays = selectedDays;
+            }
+
+            // 開始日を取得（未選択の場合は今日）
+            let startDate = window.selectedStartDate || new Date().toISOString().split('T')[0];
+            
+            currentHypothesis = {
+                id: Date.now(),
+                title: title,
+                description: description,
+                category: category,  // カテゴリーを追加
+                duration: selectedDuration,
+                startDate: startDate + 'T00:00:00.000Z',
+                achievements: {},
+                // ペナルティ効果を記録
+                hardMode: window.hardModeActive || false,
+                resetRisk: window.resetRiskActive || false,
+                achievementDecrease: window.achievementDecrease || 0,
+                shortTermOnly: window.shortTermOnly || false,
+                benefit: benefit,
+                ifThen: ifThen,
+                frequency: frequencyData  // 頻度設定を追加
+            };
+            
+            // ペナルティ効果をリセット（一度使用したら消える）
+            window.hardModeActive = false;
+            window.resetRiskActive = false;
+            window.achievementDecrease = 0;
+            // shortTermOnly は現習慣に引き継いだためリセット
+            window.shortTermOnly = false;
+            
+            // ペナルティカードのチェック
+            const data = loadData();
+            if (data.cards.pendingPenalties.length > 0) {
+                // ペナルティカードを適用
+                applyPenaltyCards();
+            } else {
+                // シャッフル画面を表示
+                showShuffleView();
+            }
+        }
+
+        // ペナルティカードを適用
+        function applyPenaltyCards() {
+            const data = loadData();
+            
+            // プロテクトシールドが有効かチェック
+            let hasProtectShield = false;
+            if (data.cards && data.cards.activeEffects) {
+                const protectIndex = data.cards.activeEffects.findIndex(effect => 
+                    effect.cardId === 'protect_shield'
+                );
+                if (protectIndex !== -1) {
+                    hasProtectShield = true;
+                    // プロテクトシールドを消費
+                    data.cards.activeEffects.splice(protectIndex, 1);
+                    saveData(data);
+                    
+                    showCardEffect('プロテクトシールド発動！', 'ペナルティカードを無効化しました', '#10b981');
+                    
+                    // ペナルティカードをクリア
+                    data.cards.pendingPenalties = [];
+                    saveData(data);
+                    
+                    // シャッフル画面を表示
+                    setTimeout(() => showShuffleView(), 2000);
+                    return;
+                }
+            }
+            
+            const penalties = [];
+            
+            // すべてのペナルティカードを収集
+            data.cards.pendingPenalties.forEach(penalty => {
+                penalties.push(penalty.cardId);
+            });
+            
+            if (penalties.length > 0) {
+                // ペナルティエフェクトを表示
+                const modal = document.createElement('div');
+                modal.className = 'modal';
+                modal.style.display = 'flex';
+                modal.innerHTML = `
+                    <div class="modal-content penalty-effect" style="text-align: center; max-width: 400px;">
+                        <h2 style="color: #ef4444; margin-bottom: 24px;">⚠️ ペナルティカード発動！</h2>
+                        <div id="penalty-cards-display" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px;">
+                        </div>
+                        <button class="btn" onclick="continuePenaltyApply()">確認</button>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+                
+                const penaltyDisplay = document.getElementById('penalty-cards-display');
+                
+                // ペナルティカードの効果を設定
+                penalties.forEach(penaltyId => {
+                    const card = CARD_MASTER[penaltyId];
+                    if (card) {
+                        const cardDiv = document.createElement('div');
+                        cardDiv.className = 'card-item penalty';
+                        cardDiv.style.margin = '0 auto';
+                        cardDiv.style.maxWidth = '250px';
+                        cardDiv.innerHTML = `
+                            <div class="card-icon">${card.icon}</div>
+                            <div class="card-name">${card.name}</div>
+                            <div class="card-description">${card.description}</div>
+                        `;
+                        penaltyDisplay.appendChild(cardDiv);
+                        
+                        // ペナルティ効果を適用
+                        switch(penaltyId) {
+                            case 'extension_card':
+                                window.pendingExtension = 3;
+                                break;
+                            case 'hard_mode':
+                                window.hardModeActive = true;
+                                break;
+                            case 'reset_risk':
+                                window.resetRiskActive = true;
+                                break;
+                            case 'short_term':
+                                window.shortTermOnly = true;
+                                break;
+                            case 'achievement_decrease':
+                                window.achievementDecrease = 10;
+                                break;
+                            case 'event_seal':
+                                // イベント封印効果を3日間適用
+                                const sealStart = new Date();
+                                const sealEnd = new Date();
+                                sealEnd.setDate(sealEnd.getDate() + 3);
+                                if (!data.cards.activeEffects) data.cards.activeEffects = [];
+                                data.cards.activeEffects.push({
+                                    type: 'event_seal',
+                                    startDate: sealStart.toISOString(),
+                                    endDate: sealEnd.toISOString()
+                                });
+                                saveData(data);
+                                break;
+                            case 'mission_overload':
+                                // ミッション追加（ランダムに2つ追加）
+                                window.additionalMissions = 2;
+                                break;
+                            case 'slowdown':
+                                // ポイント0.5倍効果を3日間適用
+                                const slowStart = new Date();
+                                const slowEnd = new Date();
+                                slowEnd.setDate(slowEnd.getDate() + 3);
+                                if (!data.cards.activeEffects) data.cards.activeEffects = [];
+                                data.cards.activeEffects.push({
+                                    type: 'slowdown',
+                                    startDate: slowStart.toISOString(),
+                                    endDate: slowEnd.toISOString()
+                                });
+                                saveData(data);
+                                break;
+                            case 'reverse_curse':
+                                // 逆転の呪い効果を3日間適用
+                                const curseStart = new Date();
+                                const curseEnd = new Date();
+                                curseEnd.setDate(curseEnd.getDate() + 3);
+                                if (!data.cards.activeEffects) data.cards.activeEffects = [];
+                                data.cards.activeEffects.push({
+                                    type: 'reverse_curse',
+                                    startDate: curseStart.toISOString(),
+                                    endDate: curseEnd.toISOString()
+                                });
+                                saveData(data);
+                                break;
+                        }
+                    }
+                });
+                
+                // ペナルティカードを消費
+                data.cards.pendingPenalties = [];
+                saveData(data);
+            }
+        }
+
+        // ペナルティ適用後の処理
+        window.continuePenaltyApply = function() {
+            document.querySelector('.modal:last-child').remove();
+            showShuffleView();
+        };
+
+        // シャッフル画面を表示
+        function showShuffleView() {
+            resetScrollToTop();
+            document.getElementById('new-hypothesis-view').style.display = 'none';
+            document.getElementById('shuffle-view').style.display = 'block';
+            
+            const shuffleContainer = document.querySelector('.shuffle-container');
+            const shuffleResult = document.getElementById('shuffle-result');
+            
+            shuffleContainer.style.display = 'block';
+            shuffleResult.style.display = 'none';
+            
+            // シャッフルアニメーション
+            // 頻度設定に応じて日数か週数かを決定
+            let durationRanges;
+            let isWeekMode = false;
+            
+            if (currentHypothesis.frequency && 
+                (currentHypothesis.frequency.type === 'weekly' || currentHypothesis.frequency.type === 'weekdays')) {
+                // 週単位モード（週●回または特定曜日の場合）
+                isWeekMode = true;
+                durationRanges = {
+                    short: { min: 2, max: 4 },   // 2〜4週間（14〜28日）
+                    medium: { min: 5, max: 7 },   // 5〜7週間（35〜49日）
+                    long: { min: 8, max: 10 }     // 8〜10週間（56〜70日）
+                };
+            } else {
+                // 日単位モード（毎日の場合）
+                durationRanges = {
+                    short: { min: 3, max: 7 },
+                    medium: { min: 8, max: 14 },
+                    long: { min: 15, max: 30 }
+                };
+            }
+            
+            // 短期集中ペナルティ適用時は短期レンジを調整
+            let range = durationRanges[currentHypothesis.duration];
+            if (currentHypothesis.duration === 'short' && currentHypothesis.shortTermOnly) {
+                if (isWeekMode) {
+                    range = { min: 2, max: 2 };  // 2週間固定
+                } else {
+                    range = { min: 3, max: 5 };  // 3-5日
+                }
+            }
+            let shuffleCount = 0;
+            const maxShuffles = 20;
+            
+            const shuffleInterval = setInterval(() => {
+                const randomValue = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+                const shuffleNumber = document.getElementById('shuffle-number');
+                
+                // 週モードの場合は週数と日数を両方表示
+                if (isWeekMode) {
+                    const days = randomValue * 7;
+                    shuffleNumber.innerHTML = `<span style="font-size: 48px;">${randomValue}</span><span style="font-size: 24px;">週間</span><br><span style="font-size: 18px; color: var(--text-secondary);">(${days}日間)</span>`;
+                } else {
+                    shuffleNumber.textContent = randomValue;
+                }
+                shuffleNumber.classList.add('shuffling');
+                
+                setTimeout(() => {
+                    shuffleNumber.classList.remove('shuffling');
+                }, 250);
+                
+                shuffleCount++;
+                
+                if (shuffleCount >= maxShuffles) {
+                    clearInterval(shuffleInterval);
+                    
+                    // 最終的な値を決定
+                    let finalValue = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+                    let finalDays;
+                    
+                    if (isWeekMode) {
+                        // 週モードの場合は週数を日数に変換
+                        finalDays = finalValue * 7;
+                        const shuffleNumber = document.getElementById('shuffle-number');
+                        shuffleNumber.innerHTML = `<span style="font-size: 48px;">${finalValue}</span><span style="font-size: 24px;">週間</span><br><span style="font-size: 18px; color: var(--text-secondary);">(${finalDays}日間)</span>`;
+                    } else {
+                        finalDays = finalValue;
+                    }
+                    
+                    // ペナルティカードによる延長を適用
+                    if (window.pendingExtension) {
+                        finalDays += window.pendingExtension;
+                        window.pendingExtension = 0;
+                    }
+                    
+                    currentHypothesis.totalDays = finalDays;
+                    
+                    setTimeout(() => {
+                        shuffleContainer.style.display = 'none';
+                        shuffleResult.style.display = 'block';
+                        document.getElementById('final-days').textContent = finalDays;
+                    }, 500);
+                }
+            }, 150);
+        }
+
+        // 習慣を開始
+        function startHypothesis() {
+            const data = loadData();
+            data.currentHypotheses.push(currentHypothesis);
+            saveData(data);
+            
+            showProgressView(currentHypothesis.id);
+        }
+
+        // 進捗画面を表示
+        function showProgressView(hypothesisId) {
+            resetScrollToTop();
+            // モバイルの戻るボタン対策: 進捗ビューに入るタイミングで履歴を積む
+            try {
+                history.pushState({ view: 'progress', hypothesisId }, '');
+            } catch (e) { /* noop */ }
+            const data = loadData();
+            const hypothesis = data.currentHypotheses.find(h => h.id === hypothesisId);
+            
+            if (!hypothesis) return;
+            
+            window.currentHypothesis = hypothesis;
+            
+            // intensityプロパティが存在しない場合は初期化
+            if (!window.currentHypothesis.intensity) {
+                window.currentHypothesis.intensity = {};
+            }
+            
+            document.getElementById('home-view').style.display = 'none';
+            document.getElementById('shuffle-view').style.display = 'none';
+            document.getElementById('progress-view').style.display = 'block';
+            
+            // 習慣情報を表示
+            document.getElementById('progress-hypothesis-title').textContent = hypothesis.title;
+            document.getElementById('progress-hypothesis-description').textContent = hypothesis.description;
+            
+            // 頻度情報を表示
+            const daysInfo = document.getElementById('progress-days-info');
+            let frequencyText = '';
+            if (hypothesis.frequency) {
+                if (hypothesis.frequency.type === 'daily') {
+                    frequencyText = '毎日実施';
+                } else if (hypothesis.frequency.type === 'weekly') {
+                    frequencyText = `週${hypothesis.frequency.count}回実施`;
+                } else if (hypothesis.frequency.type === 'weekdays') {
+                    const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+                    const days = hypothesis.frequency.weekdays.map(d => dayNames[d]).join('・');
+                    frequencyText = `${days}曜日に実施`;
+                }
+            } else {
+                frequencyText = '毎日実施';  // デフォルト
+            }
+            
+            const startDate = new Date(hypothesis.startDate);
+            const endDate = new Date(startDate);
+            endDate.setDate(startDate.getDate() + hypothesis.totalDays - 1);
+            
+            // 習慣モードかどうかチェック
+            const habitModeLabel = hypothesis.habitMode ? ' | 🌟 習慣モード' : '';
+            const unlimitedLabel = hypothesis.isUnlimited ? ' | ♾️ 無期限' : '';
+            const sleepingLabel = hypothesis.isSleeping ? ' | 😴 休眠中' : '';
+            
+            // カテゴリ情報を取得
+            const categoryInfo = data.categoryMaster && data.categoryMaster[hypothesis.category] 
+                ? data.categoryMaster[hypothesis.category] 
+                : { name: 'その他', icon: '📝', color: '#6b7280' };
+            
+            daysInfo.innerHTML = `
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                    <span>📅 ${startDate.toLocaleDateString('ja-JP')} 〜 ${hypothesis.isUnlimited ? '無期限' : endDate.toLocaleDateString('ja-JP')} | ${frequencyText}${habitModeLabel}${unlimitedLabel}${sleepingLabel}</span>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <button class="btn btn-secondary" onclick="editFrequencyType()" style="padding: 6px 12px; font-size: 12px; border-radius: 6px;">
+                            🔄 頻度変更
+                        </button>
+                        <button class="btn btn-secondary" onclick="editHypothesisCategory()" style="padding: 6px 12px; font-size: 12px; border-radius: 6px;">
+                            ${categoryInfo.icon} ${categoryInfo.name} 変更
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            // カレンダー/進捗 表示を更新
+            updateCalendar();
+            updateProgress();
+            
+            // カード使用ボタンの表示/非表示
+            updateCardUseButton();
+            
+            // リセットリスクのチェック
+            if (hypothesis.resetRisk) {
+                checkResetRisk();
+            }
+            
+            // ペナルティインジケーターを更新
+            updatePenaltyIndicators();
+
+            // ストリークと強度（Intensity）UIを更新
+            renderIntensityPanel();
+
+            // IF-THENパネル
+            renderIfThenPanel();
+            
+            // 追加のUI更新があればここで実行
+        }
+
+        // カード使用ボタンの更新（有効な報酬カードがある場合のみ）
+        function updateCardUseButton() {
+            const data = loadData();
+            const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start','second_chance','protect_shield']);
+            const hasUsable = (data.cards.inventory || []).some(card => {
+                const def = CARD_MASTER[card.cardId];
+                return def && def.type === 'reward' && !card.used && !DISABLED_CARDS.has(card.cardId);
+            });
+            const cardUseSection = document.getElementById('card-use-section');
+            cardUseSection.style.display = hasUsable ? 'block' : 'none';
+            
+            // カード使用後は即座にインベントリを更新
+            updateCardDisplay();
+        }
+
+        // カード使用メニューを表示
+        function showCardUseMenu() {
+            const modal = document.getElementById('card-use-modal');
+            const container = document.getElementById('usable-cards-container');
+            const data = loadData();
+            
+            container.innerHTML = '';
+            
+            // 使用可能なカードを集計（無効カードは除外）
+            const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start','second_chance']);
+            const usableCards = {};
+            data.cards.inventory.forEach(card => {
+                if (!card.used && CARD_MASTER[card.cardId] && CARD_MASTER[card.cardId].type === 'reward' && !DISABLED_CARDS.has(card.cardId)) {
+                    usableCards[card.cardId] = (usableCards[card.cardId] || 0) + 1;
+                }
+            });
+            
+            if (Object.keys(usableCards).length > 0) {
+                Object.entries(usableCards).forEach(([cardId, count]) => {
+                    const card = CARD_MASTER[cardId];
+                    const cardDiv = document.createElement('div');
+                    cardDiv.className = 'card-item reward';
+                    cardDiv.style.cursor = 'pointer';
+                    cardDiv.innerHTML = `
+                        <div class="card-icon">${card.icon}</div>
+                        <div class="card-name">${card.name}</div>
+                        <div class="card-description">${card.description}</div>
+                        <div class="card-count">×${count}</div>
+                    `;
+                    
+                    // カードタイプに応じて使用関数を分ける
+                    if (cardId === 'skip_ticket') {
+                        cardDiv.onclick = () => useSkipTicket();
+                    } else if (cardId === 'achievement_boost') {
+                        cardDiv.onclick = () => useAchievementBoost();
+                    } else if (cardId === 'perfect_bonus') {
+                        cardDiv.onclick = () => usePerfectBonus();
+                    } else if (cardId === 'protect_shield') {
+                        cardDiv.onclick = () => useProtectShield();
+                    } else if (cardId === 'achievement_booster') {
+                        cardDiv.onclick = () => useAchievementBooster();
+                    } else if (cardId === 'second_chance') {
+                        cardDiv.onclick = () => useSecondChance();
+                    } else if (cardId === 'event_trigger') {
+                        cardDiv.onclick = () => useEventTrigger();
+                    } else if (cardId === 'event_combo') {
+                        cardDiv.onclick = () => useEventCombo();
+                    } else if (cardId === 'point_gem') {
+                        cardDiv.onclick = () => usePointGem();
+                    } else if (cardId === 'mission_master') {
+                        cardDiv.onclick = () => useMissionMaster();
+                    } else if (cardId === 'rainbow_boost') {
+                        cardDiv.onclick = () => useRainbowBoost();
+                    } else if (cardId === 'streak_bonus') {
+                        cardDiv.onclick = () => useStreakBonus();
+                    } else if (cardId === 'lucky_seven') {
+                        cardDiv.onclick = () => useLuckySeven();
+                    } else if (cardId === 'conversion_magic') {
+                        cardDiv.onclick = () => useConversionMagic();
+                    } else if (cardId === 'fate_dice') {
+                        cardDiv.onclick = () => useFateDice();
+                    } else if (cardId === 'combo_chain') {
+                        cardDiv.onclick = () => useComboChain();
+                    } else if (cardId === 'sparkle_streak') {
+                        cardDiv.onclick = () => useSparkleStreak();
+                    } else if (cardId === 'category_festival') {
+                        cardDiv.onclick = () => useCategoryFestival();
+                    } else if (cardId === 'happy_hour') {
+                        cardDiv.onclick = () => useHappyHour();
+                    } else if (cardId === 'mystery_box') {
+                        cardDiv.onclick = () => useMysteryBox();
+                    }
+
+                    container.appendChild(cardDiv);
+                });
+            } else {
+                container.innerHTML = '<p style="color: var(--text-secondary); text-align: center;">使用可能なカードがありません</p>';
+            }
+            
+            modal.style.display = 'flex';
+        }
+
+        // カード使用メニューを閉じる
+        function closeCardUseMenu() {
+            document.getElementById('card-use-modal').style.display = 'none';
+        }
+
+        // スキップチケットを使用
+        function useSkipTicket() {
+            closeCardUseMenu();
+            
+            // スキップモードを有効化
+            window.skipTicketMode = true;
+            
+            // メッセージを表示
+            const message = document.createElement('div');
+            message.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: var(--gradient-1);
+                color: white;
+                padding: 20px 40px;
+                border-radius: 20px;
+                font-size: 18px;
+                font-weight: 600;
+                z-index: 2000;
+                animation: fadeInOut 2s ease-out;
+            `;
+            message.textContent = '⏭️ スキップチケット使用中！達成したい日をタップ';
+            document.body.appendChild(message);
+            
+            setTimeout(() => message.remove(), 2000);
+            
+            // カレンダーを更新してスキップモードを反映
+            updateCalendar();
+        }
+        
+        // 達成ブーストを使用
+        function useAchievementBoost() {
+            closeCardUseMenu();
+            
+            if (!window.currentHypothesis || window.currentHypothesis.completed) {
+                alert('進行中の習慣がありません');
+                return;
+            }
+            
+            const card = findAndRemoveCard('achievement_boost');
+            if (!card) {
+                alert('達成ブーストカードを持っていません');
+                return;
+            }
+            
+            // 達成ブースト選択画面を表示
+            showAchievementBoostSelection();
+            
+            saveData();
+            displayUserCards();
+        }
+        
+        function findAndRemoveCard(cardId) {
+            const data = loadData();
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === cardId && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                return null;
+            }
+            
+            // カードを使用済みにして即座に削除
+            data.cards.inventory.splice(cardIndex, 1);
+            saveData(data);
+            
+            return data.cards.inventory[cardIndex];
+        }
+        
+        function showAchievementBoostSelection() {
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay active';
+            
+            const modal = document.createElement('div');
+            modal.className = 'skip-modal active';
+            modal.innerHTML = `
+                <div class="modal-header">
+                    <h3>🌟 達成ブースト</h3>
+                    <p>達成済みにする日を2日選択してください</p>
+                </div>
+                <div class="skip-dates" id="boost-dates">
+                    <!-- 日付ボタンが動的に追加される -->
+                </div>
+                <div class="modal-footer">
+                    <button class="button secondary" onclick="this.closest('.overlay').remove()">キャンセル</button>
+                    <button class="button primary" id="apply-boost" disabled>適用する</button>
+                </div>
+            `;
+            
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            
+            // 選択可能な日付を表示
+            const datesContainer = document.getElementById('boost-dates');
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const startDate = new Date(window.currentHypothesis.startDate);
+            const endDate = new Date(window.currentHypothesis.endDate);
+            
+            const selectedDates = new Set();
+            
+            // 日付ボタンを生成
+            for (let d = new Date(startDate); d <= endDate && d <= today; d.setDate(d.getDate() + 1)) {
+                const dateStr = dateKeyLocal(d);
+                const achievements = window.currentHypothesis.achievements || {};
+                
+                // すでに達成済みの日はスキップ
+                if (achievements[dateStr]) continue;
+                
+                const dateButton = document.createElement('button');
+                dateButton.className = 'date-button';
+                dateButton.textContent = `${d.getMonth() + 1}月${d.getDate()}日`;
+                dateButton.dataset.date = dateStr;
+                
+                dateButton.onclick = function() {
+                    if (selectedDates.has(dateStr)) {
+                        selectedDates.delete(dateStr);
+                        this.classList.remove('selected');
+                    } else if (selectedDates.size < 2) {
+                        selectedDates.add(dateStr);
+                        this.classList.add('selected');
+                    }
+                    
+                    // 適用ボタンの有効/無効を切り替え
+                    document.getElementById('apply-boost').disabled = selectedDates.size !== 2;
+                };
+                
+                datesContainer.appendChild(dateButton);
+            }
+            
+            // 選択可能な日がない場合
+            if (datesContainer.children.length === 0) {
+                datesContainer.innerHTML = '<p style="text-align: center; color: #94a3b8;">達成可能な日がありません</p>';
+            }
+            
+            // 適用ボタンの処理
+            document.getElementById('apply-boost').onclick = function() {
+                applyAchievementBoost(Array.from(selectedDates));
+                overlay.remove();
+            };
+        }
+        
+        function applyAchievementBoost(dates) {
+            if (!window.currentHypothesis || dates.length !== 2) return;
+            
+            // 選択された2日を達成済みにする
+            if (!window.currentHypothesis.achievements) {
+                window.currentHypothesis.achievements = {};
+            }
+            
+            dates.forEach(dateStr => {
+                window.currentHypothesis.achievements[dateStr] = true;
+            });
+            
+            // データを保存
+            const data = loadData();
+            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (index !== -1) {
+                data.currentHypotheses[index] = window.currentHypothesis;
+                saveData(data);
+            }
+            
+            updateCalendar();
+            updateProgress();
+            
+            // エフェクトを表示
+            showCardEffect('達成ブースト発動！', '選択した2日が達成済みになりました', '#10b981');
+        }
+        
+        // カードエフェクトを表示
+        function showCardEffect(title, message, color) {
+            const effectDiv = document.createElement('div');
+            effectDiv.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: ${color};
+                color: white;
+                padding: 24px 48px;
+                border-radius: 20px;
+                font-size: 20px;
+                font-weight: 700;
+                z-index: 3000;
+                animation: cardEffectAnimation 3s ease-out;
+                text-align: center;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            `;
+            effectDiv.innerHTML = `
+                <h3 style="margin: 0 0 12px 0; font-size: 24px;">${title}</h3>
+                <p style="margin: 0; font-size: 16px; font-weight: 400;">${message}</p>
+            `;
+            
+            document.body.appendChild(effectDiv);
+            
+            setTimeout(() => effectDiv.remove(), 3000);
+        }
+        
+        // パーフェクトボーナスを使用
+        function usePerfectBonus() {
+            closeCardUseMenu();
+            
+            if (!confirm('パーフェクトボーナスを使用しますか？\n次の習慣で100%達成時、報酬カード2枚を獲得できます。')) {
+                return;
+            }
+            
+            const data = loadData();
+            
+            // カードを消費
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'perfect_bonus' && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                showNotification('⚠️ パーフェクトボーナスがありません', 'error');
+                return;
+            }
+            
+            // カードを使用済みにして即座に削除
+            data.cards.inventory.splice(cardIndex, 1);
+            
+            // アクティブエフェクトに追加
+            if (!data.cards.activeEffects) {
+                data.cards.activeEffects = [];
+            }
+            
+            data.cards.activeEffects.push({
+                cardId: 'perfect_bonus',
+                activatedDate: new Date().toISOString(),
+                targetHypothesisId: null // 次の習慣に適用
+            });
+            
+            saveData(data);
+            
+            showNotification('🎯 パーフェクトボーナスが有効になりました！\n次の習慣で100%達成を目指しましょう！', 'success');
+        }
+        
+        // スキップチケットを適用
+        function applySkipTicket(dateKey, dayCell) {
+            if (!window.skipTicketMode) return;
+            
+            // 既に達成済みの日は選択不可
+            if (window.currentHypothesis.achievements[dateKey]) {
+                showNotification('⚠️ すでに達成済みの日です', 'error');
+                return;
+            }
+            // 未来日は不可
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const target = new Date(dateKey);
+            if (target > today) {
+                showNotification('⚠️ 未来日はスキップできません', 'error');
+                return;
+            }
+            
+            // スキップチケットを消費
+            const data = loadData();
+            const skipTicketIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'skip_ticket' && !card.used
+            );
+            
+            if (skipTicketIndex === -1) {
+                showNotification('⚠️ スキップチケットがありません', 'error');
+                window.skipTicketMode = false;
+                updateCalendar();
+                return;
+            }
+            
+            // 確認ダイアログ
+            if (!confirm(`この日をスキップして達成済みにしますか？\n日付: ${dateKey}`)) {
+                return;
+            }
+            
+            // achievementsが存在しない場合は初期化
+            if (!window.currentHypothesis.achievements) {
+                window.currentHypothesis.achievements = {};
+            }
+            
+            // 達成状態にする
+            window.currentHypothesis.achievements[dateKey] = true;
+            
+            // スキップ適用ログ（開発用）
+            
+            // カードを消費
+            // カードを使用済みにして即座に削除
+            data.cards.inventory.splice(skipTicketIndex, 1);
+            
+            // 現在の習慣を更新
+            const hypothesisIndex = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (hypothesisIndex !== -1) {
+                if (!data.currentHypotheses[hypothesisIndex].achievements) {
+                    data.currentHypotheses[hypothesisIndex].achievements = {};
+                }
+                data.currentHypotheses[hypothesisIndex].achievements[dateKey] = true;
+            }
+            
+            saveData(data);
+            
+            // スキップモードを解除
+            window.skipTicketMode = false;
+            
+            // 成功エフェクトを表示
+            dayCell.classList.remove('not-achieved');
+            dayCell.classList.add('achieved');
+            dayCell.style.transition = 'all 0.5s ease';
+            dayCell.style.transform = 'scale(1.2)';
+            dayCell.style.boxShadow = '0 0 20px var(--primary)';
+            
+            setTimeout(() => {
+                dayCell.style.transform = 'scale(1)';
+                dayCell.style.boxShadow = '';
+            }, 500);
+            
+            // 成功メッセージ
+            showNotification('✅ スキップチケットを使用しました！', 'success');
+            
+            // カレンダーを更新
+            updateCalendar();
+            updateProgress();
+        }
+
+        // カレンダーを更新
+        function updateCalendar() {
+            const calendarGrid = document.getElementById('calendar-grid');
+            calendarGrid.innerHTML = '';
+            
+            const startDate = new Date(window.currentHypothesis.startDate);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            // 開始日を0時0分0秒に設定
+            startDate.setHours(0, 0, 0, 0);
+            
+            // 経過日数を計算（開始日を1日目として計算）
+            const timeDiff = today.getTime() - startDate.getTime();
+            // 無期限の場合は実際の経過日数を使用
+            const daysPassed = window.currentHypothesis.isUnlimited 
+                ? Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1)
+                : Math.min(
+                    Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1),
+                    window.currentHypothesis.totalDays
+                );
+            
+            // 週ごとの達成状況を追跡（週●回の場合）
+            const weeklyAchievements = new Map(); // weekNumber -> {achieved: count, required: count, canAchieve: count}
+            const frequency = window.currentHypothesis.frequency;
+            
+            // 検証開始日からの週番号を取得（開始日から7日ごとに1週間）
+            function getWeekNumber(date) {
+                const d = new Date(date);
+                d.setHours(0, 0, 0, 0);
+                const start = new Date(startDate);
+                start.setHours(0, 0, 0, 0);
+                const days = Math.floor((d - start) / (24 * 60 * 60 * 1000));
+                return Math.floor(days / 7) + 1;  // 1週目から開始
+            }
+            
+            // 週●回の場合、先に各週の達成状況を計算
+            if (frequency && frequency.type === 'weekly') {
+                for (let i = 0; i < window.currentHypothesis.totalDays; i++) {
+                    const cellDate = new Date(startDate);
+                    cellDate.setDate(startDate.getDate() + i);
+                    const weekNum = getWeekNumber(cellDate);
+                    const dateKey = dateKeyLocal(cellDate);
+                    
+                    if (!weeklyAchievements.has(weekNum)) {
+                        weeklyAchievements.set(weekNum, {
+                            achieved: 0,
+                            required: frequency.count || 3,
+                            canAchieve: 0,
+                            dates: []
+                        });
+                    }
+                    
+                    const weekData = weeklyAchievements.get(weekNum);
+                    weekData.dates.push(cellDate);
+                    
+                    if (window.currentHypothesis.achievements && window.currentHypothesis.achievements[dateKey]) {
+                        weekData.achieved++;
+                    }
+                    
+                    // 今日以前の日数をカウント
+                    if (cellDate <= today) {
+                        weekData.canAchieve++;
+                    }
+                }
+            }
+            
+            let lastWeekNum = -1;
+            
+            for (let i = 0; i < window.currentHypothesis.totalDays; i++) {
+                const cellDate = new Date(startDate);
+                cellDate.setDate(startDate.getDate() + i);
+                const weekNum = getWeekNumber(cellDate);
+                
+                // 新しい週が始まったら週情報を表示（週●回の場合のみ）
+                if (frequency && frequency.type === 'weekly' && weekNum !== lastWeekNum) {
+                    const weekData = weeklyAchievements.get(weekNum);
+                    if (weekData) {
+                        const weekInfo = document.createElement('div');
+                        weekInfo.className = 'week-info';
+                        const progressPercent = Math.min(100, (weekData.achieved / weekData.required) * 100);
+                        
+                        weekInfo.innerHTML = `
+                            <span>第${weekNum}週</span>
+                            <div class="progress">
+                                <span>${weekData.achieved}/${weekData.required}回${weekData.achieved > weekData.required ? ' ✨' : ''}</span>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: ${progressPercent}%; ${weekData.achieved > weekData.required ? 'background: linear-gradient(90deg, #10b981, #3b82f6);' : ''}"></div>
+                                </div>
+                            </div>
+                        `;
+                        calendarGrid.appendChild(weekInfo);
+                    }
+                    lastWeekNum = weekNum;
+                }
+                
+                // 頻度に応じて対象日かどうかを判定
+                let isTargetDay = true;
+                let canClickToday = true;
+                
+                if (frequency) {
+                    if (frequency.type === 'weekdays') {
+                        // 特定曜日の場合：該当する曜日のみ対象
+                        isTargetDay = frequency.weekdays.includes(cellDate.getDay());
+                    } else if (frequency.type === 'weekly') {
+                        // 週●回の場合：上限を超えても記録可能にする
+                        // すべての日をクリック可能にする
+                        const weekData = weeklyAchievements.get(weekNum);
+                        // 制限を削除：常にクリック可能
+                    }
+                    // daily の場合はすべて対象
+                }
+                
+                const dayCell = document.createElement('div');
+                dayCell.className = 'day-cell';
+                dayCell.style.position = 'relative';
+                
+                // 対象外の日は薄く表示
+                if (!isTargetDay || !canClickToday) {
+                    dayCell.style.opacity = '0.3';
+                    dayCell.style.background = 'var(--surface-dark)';
+                }
+                
+                // 実際の日付を表示（月/日形式）
+                const displayMonth = cellDate.getMonth() + 1;
+                const displayDate = cellDate.getDate();
+                const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][cellDate.getDay()];
+                dayCell.innerHTML = `<small style="font-size: 10px;">${displayMonth}/${displayDate}(${dayOfWeek})</small><br><span style="font-size: 18px; font-weight: bold;">${i + 1}</span>`;
+                dayCell.dataset.day = i + 1;
+                
+                // 特定曜日の場合、対象曜日を強調表示
+                if (frequency && frequency.type === 'weekdays') {
+                    if (isTargetDay) {
+                        dayCell.style.border = '2px solid var(--primary)';
+                        dayCell.style.boxShadow = '0 0 8px rgba(59, 130, 246, 0.2)';
+                    }
+                }
+                
+                const dateKey = dateKeyLocal(cellDate);
+                // 強度バッジ（設定時）
+                const mult = Number((window.currentHypothesis.intensity || {})[dateKey] ?? 1.0);
+                const multBadge = document.createElement('div');
+                multBadge.style.cssText = 'position:absolute;bottom:6px;right:6px;font-size:10px;color:#94a3b8;';
+                multBadge.textContent = `×${mult.toFixed(1)}`;
+                dayCell.appendChild(multBadge);
+                
+                // 対象外の日はクリック不可
+                if (!isTargetDay || !canClickToday) {
+                    dayCell.classList.add('not-target');
+                    dayCell.style.cursor = 'not-allowed';
+                    
+                    // 週●回で目標達成済みでも追加記録可能なのでバッジ表示を削除
+                } else if (cellDate > today && !window.skipTicketMode) {
+                    dayCell.classList.add('future');
+                } else if (window.currentHypothesis.achievements[dateKey]) {
+                    dayCell.classList.add('achieved');
+                    // 達成済みでもクリック可能にする（取り消しできるように）
+                    dayCell.style.cursor = 'pointer';
+                    dayCell.onclick = () => toggleDayStatus(dateKey, dayCell);
+                } else {
+                    dayCell.classList.add('not-achieved');
+                    if (window.skipTicketMode) {
+                        // スキップモードでも過去と今日のみ選択可能
+                        if (cellDate <= today && isTargetDay && canClickToday) {
+                            dayCell.style.cursor = 'pointer';
+                            dayCell.style.border = '2px dashed var(--primary)';
+                            dayCell.onclick = () => applySkipTicket(dateKey, dayCell);
+                        } else {
+                            dayCell.classList.add('future');
+                        }
+                    } else {
+                        if (isTargetDay && canClickToday) {
+                            dayCell.onclick = () => toggleDayStatus(dateKey, dayCell);
+                        }
+                    }
+                }
+                
+                // 今日の日付の場合、対象日ならクリック可能にする（深夜対応）
+                // 深夜2時までは前日のセルもクリック可能
+                const currentActivityKey = getActivityDateKey();
+                const isClickableToday = (dateKey === currentActivityKey) && isTargetDay && canClickToday;
+                if (isClickableToday) {
+                    if (!window.currentHypothesis.achievements[dateKey]) {
+                        dayCell.classList.remove('future');
+                        dayCell.classList.add('not-achieved');
+                        dayCell.onclick = window.skipTicketMode ? 
+                            () => applySkipTicket(dateKey, dayCell) : 
+                            () => toggleDayStatus(dateKey, dayCell);
+                    }
+                }
+                
+                // 長押し（または右クリック）でその日の強度を編集
+                if (cellDate <= today) {
+                    attachLongPress(dayCell, () => openIntensityPicker(dateKey));
+                    dayCell.addEventListener('contextmenu', (e) => {
+                        e.preventDefault();
+                        openIntensityPicker(dateKey);
+                    });
+                }
+                calendarGrid.appendChild(dayCell);
+            }
+            
+            // 期間情報と頻度情報を更新
+            let frequencyInfo = '';
+            if (frequency) {
+                if (frequency.type === 'daily') {
+                    frequencyInfo = ' (毎日)';
+                } else if (frequency.type === 'weekly') {
+                    frequencyInfo = ` (週${frequency.count}回)`;
+                } else if (frequency.type === 'weekdays') {
+                    const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+                    const days = frequency.weekdays.map(d => dayNames[d]).join('・');
+                    frequencyInfo = ` (${days})`;
+                }
+            }
+            document.getElementById('progress-days-info').textContent = 
+                `検証期間: ${daysPassed}日目 / ${window.currentHypothesis.totalDays}日間${frequencyInfo}`;
+        }
+
+        // 長押し検出ユーティリティ
+        function attachLongPress(element, onLongPress, delay = 500) {
+            let timer = null;
+            let longPressed = false;
+            const start = (e) => {
+                longPressed = false;
+                timer = setTimeout(() => { longPressed = true; onLongPress(); }, delay);
+            };
+            const cancel = () => { if (timer) clearTimeout(timer); };
+            element.addEventListener('touchstart', start, { passive: true });
+            element.addEventListener('touchend', cancel, { passive: true });
+            element.addEventListener('touchmove', cancel, { passive: true });
+            element.addEventListener('mousedown', start);
+            element.addEventListener('mouseup', cancel);
+            element.addEventListener('mouseleave', cancel);
+        }
+        
+        // 長押しで削除用のユーティリティ
+        function attachLongPressToDelete(element, hypothesisId, delay = 500) {
+            let timer = null;
+            let longPressed = false;
+            
+            const start = (e) => {
+                longPressed = false;
+                element.classList.add('deleting');
+                timer = setTimeout(() => { 
+                    longPressed = true; 
+                    element.classList.remove('deleting');
+                    confirmDeleteHypothesis(hypothesisId);
+                }, delay);
+            };
+            
+            const cancel = (e) => { 
+                if (timer) clearTimeout(timer);
+                element.classList.remove('deleting');
+                // 長押しが成功した場合は通常のクリックをキャンセル
+                if (longPressed) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+            };
+            
+            element.addEventListener('touchstart', start, { passive: true });
+            element.addEventListener('touchend', cancel, { passive: true });
+            element.addEventListener('touchmove', cancel, { passive: true });
+            element.addEventListener('mousedown', start);
+            element.addEventListener('mouseup', cancel);
+            element.addEventListener('mouseleave', cancel);
+        }
+        
+        // 習慣の削除確認
+        function confirmDeleteHypothesis(hypothesisId) {
+            const data = loadData();
+            const hypothesis = data.currentHypotheses.find(h => h.id === hypothesisId);
+            
+            if (!hypothesis) return;
+            
+            const message = `「${hypothesis.title}」を削除しますか？\n\nこの操作は取り消せません。`;
+            
+            if (confirm(message)) {
+                deleteHypothesis(hypothesisId);
+            }
+        }
+        
+        // 習慣を削除
+        function deleteHypothesis(hypothesisId) {
+            const data = loadData();
+            const index = data.currentHypotheses.findIndex(h => h.id === hypothesisId);
+            
+            if (index === -1) return;
+            
+            // 削除される習慣を記録（必要に応じて履歴に追加）
+            const deletedHypothesis = data.currentHypotheses[index];
+            
+            // 習慣を削除
+            data.currentHypotheses.splice(index, 1);
+            
+            // データを保存
+            saveData(data);
+            
+            // 通知を表示
+            showNotification(`✅ 「${deletedHypothesis.title}」を削除しました`, 'success');
+            
+            // 現在の習慣が削除された場合はホーム画面に戻る
+            if (window.currentHypothesis && window.currentHypothesis.id === hypothesisId) {
+                window.currentHypothesis = null;
+                showHomeView();
+            } else {
+                // ホーム画面を更新
+                updateCurrentHypothesisList();
+            }
+        }
+
+        // 強度選択モーダル（過去日/当日用）
+        function openIntensityPicker(dateKey) {
+            if (!window.currentHypothesis) return;
+            const hyp = window.currentHypothesis;
+            hyp.intensity = hyp.intensity || {};
+            hyp.intensityOptions = hyp.intensityOptions || [
+                { label: '軽め', mult: 0.8 },
+                { label: '基本', mult: 1.0 },
+                { label: '高強度', mult: 1.2 },
+            ];
+            const opts = hyp.intensityOptions;
+            const current = Number(hyp.intensity[dateKey] ?? 1.0);
+
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay active';
+            overlay.style.backdropFilter = 'blur(6px)';
+            const modal = document.createElement('div');
+            modal.className = 'skip-modal active';
+            modal.style.maxWidth = '480px';
+            modal.style.padding = '20px';
+            const title = new Date(dateKey).toLocaleDateString('ja-JP');
+            const esc = (s) => (typeof escapeHTML === 'function' ? escapeHTML(String(s)) : String(s));
+            const isAchieved = !!((hyp.achievements || {})[dateKey]);
+            const btnCss = (active) => `padding:10px 12px;border-radius:10px;border:2px solid ${active ? '#10b981' : '#334155'};background:${active ? 'rgba(16,185,129,0.15)' : 'rgba(30,41,59,0.5)'};color:#e2e8f0;${isAchieved ? 'cursor:pointer;' : 'opacity:0.6;cursor:not-allowed;'}`;
+            modal.innerHTML = `
+                <div class="modal-header" style="margin-bottom:16px;">
+                    <h3>💪 強度を選択 (${esc(title)})</h3>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    ${opts.map((o, idx) => `
+                        <button data-idx="${idx}" style="${btnCss(current===Number(o.mult))}">${esc(o.label)} (×${Number(o.mult).toFixed(1)})</button>
+                    `).join('')}
+                </div>
+                <div class="modal-footer" style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;">
+                    <button class="button secondary" id="intensity-cancel">閉じる</button>
+                </div>
+            `;
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+
+            if (isAchieved) {
+                modal.querySelectorAll('button[data-idx]').forEach(btn => {
+                    btn.onclick = () => {
+                        const idx = Number(btn.getAttribute('data-idx'));
+                        const mult = Number(opts[idx].mult);
+                        hyp.intensity[dateKey] = mult;
+                        const data = loadData();
+                        const i = data.currentHypotheses.findIndex(h => h.id === hyp.id);
+                        if (i !== -1) data.currentHypotheses[i] = hyp;
+                        saveData(data);
+                        document.body.removeChild(overlay);
+                        updateCalendar();
+                        updateProgress();
+                    };
+                });
+            } else {
+                const info = document.createElement('div');
+                info.style.cssText = 'margin-top:12px;color:#94a3b8;font-size:12px;';
+                info.textContent = '未達成日の強度は変更できません。先に達成を記録してください。';
+                modal.appendChild(info);
+            }
+            document.getElementById('intensity-cancel').onclick = () => {
+                document.body.removeChild(overlay);
+            };
+        }
+
+        // 強度選択モーダルを表示（新規達成時）
+        function showIntensitySelectionModal(dateKey, dayCell) {
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay active';
+            
+            const modal = document.createElement('div');
+            modal.className = 'skip-modal active';
+            modal.style.maxWidth = '400px';
+            
+            const dateObj = new Date(dateKey);
+            const dateStr = dateObj.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric' });
+            
+            modal.innerHTML = `
+                <div class="modal-header">
+                    <h3>💪 強度を選択</h3>
+                    <p>${dateStr}の習慣達成</p>
+                </div>
+                <div style="display: flex; gap: 10px; margin: 20px 0;">
+                    <button class="intensity-btn" data-intensity="0.8" style="flex: 1; padding: 15px; border-radius: 10px; border: 2px solid var(--surface-light); background: var(--surface); color: var(--text-primary); cursor: pointer;">
+                        <div style="font-size: 20px;">🟢</div>
+                        <div style="margin-top: 5px;">軽め</div>
+                        <div style="font-size: 18px; font-weight: bold;">1pt</div>
+                    </button>
+                    <button class="intensity-btn" data-intensity="1.0" style="flex: 1; padding: 15px; border-radius: 10px; border: 2px solid var(--primary); background: var(--surface); color: var(--text-primary); cursor: pointer;">
+                        <div style="font-size: 20px;">🟡</div>
+                        <div style="margin-top: 5px;">基本</div>
+                        <div style="font-size: 18px; font-weight: bold;">2pt</div>
+                    </button>
+                    <button class="intensity-btn" data-intensity="1.2" style="flex: 1; padding: 15px; border-radius: 10px; border: 2px solid var(--surface-light); background: var(--surface); color: var(--text-primary); cursor: pointer;">
+                        <div style="font-size: 20px;">🔴</div>
+                        <div style="margin-top: 5px;">高強度</div>
+                        <div style="font-size: 18px; font-weight: bold;">3pt</div>
+                    </button>
+                </div>
+                <div class="modal-footer">
+                    <button class="button secondary" onclick="this.closest('.overlay').remove()">キャンセル</button>
+                </div>
+            `;
+            
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            
+            // 強度ボタンのクリック処理
+            modal.querySelectorAll('.intensity-btn').forEach(btn => {
+                btn.onclick = () => {
+                    const intensity = parseFloat(btn.dataset.intensity);
+                    applyAchievementWithIntensity(dateKey, dayCell, intensity);
+                    overlay.remove();
+                };
+            });
+            
+            // オーバーレイクリックで閉じる
+            overlay.onclick = (e) => {
+                if (e.target === overlay) {
+                    overlay.remove();
+                }
+            };
+        }
+        
+        // 強度を適用して達成状態にする
+        function applyAchievementWithIntensity(dateKey, dayCell, intensityValue) {
+            // 強度を保存
+            if (!window.currentHypothesis.intensity) {
+                window.currentHypothesis.intensity = {};
+            }
+            window.currentHypothesis.intensity[dateKey] = intensityValue;
+            
+            // 達成状態にする
+            window.currentHypothesis.achievements[dateKey] = true;
+            dayCell.classList.remove('not-achieved');
+            dayCell.classList.add('achieved');
+            
+            // ポイント獲得処理
+            // 強度に応じてポイントを設定（0.8→1pt、1.0→2pt、1.2→3pt）
+            let actualPoints = 2; // デフォルトは基本の2pt
+            if (intensityValue === 0.8) {
+                actualPoints = 1; // 軽め
+            } else if (intensityValue === 1.0) {
+                actualPoints = 2; // 基本
+            } else if (intensityValue === 1.2) {
+                actualPoints = 3; // 高強度
+            }
+            
+            // 連続日数を計算
+            const streakDays = calculateCurrentStreak(window.currentHypothesis);
+            const multiplier = calculateStreakMultiplier(streakDays);
+            
+            // ポイント付与（強度を考慮した実際のポイント）
+            const basePoints = actualPoints;
+            const bonusPoints = Math.round(actualPoints * (multiplier - 1));
+            const credited = earnPoints(
+                actualPoints,
+                'habit',
+                `${window.currentHypothesis.title} 達成`,
+                multiplier,
+                window.currentHypothesis.category || null,
+                window.currentHypothesis.id,
+                { dateKey }
+            );
+            // 当日付の実際の付与ポイントを記録（取り消し時に正確に減算するため）
+            if (!window.currentHypothesis.pointsByDate) window.currentHypothesis.pointsByDate = {};
+            window.currentHypothesis.pointsByDate[dateKey] = credited;
+            
+            // 基本の達成通知（優先度2）
+            showNotification(`✅ ${window.currentHypothesis.title} 達成！\n+${basePoints}pt`, 'success', 2);
+            
+            // 連続達成ボーナスの表示（優先度5）
+            if (multiplier > 1.0) {
+                let streakMessage = '';
+                if (streakDays >= 21) {
+                    streakMessage = `🌟 21日以上連続達成！\nボーナス+${bonusPoints}pt (×2.0)`;
+                } else if (streakDays >= 14) {
+                    streakMessage = `⭐ 14日連続達成！\nボーナス+${bonusPoints}pt (×1.7)`;
+                } else if (streakDays >= 7) {
+                    streakMessage = `🔥 7日連続達成！\nボーナス+${bonusPoints}pt (×1.5)`;
+                } else if (streakDays >= 3) {
+                    streakMessage = `✨ 3日連続達成！\nボーナス+${bonusPoints}pt (×1.2)`;
+                }
+                if (streakMessage) {
+                    showNotification(streakMessage, 'success', 5);
+                }
+            }
+            
+            // 同日の他の習慣達成をチェックしてコンボボーナス
+            checkAndAwardComboBonus(dateKey);
+            
+            // 達成アニメーションを表示
+            showAchievementAnimation();
+            
+            // データを保存
+            const data = loadData();
+            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (index !== -1) {
+                data.currentHypotheses[index] = window.currentHypothesis;
+                saveData(data);
+            }
+            
+            updateProgress();
+            updateCalendar(); // カレンダーを再描画して週の状況を更新
+            
+            // バッジ獲得チェック
+            checkAndAwardBadges();
+            
+            // リセットリスクのチェック（翌日に実行）
+            if (window.currentHypothesis.resetRisk) {
+                setTimeout(() => checkResetRisk(), 100);
+            }
+            
+            // ステージアップチェック
+            checkStageProgress();
+        }
+        
+        // 日の達成状態を切り替え
+        function toggleDayStatus(dateKey, dayCell) {
+            // 週●回の制限チェック
+            const frequency = window.currentHypothesis.frequency;
+            if (frequency && frequency.type === 'weekly') {
+                // 日付から週番号を取得
+                const [year, month, day] = dateKey.split('-').map(Number);
+                const date = new Date(year, month - 1, day);
+                const weekNum = getWeekNumber(date, window.currentHypothesis.startDate);
+                
+                // この週の達成状況を確認
+                let weekAchieved = 0;
+                const startOfWeek = new Date(date);
+                startOfWeek.setDate(date.getDate() - date.getDay() + 1); // 月曜日
+                
+                for (let i = 0; i < 7; i++) {
+                    const checkDate = new Date(startOfWeek);
+                    checkDate.setDate(startOfWeek.getDate() + i);
+                    const checkKey = dateKeyLocal(checkDate);
+                    if (window.currentHypothesis.achievements && window.currentHypothesis.achievements[checkKey]) {
+                        weekAchieved++;
+                    }
+                }
+                
+                // 週●回の制限を削除：目標回数に達成してもそれ以上記録可能
+                // 達成済みかどうかのみチェック（トグル処理のため）
+            }
+            
+            if (!window.currentHypothesis.achievements[dateKey]) {
+                // 達成状態にする前に強度選択モーダルを表示
+                showIntensitySelectionModal(dateKey, dayCell);
+            } else {
+                // 達成を取り消す（ポイントを減算する）
+                delete window.currentHypothesis.achievements[dateKey];
+                dayCell.classList.remove('achieved');
+                dayCell.classList.add('not-achieved');
+                
+                // ポイント減算処理
+                const data = loadData();
+                // 実際に付与済みのポイントを参照（なければ強度ベースで推定）
+                const creditedMap = window.currentHypothesis.pointsByDate || {};
+                let creditedPoints = creditedMap[dateKey];
+                let baseDeduct = 0;
+                if (typeof creditedPoints === 'number') {
+                    baseDeduct = creditedPoints;
+                } else {
+                    // 追加フォールバック：トランザクションから当日の付与を推定
+                    const tx = (data.pointSystem.transactions || []).find(t => {
+                        if (t.type !== 'earn' || t.source !== 'habit') return false;
+                        if (t.habitId && t.habitId !== window.currentHypothesis.id) return false;
+                        const d = new Date(t.timestamp);
+                        const key = dateKeyLocal(d);
+                        return key === dateKey;
+                    });
+                    if (tx && typeof tx.finalAmount === 'number') {
+                        baseDeduct = tx.finalAmount;
+                    } else {
+                        // 最終フォールバック：強度から推定
+                        const intensityValue = window.currentHypothesis.intensity?.[dateKey] || 1.0;
+                        if (intensityValue === 0.8) baseDeduct = 1; else if (intensityValue === 1.2) baseDeduct = 3; else baseDeduct = 2;
+                    }
+                }
+                
+                // コンボボーナスのチェックと減算
+                let comboDeduction = 0;
+                // イベント（パーフェクトデー）減算
+                let eventDeduction = 0;
+                let totalAchievedBefore = 0;
+                let totalAchievedAfter = 0;
+                
+                // 取り消し前の同日達成数をカウント
+                // 注意：現在の習慣の達成状態はまだtrueなので、それも含めてカウント
+                data.currentHypotheses.forEach(h => {
+                    if (h.id === window.currentHypothesis.id) {
+                        // 現在の習慣は取り消し前なのでtrueとしてカウント
+                        if (window.currentHypothesis.achievements[dateKey]) {
+                            totalAchievedBefore++;
+                        }
+                    } else if (h.achievements && h.achievements[dateKey]) {
+                        totalAchievedBefore++;
+                    }
+                });
+                
+                // 取り消し後の同日達成数（この習慣を除く）
+                totalAchievedAfter = totalAchievedBefore - 1;
+                
+                // コンボボーナスの差分を計算
+                // 注意：コンボボーナスは累積ではなく、該当する最高のボーナスのみが付与される
+                let bonusBefore = 0;
+                let bonusAfter = 0;
+                
+                // 全習慣数を取得
+                const totalHabits = data.currentHypotheses.length;
+                
+                // 取り消し前のボーナス
+                if (totalHabits >= 4 && totalAchievedBefore === totalHabits) {
+                    bonusBefore = 5; // 全習慣達成ボーナス
+                } else if (totalAchievedBefore === 3) {
+                    bonusBefore = 3; // 3習慣ボーナス
+                } else if (totalAchievedBefore === 2) {
+                    bonusBefore = 1; // 2習慣ボーナス
+                }
+                
+                // 取り消し後のボーナス
+                if (totalHabits >= 4 && totalAchievedAfter === totalHabits) {
+                    bonusAfter = 5; // 全習慣達成ボーナス（ありえないが念のため）
+                } else if (totalAchievedAfter === 3) {
+                    bonusAfter = 3; // 3習慣ボーナス
+                } else if (totalAchievedAfter === 2) {
+                    bonusAfter = 1; // 2習慣ボーナス
+                }
+                
+                // 差分を計算（失われるボーナス）
+                // 実際に付与されたコンボ合計（当日）
+                const todayKey = dateKey;
+                const comboAwards = (data.meta && data.meta.comboAwards && data.meta.comboAwards[todayKey]) ? data.meta.comboAwards[todayKey] : 0;
+                // 取り消し後に残るべきコンボ（ベース値）
+                const baseAfter = (totalHabits >= 4 && totalAchievedAfter === totalHabits) ? 5 : (totalAchievedAfter === 3 ? 3 : (totalAchievedAfter === 2 ? 1 : 0));
+                // 現在のブースト状況での見込み値
+                const detailed = calculatePointsWithBoostsDetailed(baseAfter, 'combo', null);
+                const expectedAfterCombo = Math.round(detailed.finalPoints);
+                comboDeduction = Math.max(0, comboAwards - expectedAfterCombo);
+
+                // パーフェクトデーが付与済みなら取り消しで減算
+                try {
+                    if (totalHabits > 0 && totalAchievedBefore === totalHabits && totalAchievedAfter < totalHabits) {
+                        const awarded = (data.meta && data.meta.eventAwards && data.meta.eventAwards[todayKey]) ? data.meta.eventAwards[todayKey] : 0;
+                        if (awarded > 0) {
+                            eventDeduction = awarded;
+                            // 二重減算防止のため0にクリア
+                            if (!data.meta) data.meta = {};
+                            if (!data.meta.eventAwards) data.meta.eventAwards = {};
+                            data.meta.eventAwards[todayKey] = 0;
+                        }
+                    }
+                } catch(_) { /* noop */ }
+                
+                // ポイント減算（基本ポイント + コンボ差分）
+                const totalDeduction = baseDeduct + comboDeduction + eventDeduction;
+                data.pointSystem.currentPoints = Math.max(0, data.pointSystem.currentPoints - totalDeduction);
+                // レベル進行も巻き戻す（生涯獲得からも減算）
+                data.pointSystem.lifetimeEarned = Math.max(0, (data.pointSystem.lifetimeEarned || 0) - totalDeduction);
+                data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
+                // レベル再計算
+                const lvl = calculateLevel(data.pointSystem.lifetimeEarned);
+                data.pointSystem.currentLevel = lvl.level;
+                
+                // トランザクション記録（habitIdを含める）
+                data.pointSystem.transactions.unshift({
+                    type: 'spend',
+                    amount: totalDeduction,
+                    source: 'habit_cancel',
+                    description: `${window.currentHypothesis.title} 取り消し${comboDeduction > 0 ? ' (コンボボーナス含む)' : ''}`,
+                    timestamp: new Date().toISOString(),
+                    habitId: window.currentHypothesis.id
+                });
+                
+                // トランザクション履歴を100件に制限
+                if (data.pointSystem.transactions.length > 100) {
+                    data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100);
+                }
+                
+                // 習慣データも更新
+                const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+                if (index !== -1) {
+                    data.currentHypotheses[index] = window.currentHypothesis;
+                }
+                
+                saveData(data);
+                updatePointDisplay();
+                updateProgress();
+                updateCalendar();
+                // 付与記録を削除
+                if (window.currentHypothesis.pointsByDate) {
+                    delete window.currentHypothesis.pointsByDate[dateKey];
+                }
+                let message = `習慣の達成を取り消しました (-${baseDeduct}pt)`;
+                if (comboDeduction > 0) {
+                    message += `\nコンボボーナスも減算 (-${comboDeduction}pt)`;
+                }
+                if (eventDeduction > 0) {
+                    message += `\nパーフェクトデーボーナス減算 (-${eventDeduction}pt)`;
+                }
+                showNotification(message, 'info');
+            }
+        }
+        
+        // 週番号を取得する関数（グローバルに定義） - 検証開始日基準
+        function getWeekNumber(date, startDate) {
+            const d = new Date(date);
+            d.setHours(0, 0, 0, 0);
+            const start = new Date(startDate || window.currentHypothesis.startDate);
+            start.setHours(0, 0, 0, 0);
+            const days = Math.floor((d - start) / (24 * 60 * 60 * 1000));
+            return Math.floor(days / 7) + 1;  // 1週目から開始
+        }
+        
+        // リセットリスクのチェック
+        function checkResetRisk() {
+            if (!window.currentHypothesis || !window.currentHypothesis.resetRisk) return;
+            
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            // 過去3日間の達成状況をチェック
+            let consecutiveFailures = 0;
+            for (let i = 1; i <= 3; i++) {
+                const checkDate = new Date(today);
+                checkDate.setDate(checkDate.getDate() - i);
+                const dateKey = dateKeyLocal(checkDate);
+                
+                // その日が習慣期間内かチェック
+                const startDate = new Date(window.currentHypothesis.startDate);
+                startDate.setHours(0, 0, 0, 0);
+                
+                if (checkDate >= startDate && !window.currentHypothesis.achievements[dateKey]) {
+                    consecutiveFailures++;
+                } else {
+                    break; // 達成していれば連続失敗ではない
+                }
+            }
+            
+            // 3日連続で未達成の場合、全ての達成をリセット
+            if (consecutiveFailures >= 3) {
+                window.currentHypothesis.achievements = {};
+                
+                // データを保存
+                const data = loadData();
+                const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+                if (index !== -1) {
+                    data.currentHypotheses[index] = window.currentHypothesis;
+                    saveData(data);
+                }
+                
+                // エフェクトを表示
+                showCardEffect('リセットリスク発動！', '3日連続未達成により、全ての達成がリセットされました', '#dc2626');
+                
+                // カレンダーと進捗を更新
+                updateCalendar();
+                updateProgress();
+            }
+        }
+
+        // 達成アニメーション表示
+        function showAchievementAnimation() {
+            // 複数の絵文字を同時に表示
+            const emojis = ['🎉', '✨', '🌟', '⭐', '🎊', '💫', '🏆', '🔥', '💪', '🚀', '🎯', '🥳', '👏', '💯'];
+            const numberOfEmojis = 8;
+            
+            for (let i = 0; i < numberOfEmojis; i++) {
+                setTimeout(() => {
+                    const emoji = emojis[Math.floor(Math.random() * emojis.length)];
+                    const animation = document.createElement('div');
+                    animation.className = 'achievement-animation';
+                    animation.textContent = emoji;
+                    
+                    // ランダムな位置から開始
+                    const startX = Math.random() * window.innerWidth;
+                    const startY = window.innerHeight / 2 + (Math.random() - 0.5) * 200;
+                    
+                    animation.style.left = startX + 'px';
+                    animation.style.top = startY + 'px';
+                    
+                    // ランダムな方向に飛ばす
+                    const angle = Math.random() * Math.PI * 2;
+                    const distance = 200 + Math.random() * 300;
+                    const endX = startX + Math.cos(angle) * distance;
+                    const endY = startY + Math.sin(angle) * distance - 200; // 上方向に偏らせる
+                    
+                    animation.style.setProperty('--startX', startX + 'px');
+                    animation.style.setProperty('--startY', startY + 'px');
+                    animation.style.setProperty('--endX', endX + 'px');
+                    animation.style.setProperty('--endY', endY + 'px');
+                    
+                    document.body.appendChild(animation);
+                    
+                    setTimeout(() => {
+                        animation.remove();
+                    }, 2000);
+                }, i * 100); // 少しずつ遅らせて表示
+            }
+        }
+
+        // 進捗を更新
+        function updateProgress() {
+            const startDate = new Date(window.currentHypothesis.startDate);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            // 開始日を0時0分0秒に設定
+            startDate.setHours(0, 0, 0, 0);
+            
+            // 経過日数を計算（開始日を1日目として計算）
+            const timeDiff = today.getTime() - startDate.getTime();
+            // 無期限の場合は実際の経過日数を使用
+            const daysPassed = window.currentHypothesis.isUnlimited 
+                ? Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1)
+                : Math.min(
+                    Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1),
+                    window.currentHypothesis.totalDays
+                );
+            
+            // 頻度に応じて目標日数を計算
+            let targetDays = daysPassed;
+            const frequency = window.currentHypothesis.frequency;
+            
+            if (frequency) {
+                if (frequency.type === 'weekly') {
+                    // 週単位の場合：経過週数 × 週あたりの回数
+                    const weeks = Math.ceil(daysPassed / 7);
+                    targetDays = Math.min(weeks * frequency.count, daysPassed);
+                } else if (frequency.type === 'weekdays') {
+                    // 特定曜日の場合：該当する曜日の数を数える
+                    targetDays = 0;
+                    for (let i = 0; i < daysPassed; i++) {
+                        const checkDate = new Date(startDate);
+                        checkDate.setDate(startDate.getDate() + i);
+                        if (frequency.weekdays.includes(checkDate.getDay())) {
+                            targetDays++;
+                        }
+                    }
+                }
+            }
+            
+            const achievedDays = Object.keys(window.currentHypothesis.achievements).length;
+            const achievementRate = targetDays > 0 ? Math.round((achievedDays / targetDays) * 100) : 0;
+            
+            // 表示用の達成率: 全日数を分母に、各達成日の強度倍率を適用した合計を分子に
+            const todayKey = dateKeyLocal(new Date());
+            const intensity = window.currentHypothesis.intensity || {};
+            let weightedAchieved = 0;
+            for (let i = 0; i < window.currentHypothesis.totalDays; i++) {
+                const d = new Date(startDate);
+                d.setDate(startDate.getDate() + i);
+                const key = dateKeyLocal(d);
+                const isAchieved = !!(window.currentHypothesis.achievements || {})[key];
+                if (!isAchieved) continue;
+                const mult = Number(intensity[key] ?? 1.0);
+                weightedAchieved += mult;
+            }
+            const displayRate = Math.min(100, Math.floor((weightedAchieved / window.currentHypothesis.totalDays) * 100));
+            const rateEl = document.getElementById('achievement-rate');
+            rateEl.textContent = displayRate + '%';
+            document.getElementById('progress-fill').style.width = Math.min(100, Math.floor(achievementRate)) + '%';
+            document.getElementById('achieved-days').textContent = `達成: ${achievedDays}日`;
+            // 無期限の場合は残り日数を表示しない
+            const remainingText = window.currentHypothesis.isUnlimited 
+                ? '継続中' 
+                : `残り: ${window.currentHypothesis.totalDays - daysPassed}日`;
+            document.getElementById('remaining-days').textContent = remainingText;
+            
+            // 達成率に応じてグラデーションを変更
+            const progressFill = document.getElementById('progress-fill');
+            if (achievementRate >= 80) {
+                progressFill.style.background = 'var(--gradient-1)';
+            } else if (achievementRate >= 50) {
+                progressFill.style.background = 'var(--gradient-2)';
+            } else {
+                progressFill.style.background = 'var(--gradient-3)';
+            }
+
+            // サプライズブーストは廃止（以前のランダム付与は削除）
+            
+            // アクティブな効果を表示
+            const data = loadData();
+            const activeEffectsDisplay = document.getElementById('active-effects-display');
+            const activeEffectsList = document.getElementById('active-effects-list');
+            
+            activeEffectsList.innerHTML = '';
+            let hasActiveEffects = false;
+            
+            // 達成ブースターのチェック
+            if (data.cards && data.cards.activeEffects) {
+                const achievementBooster = data.cards.activeEffects.find(effect => 
+                    effect.cardId === 'achievement_booster' && 
+                    (!effect.targetHypothesisId || effect.targetHypothesisId === window.currentHypothesis.id)
+                );
+                
+                if (achievementBooster) {
+                    hasActiveEffects = true;
+                    const effectElement = document.createElement('div');
+                    effectElement.style.cssText = 'background: rgba(16, 185, 129, 0.2); color: #10b981; padding: 4px 12px; border-radius: 16px; font-size: 12px; border: 1px solid #10b981;';
+                    effectElement.textContent = '🚀 達成ブースター (+15%)';
+                    activeEffectsList.appendChild(effectElement);
+                }
+            }
+
+            // 追加の効果バッジ表示
+            if (data.cards && data.cards.activeEffects) {
+                const ae = data.cards.activeEffects;
+                const todayKey = dateKeyLocal(new Date());
+                const addBadge = (text, style) => { hasActiveEffects = true; const el = document.createElement('div'); el.style.cssText = style; el.textContent = text; activeEffectsList.appendChild(el); };
+                if (ae.find(e => e.type === 'combo_multiplier')) {
+                    addBadge('🧩 コンボ×2', 'background: rgba(34,197,94,0.2); color:#22c55e; padding:4px 12px; border-radius:16px; font-size:12px; border:1px solid #22c55e;');
+                }
+                const catFest = ae.find(e => e.type === 'category_theme_boost');
+                if (catFest) {
+                    addBadge(`🎪 ${catFest.target}×${catFest.multiplier || 1.5}`, 'background: rgba(139,92,246,0.2); color:#8b5cf6; padding:4px 12px; border-radius:16px; font-size:12px; border:1px solid #8b5cf6;');
+                }
+                if (ae.find(e => e.type === 'time_window_bonus')) {
+                    addBadge('⏰ ハッピーアワー +10', 'background: rgba(6,182,212,0.2); color:#06b6d4; padding:4px 12px; border-radius:16px; font-size:12px; border:1px solid #06b6d4;');
+                }
+                const spark = ae.find(e => e.type === 'streak_spark' && e.dayKey === todayKey);
+                if (spark) {
+                    const left = Math.max(0, (spark.bonuses ? spark.bonuses.length : 0) - (spark.count || 0));
+                    addBadge(`🎆 スパークル ${left}回残り`, 'background: rgba(249,115,22,0.2); color:#f97316; padding:4px 12px; border-radius:16px; font-size:12px; border:1px solid #f97316;');
+                }
+                if (ae.find(e => e.cardId === 'mystery_box' && e.dayKey === todayKey && !e.claimed)) {
+                    addBadge('🎁 ミステリー待機中', 'background: rgba(245,158,11,0.2); color:#f59e0b; padding:4px 12px; border-radius:16px; font-size:12px; border:1px solid #f59e0b;');
+                }
+            }
+            
+            // ハードモードのチェック
+            if (window.currentHypothesis.hardMode) {
+                hasActiveEffects = true;
+                const effectElement = document.createElement('div');
+                effectElement.style.cssText = 'background: rgba(239, 68, 68, 0.2); color: #ef4444; padding: 4px 12px; border-radius: 16px; font-size: 12px; border: 1px solid #ef4444;';
+                effectElement.textContent = '💀 ハードモード';
+                activeEffectsList.appendChild(effectElement);
+            }
+            
+            // 短期間縛りのチェック
+            if (window.currentHypothesis.shortTermOnly) {
+                hasActiveEffects = true;
+                const effectElement = document.createElement('div');
+                effectElement.style.cssText = 'background: rgba(239, 68, 68, 0.2); color: #ef4444; padding: 4px 12px; border-radius: 16px; font-size: 12px; border: 1px solid #ef4444;';
+                effectElement.textContent = '⏱️ 短期間縛り';
+                activeEffectsList.appendChild(effectElement);
+            }
+            
+            // 達成率減少のチェック
+            if (window.currentHypothesis.achievementDecrease) {
+                hasActiveEffects = true;
+                const effectElement = document.createElement('div');
+                effectElement.style.cssText = 'background: rgba(239, 68, 68, 0.2); color: #ef4444; padding: 4px 12px; border-radius: 16px; font-size: 12px; border: 1px solid #ef4444;';
+                effectElement.textContent = `📉 達成率減少 (-${window.currentHypothesis.achievementDecrease}%)`;
+                activeEffectsList.appendChild(effectElement);
+            }
+            
+            // リセットリスクのチェック
+            if (window.currentHypothesis.resetRisk) {
+                hasActiveEffects = true;
+                const effectElement = document.createElement('div');
+                effectElement.style.cssText = 'background: rgba(239, 68, 68, 0.2); color: #ef4444; padding: 4px 12px; border-radius: 16px; font-size: 12px; border: 1px solid #ef4444;';
+                effectElement.textContent = '🔄 リセットリスク';
+                activeEffectsList.appendChild(effectElement);
+            }
+            
+            activeEffectsDisplay.style.display = hasActiveEffects ? 'block' : 'none';
+            
+            // 期間が終了したかチェック（最終日以降）
+            // デバッグ（いつでも完了OK）がONなら常に完了報告ボタンを表示
+            const appData = loadData();
+            const debugAlways = !!(appData.meta && appData.meta.debugAlwaysComplete);
+            if (
+                (!window.currentHypothesis.isUnlimited && daysPassed >= window.currentHypothesis.totalDays && !window.currentHypothesis.completed)
+                || (debugAlways && !window.currentHypothesis.completed)
+            ) {
+                document.getElementById('completion-report-section').style.display = 'block';
+                document.getElementById('completion-options').style.display = 'none';
+            } else {
+                document.getElementById('completion-report-section').style.display = 'none';
+                document.getElementById('completion-options').style.display = 'none';
+            }
+
+            // 進捗画面にストリーク表示を反映
+            const streak = computeStreak(window.currentHypothesis);
+            let streakEl = document.getElementById('streak-indicator');
+            if (!streakEl) {
+                streakEl = document.createElement('div');
+                streakEl.id = 'streak-indicator';
+                streakEl.style.cssText = 'margin-top:8px;color:#f59e0b;font-weight:700;';
+                const stats = document.querySelector('#progress-view .stats');
+                const container = stats || document.getElementById('progress-view');
+                container.appendChild(streakEl);
+            }
+            streakEl.textContent = `🔥 連続達成日数: ${streak}日`;
+
+            
+            // カテゴリ変更パネルを表示
+            renderCategoryPanel();
+        }
+
+        // カテゴリ変更パネルを表示する関数
+        function renderCategoryPanel() {
+            if (!window.currentHypothesis) return;
+            const hyp = window.currentHypothesis;
+            const data = loadData();
+            
+            // カテゴリマスターの初期化
+            if (!data.categoryMaster) {
+                data.categoryMaster = {
+                    study: { name: '勉強', icon: '📚', color: '#3b82f6' },
+                    exercise: { name: '運動', icon: '💪', color: '#ef4444' },
+                    health: { name: '健康', icon: '🧘', color: '#10b981' },
+                    work: { name: '仕事', icon: '💼', color: '#f59e0b' },
+                    hobby: { name: '趣味', icon: '🎨', color: '#8b5cf6' },
+                    other: { name: 'その他', icon: '📝', color: '#6b7280' }
+                };
+                saveData(data);
+            }
+            
+            const categoryInfo = data.categoryMaster[hyp.category] || 
+                                { name: 'その他', icon: '📝', color: '#6b7280' };
+            
+            let panel = document.getElementById('category-change-panel');
+            if (!panel) {
+                panel = document.createElement('div');
+                panel.id = 'category-change-panel';
+                panel.style.cssText = 'margin-top:12px;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--surface);';
+                
+                // カレンダーの後、強度パネルの前に挿入
+                const parent = document.getElementById('progress-view');
+                const intensityPanel = document.getElementById('intensity-panel');
+                if (intensityPanel) {
+                    parent.insertBefore(panel, intensityPanel);
+                } else {
+                    parent.appendChild(panel);
+                }
+            }
+            
+            panel.innerHTML = `
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                    <div style="display:flex;flex-direction:column;gap:4px;">
+                        <div style="font-weight:700;">🏷️ カテゴリ</div>
+                        <div style="color: var(--text-secondary);font-size:12px;">習慣のカテゴリを変更できます</div>
+                    </div>
+                    <button class="btn btn-secondary" onclick="editHypothesisCategory()" style="padding:8px 16px;border-radius:10px;display:flex;align-items:center;gap:8px;">
+                        <span style="font-size:20px;">${categoryInfo.icon}</span>
+                        <span>${categoryInfo.name}</span>
+                        <span>変更</span>
+                    </button>
+                </div>
+            `;
+        }
+
+        // 強度（Intensity）パネル（各習慣ごとにラベル3種を編集可能）
+        function renderIntensityPanel() {
+            if (!window.currentHypothesis) return;
+            const hyp = window.currentHypothesis;
+            hyp.intensity = hyp.intensity || {};
+            const todayKey = dateKeyLocal(new Date());
+            const selected = Number(hyp.intensity[todayKey] ?? 1.0);
+            const todayAchieved = !!(hyp.achievements || {})[todayKey];
+            // 強度オプション（ラベル＋倍率）を習慣ごとに保持
+            if (!hyp.intensityOptions || !Array.isArray(hyp.intensityOptions) || hyp.intensityOptions.length !== 3) {
+                hyp.intensityOptions = [
+                    { label: '軽め', mult: 0.8 },
+                    { label: '基本', mult: 1.0 },
+                    { label: '高強度', mult: 1.2 },
+                ];
+                const data0 = loadData();
+                const idx0 = data0.currentHypotheses.findIndex(h => h.id === hyp.id);
+                if (idx0 !== -1) { data0.currentHypotheses[idx0] = hyp; saveData(data0); }
+            }
+
+            let panel = document.getElementById('intensity-panel');
+            if (!panel) {
+                panel = document.createElement('div');
+                panel.id = 'intensity-panel';
+                panel.style.cssText = 'margin-top:12px;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--surface);';
+                const parent = document.getElementById('progress-view');
+                parent.appendChild(panel);
+            }
+
+            // ボタンを無効化（選択できないように）、選択状態も表示しない
+            const btnStyle = (active) => `
+                padding:8px 12px;border-radius:10px;border:1px solid var(--border);
+                background:transparent;color:var(--text-secondary);
+                cursor:not-allowed;opacity:0.5;`
+
+            const opt0 = hyp.intensityOptions[0];
+            const opt1 = hyp.intensityOptions[1];
+            const opt2 = hyp.intensityOptions[2];
+            const label0 = (typeof escapeHTML === 'function') ? escapeHTML(opt0.label) : opt0.label;
+            const label1 = (typeof escapeHTML === 'function') ? escapeHTML(opt1.label) : opt1.label;
+            const label2 = (typeof escapeHTML === 'function') ? escapeHTML(opt2.label) : opt2.label;
+
+            panel.innerHTML = `
+                <div style=\"display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;\">
+                    <div style=\"display:flex;flex-direction:column;gap:4px;\">
+                        <div style=\"font-weight:700;\">💪 今日の強度</div>
+                        <div style=\"color: var(--text-secondary);font-size:12px;\">各習慣ごとに3つの強度ラベルを編集できます</div>
+                    </div>
+                    <div style=\"display:flex;gap:8px;align-items:center;\">
+                        <button id=\"intensity-opt-0\" style=\"${btnStyle(selected===opt0.mult)}\">${label0} (×${opt0.mult})</button>
+                        <button id=\"intensity-opt-1\" style=\"${btnStyle(selected===opt1.mult)}\">${label1} (×${opt1.mult})</button>
+                        <button id=\"intensity-opt-2\" style=\"${btnStyle(selected===opt2.mult)}\">${label2} (×${opt2.mult})</button>
+                        <button id=\"intensity-edit\" class=\"btn btn-secondary\" style=\"margin-left:8px;padding:8px 12px;\">編集</button>
+                    </div>
+                </div>
+                <div style=\"margin-top:8px;color:#94a3b8;font-size:12px;\">
+                    達成日に設定した強度倍率を重みとして適用し、表示達成率は全日数を分母に計算します。
+                </div>
+                
+                <!-- 休眠ボタン -->
+                <div style=\"margin-top:16px; padding-top:16px; border-top:1px solid var(--border);\">
+                    <button onclick=\"toggleSleepMode()\" class=\"btn\" style=\"width:100%; padding:12px; font-size:14px; background: ${hyp.isSleeping ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)'}; color: white;\">
+                        ${hyp.isSleeping ? '🌅 習慣を再開する' : '😴 習慣を休眠させる'}
+                    </button>
+                    ${hyp.isSleeping ? `
+                        <div style=\"margin-top:8px; padding:8px; background: rgba(148, 163, 184, 0.1); border-radius:8px; font-size:12px; color: var(--text-secondary);\">
+                            📌 休眠開始: ${new Date(hyp.sleepStartDate).toLocaleDateString('ja-JP')}
+                        </div>
+                    ` : `
+                        <div style=\"margin-top:8px; font-size:11px; color: var(--text-secondary);\">
+                            ※ 休眠中は達成率の計算から除外され、ストリークは保持されます
+                        </div>
+                    `}
+                </div>
+            `;
+
+            const set = (m) => {
+                hyp.intensity[todayKey] = m;
+                const data = loadData();
+                const idx = data.currentHypotheses.findIndex(h => h.id === hyp.id);
+                if (idx !== -1) data.currentHypotheses[idx] = hyp;
+                saveData(data);
+                renderIntensityPanel();
+                updateProgress();
+            };
+            const b0 = document.getElementById('intensity-opt-0');
+            const b1 = document.getElementById('intensity-opt-1');
+            const b2 = document.getElementById('intensity-opt-2');
+            const be = document.getElementById('intensity-edit');
+            if (be) be.onclick = () => editIntensityOptions();
+
+            // 強度選択ボタンを無効化（カレンダーから選択するため）
+            [b0, b1, b2].forEach(btn => {
+                if (btn) {
+                    btn.disabled = true;
+                    btn.style.cursor = 'not-allowed';
+                    btn.title = '強度の選択はカレンダーから行ってください';
+                }
+            });
+            // クリックイベントも無効化
+            if (b0) b0.onclick = (e) => { e.preventDefault(); showNotification('強度の選択はカレンダーの日付をクリックして行ってください', 'info'); };
+            if (b1) b1.onclick = (e) => { e.preventDefault(); showNotification('強度の選択はカレンダーの日付をクリックして行ってください', 'info'); };
+            if (b2) b2.onclick = (e) => { e.preventDefault(); showNotification('強度の選択はカレンダーの日付をクリックして行ってください', 'info'); };
+        }
+
+        // 強度ラベル/倍率の編集（シンプルなプロンプトUI）
+        // カテゴリマスターを編集する関数
+        function editCategoryMaster() {
+            const data = loadData();
+            if (!data.categoryMaster) {
+                data.categoryMaster = {
+                    study: { name: '勉強', icon: '📚', color: '#3b82f6' },
+                    exercise: { name: '運動', icon: '💪', color: '#ef4444' },
+                    health: { name: '健康', icon: '🧘', color: '#10b981' },
+                    work: { name: '仕事', icon: '💼', color: '#f59e0b' },
+                    hobby: { name: '趣味', icon: '🎨', color: '#8b5cf6' },
+                    other: { name: 'その他', icon: '📝', color: '#6b7280' }
+                };
+            }
+            
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay active';
+            overlay.style.backdropFilter = 'blur(6px)';
+            
+            const modal = document.createElement('div');
+            modal.className = 'skip-modal active';
+            modal.style.maxWidth = '600px';
+            modal.style.padding = '20px';
+            modal.style.maxHeight = '80vh';
+            modal.style.overflowY = 'auto';
+            
+            modal.innerHTML = `
+                <div class="modal-header">
+                    <h3>⚙️ カテゴリの編集</h3>
+                    <p>カテゴリ名、アイコン、色をカスタマイズできます</p>
+                </div>
+                
+                <div style="margin: 20px 0;">
+                    ${Object.entries(data.categoryMaster).map(([key, cat]) => `
+                        <div style="margin-bottom: 16px; padding: 12px; background: rgba(30, 41, 59, 0.5); border-radius: 8px; border: 1px solid var(--border);">
+                            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                                <span style="font-size: 24px;" id="icon-preview-${key}">${cat.icon}</span>
+                                <span style="font-weight: 600; font-size: 16px;" id="name-preview-${key}">${cat.name}</span>
+                                <div style="width: 24px; height: 24px; border-radius: 50%; background: ${cat.color};" id="color-preview-${key}"></div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 80px 100px; gap: 8px;">
+                                <input type="text" id="name-${key}" value="${cat.name}" placeholder="カテゴリ名" style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface);">
+                                <input type="text" id="icon-${key}" value="${cat.icon}" placeholder="📝" style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); text-align: center;">
+                                <input type="color" id="color-${key}" value="${cat.color}" style="width: 100%; height: 32px; border-radius: 6px; border: 1px solid var(--border); cursor: pointer;">
+                            </div>
+                        </div>
+                    `).join('')}
+                    
+                    <button class="btn btn-secondary" onclick="addNewCategory()" style="width: 100%; margin-top: 12px; padding: 10px;">
+                        ➕ 新しいカテゴリを追加
+                    </button>
+                </div>
+                
+                <div class="modal-footer" style="display: flex; gap: 8px; justify-content: flex-end;">
+                    <button class="button secondary" id="cat-cancel">キャンセル</button>
+                    <button class="button primary" id="cat-save">保存</button>
+                </div>
+            `;
+            
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            
+            // リアルタイムプレビュー
+            Object.keys(data.categoryMaster).forEach(key => {
+                const nameInput = document.getElementById(`name-${key}`);
+                const iconInput = document.getElementById(`icon-${key}`);
+                const colorInput = document.getElementById(`color-${key}`);
+                
+                if (nameInput) nameInput.oninput = () => {
+                    document.getElementById(`name-preview-${key}`).textContent = nameInput.value || 'カテゴリ';
+                };
+                if (iconInput) iconInput.oninput = () => {
+                    document.getElementById(`icon-preview-${key}`).textContent = iconInput.value || '📝';
+                };
+                if (colorInput) colorInput.oninput = () => {
+                    document.getElementById(`color-preview-${key}`).style.background = colorInput.value;
+                };
+            });
+            
+            // キャンセル
+            document.getElementById('cat-cancel').onclick = () => overlay.remove();
+            
+            // 保存
+            document.getElementById('cat-save').onclick = () => {
+                Object.keys(data.categoryMaster).forEach(key => {
+                    const name = document.getElementById(`name-${key}`).value.trim();
+                    const icon = document.getElementById(`icon-${key}`).value.trim();
+                    const color = document.getElementById(`color-${key}`).value;
+                    
+                    if (name) data.categoryMaster[key].name = name;
+                    if (icon) data.categoryMaster[key].icon = icon;
+                    if (color) data.categoryMaster[key].color = color;
+                });
+                
+                saveData(data);
+                overlay.remove();
+                showNotification('カテゴリを更新しました', 'success');
+                updateCategoryDropdowns();  // ドロップダウンを更新
+                updateCurrentHypothesisList();
+            };
+        }
+        
+        // カテゴリマスターを初期化（存在しない場合のみ）
+        function initializeCategoryMaster() {
+            const data = loadData();
+            if (!data.categoryMaster) {
+                data.categoryMaster = {
+                    study: { name: '勉強', icon: '📚', color: '#3b82f6' },
+                    exercise: { name: '運動', icon: '💪', color: '#ef4444' },
+                    health: { name: '健康', icon: '🧘', color: '#10b981' },
+                    work: { name: '仕事', icon: '💼', color: '#f59e0b' },
+                    hobby: { name: '趣味', icon: '🎨', color: '#8b5cf6' },
+                    other: { name: 'その他', icon: '📝', color: '#6b7280' }
+                };
+                saveData(data);
+            }
+            return data.categoryMaster;
+        }
+        
+        // カテゴリドロップダウンを更新
+        function updateCategoryDropdowns() {
+            try {
+                const categoryMaster = initializeCategoryMaster();
+                
+                // ホーム画面のフィルター
+                const filterSelect = document.getElementById('category-filter');
+                if (filterSelect) {
+                    const currentValue = filterSelect.value || localStorage.getItem('selectedCategory') || 'all';
+                    filterSelect.innerHTML = '<option value="all">📂 全て表示</option>';
+                    Object.entries(categoryMaster).forEach(([key, cat]) => {
+                        const option = document.createElement('option');
+                        option.value = key;
+                        option.textContent = `${cat.icon} ${cat.name}`;
+                        filterSelect.appendChild(option);
+                    });
+                    filterSelect.value = currentValue;
+                }
+                
+                // 新規立案画面のカテゴリ選択
+                const categorySelect = document.getElementById('hypothesis-category');
+                if (categorySelect) {
+                    const currentValue = categorySelect.value || localStorage.getItem('selectedCategory') || 'other';
+                    categorySelect.innerHTML = '';
+                    Object.entries(categoryMaster).forEach(([key, cat]) => {
+                        const option = document.createElement('option');
+                        option.value = key;
+                        option.textContent = `${cat.icon} ${cat.name}`;
+                        categorySelect.appendChild(option);
+                    });
+                    // ホーム画面で選択されたカテゴリを設定
+                    const selectedCategory = localStorage.getItem('selectedCategory');
+                    if (selectedCategory && selectedCategory !== 'all') {
+                        categorySelect.value = selectedCategory;
+                    } else {
+                        categorySelect.value = currentValue;
+                    }
+                }
+            } catch (e) {
+                console.error('カテゴリドロップダウンの更新に失敗:', e);
+            }
+        }
+        
+        // 新しいカテゴリを追加
+        function addNewCategory() {
+            const data = loadData();
+            const categoryMaster = data.categoryMaster || {};
+            
+            // 新しいカテゴリのIDを生成
+            let newKey = 'custom_' + Date.now();
+            
+            // デフォルト値を設定
+            categoryMaster[newKey] = {
+                name: '新カテゴリ',
+                icon: '✨',
+                color: '#' + Math.floor(Math.random()*16777215).toString(16)
+            };
+            
+            data.categoryMaster = categoryMaster;
+            saveData(data);
+            
+            // モーダルを再表示
+            const modal = document.querySelector('.skip-modal');
+            if (modal) {
+                modal.remove();
+            }
+            const overlay = document.querySelector('.overlay');
+            if (overlay) {
+                overlay.remove();
+            }
+            
+            editCategoryMaster();
+            showNotification('新しいカテゴリを追加しました', 'success');
+        }
+        
+        // 新しいカテゴリを追加
+        window.addNewCategory = function() {
+            const categoryKey = prompt('カテゴリのID（英数字）を入力してください');
+            if (!categoryKey || !/^[a-z0-9]+$/i.test(categoryKey)) {
+                showNotification('カテゴリIDは英数字で入力してください', 'error');
+                return;
+            }
+            
+            const data = loadData();
+            if (data.categoryMaster[categoryKey]) {
+                showNotification('そのIDはすでに存在します', 'error');
+                return;
+            }
+            
+            data.categoryMaster[categoryKey] = {
+                name: '新カテゴリ',
+                icon: '✨',
+                color: '#' + Math.floor(Math.random()*16777215).toString(16)
+            };
+            
+            saveData(data);
+            editCategoryMaster(); // モーダルを再表示
+        }
+        
+        // 頻度タイプを変更する関数
+        function editFrequencyType() {
+            if (!window.currentHypothesis) return;
+            
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay active';
+            overlay.style.backdropFilter = 'blur(6px)';
+            
+            const modal = document.createElement('div');
+            modal.className = 'skip-modal active';
+            modal.style.maxWidth = '520px';
+            modal.style.padding = '20px';
+            
+            const currentFreq = window.currentHypothesis.frequency || { type: 'daily' };
+            
+            modal.innerHTML = `
+                <div class="modal-header">
+                    <h3>🔄 頻度タイプの変更</h3>
+                    <p>習慣の実施頻度を変更します</p>
+                </div>
+                
+                <div class="form-group" style="margin: 20px 0;">
+                    <label style="display: block; margin-bottom: 12px; font-weight: 600;">頻度タイプ</label>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 12px;">
+                        <label style="display: flex; align-items: center; padding: 12px; background: rgba(30, 41, 59, 0.5); border: 2px solid ${currentFreq.type === 'daily' ? '#10b981' : 'var(--border)'}; border-radius: 8px; cursor: pointer;">
+                            <input type="radio" name="freq-type" value="daily" ${currentFreq.type === 'daily' ? 'checked' : ''} style="margin-right: 12px;">
+                            <div>
+                                <div style="font-weight: 600;">☀️ 毎日実施</div>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">毎日習慣を実施します</div>
+                            </div>
+                        </label>
+                        
+                        <label style="display: flex; align-items: center; padding: 12px; background: rgba(30, 41, 59, 0.5); border: 2px solid ${currentFreq.type === 'weekly' ? '#10b981' : 'var(--border)'}; border-radius: 8px; cursor: pointer;">
+                            <input type="radio" name="freq-type" value="weekly" ${currentFreq.type === 'weekly' ? 'checked' : ''} style="margin-right: 12px;">
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600;">📅 週N回実施</div>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">週に指定回数だけ実施します</div>
+                                <div id="weekly-count-container" style="margin-top: 8px; display: ${currentFreq.type === 'weekly' ? 'block' : 'none'};">
+                                    <label style="font-size: 12px;">週に<input type="number" id="weekly-count" min="1" max="7" value="${currentFreq.count || 3}" style="width: 50px; margin: 0 4px; padding: 4px; border-radius: 4px; border: 1px solid var(--border);"/>回</label>
+                                </div>
+                            </div>
+                        </label>
+                        
+                        <label style="display: flex; align-items: center; padding: 12px; background: rgba(30, 41, 59, 0.5); border: 2px solid ${currentFreq.type === 'weekdays' ? '#10b981' : 'var(--border)'}; border-radius: 8px; cursor: pointer;">
+                            <input type="radio" name="freq-type" value="weekdays" ${currentFreq.type === 'weekdays' ? 'checked' : ''} style="margin-right: 12px;">
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600;">📆 曜日指定</div>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">特定の曜日にのみ実施します</div>
+                                <div id="weekdays-container" style="margin-top: 8px; display: ${currentFreq.type === 'weekdays' ? 'flex' : 'none'}; gap: 6px; flex-wrap: wrap;">
+                                    ${['日', '月', '火', '水', '木', '金', '土'].map((day, i) => `
+                                        <label style="display: flex; align-items: center; padding: 4px 8px; background: ${(currentFreq.weekdays || []).includes(i) ? 'rgba(16, 185, 129, 0.2)' : 'transparent'}; border: 1px solid ${(currentFreq.weekdays || []).includes(i) ? '#10b981' : 'var(--border)'}; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                                            <input type="checkbox" name="weekday" value="${i}" ${(currentFreq.weekdays || []).includes(i) ? 'checked' : ''} style="margin-right: 4px;"/>
+                                            ${day}
+                                        </label>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="modal-footer" style="display: flex; gap: 8px; justify-content: flex-end;">
+                    <button class="button secondary" id="freq-cancel">キャンセル</button>
+                    <button class="button primary" id="freq-save">保存</button>
+                </div>
+            `;
+            
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            
+            // ラジオボタンの変更イベント
+            modal.querySelectorAll('input[name="freq-type"]').forEach(radio => {
+                radio.onchange = () => {
+                    // すべてのボーダーをリセット
+                    modal.querySelectorAll('label').forEach(label => {
+                        if (label.querySelector('input[type="radio"]')) {
+                            label.style.border = '2px solid var(--border)';
+                        }
+                    });
+                    
+                    // 選択されたボーダーをハイライト
+                    radio.closest('label').style.border = '2px solid #10b981';
+                    
+                    // オプションの表示/非表示
+                    document.getElementById('weekly-count-container').style.display = radio.value === 'weekly' ? 'block' : 'none';
+                    document.getElementById('weekdays-container').style.display = radio.value === 'weekdays' ? 'flex' : 'none';
+                };
+            });
+            
+            // 曜日チェックボックスの変更イベント
+            modal.querySelectorAll('input[name="weekday"]').forEach(checkbox => {
+                checkbox.onchange = () => {
+                    const label = checkbox.closest('label');
+                    if (checkbox.checked) {
+                        label.style.background = 'rgba(16, 185, 129, 0.2)';
+                        label.style.border = '1px solid #10b981';
+                    } else {
+                        label.style.background = 'transparent';
+                        label.style.border = '1px solid var(--border)';
+                    }
+                };
+            });
+            
+            // キャンセルボタン
+            document.getElementById('freq-cancel').onclick = () => {
+                overlay.remove();
+            };
+            
+            // 保存ボタン
+            document.getElementById('freq-save').onclick = () => {
+                const selectedType = modal.querySelector('input[name="freq-type"]:checked').value;
+                
+                let newFrequency = { type: selectedType };
+                
+                if (selectedType === 'weekly') {
+                    const count = parseInt(document.getElementById('weekly-count').value);
+                    if (count < 1 || count > 7) {
+                        showNotification('週の回数は1〜7の間で指定してください', 'error');
+                        return;
+                    }
+                    newFrequency.count = count;
+                } else if (selectedType === 'weekdays') {
+                    const checkedDays = Array.from(modal.querySelectorAll('input[name="weekday"]:checked')).map(cb => parseInt(cb.value));
+                    if (checkedDays.length === 0) {
+                        showNotification('少なくとも1つの曜日を選択してください', 'error');
+                        return;
+                    }
+                    newFrequency.weekdays = checkedDays;
+                }
+                
+                // データを更新
+                window.currentHypothesis.frequency = newFrequency;
+                const data = loadData();
+                const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+                if (index !== -1) {
+                    data.currentHypotheses[index].frequency = newFrequency;
+                    saveData(data);
+                }
+                
+                overlay.remove();
+                showNotification('頻度タイプを変更しました', 'success');
+                
+                // 進捗画面を再表示
+                showProgressView(window.currentHypothesis.id);
+            };
+        }
+        
+        // 習慣のカテゴリを変更
+        function editHypothesisCategory() {
+            if (!window.currentHypothesis) return;
+            
+            const data = loadData();
+            if (!data.categoryMaster) {
+                data.categoryMaster = {
+                    study: { name: '勉強', icon: '📚', color: '#3b82f6' },
+                    exercise: { name: '運動', icon: '💪', color: '#ef4444' },
+                    health: { name: '健康', icon: '🧘', color: '#10b981' },
+                    work: { name: '仕事', icon: '💼', color: '#f59e0b' },
+                    hobby: { name: '趣味', icon: '🎨', color: '#8b5cf6' },
+                    other: { name: 'その他', icon: '📝', color: '#6b7280' }
+                };
+            }
+            
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay active';
+            overlay.style.backdropFilter = 'blur(6px)';
+            
+            const modal = document.createElement('div');
+            modal.className = 'skip-modal active';
+            modal.style.maxWidth = '480px';
+            modal.style.padding = '20px';
+            
+            const currentCategory = window.currentHypothesis.category || 'other';
+            
+            modal.innerHTML = `
+                <div class="modal-header">
+                    <h3>🏷️ カテゴリの変更</h3>
+                    <p>この習慣のカテゴリを選択してください</p>
+                </div>
+                
+                <div style="margin: 20px 0; display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    ${Object.entries(data.categoryMaster).map(([key, cat]) => `
+                        <label style="display: flex; align-items: center; padding: 12px; background: rgba(30, 41, 59, 0.5); border: 2px solid ${currentCategory === key ? cat.color : 'var(--border)'}; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+                            <input type="radio" name="category" value="${key}" ${currentCategory === key ? 'checked' : ''} style="margin-right: 12px;">
+                            <span style="font-size: 20px; margin-right: 8px;">${cat.icon}</span>
+                            <span style="font-weight: 600;">${cat.name}</span>
+                        </label>
+                    `).join('')}
+                </div>
+                
+                <div class="modal-footer" style="display: flex; gap: 8px; justify-content: flex-end;">
+                    <button class="button secondary" id="cat-change-cancel">キャンセル</button>
+                    <button class="button primary" id="cat-change-save">変更</button>
+                </div>
+            `;
+            
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            
+            // ラジオボタンの変更イベント
+            modal.querySelectorAll('input[name="category"]').forEach(radio => {
+                radio.onchange = () => {
+                    modal.querySelectorAll('label').forEach(label => {
+                        if (label.querySelector('input[type="radio"]')) {
+                            const catKey = label.querySelector('input').value;
+                            const catInfo = data.categoryMaster[catKey];
+                            label.style.border = radio.value === catKey ? `2px solid ${catInfo.color}` : '2px solid var(--border)';
+                        }
+                    });
+                };
+            });
+            
+            // キャンセル
+            document.getElementById('cat-change-cancel').onclick = () => overlay.remove();
+            
+            // 保存
+            document.getElementById('cat-change-save').onclick = () => {
+                const selectedCategory = modal.querySelector('input[name="category"]:checked').value;
+                
+                window.currentHypothesis.category = selectedCategory;
+                const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+                if (index !== -1) {
+                    data.currentHypotheses[index].category = selectedCategory;
+                    saveData(data);
+                }
+                
+                overlay.remove();
+                showNotification('カテゴリを変更しました', 'success');
+                // カテゴリパネルを更新
+                renderCategoryPanel();
+                // 進捗を更新
+                updateProgress();
+            };
+        }
+        
+        function editIntensityOptions() {
+            if (!window.currentHypothesis) return;
+            const hyp = window.currentHypothesis;
+            hyp.intensityOptions = hyp.intensityOptions || [
+                { label: '軽め', mult: 0.8 },
+                { label: '基本', mult: 1.0 },
+                { label: '高強度', mult: 1.2 },
+            ];
+            const askLabel = (idx, placeholder) => {
+                const v = prompt(`強度${idx+1}のラベル`, placeholder);
+                return v == null ? null : (v || '').trim();
+            };
+            const askMult = (idx, placeholder) => {
+                const v = prompt(`強度${idx+1}の倍率（0.1〜3.0）`, String(placeholder));
+                if (v == null) return null;
+                const num = parseFloat(v);
+                if (!isFinite(num)) return null;
+                const clamped = Math.max(0.1, Math.min(3.0, num));
+                return Math.round(clamped * 10) / 10; // 小数1桁
+            };
+
+            const l0 = askLabel(0, hyp.intensityOptions[0].label); if (l0 == null) return;
+            const m0 = askMult(0, hyp.intensityOptions[0].mult); if (m0 == null) return;
+            const l1 = askLabel(1, hyp.intensityOptions[1].label); if (l1 == null) return;
+            const m1 = askMult(1, hyp.intensityOptions[1].mult); if (m1 == null) return;
+            const l2 = askLabel(2, hyp.intensityOptions[2].label); if (l2 == null) return;
+            const m2 = askMult(2, hyp.intensityOptions[2].mult); if (m2 == null) return;
+
+            hyp.intensityOptions[0].label = l0 || hyp.intensityOptions[0].label;
+            hyp.intensityOptions[0].mult  = m0;
+            hyp.intensityOptions[1].label = l1 || hyp.intensityOptions[1].label;
+            hyp.intensityOptions[1].mult  = m1;
+            hyp.intensityOptions[2].label = l2 || hyp.intensityOptions[2].label;
+            hyp.intensityOptions[2].mult  = m2;
+            const data = loadData();
+            const idx = data.currentHypotheses.findIndex(h => h.id === hyp.id);
+            if (idx !== -1) data.currentHypotheses[idx] = hyp;
+            saveData(data);
+            renderIntensityPanel();
+        }
+
+
+        function renderIfThenPanel() {
+            const panel = document.getElementById('ifthen-panel');
+            if (!panel || !window.currentHypothesis) return;
+            const list = window.currentHypothesis.ifThen || [];
+            panel.style.display = 'block';
+            const items = list.map((it, i) => `
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px; padding:8px 0; border-bottom:1px solid var(--border);">
+                    <div style="flex:1;">
+                        <div><strong>もし</strong> ${escapeHTML(it.if)}</div>
+                        <div><strong>なら</strong> ${escapeHTML(it.then)}</div>
+                    </div>
+                    <div>
+                        <button class="btn btn-secondary" onclick="editIfThen(${i})">編集</button>
+                        <button class="btn btn-secondary" onclick="deleteIfThen(${i})" style="margin-left:6px;">削除</button>
+                    </div>
+                </div>
+            `).join('');
+            panel.innerHTML = `
+                <h3 style="margin-bottom:12px;">🧠 IF-THEN ルール</h3>
+                ${items || '<div style="color: var(--text-secondary);">ルールはまだありません</div>'}
+                <div style="margin-top:12px;">
+                    <button class="btn" onclick="addIfThenInProgress()">＋ ルールを追加</button>
+                </div>
+            `;
+        }
+
+        window.addIfThenInProgress = function() {
+            const iff = prompt('もし（トリガー）を入力');
+            if (iff == null) return;
+            const thenv = prompt('なら（行動）を入力');
+            if (thenv == null) return;
+            const ifv = (iff||'').trim();
+            const tv = (thenv||'').trim();
+            if (!ifv || !tv) return;
+            window.currentHypothesis.ifThen = window.currentHypothesis.ifThen || [];
+            window.currentHypothesis.ifThen.push({ id: Date.now().toString()+Math.random(), if: ifv, then: tv });
+            const data = loadData();
+            const idx = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (idx !== -1) data.currentHypotheses[idx] = window.currentHypothesis;
+            saveData(data);
+            renderIfThenPanel();
+        }
+
+        // 習慣別詳細統計を表示
+        function showHabitDetailStats() {
+            const data = loadData();
+            
+            let html = '<div style="padding: 10px; font-size: 14px;">';
+            html += '<h3 style="margin: 0 0 15px 0; font-size: 16px; font-weight: 600;">📊 習慣別詳細統計</h3>';
+            
+            // 習慣選択ドロップダウン
+            html += '<select id="habit-detail-select" onchange="showSelectedHabitDetail()" style="width: 100%; padding: 8px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 6px;">';
+            html += '<option value="">習慣を選択してください</option>';
+            
+            data.currentHypotheses.forEach(habit => {
+                if (habit.type === 'daily') {
+                    html += `<option value="${habit.id}">${habit.title}</option>`;
+                }
+            });
+            
+            html += '</select>';
+            html += '<div id="habit-detail-content"></div>';
+            html += '</div>';
+            
+            document.getElementById('ranking-container').innerHTML = html;
+            
+            // タブのスタイル更新
+            document.getElementById('ranking-detail-tab').style.background = '#6366f1';
+            document.getElementById('ranking-detail-tab').style.color = '#fff';
+            document.getElementById('ranking-achievement-tab').style.background = '#fff';
+            document.getElementById('ranking-achievement-tab').style.color = '#666';
+            document.getElementById('ranking-points-tab').style.background = '#fff';
+            document.getElementById('ranking-points-tab').style.color = '#666';
+            document.getElementById('ranking-streak-tab').style.background = '#fff';
+            document.getElementById('ranking-streak-tab').style.color = '#666';
+        }
+        
+        // 選択された習慣の詳細を表示
+        window.showSelectedHabitDetail = function() {
+            const habitId = document.getElementById('habit-detail-select').value;
+            if (!habitId) {
+                document.getElementById('habit-detail-content').innerHTML = '';
+                return;
+            }
+            
+            const data = loadData();
+            const habit = data.currentHypotheses.find(h => h.id === habitId);
+            if (!habit) return;
+            
+            // 統計情報を計算
+            const stats = calculateHabitStats(habit, data);
+            
+            let html = '<div style="background: #f8f9fa; border-radius: 8px; padding: 15px;">';
+            
+            // 基本情報
+            html += `<h4 style="margin: 0 0 10px 0; font-size: 15px; font-weight: 600;">🎯 ${habit.title}</h4>`;
+            
+            // 達成統計
+            html += '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">';
+            html += `<div style="background: #fff; padding: 10px; border-radius: 6px;">
+                <div style="color: #666; font-size: 12px;">達成率</div>
+                <div style="font-size: 20px; font-weight: bold; color: #4CAF50;">${stats.achievementRate}%</div>
+            </div>`;
+            html += `<div style="background: #fff; padding: 10px; border-radius: 6px;">
+                <div style="color: #666; font-size: 12px;">総達成日数</div>
+                <div style="font-size: 20px; font-weight: bold; color: #2196F3;">${stats.totalAchievedDays}日</div>
+            </div>`;
+            html += '</div>';
+            
+            // ポイント統計
+            html += '<div style="background: #fff; padding: 12px; border-radius: 6px; margin-bottom: 15px;">';
+            html += '<h5 style="margin: 0 0 8px 0; font-size: 14px;">💰 ポイント統計</h5>';
+            html += `<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-size: 12px;">
+                <div>
+                    <span style="color: #666;">総獲得:</span>
+                    <span style="font-weight: 600;">${stats.totalPoints}pt</span>
+                </div>
+                <div>
+                    <span style="color: #666;">平均:</span>
+                    <span style="font-weight: 600;">${stats.averagePoints}pt</span>
+                </div>
+                <div>
+                    <span style="color: #666;">ブースト:</span>
+                    <span style="font-weight: 600;">+${stats.boostBonus}pt</span>
+                </div>
+            </div>`;
+            html += '</div>';
+            
+            // 連続記録
+            html += '<div style="background: #fff; padding: 12px; border-radius: 6px; margin-bottom: 15px;">';
+            html += '<h5 style="margin: 0 0 8px 0; font-size: 14px;">🔥 連続記録</h5>';
+            html += `<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 12px;">
+                <div>
+                    <span style="color: #666;">現在:</span>
+                    <span style="font-weight: 600; color: #FF9800;">${stats.currentStreak}日</span>
+                </div>
+                <div>
+                    <span style="color: #666;">最長:</span>
+                    <span style="font-weight: 600; color: #E91E63;">${stats.longestStreak}日</span>
+                </div>
+            </div>`;
+            html += '</div>';
+            
+            // 曜日別パフォーマンス
+            html += '<div style="background: #fff; padding: 12px; border-radius: 6px; margin-bottom: 15px;">';
+            html += '<h5 style="margin: 0 0 8px 0; font-size: 14px;">📅 曜日別達成率</h5>';
+            html += '<div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; font-size: 11px;">';
+            const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+            stats.weekdayPerformance.forEach((rate, index) => {
+                const color = rate >= 80 ? '#4CAF50' : rate >= 60 ? '#FFC107' : rate >= 40 ? '#FF9800' : '#F44336';
+                html += `<div>
+                    <div style="color: #666;">${dayNames[index]}</div>
+                    <div style="font-weight: 600; color: ${color};">${rate}%</div>
+                </div>`;
+            });
+            html += '</div>';
+            html += '</div>';
+            
+            // 月別推移
+            if (stats.monthlyTrend.length > 0) {
+                html += '<div style="background: #fff; padding: 12px; border-radius: 6px;">';
+                html += '<h5 style="margin: 0 0 8px 0; font-size: 14px;">📈 月別達成推移</h5>';
+                html += '<div style="max-height: 150px; overflow-y: auto;">';
+                stats.monthlyTrend.forEach(month => {
+                    html += `<div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #f0f0f0; font-size: 12px;">
+                        <span>${month.label}</span>
+                        <span style="font-weight: 600;">${month.rate}%</span>
+                    </div>`;
+                });
+                html += '</div>';
+                html += '</div>';
+            }
+            
+            html += '</div>';
+            
+            document.getElementById('habit-detail-content').innerHTML = html;
+        };
+        
+        // 習慣の統計情報を計算
+        function calculateHabitStats(habit, data) {
+            const stats = {
+                achievementRate: 0,
+                totalAchievedDays: 0,
+                totalPoints: 0,
+                averagePoints: 0,
+                boostBonus: 0,
+                currentStreak: 0,
+                longestStreak: 0,
+                weekdayPerformance: [0, 0, 0, 0, 0, 0, 0],
+                monthlyTrend: []
+            };
+            
+            // 達成日数と率を計算
+            const today = getToday();
+            const createdDate = new Date(habit.createdAt || today);
+            const totalDays = Math.floor((new Date(today) - createdDate) / (1000 * 60 * 60 * 24)) + 1;
+            
+            let achievedDays = 0;
+            let currentStreak = 0;
+            let longestStreak = 0;
+            let tempStreak = 0;
+            const weekdayCount = [0, 0, 0, 0, 0, 0, 0];
+            const weekdayAchieved = [0, 0, 0, 0, 0, 0, 0];
+            const monthlyData = {};
+            
+            // ログを日付順にソート
+            const sortedDates = Object.keys(habit.logs || {}).sort();
+            
+            sortedDates.forEach((dateKey, index) => {
+                const log = habit.logs[dateKey];
+                const date = new Date(dateKey);
+                const dayOfWeek = date.getDay();
+                
+                weekdayCount[dayOfWeek]++;
+                
+                if (log.completed) {
+                    achievedDays++;
+                    weekdayAchieved[dayOfWeek]++;
+                    
+                    // 月別データ
+                    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                    if (!monthlyData[monthKey]) {
+                        monthlyData[monthKey] = { achieved: 0, total: 0 };
+                    }
+                    monthlyData[monthKey].achieved++;
+                    
+                    // 連続記録計算
+                    if (index === 0 || !habit.logs[sortedDates[index - 1]]?.completed) {
+                        tempStreak = 1;
+                    } else {
+                        const prevDate = new Date(sortedDates[index - 1]);
+                        const dayDiff = Math.floor((date - prevDate) / (1000 * 60 * 60 * 24));
+                        if (dayDiff === 1) {
+                            tempStreak++;
+                        } else {
+                            tempStreak = 1;
+                        }
+                    }
+                    
+                    longestStreak = Math.max(longestStreak, tempStreak);
+                    
+                    // 現在の連続記録
+                    if (dateKey === today || (index === sortedDates.length - 1 && new Date(today) - date < 2 * 24 * 60 * 60 * 1000)) {
+                        currentStreak = tempStreak;
+                    }
+                } else {
+                    tempStreak = 0;
+                }
+                
+                // 月別総日数
+                const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                if (!monthlyData[monthKey]) {
+                    monthlyData[monthKey] = { achieved: 0, total: 0 };
+                }
+                monthlyData[monthKey].total++;
+            });
+            
+            stats.achievementRate = totalDays > 0 ? Math.round((achievedDays / totalDays) * 100) : 0;
+            stats.totalAchievedDays = achievedDays;
+            stats.currentStreak = currentStreak;
+            stats.longestStreak = longestStreak;
+            
+            // 曜日別パフォーマンス
+            stats.weekdayPerformance = weekdayCount.map((count, index) => {
+                return count > 0 ? Math.round((weekdayAchieved[index] / count) * 100) : 0;
+            });
+            
+            // 月別推移
+            const sortedMonths = Object.keys(monthlyData).sort();
+            stats.monthlyTrend = sortedMonths.map(monthKey => {
+                const [year, month] = monthKey.split('-');
+                const rate = monthlyData[monthKey].total > 0 
+                    ? Math.round((monthlyData[monthKey].achieved / monthlyData[monthKey].total) * 100) 
+                    : 0;
+                return {
+                    label: `${year}年${parseInt(month)}月`,
+                    rate: rate
+                };
+            });
+            
+            // ポイント統計を計算
+            let pointCount = 0;
+            data.pointSystem.transactions.forEach(t => {
+                if (t.source === 'habit') {
+                    // habitIdまたは説明文から習慣を特定
+                    if (t.habitId === habit.id || t.description.includes(habit.title)) {
+                        stats.totalPoints += t.points;
+                        pointCount++;
+                        const basePoints = Math.round(t.points / (t.boost || 1));
+                        stats.boostBonus += (t.points - basePoints);
+                    }
+                }
+            });
+            
+            stats.averagePoints = pointCount > 0 ? Math.round(stats.totalPoints / pointCount) : 0;
+            
+            return stats;
+        }
+        
+        window.editIfThen = function(index) {
+            const item = (window.currentHypothesis.ifThen || [])[index];
+            if (!item) return;
+            const iff = prompt('もし（トリガー）を修正', item.if);
+            if (iff == null) return;
+            const thenv = prompt('なら（行動）を修正', item.then);
+            if (thenv == null) return;
+            const ifv = (iff||'').trim();
+            const tv = (thenv||'').trim();
+            if (!ifv || !tv) return;
+            window.currentHypothesis.ifThen[index] = { ...item, if: ifv, then: tv };
+            const data = loadData();
+            const idx = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (idx !== -1) data.currentHypotheses[idx] = window.currentHypothesis;
+            saveData(data);
+            renderIfThenPanel();
+        }
+
+        window.deleteIfThen = function(index) {
+            if (!confirm('このルールを削除しますか？')) return;
+            (window.currentHypothesis.ifThen || []).splice(index, 1);
+            const data = loadData();
+            const idx = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (idx !== -1) data.currentHypotheses[idx] = window.currentHypothesis;
+            saveData(data);
+            renderIfThenPanel();
+        }
+
+        // バッジシステムの定義
+        const BADGE_DEFINITIONS = {
+            // 連続達成バッジ
+            streak_7: { name: '🔥 週間戦士', description: '7日連続達成', emoji: '🔥' },
+            streak_14: { name: '⚡ 2週間の炎', description: '14日連続達成', emoji: '⚡' },
+            streak_30: { name: '🌟 月間マスター', description: '30日連続達成', emoji: '🌟' },
+            streak_60: { name: '💎 ダイヤモンド', description: '60日連続達成', emoji: '💎' },
+            streak_90: { name: '👑 習慣の王', description: '90日連続達成', emoji: '👑' },
+            streak_365: { name: '🌈 年間達成者', description: '365日連続達成', emoji: '🌈' },
+            
+            // ステージ達成バッジ
+            stage_sprout: { name: '🌱 最初の一歩', description: '芽吹きステージ到達', emoji: '🌱' },
+            stage_growth: { name: '🌿 成長の証', description: '成長期ステージ到達', emoji: '🌿' },
+            stage_establishment: { name: '🌳 定着の証', description: '定着期ステージ到達', emoji: '🌳' },
+            stage_bloom: { name: '🌸 開花の証', description: '開花期ステージ到達', emoji: '🌸' },
+            stage_harvest: { name: '🍎 収穫の証', description: '収穫期ステージ到達', emoji: '🍎' },
+            stage_golden: { name: '👑 黄金達成', description: '黄金の習慣到達', emoji: '👑' },
+            
+            // 専門家シリーズ（100日達成）
+            expert_study: { name: '📚 勉強の賢者', description: '勉強カテゴリー100日達成', emoji: '📚' },
+            expert_exercise: { name: '💪 鉄人アスリート', description: '運動カテゴリー100日達成', emoji: '💪' },
+            expert_health: { name: '🧘 瞑想マスター', description: '養生カテゴリー100日達成', emoji: '🧘' },
+            expert_reading: { name: '📖 読書の哲学者', description: '読書カテゴリー100日達成', emoji: '📖' },
+            rainbow_master: { name: '🌈 レインボーマスター', description: '全カテゴリーを同時進行', emoji: '🌈' },
+            balance_keeper: { name: '⚖️ バランスキーパー', description: '3カテゴリー以上を均等に達成', emoji: '⚖️' },
+            
+            // 強度チャレンジ系
+            fire_challenger: { name: '🔥 炎の挑戦者', description: '高強度×1.2を連続7日', emoji: '🔥' },
+            precision_adjuster: { name: '🎯 精密調整者', description: 'カスタム強度を5種類以上使用', emoji: '🎯' },
+            growth_curve: { name: '📈 成長曲線', description: '徐々に強度を上げて達成', emoji: '📈' },
+            intensity_surfer: { name: '🎢 強度サーファー', description: '1週間で全強度を体験', emoji: '🎢' },
+            
+            // カードシステム関連
+            lucky_seven: { name: '🎰 ラッキーセブン', description: 'レジェンドカード7枚獲得', emoji: '🎰' },
+            shield_guardian: { name: '🛡️ 不屈の守護者', description: 'ペナルティカード10枚を乗り越える', emoji: '🛡️' },
+            card_master: { name: '♠️ カードマスター', description: '全種類のカードを獲得', emoji: '♠️' },
+            reversal_magician: { name: '🎭 逆転の奇術師', description: 'ペナルティをチャンスに変える', emoji: '🎭' },
+            
+            // 頻度管理の達人
+            weekly_architect: { name: '📅 週間アーキテクト', description: '週3回習慣を完璧に管理', emoji: '📅' },
+            weekday_ruler: { name: '🎯 曜日の支配者', description: '特定曜日100%達成を4週連続', emoji: '🎯' },
+            flex_master: { name: '🔄 フレックスマスター', description: '3種類の頻度タイプを同時運用', emoji: '🔄' },
+            weekly_perfect: { name: '📊 週間パーフェクト', description: '週の目標を12週連続達成', emoji: '📊' },
+            
+            // 成長・復活系
+            habit_gardener: { name: '🌳 習慣の庭師', description: '5つ以上の習慣を同時育成', emoji: '🌳' },
+            phoenix: { name: '🔥 不死鳥', description: '連続失敗から完全復活', emoji: '🔥' },
+            diamond_habit: { name: '💎 ダイヤモンド習慣', description: '100日継続達成', emoji: '💎' },
+            restart_master: { name: '🔄 再起動マスター', description: '3回リセットして最終的に成功', emoji: '🔄' },
+            
+            // チャレンジ系
+            grand_slam: { name: '🎖️ グランドスラム', description: '月間チャレンジ全制覇', emoji: '🎖️' },
+            speed_runner: { name: '⚡ スピードランナー', description: 'デイリーチャレンジ30連続', emoji: '⚡' },
+            challenge_hunter: { name: '🏔️ 高難度ハンター', description: '最高難度チャレンジ10回クリア', emoji: '🏔️' },
+            challenge_circus: { name: '🎪 チャレンジサーカス', description: '同時に5つ以上のチャレンジ', emoji: '🎪' },
+            
+            // 季節・特別系
+            spring_awakening: { name: '🌸 春の目覚め', description: '3-5月に新習慣3つ確立', emoji: '🌸' },
+            summer_passion: { name: '☀️ 夏の熱血', description: '6-8月に高強度習慣をマスター', emoji: '☀️' },
+            autumn_harvest: { name: '🍂 秋の収穫', description: '9-11月に習慣を黄金レベルへ', emoji: '🍂' },
+            winter_sage: { name: '❄️ 冬の賢者', description: '12-2月も休まず継続', emoji: '❄️' },
+            
+            // 特殊条件・隠し系
+            adversity_hero: { name: '🎭 逆境の英雄', description: 'ハードモード中に95%以上達成', emoji: '🎭' },
+            perfectionist: { name: '🔮 完璧主義者', description: '100%達成を5回', emoji: '🔮' },
+            ghost_buster: { name: '👻 ゴーストバスター', description: '深夜0時をまたいで達成', emoji: '👻' },
+            chaos_master: { name: '🌀 カオスマスター', description: '10個以上の習慣を同時管理', emoji: '🌀' },
+            legend_seeker: { name: '🦄 伝説の探求者', description: 'すべての隠し要素を発見', emoji: '🦄' },
+            
+            // メタ達成系
+            badge_hunter: { name: '🏅 バッジハンター', description: '50個以上のバッジ獲得', emoji: '🏅' },
+            system_master: { name: '📱 システムマスター', description: '全機能を使いこなす', emoji: '📱' },
+            
+            // 完璧達成バッジ
+            perfect_week: { name: '✨ 完璧な週', description: '1週間100%達成', emoji: '✨' },
+            perfect_month: { name: '🌟 完璧な月', description: '1ヶ月100%達成', emoji: '🌟' },
+            
+            // 復活バッジ
+            comeback: { name: '💪 復活の力', description: '3日以上の中断から復帰', emoji: '💪' },
+            
+            // 習慣数バッジ
+            multi_habit_3: { name: '🎯 マルチタスカー', description: '3つの習慣を同時進行', emoji: '🎯' },
+            multi_habit_5: { name: '🚀 習慣マスター', description: '5つの習慣を同時進行', emoji: '🚀' },
+            multi_habit_10: { name: '🌟 習慣の神', description: '10個以上の習慣を同時進行', emoji: '🌟' },
+            
+            // 特別バッジ
+            weekend_warrior: { name: '🎮 週末戦士', description: '土日の達成率90%以上', emoji: '🎮' }
+        };
+        
+        // バッジ獲得チェック
+        function checkAndAwardBadges() {
+            const data = loadData();
+            if (!data.badges) data.badges = {};
+            const newBadges = [];
+            
+            // 連続達成バッジのチェック
+            const allHypotheses = data.currentHypotheses.concat(data.completedHypotheses || []);
+            let maxStreak = 0;
+            allHypotheses.forEach(h => {
+                const streak = window.computeStreak(h);
+                if (streak > maxStreak) maxStreak = streak;
+            });
+            
+            const streakBadges = [
+                { id: 'streak_7', days: 7 },
+                { id: 'streak_14', days: 14 },
+                { id: 'streak_30', days: 30 },
+                { id: 'streak_60', days: 60 },
+                { id: 'streak_90', days: 90 },
+                { id: 'streak_365', days: 365 }
+            ];
+            
+            streakBadges.forEach(sb => {
+                if (maxStreak >= sb.days && !data.badges[sb.id]) {
+                    data.badges[sb.id] = { earnedAt: new Date().toISOString() };
+                    newBadges.push(sb.id);
+                }
+            });
+            
+            // ステージバッジのチェック
+            const stageMap = {
+                '芽吹き': 'stage_sprout',
+                '成長期': 'stage_growth',
+                '定着期': 'stage_establishment',
+                '開花期': 'stage_bloom',
+                '収穫期': 'stage_harvest',
+                '黄金の習慣': 'stage_golden'
+            };
+            
+            allHypotheses.forEach(h => {
+                const stage = window.calculateHabitStage(h);
+                if (stage && stageMap[stage.name] && !data.badges[stageMap[stage.name]]) {
+                    data.badges[stageMap[stage.name]] = { earnedAt: new Date().toISOString() };
+                    newBadges.push(stageMap[stage.name]);
+                }
+            });
+            
+            // 完璧な週のチェック
+            allHypotheses.forEach(h => {
+                if (!h.achievements) return;
+                const dates = Object.keys(h.achievements).sort();
+                for (let i = 0; i <= dates.length - 7; i++) {
+                    const weekDates = dates.slice(i, i + 7);
+                    if (weekDates.length === 7) {
+                        const firstDate = new Date(weekDates[0]);
+                        const lastDate = new Date(weekDates[6]);
+                        const dayDiff = (lastDate - firstDate) / (1000 * 60 * 60 * 24);
+                        if (dayDiff === 6 && !data.badges.perfect_week) {
+                            data.badges.perfect_week = { earnedAt: new Date().toISOString() };
+                            newBadges.push('perfect_week');
+                        }
+                    }
+                }
+            });
+            
+            // 複数習慣バッジ
+            if (data.currentHypotheses.length >= 3 && !data.badges.multi_habit_3) {
+                data.badges.multi_habit_3 = { earnedAt: new Date().toISOString() };
+                newBadges.push('multi_habit_3');
+            }
+            if (data.currentHypotheses.length >= 5 && !data.badges.multi_habit_5) {
+                data.badges.multi_habit_5 = { earnedAt: new Date().toISOString() };
+                newBadges.push('multi_habit_5');
+            }
+            if (data.currentHypotheses.length >= 10 && !data.badges.multi_habit_10) {
+                data.badges.multi_habit_10 = { earnedAt: new Date().toISOString() };
+                newBadges.push('multi_habit_10');
+            }
+            
+            // カテゴリー専門家バッジ（100日達成）
+            const categoryAchievements = {
+                study: 0,
+                exercise: 0,
+                health: 0,
+                reading: 0,
+                work: 0,
+                hobby: 0,
+                other: 0
+            };
+            
+            allHypotheses.forEach(h => {
+                const category = h.category || 'other';
+                const achievedDays = Object.keys(h.achievements || {}).length;
+                categoryAchievements[category] += achievedDays;
+            });
+            
+            // 専門家シリーズバッジ判定
+            if (categoryAchievements.study >= 100 && !data.badges.expert_study) {
+                data.badges.expert_study = { earnedAt: new Date().toISOString() };
+                newBadges.push('expert_study');
+            }
+            if (categoryAchievements.exercise >= 100 && !data.badges.expert_exercise) {
+                data.badges.expert_exercise = { earnedAt: new Date().toISOString() };
+                newBadges.push('expert_exercise');
+            }
+            if (categoryAchievements.health >= 100 && !data.badges.expert_health) {
+                data.badges.expert_health = { earnedAt: new Date().toISOString() };
+                newBadges.push('expert_health');
+            }
+            if (categoryAchievements.reading >= 100 && !data.badges.expert_reading) {
+                data.badges.expert_reading = { earnedAt: new Date().toISOString() };
+                newBadges.push('expert_reading');
+            }
+            
+            // レインボーマスター（全カテゴリー同時進行）
+            const activeCategories = new Set();
+            data.currentHypotheses.forEach(h => {
+                activeCategories.add(h.category || 'other');
+            });
+            if (activeCategories.size >= 4 && !data.badges.rainbow_master) {
+                data.badges.rainbow_master = { earnedAt: new Date().toISOString() };
+                newBadges.push('rainbow_master');
+            }
+            
+            // バランスキーパー（3カテゴリー均等達成）
+            const significantCategories = Object.values(categoryAchievements).filter(v => v >= 30);
+            if (significantCategories.length >= 3) {
+                const max = Math.max(...significantCategories);
+                const min = Math.min(...significantCategories);
+                if (max - min <= 10 && !data.badges.balance_keeper) {
+                    data.badges.balance_keeper = { earnedAt: new Date().toISOString() };
+                    newBadges.push('balance_keeper');
+                }
+            }
+            
+            // 強度チャレンジバッジ
+            let highIntensityStreak = 0;
+            let customIntensityTypes = new Set();
+            let hasGrowthCurve = false;
+            let weeklyIntensityTypes = new Set();
+            
+            allHypotheses.forEach(h => {
+                if (h.intensity) {
+                    Object.values(h.intensity).forEach(mult => {
+                        customIntensityTypes.add(mult.toFixed(1));
+                    });
+                }
+                
+                // 高強度連続チェック
+                const sortedDates = Object.keys(h.achievements || {}).sort();
+                let currentStreak = 0;
+                sortedDates.forEach(date => {
+                    const intensity = h.intensity && h.intensity[date] || 1.0;
+                    if (intensity >= 1.2) {
+                        currentStreak++;
+                        if (currentStreak > highIntensityStreak) {
+                            highIntensityStreak = currentStreak;
+                        }
+                    } else {
+                        currentStreak = 0;
+                    }
+                });
+            });
+            
+            if (highIntensityStreak >= 7 && !data.badges.fire_challenger) {
+                data.badges.fire_challenger = { earnedAt: new Date().toISOString() };
+                newBadges.push('fire_challenger');
+            }
+            
+            if (customIntensityTypes.size >= 5 && !data.badges.precision_adjuster) {
+                data.badges.precision_adjuster = { earnedAt: new Date().toISOString() };
+                newBadges.push('precision_adjuster');
+            }
+            
+            // カードシステムバッジ
+            const cards = data.cards || {};
+            const allCards = (cards.earned || []).concat(cards.used || []);
+            const legendaryCards = allCards.filter(c => c.rarity === 'legendary');
+            const penaltyCards = allCards.filter(c => c.type === 'penalty');
+            const uniqueCardTypes = new Set(allCards.map(c => c.id));
+            
+            if (legendaryCards.length >= 7 && !data.badges.lucky_seven) {
+                data.badges.lucky_seven = { earnedAt: new Date().toISOString() };
+                newBadges.push('lucky_seven');
+            }
+            
+            if (penaltyCards.length >= 10 && !data.badges.shield_guardian) {
+                data.badges.shield_guardian = { earnedAt: new Date().toISOString() };
+                newBadges.push('shield_guardian');
+            }
+            
+            if (uniqueCardTypes.size >= 20 && !data.badges.card_master) {
+                data.badges.card_master = { earnedAt: new Date().toISOString() };
+                newBadges.push('card_master');
+            }
+            
+            // 頻度管理バッジ
+            let hasWeeklyPerfect = false;
+            let hasFlexMaster = false;
+            const frequencyTypes = new Set();
+            
+            data.currentHypotheses.forEach(h => {
+                if (h.frequency) {
+                    frequencyTypes.add(h.frequency.type);
+                }
+            });
+            
+            if (frequencyTypes.size >= 3 && !data.badges.flex_master) {
+                data.badges.flex_master = { earnedAt: new Date().toISOString() };
+                newBadges.push('flex_master');
+            }
+            
+            // 成長・復活系バッジ
+            if (data.currentHypotheses.length >= 5 && !data.badges.habit_gardener) {
+                data.badges.habit_gardener = { earnedAt: new Date().toISOString() };
+                newBadges.push('habit_gardener');
+            }
+            
+            // 100日継続達成
+            allHypotheses.forEach(h => {
+                const achievedDays = Object.keys(h.achievements || {}).length;
+                if (achievedDays >= 100 && !data.badges.diamond_habit) {
+                    data.badges.diamond_habit = { earnedAt: new Date().toISOString() };
+                    newBadges.push('diamond_habit');
+                }
+            });
+            
+            // 季節バッジ
+            const now = new Date();
+            const month = now.getMonth() + 1;
+            
+            if (month >= 3 && month <= 5) {
+                const springNewHabits = data.currentHypotheses.filter(h => {
+                    const startMonth = new Date(h.startDate).getMonth() + 1;
+                    return startMonth >= 3 && startMonth <= 5;
+                });
+                if (springNewHabits.length >= 3 && !data.badges.spring_awakening) {
+                    data.badges.spring_awakening = { earnedAt: new Date().toISOString() };
+                    newBadges.push('spring_awakening');
+                }
+            }
+            
+            // 特殊条件バッジ
+            if (data.currentHypotheses.length >= 10 && !data.badges.chaos_master) {
+                data.badges.chaos_master = { earnedAt: new Date().toISOString() };
+                newBadges.push('chaos_master');
+            }
+            
+            // 完璧主義者バッジ
+            let perfectCount = 0;
+            allHypotheses.forEach(h => {
+                const achievedDays = Object.keys(h.achievements || {}).length;
+                const totalDays = h.totalDays || 30;
+                if (achievedDays === totalDays) {
+                    perfectCount++;
+                }
+            });
+            
+            if (perfectCount >= 5 && !data.badges.perfectionist) {
+                data.badges.perfectionist = { earnedAt: new Date().toISOString() };
+                newBadges.push('perfectionist');
+            }
+            
+            // メタ達成系
+            const earnedBadgesCount = Object.keys(data.badges).length;
+            if (earnedBadgesCount >= 50 && !data.badges.badge_hunter) {
+                data.badges.badge_hunter = { earnedAt: new Date().toISOString() };
+                newBadges.push('badge_hunter');
+            }
+            
+            // 新しいバッジを祝う（軽量コンフェッティ＋ミニモーダル）
+            newBadges.forEach(badgeId => {
+                const badge = BADGE_DEFINITIONS[badgeId];
+                if (badge) {
+                    setTimeout(() => {
+                        try { showConfetti(1000, 20); } catch(e) {}
+                        try { showBadgeShowcase(badge.emoji, badge.name); } catch(e) {}
+                        try { showMiniModal('🏆 バッジ獲得！', `${badge.emoji} ${badge.name}`,[{label:'バッジを見る', onclick:"(function(){ showStatsView(); setTimeout(()=>toggleStatSection('badge-collection'), 120); })()"}]); } catch(e) {}
+                    }, 200);
+                }
+            });
+            
+            if (newBadges.length > 0) {
+                saveData(data);
+            }
+            
+            return newBadges;
+        }
+        
+        // 連続達成日数を計算（グローバル関数）
+        window.computeStreak = function(hyp) {
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            const start = new Date(hyp.startDate);
+            start.setHours(0,0,0,0);
+            let streak = 0;
+            const achievements = hyp.achievements || {};
+            for (let d = new Date(today); d >= start; d.setDate(d.getDate()-1)) {
+                const key = dateKeyLocal(d);
+                if (achievements[key]) {
+                    streak += 1;
+                } else {
+                    // 今日より未来はスキップ、未達で打ち切り
+                    if (d > today) continue;
+                    break;
+                }
+            }
+            return streak;
+        }
+        
+        // ステージアップ通知
+        function checkStageProgress() {
+            const data = loadData();
+            if (!data.stageNotifications) data.stageNotifications = {};
+            
+            data.currentHypotheses.forEach(h => {
+                const stage = window.calculateHabitStage(h);
+                if (!stage) return;
+                
+                const notifKey = `${h.id}_${stage.name}`;
+                if (!data.stageNotifications[notifKey]) {
+                    // 新しいステージに到達
+                    data.stageNotifications[notifKey] = new Date().toISOString();
+                    
+                    // 種まき以外は通知
+                    if (stage.name !== '種まき') {
+                        showCardEffect(
+                            '🌱 ステージアップ！',
+                            `「${h.title}」が${stage.name}ステージに到達！\n${stage.description}`,
+                            stage.color
+                        );
+                    }
+                }
+            });
+            
+            saveData(data);
+        }
+        
+        // 習慣成長ステージの計算関数（グローバル関数）
+        window.calculateHabitStage = function(hypothesis) {
+            if (!hypothesis || !hypothesis.achievements) return null;
+            
+            const start = new Date(hypothesis.startDate);
+            start.setHours(0, 0, 0, 0);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            // 達成日数の計算
+            const achievedDays = Object.keys(hypothesis.achievements).length;
+            
+            // 連続達成日数の計算
+            const streak = window.computeStreak(hypothesis);
+            
+            // 週単位での達成数を計算（週◯回や特定曜日の場合）
+            let achievedWeeks = 0;
+            if (hypothesis.frequency && (hypothesis.frequency.type === 'weekly' || hypothesis.frequency.type === 'weekdays')) {
+                const weeks = Math.ceil((today - start) / (7 * 24 * 60 * 60 * 1000));
+                for (let w = 0; w < weeks; w++) {
+                    const weekStart = new Date(start);
+                    weekStart.setDate(start.getDate() + w * 7);
+                    const weekEnd = new Date(weekStart);
+                    weekEnd.setDate(weekStart.getDate() + 6);
+                    
+                    let weekAchievements = 0;
+                    for (let d = new Date(weekStart); d <= weekEnd && d <= today; d.setDate(d.getDate() + 1)) {
+                        const key = dateKeyLocal(d);
+                        if (hypothesis.achievements[key]) weekAchievements++;
+                    }
+                    
+                    if (hypothesis.frequency.type === 'weekly' && weekAchievements >= hypothesis.frequency.count) {
+                        achievedWeeks++;
+                    } else if (hypothesis.frequency.type === 'weekdays') {
+                        const targetDaysInWeek = hypothesis.frequency.weekdays.filter(wd => {
+                            for (let d = new Date(weekStart); d <= weekEnd && d <= today; d.setDate(d.getDate() + 1)) {
+                                if (d.getDay() === wd) return true;
+                            }
+                            return false;
+                        }).length;
+                        if (targetDaysInWeek > 0 && weekAchievements >= targetDaysInWeek * 0.8) {
+                            achievedWeeks++;
+                        }
+                    }
+                }
+            }
+            
+            // 基本スコアの計算
+            let baseScore = achievedDays;
+            if (hypothesis.frequency) {
+                if (hypothesis.frequency.type === 'weekly' || hypothesis.frequency.type === 'weekdays') {
+                    baseScore = achievedWeeks * 7; // 週単位を日数換算
+                }
+            }
+            
+            // 連続ボーナスの計算（1.0～2.0）
+            let continuityBonus = 1.0;
+            if (streak >= 90) {
+                continuityBonus = 2.0;
+            } else if (streak >= 60) {
+                continuityBonus = 1.7;
+            } else if (streak >= 30) {
+                continuityBonus = 1.5;
+            } else if (streak >= 14) {
+                continuityBonus = 1.3;
+            } else if (streak >= 7) {
+                continuityBonus = 1.1;
+            }
+            
+            // 途切れペナルティ
+            const totalDays = Math.floor((today - start) / (24 * 60 * 60 * 1000)) + 1;
+            const achievementRate = achievedDays / totalDays;
+            if (achievementRate < 0.5 && totalDays > 7) {
+                continuityBonus *= 0.8;
+            }
+            
+            // 最終スコア
+            const finalScore = Math.floor(baseScore * continuityBonus);
+            
+            // ステージ判定
+            const stages = [
+                { name: '🌱 種まき期', minScore: 0, maxScore: 7, color: '#6b7280', description: '習慣の種を植えた段階' },
+                { name: '🌿 発芽期', minScore: 8, maxScore: 14, color: '#10b981', description: '小さな芽が出てきた' },
+                { name: '🍀 成長期', minScore: 15, maxScore: 30, color: '#3b82f6', description: '葉が増えて成長中' },
+                { name: '🌳 定着期', minScore: 31, maxScore: 60, color: '#8b5cf6', description: 'しっかりとした木に成長' },
+                { name: '🌸 開花期', minScore: 61, maxScore: 90, color: '#f59e0b', description: '花が咲き始める' },
+                { name: '🍎 収穫期', minScore: 91, maxScore: 120, color: '#ef4444', description: '実がなり収穫できる' },
+                { name: '👑 黄金の習慣', minScore: 121, maxScore: 999999, color: '#fbbf24', description: '完全に身についた習慣' }
+            ];
+            
+            // 特別条件：連続90日以上かつ達成率90%以上で黄金の習慣
+            if (streak >= 90 && achievementRate >= 0.9) {
+                return { ...stages[6], score: finalScore, streak, achievementRate: Math.round(achievementRate * 100) };
+            }
+            
+            for (const stage of stages) {
+                if (finalScore >= stage.minScore && finalScore <= stage.maxScore) {
+                    return { ...stage, score: finalScore, streak, achievementRate: Math.round(achievementRate * 100) };
+                }
+            }
+            
+            return { ...stages[0], score: finalScore, streak, achievementRate: Math.round(achievementRate * 100) };
+        }
+
+        // （削除）旧デイリークエスト機能は強度（Intensity）へ置換済み
+
+        // 完了オプションを表示
+        function showCompletionOptions() {
+            // カード獲得処理を先に実行
+            const data = loadData();
+            const hypothesis = window.currentHypothesis;
+
+            if (!hypothesis.cardsAcquired) {
+                // 最終的な達成率を計算（頻度に基づく目標日数を分母にする）
+                const achievedDays = Object.keys(hypothesis.achievements || {}).length;
+                const targetDays = getTargetDaysForHypothesis(hypothesis);
+                let finalRate = targetDays > 0 ? Math.round((achievedDays / targetDays) * 100) : 0;
+                
+                // 達成ブースターが有効かチェック
+                let hasAchievementBooster = false;
+                if (data.cards && data.cards.activeEffects) {
+                    hasAchievementBooster = data.cards.activeEffects.some(effect => 
+                        effect.cardId === 'achievement_booster' && 
+                        (!effect.targetHypothesisId || effect.targetHypothesisId === hypothesis.id)
+                    );
+                }
+                
+                // 達成ブースターの効果を適用（15%ボーナス）
+                if (hasAchievementBooster) {
+                    finalRate = Math.min(100, finalRate + 15);
+                    // エフェクトを表示
+                    showCardEffect('達成ブースター発動！', '最終達成率に+15%のボーナス！', '#10b981');
+                    
+                    // 達成ブースターを消費
+                    data.cards.activeEffects = data.cards.activeEffects.filter(effect =>
+                        !(effect.cardId === 'achievement_booster' && 
+                          (!effect.targetHypothesisId || effect.targetHypothesisId === hypothesis.id))
+                    );
+                }
+                
+                // 達成率減少ペナルティの適用
+                if (hypothesis.achievementDecrease) {
+                    finalRate = Math.max(0, finalRate - hypothesis.achievementDecrease);
+                    // エフェクトを表示
+                    showCardEffect('達成率減少発動！', `最終達成率から${hypothesis.achievementDecrease}%減少しました`, '#ef4444');
+                }
+                
+                hypothesis.finalAchievementRate = finalRate;
+                
+                // カード獲得処理
+                const acquiredCards = getCardsBasedOnAchievement(finalRate, hypothesis);
+                if (acquiredCards.length > 0) {
+                    acquiredCards.forEach(cardId => {
+                        const card = CARD_MASTER[cardId];
+                        if (card) {
+                            if (card.type === 'reward') {
+                                data.cards.inventory.push({
+                                    cardId: cardId,
+                                    acquiredDate: new Date().toISOString(),
+                                    used: false
+                                });
+                                // ドロップ履歴（直近10重複防止用）
+                                if (!data.cards.dropHistory) data.cards.dropHistory = [];
+                                // 先頭に追加（最新が先頭）
+                                data.cards.dropHistory.unshift(cardId);
+                                // 上限を適度に制限
+                                if (data.cards.dropHistory.length > 100) {
+                                    data.cards.dropHistory = data.cards.dropHistory.slice(0, 100);
+                                }
+                            } else if (card.type === 'penalty') {
+                                data.cards.pendingPenalties.push({
+                                    cardId: cardId,
+                                    acquiredDate: new Date().toISOString()
+                                });
+                            }
+                        }
+                    });
+                    
+                    // カード獲得フラグを設定
+                    hypothesis.cardsAcquired = true;
+                    window.currentHypothesis.cardsAcquired = true;
+                    
+                    // 現在の習慣を更新（カード獲得フラグを保存）
+                    const index = data.currentHypotheses.findIndex(h => h.id === hypothesis.id);
+                    if (index !== -1) {
+                        data.currentHypotheses[index].cardsAcquired = true;
+                        data.currentHypotheses[index].finalAchievementRate = finalRate;
+                    }
+                    
+                    saveData(data);
+                    
+                    // カード獲得演出を表示
+                    showCardAcquisition(acquiredCards, () => {
+                        // カード獲得演出後にデブリーフ→完了オプション
+                        requestDebriefThenShowOptions();
+                    });
+                } else {
+                    // カードなしでもフラグは設定
+                    hypothesis.cardsAcquired = true;
+                    window.currentHypothesis.cardsAcquired = true;
+                    
+                    // 現在の習慣を更新
+                    const index = data.currentHypotheses.findIndex(h => h.id === hypothesis.id);
+                    if (index !== -1) {
+                        data.currentHypotheses[index].cardsAcquired = true;
+                        data.currentHypotheses[index].finalAchievementRate = finalRate;
+                    }
+                    
+                    saveData(data);
+                    
+                    // カードなしの場合もデブリーフ→完了オプション
+                    requestDebriefThenShowOptions();
+                }
+            } else {
+                // すでにカードを獲得している場合はそのまま完了オプションを表示
+                requestDebriefThenShowOptions();
+            }
+        }
+
+        // デブリーフを促してから完了オプションを表示
+        function requestDebriefThenShowOptions() {
+            const showOptions = () => {
+                document.getElementById('completion-report-section').style.display = 'none';
+                document.getElementById('completion-options').style.display = 'block';
+            };
+            if (!window.currentHypothesis.debrief) {
+                showDebriefModal(() => showOptions());
+            } else {
+                showOptions();
+            }
+        }
+
+        // デブリーフ（満足度/一言）モーダル
+        function showDebriefModal(onDone) {
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay active';
+            const modal = document.createElement('div');
+            modal.className = 'skip-modal active';
+            modal.innerHTML = `
+                <div class="modal-header">
+                    <h3>📝 振り返り（30秒）</h3>
+                    <p>今回の検証を5段階で評価し、一言メモを残しましょう</p>
+                </div>
+                <div class="form-group" style="margin:12px 0;">
+                    <label>満足度（1-5）</label>
+                    <input id="debrief-score" type="number" min="1" max="5" value="4" style="width:80px;" />
+                </div>
+                <div class="form-group" style="margin:12px 0;">
+                    <label>一言メモ</label>
+                    <input id="debrief-note" type="text" placeholder="例: 朝イチがやりやすかった" />
+                </div>
+                <div class="modal-footer">
+                    <button class="button secondary" onclick="this.closest('.overlay').remove()">スキップ</button>
+                    <button id="debrief-save" class="button primary">保存して続行</button>
+                </div>
+            `;
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            document.getElementById('debrief-save').onclick = () => {
+                const score = Math.min(5, Math.max(1, parseInt(document.getElementById('debrief-score').value || '3', 10)));
+                const note = (document.getElementById('debrief-note').value || '').slice(0, 140);
+                const data = loadData();
+                const idx = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+                const payload = { score, note, at: new Date().toISOString() };
+                if (idx !== -1) {
+                    data.currentHypotheses[idx].debrief = payload;
+                }
+                if (!data.meta) data.meta = {};
+                data.meta.lastDebrief = payload;
+                saveData(data);
+                overlay.remove();
+                onDone && onDone();
+            };
+        }
+
+        // ==== デバッグ機能 ====
+        function openDebugMenu() {
+            const data = loadData();
+            const isAlwaysComplete = !!(data.meta && data.meta.debugAlwaysComplete);
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay active';
+            const modal = document.createElement('div');
+            modal.className = 'skip-modal active';
+            modal.style.width = '92%';
+            modal.style.maxWidth = '520px';
+            modal.innerHTML = `
+                <div class="modal-header">
+                    <h3>🛠️ デバッグモード</h3>
+                    <p>開発・検証用のショートカット</p>
+                </div>
+                <div style="display:grid; gap:12px;">
+                    <button class="button primary" onclick="markAllDaysAchieved()">✅ 現在の習慣を全日達成にする</button>
+                    <button class="button secondary" onclick="toggleAlwaysComplete()">${isAlwaysComplete ? '🟢 いつでも完了: ON（クリックでOFF）' : '⚪ いつでも完了: OFF（クリックでON）'}</button>
+                </div>
+                <div class="modal-footer">
+                    <button class="button" onclick="this.closest('.overlay').remove()">閉じる</button>
+                </div>
+            `;
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+        }
+
+        function markAllDaysAchieved() {
+            if (!window.currentHypothesis) {
+                showNotification('進行中の習慣がありません', 'error');
+                return;
+            }
+            const data = loadData();
+            const startDate = new Date(window.currentHypothesis.startDate);
+            startDate.setHours(0,0,0,0);
+            if (!window.currentHypothesis.achievements) window.currentHypothesis.achievements = {};
+            for (let i = 0; i < window.currentHypothesis.totalDays; i++) {
+                const d = new Date(startDate);
+                d.setDate(startDate.getDate() + i);
+                const key = dateKeyLocal(d);
+                window.currentHypothesis.achievements[key] = true;
+            }
+            const idx = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (idx !== -1) {
+                data.currentHypotheses[idx].achievements = { ...window.currentHypothesis.achievements };
+                saveData(data);
+            }
+            updateCalendar();
+            updateProgress();
+            showNotification('全日を達成に設定しました', 'success');
+        }
+
+        function toggleAlwaysComplete() {
+            const data = loadData();
+            if (!data.meta) data.meta = {};
+            data.meta.debugAlwaysComplete = !data.meta.debugAlwaysComplete;
+            saveData(data);
+            document.querySelector('.overlay')?.remove();
+            openDebugMenu();
+            updateProgress();
+            showNotification(`いつでも完了: ${data.meta.debugAlwaysComplete ? 'ON' : 'OFF'}`, 'info');
+        }
+
+        // 現在の習慣リストを更新
+        function updateCurrentHypothesisList() {
+            const data = loadData();
+            const listContainer = document.getElementById('current-hypothesis-list');
+            if (!listContainer) {
+                return;
+            }
+            listContainer.innerHTML = '';
+            
+            // フィルターの状態を取得
+            const categoryFilter = document.getElementById('category-filter');
+            const filterValue = categoryFilter ? categoryFilter.value : 'all';
+            
+            // フィルタリング
+            let filteredHypotheses = data.currentHypotheses;
+            if (filterValue !== 'all') {
+                filteredHypotheses = data.currentHypotheses.filter(h => h.category === filterValue);
+            }
+            
+            if (filteredHypotheses.length === 0) {
+                if (filterValue !== 'all') {
+                    listContainer.innerHTML = '<p style="color: var(--text-secondary);">このカテゴリの習慣はありません</p>';
+                } else {
+                    listContainer.innerHTML = '<p style="color: var(--text-secondary);">現在進行中の習慣はありません</p>';
+                }
+                return;
+            }
+            
+            // 日付が変わったら宣言状態をチェック（深夜対応）
+            const todayKey = getActivityDateKey();
+            
+            // カテゴリーマスターを初期化
+            const categoryMaster = initializeCategoryMaster();
+            
+            // 頻度タイプ別にグループ分け（大分類）
+            const frequencyGroups = {
+                daily: { 
+                    title: '毎日の習慣', 
+                    icon: '☀️', 
+                    color: '#10b981',
+                    categories: {} // カテゴリ別にさらに分類
+                },
+                weekly: { 
+                    title: '週N回の習慣', 
+                    icon: '📅', 
+                    color: '#3b82f6',
+                    categories: {}
+                },
+                weekdays: { 
+                    title: '曜日指定の習慣', 
+                    icon: '📆', 
+                    color: '#8b5cf6',
+                    categories: {}
+                }
+            };
+            
+            // 習慣を頻度タイプ別、さらにカテゴリ別に分類
+            filteredHypotheses.forEach(hypothesis => {
+                // 休眠中の習慣は別グループに
+                if (hypothesis.isSleeping) {
+                    const categoryInfo = data.categoryMaster[hypothesis.category || 'other'] || data.categoryMaster.other;
+                    const categoryKey = hypothesis.category || 'other';
+                    
+                    if (!frequencyGroups.sleeping) {
+                        frequencyGroups.sleeping = {
+                            title: '休眠中の習慣',
+                            icon: '😴',
+                            color: '#94a3b8',
+                            categories: {}
+                        };
+                    }
+                    
+                    if (!frequencyGroups.sleeping.categories[categoryKey]) {
+                        frequencyGroups.sleeping.categories[categoryKey] = [];
+                    }
+                    frequencyGroups.sleeping.categories[categoryKey].push(hypothesis);
+                    return;
+                }
+                
+                let frequencyType = 'daily'; // デフォルトは毎日
+                if (hypothesis.frequency) {
+                    frequencyType = hypothesis.frequency.type || 'daily';
+                }
+                
+                const category = hypothesis.category || 'other'; // デフォルトはその他
+                
+                if (frequencyGroups[frequencyType]) {
+                    if (!frequencyGroups[frequencyType].categories[category]) {
+                        frequencyGroups[frequencyType].categories[category] = [];
+                    }
+                    frequencyGroups[frequencyType].categories[category].push(hypothesis);
+                }
+            });
+            
+            // トグル状態を管理（LocalStorageから読み込み）
+            const toggleStates = JSON.parse(localStorage.getItem('categoryToggleStates') || '{}');
+            
+            // 頻度グループごとに表示（大分類）
+            const createFrequencySection = (frequencyKey, frequencyData) => {
+                // この頻度タイプに習慣がない場合はスキップ
+                const hasHabits = Object.values(frequencyData.categories).some(habits => habits.length > 0);
+                if (!hasHabits) return null;
+                
+                const section = document.createElement('div');
+                section.style.cssText = 'margin-bottom: 24px;';
+                
+                // 頻度タイプのヘッダー（トグル不可、常に表示）
+                const frequencyHeader = document.createElement('div');
+                const totalCount = Object.values(frequencyData.categories).reduce((sum, habits) => sum + habits.length, 0);
+                frequencyHeader.style.cssText = `display: flex; align-items: center; gap: 8px; padding: 14px 16px; background: linear-gradient(135deg, ${frequencyData.color}20, ${frequencyData.color}10); border-radius: 12px; border: 2px solid ${frequencyData.color}; margin-bottom: 12px;`;
+                frequencyHeader.innerHTML = `
+                    <span style="font-size: 24px;">${frequencyData.icon}</span>
+                    <span style="font-weight: 700; font-size: 18px; color: var(--text-primary);">${frequencyData.title}</span>
+                    <span style="font-size: 14px; color: var(--text-secondary); margin-left: 8px; background: ${frequencyData.color}30; padding: 4px 12px; border-radius: 999px; font-weight: 600;">合計 ${totalCount}個</span>
+                `;
+                section.appendChild(frequencyHeader);
+                
+                // カテゴリ別のセクションを作成（小分類）
+                const categoriesContainer = document.createElement('div');
+                categoriesContainer.style.cssText = 'margin-left: 20px;';
+                
+                Object.entries(frequencyData.categories).forEach(([categoryKey, habits]) => {
+                    if (habits.length === 0) return;
+                    
+                    const categoryInfo = data.categoryMaster[categoryKey] || { name: categoryKey, icon: '📝', color: '#6b7280' };
+                    const categorySection = document.createElement('div');
+                    categorySection.style.cssText = 'margin-bottom: 12px;';
+                    
+                    // カテゴリヘッダー（トグル可能）
+                    const categoryHeader = document.createElement('div');
+                    const toggleKey = `${frequencyKey}-${categoryKey}`;
+                    const isOpen = toggleStates[toggleKey] !== false;
+                    
+                    categoryHeader.style.cssText = `display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: linear-gradient(135deg, ${categoryInfo.color}10, ${categoryInfo.color}05); border-radius: 10px; border-left: 3px solid ${categoryInfo.color}; cursor: pointer; user-select: none; transition: all 0.2s;`;
+                    categoryHeader.innerHTML = `
+                        <span style="font-size: 18px;">${categoryInfo.icon}</span>
+                        <span style="font-weight: 600; font-size: 15px; color: var(--text-primary);">${categoryInfo.name}</span>
+                        <span style="font-size: 12px; color: var(--text-secondary); margin-left: 6px; background: ${categoryInfo.color}20; padding: 2px 8px; border-radius: 999px;">${habits.length}個</span>
+                        <span style="margin-left: auto; font-size: 16px; transition: transform 0.3s;" id="toggle-${toggleKey}">${isOpen ? '▼' : '▶'}</span>
+                    `;
+                    
+                    // カテゴリコンテンツ
+                    const categoryContent = document.createElement('div');
+                    categoryContent.style.cssText = `overflow: hidden; transition: max-height 0.3s ease-out; max-height: ${isOpen ? '2000px' : '0'};`;
+                    categoryContent.id = `content-${toggleKey}`;
+                    
+                    const itemsWrapper = document.createElement('div');
+                    itemsWrapper.style.cssText = 'padding: 8px 0 8px 12px;';
+                    habits.forEach(hypothesis => {
+                        itemsWrapper.appendChild(createHypothesisItem(hypothesis, todayKey));
+                    });
+                    categoryContent.appendChild(itemsWrapper);
+                    
+                    // カテゴリのトグルイベント
+                    categoryHeader.onclick = () => {
+                        const content = document.getElementById(`content-${toggleKey}`);
+                        const toggle = document.getElementById(`toggle-${toggleKey}`);
+                        const isCurrentlyOpen = content.style.maxHeight !== '0px';
+                        
+                        if (isCurrentlyOpen) {
+                            content.style.maxHeight = '0';
+                            toggle.textContent = '▶';
+                            toggleStates[toggleKey] = false;
+                        } else {
+                            content.style.maxHeight = '2000px';
+                            toggle.textContent = '▼';
+                            toggleStates[toggleKey] = true;
+                        }
+                        
+                        localStorage.setItem('categoryToggleStates', JSON.stringify(toggleStates));
+                    };
+                    
+                    categorySection.appendChild(categoryHeader);
+                    categorySection.appendChild(categoryContent);
+                    categoriesContainer.appendChild(categorySection);
+                });
+                
+                section.appendChild(categoriesContainer);
+                return section;
+            };
+            
+            // 各習慣アイテムを作成する共通関数
+            const createHypothesisItem = (hypothesis, todayKey) => {
+                const item = document.createElement('div');
+                item.className = 'hypothesis-item';
+                item.style.position = 'relative'; // 完のハンコ用にposition:relativeを追加
+                item.onclick = () => showProgressView(hypothesis.id);
+                
+                // 長押し/右クリックで削除
+                attachLongPressToDelete(item, hypothesis.id);
+                item.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    confirmDeleteHypothesis(hypothesis.id);
+                });
+                
+                // 習慣成長ステージを計算
+                const stage = window.calculateHabitStage(hypothesis);
+                
+                const startDate = new Date(hypothesis.startDate);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                
+                // 開始日を0時0分0秒に設定
+                startDate.setHours(0, 0, 0, 0);
+                
+                // 経過日数を計算（開始日を1日目として計算）
+                const timeDiff = today.getTime() - startDate.getTime();
+                const daysPassed = Math.min(
+                    Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1),
+                    hypothesis.totalDays
+                );
+                // 表示達成率: 達成日の強度倍率合計 ÷ 全日数 × 100（小数点切り捨て）
+                const intensity = hypothesis.intensity || {};
+                let weightedAchieved = 0;
+                for (let i = 0; i < hypothesis.totalDays; i++) {
+                    const d = new Date(startDate);
+                    d.setDate(startDate.getDate() + i);
+                    const key = dateKeyLocal(d);
+                    if (hypothesis.achievements && hypothesis.achievements[key]) {
+                        const mult = Number(intensity[key] ?? 1.0);
+                        weightedAchieved += mult;
+                    }
+                }
+                const displayRate = Math.min(100, Math.floor((weightedAchieved / hypothesis.totalDays) * 100));
+
+                // 直近日の強度バッジ（今日から最大3日分、期間内のみ）
+                const endDate = new Date(startDate);
+                endDate.setDate(startDate.getDate() + hypothesis.totalDays - 1);
+                const opts = hypothesis.intensityOptions || [
+                    { label: '軽め', mult: 0.8 },
+                    { label: '基本', mult: 1.0 },
+                    { label: '高強度', mult: 1.2 },
+                ];
+                const toFixed1 = (n) => (Math.round(Number(n) * 10) / 10).toFixed(1);
+                const badges = [];
+                for (let k = 0; k < 3; k++) {
+                    const d = new Date(today);
+                    d.setHours(0,0,0,0);
+                    d.setDate(d.getDate() - k);
+                    if (d < startDate || d > endDate) continue;
+                    const key = dateKeyLocal(d);
+                    const mult = Number((intensity || {})[key] ?? 1.0);
+                    const ach = !!((hypothesis.achievements || {})[key]);
+                    const opt = opts.find(o => toFixed1(o.mult) === toFixed1(mult));
+                    const labelText = opt ? opt.label : `×${toFixed1(mult)}`;
+                    const style = ach
+                        ? 'background: rgba(16,185,129,0.15); border:1px solid #10b981; color:#10b981;'
+                        : 'background: rgba(148,163,184,0.15); border:1px solid #475569; color:#94a3b8;';
+                    badges.push(`<span style="${style} padding:2px 8px; border-radius:999px; font-size:11px;">${escapeHTML(labelText)}</span>`);
+                }
+                
+                // 頻度表示を追加
+                let frequencyBadge = '';
+                if (hypothesis.frequency && hypothesis.frequency.type === 'weekly') {
+                    frequencyBadge = `<span style="display: inline-block; padding: 2px 8px; background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 999px; font-size: 11px; font-weight: 600; margin-left: 8px;">週${hypothesis.frequency.count || 3}回</span>`;
+                } else if (hypothesis.frequency && hypothesis.frequency.type === 'weekdays') {
+                    const weekdayNames = ['日', '月', '火', '水', '木', '金', '土'];
+                    const days = (hypothesis.frequency.weekdays || []).map(d => weekdayNames[d]).join('・');
+                    frequencyBadge = `<span style="display: inline-block; padding: 2px 8px; background: rgba(139, 92, 246, 0.15); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 999px; font-size: 11px; font-weight: 600; margin-left: 8px;">${days}</span>`;
+                }
+                
+                item.innerHTML = `
+                    <h3 class="hypothesis-title">${escapeHTML(hypothesis.title)}${frequencyBadge}</h3>
+                    <p class="hypothesis-description">${escapeHTML(hypothesis.description)}</p>
+                    ${stage ? `
+                        <div style="margin: 12px 0; padding: 10px; background: linear-gradient(135deg, ${stage.color}15, ${stage.color}08); border-radius: 8px; border-left: 3px solid ${stage.color};">
+                            <div style="font-size: 14px; font-weight: 600; color: ${stage.color}; margin-bottom: 4px;">
+                                ${stage.name}
+                            </div>
+                            <div style="font-size: 11px; color: var(--text-secondary);">
+                                ${stage.description} (スコア: ${stage.score}点)
+                            </div>
+                            <div style="display: flex; gap: 12px; margin-top: 6px; font-size: 11px;">
+                                <span style="color: #10b981;">🔥 連続${stage.streak}日</span>
+                                <span style="color: #3b82f6;">📊 達成率${stage.achievementRate}%</span>
+                            </div>
+                        </div>
+                    ` : ''}
+                    <div class="hypothesis-meta">
+                        <div class="hypothesis-days">
+                            📅 ${daysPassed}日目 / ${hypothesis.totalDays}日間
+                        </div>
+                        <div class="hypothesis-progress">
+                            ✨ 達成率: ${displayRate}%
+                        </div>
+                    </div>
+                    ${badges.length ? `<div class="hypothesis-intensity" style="margin-top:8px; color: var(--text-secondary); font-size:12px; display:flex; align-items:center; gap:6px;">
+                        <span>💪 直近:</span> ${badges.join(' ')}
+                    </div>` : ''}
+                    ${(() => {
+                        const todayKey = getActivityDateKey();
+                        const isAchievedToday = hypothesis.achievements && hypothesis.achievements[todayKey];
+                        
+                        return isAchievedToday ? `
+                            <div style="position: absolute; top: 10px; right: 10px; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;">
+                                <div style="position: relative; width: 100%; height: 100%; transform: rotate(-10deg);">
+                                    <div style="position: absolute; inset: 0; border: 3px solid #dc2626; border-radius: 50%; background: rgba(220, 38, 38, 0.05);"></div>
+                                    <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: bold; color: #dc2626; font-family: serif;">完</div>
+                                </div>
+                            </div>
+                        ` : '';
+                    })()}
+                `;
+                
+                return item;
+            };
+            
+            // 頻度タイプごとにセクションを作成して表示（順序を保持）
+            ['daily', 'weekly', 'weekdays'].forEach(frequencyKey => {
+                const frequencyData = frequencyGroups[frequencyKey];
+                if (frequencyData) {
+                    const section = createFrequencySection(frequencyKey, frequencyData);
+                    if (section) listContainer.appendChild(section);
+                }
+            });
+            
+            // カテゴリ編集ボタンを追加
+            const editButton = document.createElement('button');
+            editButton.className = 'btn btn-secondary';
+            editButton.style.cssText = 'width: 100%; margin-top: 16px; padding: 12px; font-size: 14px;';
+            editButton.innerHTML = '⚙️ カテゴリを編集';
+            editButton.onclick = editCategoryMaster;
+            listContainer.appendChild(editButton);
+            
+        }
+
+        // 習慣を継続
+        function continueHypothesis() {
+            // 継続オプションを表示するモーダル
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay active';
+            const modal = document.createElement('div');
+            modal.className = 'skip-modal active';
+            modal.innerHTML = `
+                <div class="modal-header">
+                    <h3>🌱 習慣として継続</h3>
+                    <p>この習慣を継続しますか？</p>
+                </div>
+                <div class="form-group" style="margin: 20px 0;">
+                    <label>継続期間</label>
+                    <select id="continue-duration" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
+                        <option value="30">30日間</option>
+                        <option value="60">60日間</option>
+                        <option value="90" selected>90日間（黄金の習慣まで）</option>
+                        <option value="180">180日間（半年）</option>
+                        <option value="365">365日間（1年）</option>
+                        <option value="unlimited">無期限</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin: 20px 0;">
+                    <label>
+                        <input type="checkbox" id="continue-keep-records" checked> 
+                        これまでの記録を引き継ぐ
+                    </label>
+                </div>
+                <div class="form-group" style="margin: 20px 0;">
+                    <label>
+                        <input type="checkbox" id="continue-as-habit" checked> 
+                        習慣モードで継続（黄金の習慣を目指す）
+                    </label>
+                </div>
+                <div style="padding: 12px; background: var(--surface); border-radius: 8px; margin: 16px 0;">
+                    <p style="font-size: 12px; color: var(--text-secondary); margin: 0;">
+                        💡 習慣モードでは、成長ステージが表示され、継続的な達成により「黄金の習慣」を目指します。
+                        記録を引き継ぐと、現在のステージとストリークが保持されます。
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button class="button secondary" onclick="this.closest('.overlay').remove()">キャンセル</button>
+                    <button class="button primary" onclick="confirmContinueHypothesis()">継続する</button>
+                </div>
+            `;
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+        }
+        
+        // 継続を確定
+        function confirmContinueHypothesis() {
+            const data = loadData();
+            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            
+            if (index !== -1) {
+                const durationSelect = document.getElementById('continue-duration');
+                const keepRecords = document.getElementById('continue-keep-records').checked;
+                const asHabit = document.getElementById('continue-as-habit').checked;
+                const duration = durationSelect.value;
+                
+                // 期間を設定
+                if (duration === 'unlimited') {
+                    // 無期限の場合は大きな数値を設定（10年）
+                    data.currentHypotheses[index].totalDays = 3650;
+                    data.currentHypotheses[index].isUnlimited = true;
+                } else {
+                    const additionalDays = parseInt(duration);
+                    if (keepRecords) {
+                        // 記録を引き継ぐ場合は現在の期間に追加
+                        data.currentHypotheses[index].totalDays += additionalDays;
+                    } else {
+                        // 記録をリセットする場合
+                        data.currentHypotheses[index].totalDays = additionalDays;
+                        data.currentHypotheses[index].achievements = {};
+                        data.currentHypotheses[index].intensity = {};
+                        data.currentHypotheses[index].startDate = new Date().toISOString();
+                        // ステージもリセット
+                        delete data.currentHypotheses[index].currentStage;
+                    }
+                }
+                
+                // 習慣モードフラグを設定
+                data.currentHypotheses[index].habitMode = asHabit;
+                data.currentHypotheses[index].continuedAt = new Date().toISOString();
+                data.currentHypotheses[index].isContinuation = true;
+                
+                // カード獲得フラグをリセット（新しい期間でカードを獲得できるように）
+                delete data.currentHypotheses[index].cardsAcquired;
+                delete data.currentHypotheses[index].finalAchievementRate;
+                
+                saveData(data);
+                
+                window.currentHypothesis = data.currentHypotheses[index];
+                updateCalendar();
+                updateProgress();
+                
+                // モーダルを閉じる
+                document.querySelector('.overlay').remove();
+                
+                // 完了オプションを非表示にして、通常の進捗画面に戻る
+                document.getElementById('completion-options').style.display = 'none';
+                document.getElementById('completion-report-section').style.display = 'none';
+                
+                // 成功メッセージ
+                const message = duration === 'unlimited' 
+                    ? '✨ 習慣として無期限で継続します！'
+                    : `✨ 習慣として${duration}日間継続します！`;
+                showNotification(message, 'success');
+                
+                // 習慣モードの場合、現在のステージを表示
+                if (asHabit) {
+                    const stage = window.calculateHabitStage(window.currentHypothesis);
+                    if (stage) {
+                        setTimeout(() => {
+                            showCardEffect(
+                                `現在のステージ: ${stage.name}`,
+                                stage.description,
+                                stage.color
+                            );
+                        }, 1000);
+                    }
+                }
+            }
+        }
+
+        // 修正して継続
+        function modifyAndContinue() {
+            // 修正オプションを表示するモーダル
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay active';
+            const modal = document.createElement('div');
+            modal.className = 'skip-modal active';
+            modal.style.width = '90%';
+            modal.style.maxWidth = '500px';
+            modal.innerHTML = `
+                <div class="modal-header">
+                    <h3>✏️ 習慣内容を修正して継続</h3>
+                    <p>習慣の内容を調整できます</p>
+                </div>
+                <div class="form-group" style="margin: 20px 0;">
+                    <label>習慣名</label>
+                    <input type="text" id="modify-title" value="${window.currentHypothesis.title}" 
+                           style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
+                </div>
+                <div class="form-group" style="margin: 20px 0;">
+                    <label>説明</label>
+                    <textarea id="modify-description" rows="3" 
+                              style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border);">${window.currentHypothesis.description}</textarea>
+                </div>
+                <div class="form-group" style="margin: 20px 0;">
+                    <label>継続期間</label>
+                    <select id="modify-duration" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
+                        <option value="30">30日間</option>
+                        <option value="60">60日間</option>
+                        <option value="90" selected>90日間（黄金の習慣まで）</option>
+                        <option value="180">180日間（半年）</option>
+                        <option value="365">365日間（1年）</option>
+                        <option value="unlimited">無期限</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin: 20px 0;">
+                    <label>
+                        <input type="checkbox" id="modify-keep-records" checked> 
+                        これまでの記録を引き継ぐ
+                    </label>
+                </div>
+                <div style="padding: 12px; background: var(--surface); border-radius: 8px; margin: 16px 0;">
+                    <p style="font-size: 12px; color: var(--text-secondary); margin: 0;">
+                        💡 習慣の内容を変更しても、これまでの達成記録とステージは保持されます。
+                        新しい目標に向けて、現在の進捗から継続できます。
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button class="button secondary" onclick="this.closest('.overlay').remove()">キャンセル</button>
+                    <button class="button primary" onclick="confirmModifyAndContinue()">変更して継続</button>
+                </div>
+            `;
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+        }
+        
+        // 修正して継続を確定
+        function confirmModifyAndContinue() {
+            const data = loadData();
+            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            
+            if (index !== -1) {
+                const newTitle = document.getElementById('modify-title').value.trim();
+                const newDescription = document.getElementById('modify-description').value.trim();
+                const duration = document.getElementById('modify-duration').value;
+                const keepRecords = document.getElementById('modify-keep-records').checked;
+                
+                if (!newTitle) {
+                    alert('習慣名を入力してください');
+                    return;
+                }
+                
+                // タイトルと説明を更新
+                data.currentHypotheses[index].title = newTitle;
+                data.currentHypotheses[index].description = newDescription;
+                
+                // 修正履歴を記録
+                if (!data.currentHypotheses[index].modificationHistory) {
+                    data.currentHypotheses[index].modificationHistory = [];
+                }
+                data.currentHypotheses[index].modificationHistory.push({
+                    date: new Date().toISOString(),
+                    previousTitle: window.currentHypothesis.title,
+                    previousDescription: window.currentHypothesis.description,
+                    newTitle: newTitle,
+                    newDescription: newDescription
+                });
+                
+                // 期間を設定
+                if (duration === 'unlimited') {
+                    data.currentHypotheses[index].totalDays = 3650;
+                    data.currentHypotheses[index].isUnlimited = true;
+                } else {
+                    const additionalDays = parseInt(duration);
+                    if (keepRecords) {
+                        // 記録を引き継ぐ場合は現在の期間に追加
+                        data.currentHypotheses[index].totalDays += additionalDays;
+                    } else {
+                        // 記録をリセットする場合
+                        data.currentHypotheses[index].totalDays = additionalDays;
+                        data.currentHypotheses[index].achievements = {};
+                        data.currentHypotheses[index].intensity = {};
+                        data.currentHypotheses[index].startDate = new Date().toISOString();
+                        delete data.currentHypotheses[index].currentStage;
+                    }
+                }
+                
+                // 習慣モードと継続フラグを設定
+                data.currentHypotheses[index].habitMode = true;
+                data.currentHypotheses[index].modifiedAt = new Date().toISOString();
+                data.currentHypotheses[index].isContinuation = true;
+                
+                // カード獲得フラグをリセット
+                delete data.currentHypotheses[index].cardsAcquired;
+                delete data.currentHypotheses[index].finalAchievementRate;
+                
+                saveData(data);
+                
+                window.currentHypothesis = data.currentHypotheses[index];
+                updateCalendar();
+                updateProgress();
+                
+                // モーダルを閉じる
+                document.querySelector('.overlay').remove();
+                
+                // 完了オプションを非表示にして、通常の進捗画面に戻る
+                document.getElementById('completion-options').style.display = 'none';
+                document.getElementById('completion-report-section').style.display = 'none';
+                
+                // 成功メッセージ
+                showNotification(`✨ 「${newTitle}」として継続します！`, 'success');
+                
+                // 現在のステージを表示
+                const stage = window.calculateHabitStage(window.currentHypothesis);
+                if (stage) {
+                    setTimeout(() => {
+                        showCardEffect(
+                            `現在のステージ: ${stage.name}`,
+                            stage.description,
+                            stage.color
+                        );
+                    }, 1000);
+                }
+            }
+        }
+
+        // 習慣を完了
+        function completeHypothesis(showHome = true) {
+            // completeHypothesis
+            
+            const data = loadData();
+            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            
+            // index for current hypothesis
+            
+            if (index !== -1) {
+                const hypothesis = data.currentHypotheses[index];
+                hypothesis.completedDate = new Date().toISOString();
+                
+                // finalAchievementRateが設定されていない場合のみ計算（通常はshowCompletionOptionsで設定済み）
+                if (!hypothesis.finalAchievementRate && hypothesis.finalAchievementRate !== 0) {
+                    const achievedDays = Object.keys(hypothesis.achievements || {}).length;
+                    const targetDays = getTargetDaysForHypothesis(hypothesis);
+                    let finalRate = targetDays > 0 ? Math.round((achievedDays / targetDays) * 100) : 0;
+
+                    // 達成率減少ペナルティの適用
+                    if (hypothesis.achievementDecrease) {
+                        finalRate = Math.max(0, finalRate - hypothesis.achievementDecrease);
+                    }
+                    
+                    hypothesis.finalAchievementRate = finalRate;
+                }
+                
+                // ダブルオアナッシングが有効かチェック
+                let hasDoubleOrNothing = false;
+                if (data.cards && data.cards.activeEffects) {
+                    hasDoubleOrNothing = data.cards.activeEffects.some(effect => 
+                        effect.cardId === 'double_or_nothing'
+                    );
+                }
+                
+                // ダブルオアナッシングの効果を適用
+                if (hasDoubleOrNothing && hypothesis.finalAchievementRate < 100) {
+                    // 100%未満の場合はペナルティカードを2枚付与
+                    const penaltyCards = ['extension_card', 'short_term', 'achievement_decrease', 'hard_mode', 'reset_risk'];
+                    
+                    for (let i = 0; i < 2; i++) {
+                        const randomCard = penaltyCards[Math.floor(Math.random() * penaltyCards.length)];
+                        data.cards.pendingPenalties.push({
+                            cardId: randomCard,
+                            acquiredDate: new Date().toISOString()
+                        });
+                    }
+                    
+                    // ダブルオアナッシングを消費
+                    data.cards.activeEffects = data.cards.activeEffects.filter(effect =>
+                        effect.cardId !== 'double_or_nothing'
+                    );
+                    
+                    // エフェクトを表示
+                    setTimeout(() => {
+                        showCardEffect('ダブルオアナッシング発動！', '100%未満のため、ペナルティカードを2枚獲得...', '#ef4444');
+                    }, 500);
+                }
+                
+                // 完了リストに追加
+                data.completedHypotheses.push(hypothesis);
+                
+                // 現在のリストから削除
+                data.currentHypotheses.splice(index, 1);
+                
+                saveData(data);
+                
+                if (showHome) {
+                    showNotification('✅ 習慣の検証が完了しました！', 'success');
+                    showHomeView();
+                }
+            }
+        }
+
+        // 達成率に基づいてカードを取得
+        function getCardsBasedOnAchievement(achievementRate, hypothesis) {
+            const cards = [];
+            const data = loadData();
+            
+            // ハードモードの場合、90%未満はカードなし
+            if (hypothesis && hypothesis.hardMode && achievementRate < 90) {
+                return cards; // 空の配列を返す
+            }
+            
+            // 習慣の期間からレアリティボーナスを計算
+            const getDurationBonus = (days) => {
+                if (days >= 30) return 0.4;  // 長期（30日以上）：レア率+40%
+                if (days >= 21) return 0.25; // 中長期（21-29日）：レア率+25%
+                if (days >= 14) return 0.15; // 中期（14-20日）：レア率+15%
+                if (days >= 7) return 0.05;  // 短中期（7-13日）：レア率+5%
+                return 0;                     // 短期（6日以下）：ボーナスなし
+            };
+            
+            const durationBonus = hypothesis ? getDurationBonus(hypothesis.totalDays) : 0;
+            
+            // デバッグ用：期間ボーナスをコンソールに出力
+            if (hypothesis) {
+                console.log(`習慣期間: ${hypothesis.totalDays}日, 期間ボーナス: +${(durationBonus * 100).toFixed(0)}%`);
+            }
+            
+            // パーフェクトボーナスが有効かチェック
+            let hasPerfectBonus = false;
+            if (data.cards && data.cards.activeEffects) {
+                hasPerfectBonus = data.cards.activeEffects.some(effect => 
+                    effect.cardId === 'perfect_bonus' && !effect.targetHypothesisId
+                );
+            }
+            // サプライズブーストは廃止
+            
+            // ドロップ率ブースト（Lucky Seven）
+            let dropMultiplier = 1.0;
+            if (data.cards && data.cards.activeEffects) {
+                const dropBoost = data.cards.activeEffects.find(e => e.cardId === 'lucky_seven');
+                if (dropBoost && dropBoost.multiplier) {
+                    dropMultiplier = Math.max(1.0, Number(dropBoost.multiplier) || 1.0);
+                }
+            }
+
+            // レア保証（Streak Bonus）
+            let hasStreakGuarantee = false;
+            if (data.cards && data.cards.activeEffects) {
+                hasStreakGuarantee = data.cards.activeEffects.some(e => e.cardId === 'streak_bonus' || e.type === 'streak_rare_guarantee');
+            }
+
+            if (achievementRate === 100) {
+                // 報酬カード（全報酬カードから等確率で1枚）
+                const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start','second_chance','protect_shield']);
+                const rewardPoolBase = Object.keys(CARD_MASTER).filter(id => CARD_MASTER[id].type === 'reward' && !DISABLED_CARDS.has(id));
+                
+                // 直近10回の報酬カードのみをブロック（ペナルティカードは含めない）
+                const history = (data.cards && Array.isArray(data.cards.dropHistory)) ? data.cards.dropHistory : [];
+                const recentRewards = history.filter(cardId => {
+                    const card = CARD_MASTER[cardId];
+                    return card && card.type === 'reward';
+                }).slice(0, 10);
+                const blocked = new Set(recentRewards);
+                
+                let rewardPool = rewardPoolBase.filter(id => !blocked.has(id));
+                if (rewardPool.length === 0) {
+                    // 全除外時は、最も古いカードから順に解禁
+                    const oldestBlocked = recentRewards[recentRewards.length - 1];
+                    rewardPool = rewardPoolBase.filter(id => id !== oldestBlocked);
+                    if (rewardPool.length === 0) rewardPool = rewardPoolBase;
+                }
+                
+                if (rewardPool.length > 0) {
+                    const pick = rewardPool[Math.floor(Math.random() * rewardPool.length)];
+                    cards.push(pick);
+                }
+                // パーフェクトボーナスが有効なら追加で1枚（同様に等確率）
+                if (hasPerfectBonus) {
+                    // 1枚目と被らないように再フィルタ
+                    let extraPool = rewardPool.filter(id => !cards.includes(id));
+                    if (extraPool.length === 0) extraPool = rewardPool;
+                    if (extraPool.length > 0) {
+                        const extra = extraPool[Math.floor(Math.random() * extraPool.length)];
+                        cards.push(extra);
+                    }
+                    data.cards.activeEffects = (data.cards.activeEffects || []).filter(e => e.cardId !== 'perfect_bonus');
+                    saveData(data);
+                    setTimeout(() => {
+                        showCardEffect('パーフェクトボーナス発動！', '追加で報酬カードを1枚獲得！', '#f59e0b');
+                    }, 300);
+                }
+            } else if (achievementRate >= 80) {
+                // 80-99%: 報酬カードを等確率で1枚
+                const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start','second_chance','protect_shield']);
+                const rewardPoolBase = Object.keys(CARD_MASTER).filter(id => CARD_MASTER[id].type === 'reward' && !DISABLED_CARDS.has(id));
+                
+                // 直近10回の報酬カードのみをブロック（ペナルティカードは含めない）
+                const history = (data.cards && Array.isArray(data.cards.dropHistory)) ? data.cards.dropHistory : [];
+                const recentRewards = history.filter(cardId => {
+                    const card = CARD_MASTER[cardId];
+                    return card && card.type === 'reward';
+                }).slice(0, 10);
+                const blocked = new Set(recentRewards);
+                
+                let rewardPool = rewardPoolBase.filter(id => !blocked.has(id));
+                if (rewardPool.length === 0) {
+                    // 全除外時は、最も古いカードから順に解禁
+                    const oldestBlocked = recentRewards[recentRewards.length - 1];
+                    rewardPool = rewardPoolBase.filter(id => id !== oldestBlocked);
+                    if (rewardPool.length === 0) rewardPool = rewardPoolBase;
+                }
+                
+                if (rewardPool.length > 0) {
+                    const pick = rewardPool[Math.floor(Math.random() * rewardPool.length)];
+                    cards.push(pick);
+                }
+            } else if (achievementRate < 60) {
+                // 59%以下: ペナルティカードを等確率で1枚
+                const penaltyPool = Object.keys(CARD_MASTER).filter(id => CARD_MASTER[id].type === 'penalty');
+                if (penaltyPool.length > 0) {
+                    const pick = penaltyPool[Math.floor(Math.random() * penaltyPool.length)];
+                    cards.push(pick);
+                }
+            }
+            // 60-79%は何も獲得しない（サプライズブーストは廃止）
+            
+            return cards;
+        }
+
+        // サプライズブースト関連の機能は廃止
+
+        // 履歴画面を表示
+        function showHistoryView() {
+            resetScrollToTop();
+            document.getElementById('home-view').style.display = 'none';
+            document.getElementById('new-hypothesis-view').style.display = 'none';
+            document.getElementById('shuffle-view').style.display = 'none';
+            document.getElementById('progress-view').style.display = 'none';
+            document.getElementById('history-view').style.display = 'block';
+            document.getElementById('stats-view').style.display = 'none';
+            document.getElementById('points-view').style.display = 'none';
+            document.getElementById('cards-view').style.display = 'none';
+            
+            updateNavigation('history');
+            
+            // 履歴画面ではヘッダーのポイント表示を再表示
+            const pointDisplay = document.getElementById('point-display');
+            if (pointDisplay) {
+                pointDisplay.style.display = 'flex';
+            }
+            
+            const data = loadData();
+            const historyList = document.getElementById('history-list');
+            historyList.innerHTML = '';
+            
+            if (data.completedHypotheses.length === 0) {
+                historyList.innerHTML = '<p style="color: var(--text-secondary);">完了した習慣はまだありません</p>';
+                return;
+            }
+            
+            // 新しい順に表示
+            const sortedHistory = [...data.completedHypotheses].reverse();
+            
+            sortedHistory.forEach(hypothesis => {
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                
+                const completedDate = new Date(hypothesis.completedDate);
+                const dateStr = completedDate.toLocaleDateString('ja-JP');
+                
+                item.innerHTML = `
+                    <div class="history-info">
+                        <h4>${escapeHTML(hypothesis.title)}</h4>
+                        <div class="history-meta">
+                            完了日: ${dateStr} | 期間: ${hypothesis.totalDays}日間
+                        </div>
+                    </div>
+                    <div class="achievement-badge">
+                        ${hypothesis.finalAchievementRate}%
+                    </div>
+                `;
+                
+                // ダブルクリックで削除
+                item.ondblclick = () => {
+                    if (confirm('この履歴を削除しますか？')) {
+                        const newData = loadData();
+                        newData.completedHypotheses = newData.completedHypotheses.filter(h => h.id !== hypothesis.id);
+                        saveData(newData);
+                        showHistoryView();
+                    }
+                };
+                
+                historyList.appendChild(item);
+            });
+        }
+
+        // 統計画面を表示
+        function showStatsView() {
+            resetScrollToTop();
+            document.getElementById('home-view').style.display = 'none';
+            document.getElementById('new-hypothesis-view').style.display = 'none';
+            document.getElementById('shuffle-view').style.display = 'none';
+            document.getElementById('progress-view').style.display = 'none';
+            document.getElementById('history-view').style.display = 'none';
+            document.getElementById('stats-view').style.display = 'block';
+            document.getElementById('points-view').style.display = 'none';
+            document.getElementById('cards-view').style.display = 'none';
+            
+            // 統計画面のすべてのトグルを閉じる
+            closeAllStatToggles();
+            
+            updateNavigation('stats');
+            
+            // 統計画面ではヘッダーのポイント表示を再表示
+            const pointDisplay = document.getElementById('point-display');
+            if (pointDisplay) {
+                pointDisplay.style.display = 'flex';
+            }
+            
+            // チャレンジ統計を更新
+            updateChallengeStats();
+            
+            // ジャーナル統計を更新
+            updateJournalStats();
+            
+            const data = loadData();
+            const totalHypotheses = data.currentHypotheses.length + data.completedHypotheses.length;
+            let totalAchievement = 0; // 習慣平均用
+            let uniqueDates = new Set();
+            let weightedAchieved = 0; // 全体重み付き達成の合計
+
+            const today = new Date();
+            today.setHours(0,0,0,0);
+
+            const all = [...data.currentHypotheses, ...data.completedHypotheses];
+            all.forEach(hypothesis => {
+                const start = new Date(hypothesis.startDate);
+                start.setHours(0,0,0,0);
+                const theoreticalEnd = new Date(start);
+                theoreticalEnd.setDate(start.getDate() + (hypothesis.totalDays || 0) - 1);
+                const end = hypothesis.completedDate ? new Date(hypothesis.completedDate) : today;
+                end.setHours(0,0,0,0);
+                const last = theoreticalEnd < end ? theoreticalEnd : end;
+
+                // ユニーク日を収集
+                for (let d = new Date(start); d <= last; d.setDate(d.getDate() + 1)) {
+                    uniqueDates.add(dateKeyLocal(d));
+                }
+
+                // 重み付き達成の集計
+                const intensity = hypothesis.intensity || {};
+                const achievements = hypothesis.achievements || {};
+                Object.keys(achievements).forEach(key => {
+                    const kd = new Date(key);
+                    kd.setHours(0,0,0,0);
+                    if (kd >= start && kd <= last) {
+                        const mult = Number(intensity[key] ?? 1.0);
+                        weightedAchieved += mult;
+                    }
+                });
+
+                // 習慣ごとの平均達成率（表示用に継続）
+                const timeDiff = Math.min(last.getTime(), today.getTime()) - start.getTime();
+                const daysPassed = Math.min(
+                    Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1),
+                    hypothesis.totalDays || 0
+                );
+                const achievedDays = Object.keys(achievements).length;
+                const achievementRate = daysPassed > 0 ? Math.round((achievedDays / daysPassed) * 100) : 0;
+                totalAchievement += achievementRate;
+            });
+
+            const totalDaysUnique = uniqueDates.size;
+            const avgAchievement = totalHypotheses > 0 ? Math.round(totalAchievement / totalHypotheses) : 0;
+            document.getElementById('total-hypotheses').textContent = totalHypotheses;
+            document.getElementById('avg-achievement').textContent = avgAchievement + '%';
+            document.getElementById('total-days').textContent = totalDaysUnique;
+            const wa = document.getElementById('weighted-achieved');
+            if (wa) wa.textContent = (Math.round(weightedAchieved * 10) / 10).toString();
+
+            // 習慣成長ステージの計算関数
+            function calculateHabitStage(hypothesis) {
+                if (!hypothesis || !hypothesis.achievements) return null;
+                
+                const start = new Date(hypothesis.startDate);
+                start.setHours(0, 0, 0, 0);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                
+                // 達成日数の計算
+                const achievedDays = Object.keys(hypothesis.achievements).length;
+                
+                // 連続達成日数の計算
+                const streak = computeStreak(hypothesis);
+                
+                // 週単位での達成数を計算（週◯回や特定曜日の場合）
+                let achievedWeeks = 0;
+                if (hypothesis.frequency && (hypothesis.frequency.type === 'weekly' || hypothesis.frequency.type === 'weekdays')) {
+                    const weeks = Math.ceil((today - start) / (7 * 24 * 60 * 60 * 1000));
+                    for (let w = 0; w < weeks; w++) {
+                        const weekStart = new Date(start);
+                        weekStart.setDate(start.getDate() + w * 7);
+                        const weekEnd = new Date(weekStart);
+                        weekEnd.setDate(weekStart.getDate() + 6);
+                        
+                        let weekAchievements = 0;
+                        for (let d = new Date(weekStart); d <= weekEnd && d <= today; d.setDate(d.getDate() + 1)) {
+                            const key = dateKeyLocal(d);
+                            if (hypothesis.achievements[key]) weekAchievements++;
+                        }
+                        
+                        if (hypothesis.frequency.type === 'weekly' && weekAchievements >= hypothesis.frequency.count) {
+                            achievedWeeks++;
+                        } else if (hypothesis.frequency.type === 'weekdays') {
+                            const targetDaysInWeek = hypothesis.frequency.weekdays.filter(wd => {
+                                for (let d = new Date(weekStart); d <= weekEnd && d <= today; d.setDate(d.getDate() + 1)) {
+                                    if (d.getDay() === wd) return true;
+                                }
+                                return false;
+                            }).length;
+                            if (targetDaysInWeek > 0 && weekAchievements >= targetDaysInWeek * 0.8) {
+                                achievedWeeks++;
+                            }
+                        }
+                    }
+                }
+                
+                // 基本スコアの計算
+                let baseScore = achievedDays;
+                if (hypothesis.frequency) {
+                    if (hypothesis.frequency.type === 'weekly' || hypothesis.frequency.type === 'weekdays') {
+                        baseScore = achievedWeeks * 7; // 週単位を日数換算
+                    }
+                }
+                
+                // 連続ボーナスの計算（1.0～2.0）
+                let continuityBonus = 1.0;
+                if (streak >= 90) {
+                    continuityBonus = 2.0;
+                } else if (streak >= 60) {
+                    continuityBonus = 1.7;
+                } else if (streak >= 30) {
+                    continuityBonus = 1.5;
+                } else if (streak >= 14) {
+                    continuityBonus = 1.3;
+                } else if (streak >= 7) {
+                    continuityBonus = 1.1;
+                }
+                
+                // 途切れペナルティ
+                const totalDays = Math.floor((today - start) / (24 * 60 * 60 * 1000)) + 1;
+                const achievementRate = achievedDays / totalDays;
+                if (achievementRate < 0.5 && totalDays > 7) {
+                    continuityBonus *= 0.8;
+                }
+                
+                // 最終スコア
+                const finalScore = Math.floor(baseScore * continuityBonus);
+                
+                // ステージ判定
+                const stages = [
+                    { name: '🌱 種まき期', minScore: 0, maxScore: 7, color: '#6b7280', description: '習慣の種を植えた段階' },
+                    { name: '🌿 発芽期', minScore: 8, maxScore: 14, color: '#10b981', description: '小さな芽が出てきた' },
+                    { name: '🍀 成長期', minScore: 15, maxScore: 30, color: '#3b82f6', description: '葉が増えて成長中' },
+                    { name: '🌳 定着期', minScore: 31, maxScore: 60, color: '#8b5cf6', description: 'しっかりとした木に成長' },
+                    { name: '🌸 開花期', minScore: 61, maxScore: 90, color: '#f59e0b', description: '花が咲き始める' },
+                    { name: '🍎 収穫期', minScore: 91, maxScore: 120, color: '#ef4444', description: '実がなり収穫できる' },
+                    { name: '👑 黄金の習慣', minScore: 121, maxScore: 999999, color: '#fbbf24', description: '完全に身についた習慣' }
+                ];
+                
+                // 特別条件：連続90日以上かつ達成率90%以上で黄金の習慣
+                if (streak >= 90 && achievementRate >= 0.9) {
+                    return stages[6]; // 黄金の習慣
+                }
+                
+                for (const stage of stages) {
+                    if (finalScore >= stage.minScore && finalScore <= stage.maxScore) {
+                        return { ...stage, score: finalScore, streak, achievementRate: Math.round(achievementRate * 100) };
+                    }
+                }
+                
+                return stages[0]; // デフォルトは種まき期
+            }
+            
+            // 習慣成長ステージ分布
+            const stageDistribution = {};
+            const stages = [
+                '🌱 種まき期',
+                '🌿 発芽期',
+                '🍀 成長期',
+                '🌳 定着期',
+                '🌸 開花期',
+                '🍎 収穫期',
+                '👑 黄金の習慣'
+            ];
+            
+            stages.forEach(stage => {
+                stageDistribution[stage] = 0;
+            });
+            
+            // 各習慣のステージを計算
+            all.forEach(h => {
+                const stage = calculateHabitStage(h);
+                if (stage) {
+                    stageDistribution[stage.name]++;
+                }
+            });
+            
+            const levelDiv = document.getElementById('achievement-level-distribution');
+            if (levelDiv) {
+                levelDiv.innerHTML = '';
+                const maxCount = Math.max(...Object.values(stageDistribution), 1);
+                
+                const stageConfigs = {
+                    '🌱 種まき期': { color: '#6b7280', description: '習慣の種を植えた段階' },
+                    '🌿 発芽期': { color: '#10b981', description: '小さな芽が出てきた' },
+                    '🍀 成長期': { color: '#3b82f6', description: '葉が増えて成長中' },
+                    '🌳 定着期': { color: '#8b5cf6', description: 'しっかりとした木に成長' },
+                    '🌸 開花期': { color: '#f59e0b', description: '花が咲き始める' },
+                    '🍎 収穫期': { color: '#ef4444', description: '実がなり収穫できる' },
+                    '👑 黄金の習慣': { color: '#fbbf24', description: '完全に身についた習慣' }
+                };
+                
+                stages.forEach(stageName => {
+                    const count = stageDistribution[stageName];
+                    const config = stageConfigs[stageName];
+                    const percentage = all.length > 0 ? Math.round((count / all.length) * 100) : 0;
+                    const barWidth = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                    
+                    const row = document.createElement('div');
+                    row.innerHTML = `
+                        <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+                            <div style="width:140px;">
+                                <div style="font-size:13px; font-weight:600;">${stageName}</div>
+                                <div style="font-size:10px; color:var(--text-secondary); margin-top:2px;">${config.description}</div>
+                            </div>
+                            <div style="flex:1; background:rgba(148,163,184,0.1); border-radius:4px; height:28px; position:relative;">
+                                <div style="position:absolute; left:0; top:0; height:100%; background:${config.color}; border-radius:4px; width:${barWidth}%; transition:width 0.3s;"></div>
+                                <div style="position:absolute; left:8px; top:50%; transform:translateY(-50%); font-size:11px; font-weight:600; color:white; text-shadow:0 1px 2px rgba(0,0,0,0.3);">
+                                    ${count}個 (${percentage}%)
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    levelDiv.appendChild(row);
+                });
+            }
+
+            // 曜日別達成率の計算と表示（毎日の習慣のみ）
+            const weekdayStats = {};
+            const weekdayNames = ['日', '月', '火', '水', '木', '金', '土'];
+            for (let i = 0; i < 7; i++) {
+                weekdayStats[i] = { achieved: 0, total: 0 };
+            }
+            
+            all.forEach(h => {
+                // 毎日の習慣のみを対象にする
+                // frequencyがない場合は従来の習慣なので毎日の習慣として扱う
+                const isDailyHabit = !h.frequency || h.frequency.type === 'daily';
+                
+                if (!isDailyHabit) {
+                    return; // 毎日の習慣でない場合はスキップ
+                }
+                
+                const start = new Date(h.startDate);
+                start.setHours(0, 0, 0, 0);
+                const endDate = h.completedDate ? new Date(h.completedDate) : new Date();
+                endDate.setHours(0, 0, 0, 0);
+                const periodEnd = new Date(start);
+                periodEnd.setDate(start.getDate() + h.totalDays - 1);
+                const actualEnd = endDate < periodEnd ? endDate : periodEnd;
+                
+                for (let d = new Date(start); d <= actualEnd && d <= today; d.setDate(d.getDate() + 1)) {
+                    const weekday = d.getDay();
+                    const key = dateKeyLocal(d);
+                    weekdayStats[weekday].total++;
+                    if (h.achievements && h.achievements[key]) {
+                        weekdayStats[weekday].achieved++;
+                    }
+                }
+            });
+            
+            const weekdayDiv = document.getElementById('weekday-stats');
+            if (weekdayDiv) {
+                weekdayDiv.innerHTML = '';
+                for (let i = 0; i < 7; i++) {
+                    const stats = weekdayStats[i];
+                    const rate = stats.total > 0 ? Math.round((stats.achieved / stats.total) * 100) : 0;
+                    const color = rate >= 80 ? '#10b981' : rate >= 50 ? '#3b82f6' : '#ef4444';
+                    
+                    const dayCard = document.createElement('div');
+                    dayCard.style.cssText = 'text-align:center; padding:8px 4px; background:rgba(99,102,241,0.1); border-radius:8px; min-width: 40px;';
+                    dayCard.innerHTML = `
+                        <div style="font-size:12px; font-weight:600; margin-bottom:2px;">${weekdayNames[i]}</div>
+                        <div style="font-size:18px; font-weight:800; color:${color};">${rate}%</div>
+                        <div style="font-size:9px; color:var(--text-secondary);">${stats.achieved}/${stats.total}</div>
+                    `;
+                    weekdayDiv.appendChild(dayCard);
+                }
+            }
+
+            // 強度ラベル使用割合のドーナツ（A/B/C分類）
+            const labelCounts = {};
+            const toFixed1 = (n) => (Math.round(Number(n) * 10) / 10).toFixed(1);
+            all.forEach(h => {
+                Object.keys(h.achievements||{}).forEach(key => {
+                    const m = Number((h.intensity||{})[key] ?? 1.0);
+                    // 強度値に基づいてA/B/Cに分類
+                    const label = m === 0.8 ? 'A' : m === 1.2 ? 'C' : 'B';
+                    labelCounts[label] = (labelCounts[label]||0) + 1;
+                });
+            });
+            const donut = document.getElementById('donut-intensity');
+            const legend = document.getElementById('donut-legend');
+            if (donut && legend) {
+                const total = Object.values(labelCounts).reduce((a,b)=>a+b,0) || 1;
+                const entries = Object.entries(labelCounts);
+                // SVGドーナツ描画
+                const cx=80, cy=80, r=60, sw=20;
+                let acc=0;
+                const colors = ['#10b981','#3b82f6','#f59e0b','#ef4444','#8b5cf6'];
+                donut.innerHTML='';
+                legend.innerHTML='';
+                entries.forEach(([label,count], idx)=>{
+                    const frac = count/total;
+                    const start = acc * 2*Math.PI - Math.PI/2;
+                    const end = (acc+frac) * 2*Math.PI - Math.PI/2;
+                    acc += frac;
+                    const large = (end-start) > Math.PI ? 1 : 0;
+                    const x1 = cx + r*Math.cos(start), y1 = cy + r*Math.sin(start);
+                    const x2 = cx + r*Math.cos(end),   y2 = cy + r*Math.sin(end);
+                    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+                    const d = `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`;
+                    path.setAttribute('d', d);
+                    path.setAttribute('fill','none');
+                    path.setAttribute('stroke', colors[idx%colors.length]);
+                    path.setAttribute('stroke-width', String(sw));
+                    donut.appendChild(path);
+                    // 凡例
+                    const row = document.createElement('div');
+                    row.innerHTML = `<span style="display:inline-block;width:10px;height:10px;background:${colors[idx%colors.length]};border-radius:2px;margin-right:6px;"></span>${escapeHTML(label)}: ${(Math.round(frac*100))}% (${count})`;
+                    legend.appendChild(row);
+                });
+                // 中央白ヌキ
+                const hole = document.createElementNS('http://www.w3.org/2000/svg','circle');
+                hole.setAttribute('cx', String(cx)); hole.setAttribute('cy', String(cy)); hole.setAttribute('r', String(r-sw/2));
+                hole.setAttribute('fill', 'var(--background)');
+                donut.appendChild(hole);
+            }
+
+            // 全習慣横断連続達成日数（任意の習慣で達成があれば達成日とみなす）
+            const dateMap = {};
+            all.forEach(h => {
+                Object.keys(h.achievements||{}).forEach(k => { dateMap[k] = true; });
+            });
+            const keys = Object.keys(dateMap).sort();
+            let longest=0, current=0;
+            // longest: 連続最大
+            let prev=null;
+            keys.forEach(k=>{
+                const d = new Date(k);
+                d.setHours(0,0,0,0);
+                if (prev){
+                    const diff = (d - prev)/(1000*60*60*24);
+                    current = (diff===1) ? (current+1) : 1;
+                } else {
+                    current = 1;
+                }
+                if (current>longest) longest=current;
+                prev = d;
+            });
+            // current: 今日から遡って
+            let cur=0; const d0=new Date(today);
+            for (let d=new Date(d0); ; d.setDate(d.getDate()-1)){
+                const k=dateKeyLocal(d);
+                if (dateMap[k]) cur+=1; else break;
+                if (d < new Date(keys[0]||today)) break; // 安全
+            }
+            const streakDiv = document.getElementById('streak-stats');
+            if (streakDiv){
+                streakDiv.innerHTML = `
+                    <div>現在の連続: <span style="color:#10b981;">${cur}日</span></div>
+                    <div>最長記録: <span style="color:#3b82f6;">${longest}日</span></div>
+                `;
+            }
+
+            // 習慣ランキングを初期表示
+            showAchievementRanking();
+            
+            // バッジコレクションを表示
+            displayBadgeCollection();
+            
+            // ポイント統計を表示
+            updatePointStatistics();
+            
+            // すべてのトグルを確実に閉じる
+            closeAllStatToggles();
+        }
+        
+        // 達成率ランキングを表示
+        function showAchievementRanking() {
+            const data = loadData();
+            const all = data.currentHypotheses.concat(data.completedHypotheses || []);
+            
+            // タブのスタイル更新
+            document.getElementById('ranking-achievement-tab').style.background = 'var(--primary)';
+            document.getElementById('ranking-achievement-tab').style.color = 'white';
+            document.getElementById('ranking-points-tab').style.background = 'var(--surface)';
+            document.getElementById('ranking-points-tab').style.color = 'var(--text-primary)';
+            document.getElementById('ranking-streak-tab').style.background = 'var(--surface)';
+            document.getElementById('ranking-streak-tab').style.color = 'var(--text-primary)';
+            
+            const ranking = all.map(h=>{
+                const s = new Date(h.startDate); s.setHours(0,0,0,0);
+                const intensity = h.intensity||{};
+                let weighted=0;
+                for (let i=0;i<(h.totalDays||0);i++){
+                    const d=new Date(s); d.setDate(s.getDate()+i);
+                    const k=dateKeyLocal(d);
+                    if ((h.achievements||{})[k]) weighted += Number(intensity[k] ?? 1.0);
+                }
+                const rate = (h.totalDays||0)>0 ? Math.floor(Math.min(100,(weighted/(h.totalDays))*100)) : 0;
+                return { id:h.id, title:h.title, rate, totalDays:h.totalDays||0 };
+            }).sort((a,b)=> b.rate - a.rate).slice(0,5);
+            
+            const rankDiv = document.getElementById('ranking-list');
+            if (rankDiv){
+                rankDiv.innerHTML = ranking.map((r,idx)=>`
+                    <div class="ranking-item" style="display:flex;justify-content:space-between;gap:12px;align-items:center;padding:8px;border:1px solid var(--border);border-radius:10px;background: ${
+                        idx === 0 ? 'linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1))' :
+                        idx === 1 ? 'linear-gradient(135deg, rgba(192, 192, 192, 0.1), rgba(128, 128, 128, 0.1))' :
+                        idx === 2 ? 'linear-gradient(135deg, rgba(205, 127, 50, 0.1), rgba(165, 87, 10, 0.1))' :
+                        'rgba(0,0,0,0.1)'
+                    };">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 20px;">${idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx+1}`}</span>
+                            <span>${escapeHTML(r.title||'Untitled')}</span>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 14px; font-weight: bold; color: #10b981;">${r.rate}%</div>
+                            <div style="font-size: 10px; color: var(--text-secondary);">${r.totalDays}日間</div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+        
+        // ポイントランキングを表示
+        function showPointsRanking() {
+            const data = loadData();
+            const all = data.currentHypotheses.concat(data.completedHypotheses || []);
+            
+            // タブのスタイル更新
+            document.getElementById('ranking-achievement-tab').style.background = 'var(--surface)';
+            document.getElementById('ranking-achievement-tab').style.color = 'var(--text-primary)';
+            document.getElementById('ranking-points-tab').style.background = 'var(--primary)';
+            document.getElementById('ranking-points-tab').style.color = 'white';
+            document.getElementById('ranking-streak-tab').style.background = 'var(--surface)';
+            document.getElementById('ranking-streak-tab').style.color = 'var(--text-primary)';
+            
+            // 習慣のポイント集計用オブジェクト
+            const habitPoints = {};
+            
+            // 各習慣の初期化とカレンダーベースのポイント計算
+            all.forEach(h => {
+                habitPoints[h.id] = {
+                    id: h.id,
+                    title: h.title,
+                    totalPoints: 0,
+                    achievementCount: 0,
+                    bonusPoints: 0,
+                    averagePoints: 0,
+                    recentHistory: []
+                };
+                
+                // まず、カレンダー（logs）から基本ポイントを計算
+                if (h.logs) {
+                    Object.entries(h.logs).forEach(([dateKey, log]) => {
+                        if (log.completed) {
+                            // 基本ポイント値（デフォルト2pt）
+                            const basePointValue = h.pointValue || 2;
+                            // 強度による調整
+                            const intensity = log.intensity || 1.0;
+                            const points = Math.round(basePointValue * intensity);
+                            
+                            habitPoints[h.id].totalPoints += points;
+                            habitPoints[h.id].achievementCount++;
+                        }
+                    });
+                }
+                
+                // 旧形式のachievementsからもポイントを計算（後方互換性）
+                if (h.achievements) {
+                    Object.entries(h.achievements).forEach(([dateKey, achieved]) => {
+                        // logsに存在しない場合のみ加算（重複防止）
+                        if (achieved && (!h.logs || !h.logs[dateKey])) {
+                            const basePointValue = h.pointValue || 2;
+                            habitPoints[h.id].totalPoints += basePointValue;
+                            habitPoints[h.id].achievementCount++;
+                        }
+                    });
+                }
+            });
+            
+            // トランザクションから最近の履歴とボーナスポイントを取得（追加分として）
+            if (data.pointSystem && data.pointSystem.transactions) {
+                // 日付と習慣ごとのトランザクション履歴を管理
+                const transactionHistory = {};
+                
+                data.pointSystem.transactions.forEach(t => {
+                    if (t.source === 'habit' && t.type === 'earn') {
+                        // habitIdがある場合はそれを使用、なければdescriptionから習慣名を抽出
+                        let targetHabitId = t.habitId;
+                        
+                        if (!targetHabitId && t.description) {
+                            // 「習慣名 達成」または「習慣名 取り消し」からタイトルを抽出
+                            const match = t.description.match(/(.+?)\s+(達成|取り消し)/);
+                            if (match) {
+                                const habitTitle = match[1].trim();
+                                const habit = all.find(h => h.title === habitTitle);
+                                if (habit) {
+                                    targetHabitId = habit.id;
+                                }
+                            }
+                        }
+                        
+                        if (targetHabitId && habitPoints[targetHabitId]) {
+                            // タイムスタンプから日付キーを生成
+                            const date = new Date(t.timestamp);
+                            const dateKey = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+                            const key = `${targetHabitId}_${dateKey}`;
+                            
+                            // トランザクション履歴を記録
+                            if (!transactionHistory[key]) {
+                                transactionHistory[key] = [];
+                            }
+                            transactionHistory[key].push(t);
+                        }
+                    }
+                });
+                
+                // 各トランザクションから最近の履歴とボーナスポイントを抽出
+                Object.entries(transactionHistory).forEach(([key, transactions]) => {
+                    // トランザクションを時系列順にソート
+                    transactions.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                    
+                    // 最後のトランザクションの状態を確認
+                    const lastTransaction = transactions[transactions.length - 1];
+                    const [habitId] = key.split('_');
+                    
+                    // 取り消しされていない場合のみ履歴に追加
+                    if (!lastTransaction.description.includes('取り消し') && habitPoints[habitId]) {
+                        const points = lastTransaction.finalAmount || lastTransaction.amount || lastTransaction.points || 0;
+                        
+                        // 最近の履歴に追加（表示用）
+                        if (points > 0) {
+                            habitPoints[habitId].recentHistory.push({
+                                timestamp: lastTransaction.timestamp,
+                                amount: points,
+                                description: lastTransaction.description,
+                                multiplier: lastTransaction.multiplier || 1
+                            });
+                            
+                            // ボーナスポイントの計算（連続ボーナスなど）
+                            if (lastTransaction.multiplier && lastTransaction.multiplier > 1) {
+                                const baseAmount = lastTransaction.amount || Math.floor(points / lastTransaction.multiplier);
+                                const bonus = points - baseAmount;
+                                habitPoints[habitId].bonusPoints += bonus;
+                                // ボーナス分を合計に追加
+                                habitPoints[habitId].totalPoints += bonus;
+                            }
+                        }
+                    }
+                });
+                
+                // 各習慣の履歴を時系列順（新しい順）にソート
+                Object.values(habitPoints).forEach(h => {
+                    h.recentHistory.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    // 最新5件のみ保持
+                    h.recentHistory = h.recentHistory.slice(0, 5);
+                });
+            }
+            
+            // 平均ポイントを計算してソート
+            const ranking = Object.values(habitPoints)
+                .map(h => {
+                    h.averagePoints = h.achievementCount > 0 ? 
+                        Math.round(h.totalPoints / h.achievementCount * 10) / 10 : 0;
+                    return h;
+                })
+                .filter(h => h.totalPoints > 0)
+                .sort((a, b) => b.totalPoints - a.totalPoints)
+                .slice(0, 5);
+            
+            const rankDiv = document.getElementById('ranking-list');
+            if (rankDiv){
+                if (ranking.length === 0) {
+                    rankDiv.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 20px;">まだポイント獲得履歴がありません</div>';
+                } else {
+                    rankDiv.innerHTML = ranking.map((r,idx)=>{
+                        // この習慣の最近のポイント履歴を取得（最新3件）
+                        const recentPoints = r.recentHistory.slice(0, 3);
+                        let historyHtml = '';
+                        if (recentPoints.length > 0) {
+                            historyHtml = `
+                                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 10px;">
+                                    <div style="color: var(--text-secondary); margin-bottom: 4px;">最近の獲得:</div>
+                                    ${recentPoints.map(p => {
+                                        const date = new Date(p.timestamp);
+                                        const dateStr = `${date.getMonth()+1}/${date.getDate()}`;
+                                        return `<div style="display: flex; justify-content: space-between; padding: 2px 0;">
+                                            <span style="color: var(--text-secondary);">${dateStr}</span>
+                                            <span style="color: #10b981;">+${p.amount}pt</span>
+                                        </div>`;
+                                    }).join('')}
+                                </div>
+                            `;
+                        }
+                        
+                        return `
+                        <div class="ranking-item" style="padding:8px;border:1px solid var(--border);border-radius:10px;background: ${
+                            idx === 0 ? 'linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1))' :
+                            idx === 1 ? 'linear-gradient(135deg, rgba(192, 192, 192, 0.1), rgba(128, 128, 128, 0.1))' :
+                            idx === 2 ? 'linear-gradient(135deg, rgba(205, 127, 50, 0.1), rgba(165, 87, 10, 0.1))' :
+                            'rgba(0,0,0,0.1)'
+                        };">
+                            <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="font-size: 20px;">${idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx+1}`}</span>
+                                    <div>
+                                        <div>${escapeHTML(r.title||'Untitled')}</div>
+                                        <div style="font-size: 10px; color: var(--text-secondary);">
+                                            ${r.achievementCount}回達成 · 平均${r.averagePoints}pt
+                                            ${r.bonusPoints > 0 ? ` · 🚀+${r.bonusPoints}pt` : ''}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div style="font-size: 16px; font-weight: bold; color: #fbbf24;">${r.totalPoints}pt</div>
+                                </div>
+                            </div>
+                            ${historyHtml}
+                        </div>
+                    `}).join('');
+                }
+            }
+        }
+        
+        // 連続ランキングを表示
+        function showStreakRanking() {
+            const data = loadData();
+            const all = data.currentHypotheses.concat(data.completedHypotheses || []);
+            
+            // タブのスタイル更新
+            document.getElementById('ranking-achievement-tab').style.background = 'var(--surface)';
+            document.getElementById('ranking-achievement-tab').style.color = 'var(--text-primary)';
+            document.getElementById('ranking-points-tab').style.background = 'var(--surface)';
+            document.getElementById('ranking-points-tab').style.color = 'var(--text-primary)';
+            document.getElementById('ranking-streak-tab').style.background = 'var(--primary)';
+            document.getElementById('ranking-streak-tab').style.color = 'white';
+            
+            // 各習慣の連続日数を計算
+            const ranking = all.map(h => {
+                let currentStreak = 0;
+                let longestStreak = 0;
+                let tempStreak = 0;
+                const today = new Date();
+                
+                // 過去60日間をチェック
+                for (let i = 59; i >= 0; i--) {
+                    const date = new Date(today);
+                    date.setDate(date.getDate() - i);
+                    const dateKey = dateKeyLocal(date);
+                    
+                    if ((h.achievements || {})[dateKey]) {
+                        tempStreak++;
+                        if (i === 0) currentStreak = tempStreak; // 今日まで続いている
+                    } else {
+                        if (tempStreak > longestStreak) {
+                            longestStreak = tempStreak;
+                        }
+                        if (i === 0) currentStreak = 0; // 今日は達成していない
+                        tempStreak = 0;
+                    }
+                }
+                
+                if (tempStreak > longestStreak) {
+                    longestStreak = tempStreak;
+                }
+                
+                // 昨日までの連続を確認
+                if (currentStreak === 0) {
+                    const yesterday = new Date(today);
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    const yesterdayKey = dateKeyLocal(yesterday);
+                    
+                    if ((h.achievements || {})[yesterdayKey]) {
+                        // 昨日までの連続を数える
+                        for (let i = 1; i <= 60; i++) {
+                            const date = new Date(today);
+                            date.setDate(date.getDate() - i);
+                            const dateKey = dateKeyLocal(date);
+                            
+                            if ((h.achievements || {})[dateKey]) {
+                                currentStreak++;
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                return {
+                    id: h.id,
+                    title: h.title,
+                    currentStreak,
+                    longestStreak: Math.max(currentStreak, longestStreak),
+                    totalDays: Object.keys(h.achievements || {}).length
+                };
+            })
+            .filter(h => h.currentStreak > 0 || h.longestStreak > 0)
+            .sort((a, b) => b.currentStreak - a.currentStreak || b.longestStreak - a.longestStreak)
+            .slice(0, 5);
+            
+            const rankDiv = document.getElementById('ranking-list');
+            if (rankDiv){
+                if (ranking.length === 0) {
+                    rankDiv.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 20px;">まだ連続記録がありません</div>';
+                } else {
+                    rankDiv.innerHTML = ranking.map((r,idx)=>`
+                        <div class="ranking-item" style="display:flex;justify-content:space-between;gap:12px;align-items:center;padding:8px;border:1px solid var(--border);border-radius:10px;background: ${
+                            idx === 0 ? 'linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1))' :
+                            idx === 1 ? 'linear-gradient(135deg, rgba(192, 192, 192, 0.1), rgba(128, 128, 128, 0.1))' :
+                            idx === 2 ? 'linear-gradient(135deg, rgba(205, 127, 50, 0.1), rgba(165, 87, 10, 0.1))' :
+                            'rgba(0,0,0,0.1)'
+                        };">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-size: 20px;">${idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx+1}`}</span>
+                                <div>
+                                    <div>${escapeHTML(r.title||'Untitled')}</div>
+                                    <div style="font-size: 10px; color: var(--text-secondary);">
+                                        最長${r.longestStreak}日 · 累計${r.totalDays}日
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 16px; font-weight: bold; color: ${r.currentStreak > 0 ? '#f59e0b' : '#6b7280'};">
+                                    ${r.currentStreak > 0 ? '🔥' : ''} ${r.currentStreak}日
+                                </div>
+                                <div style="font-size: 10px; color: var(--text-secondary);">
+                                    ${r.currentStreak > 0 ? '連続中' : '中断中'}
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            }
+        }
+        
+        // バッジコレクションを表示
+        function displayBadgeCollection() {
+            const data = loadData();
+            const container = document.getElementById('badge-collection');
+            if (!container) return;
+            
+            container.innerHTML = '';
+            
+            // 獲得済みバッジを表示
+            Object.entries(BADGE_DEFINITIONS).forEach(([id, badge]) => {
+                const earned = data.badges && data.badges[id];
+                const badgeEl = document.createElement('div');
+                badgeEl.style.cssText = `
+                    text-align: center;
+                    padding: 8px;
+                    background: ${earned ? 'var(--gradient-1)' : 'var(--surface)'};
+                    border-radius: 12px;
+                    opacity: ${earned ? '1' : '0.3'};
+                    transition: all 0.3s;
+                    cursor: pointer;
+                    min-height: 80px;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                `;
+                
+                badgeEl.innerHTML = `
+                    <div style="font-size: 28px; margin-bottom: 4px;">${badge.emoji}</div>
+                    <div style="font-size: 11px; font-weight: 600; color: ${earned ? 'white' : 'var(--text-secondary)'}; line-height: 1.2;">  
+                        ${badge.name.split(' ')[1] || badge.name}
+                    </div>
+                `;
+                
+                badgeEl.title = `${badge.name}\n${badge.description}${earned ? '\n獲得済み' : '\n未獲得'}`;
+                
+                if (earned) {
+                    badgeEl.onclick = () => {
+                        showNotification(`🏆 ${badge.name}\n${badge.description}`, 'success');
+                    };
+                }
+                
+                container.appendChild(badgeEl);
+            });
+        }
+        
+        // 月次レポートを表示
+        function showMonthlyReport() {
+            const data = loadData();
+            const container = document.getElementById('report-container');
+            const now = new Date();
+            const currentMonth = now.getMonth();
+            const currentYear = now.getFullYear();
+            
+            let report = `<h4>📅 ${currentYear}年${currentMonth + 1}月のレポート</h4>`;
+            
+            // 月間統計
+            let monthlyAchievements = 0;
+            let monthlyTotal = 0;
+            let habitsActive = 0;
+            
+            data.currentHypotheses.concat(data.completedHypotheses || []).forEach(h => {
+                const startDate = new Date(h.startDate);
+                const endDate = new Date(startDate);
+                endDate.setDate(startDate.getDate() + h.totalDays);
+                
+                // この月に活動した習慣
+                if (startDate <= now && endDate >= new Date(currentYear, currentMonth, 1)) {
+                    habitsActive++;
+                    
+                    // この月の達成をカウント
+                    for (let d = 1; d <= 31; d++) {
+                        const checkDate = new Date(currentYear, currentMonth, d);
+                        if (checkDate > now) break;
+                        if (checkDate >= startDate && checkDate <= endDate) {
+                            monthlyTotal++;
+                            const key = dateKeyLocal(checkDate);
+                            if (h.achievements && h.achievements[key]) {
+                                monthlyAchievements++;
+                            }
+                        }
+                    }
+                }
+            });
+            
+            const monthlyRate = monthlyTotal > 0 ? Math.round((monthlyAchievements / monthlyTotal) * 100) : 0;
+            
+            report += `
+                <div style="display: grid; gap: 12px; margin-top: 16px;">
+                    <div style="padding: 12px; background: var(--background); border-radius: 8px;">
+                        <div style="font-size: 24px; font-weight: 700; color: var(--primary);">${monthlyRate}%</div>
+                        <div style="font-size: 12px; color: var(--text-secondary);">月間達成率</div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+                        <div style="padding: 8px; background: var(--background); border-radius: 8px; text-align: center;">
+                            <div style="font-weight: 600;">${habitsActive}</div>
+                            <div style="font-size: 10px; color: var(--text-secondary);">活動中の習慣</div>
+                        </div>
+                        <div style="padding: 8px; background: var(--background); border-radius: 8px; text-align: center;">
+                            <div style="font-weight: 600;">${monthlyAchievements}</div>
+                            <div style="font-size: 10px; color: var(--text-secondary);">達成日数</div>
+                        </div>
+                        <div style="padding: 8px; background: var(--background); border-radius: 8px; text-align: center;">
+                            <div style="font-weight: 600;">${monthlyTotal - monthlyAchievements}</div>
+                            <div style="font-size: 10px; color: var(--text-secondary);">未達成日数</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            container.innerHTML = report;
+            container.style.display = 'block';
+        }
+        
+        // 年次レポートを表示
+        function showYearlyReport() {
+            const data = loadData();
+            const container = document.getElementById('report-container');
+            const currentYear = new Date().getFullYear();
+            
+            let report = `<h4>📊 ${currentYear}年のレポート</h4>`;
+            
+            // 月別統計
+            const monthlyStats = [];
+            for (let month = 0; month < 12; month++) {
+                let achievements = 0;
+                let total = 0;
+                
+                data.currentHypotheses.concat(data.completedHypotheses || []).forEach(h => {
+                    const startDate = new Date(h.startDate);
+                    const endDate = new Date(startDate);
+                    endDate.setDate(startDate.getDate() + h.totalDays);
+                    
+                    for (let d = 1; d <= 31; d++) {
+                        const checkDate = new Date(currentYear, month, d);
+                        if (checkDate > new Date()) break;
+                        if (checkDate >= startDate && checkDate <= endDate) {
+                            total++;
+                            const key = dateKeyLocal(checkDate);
+                            if (h.achievements && h.achievements[key]) {
+                                achievements++;
+                            }
+                        }
+                    }
+                });
+                
+                monthlyStats.push({
+                    month: month + 1,
+                    rate: total > 0 ? Math.round((achievements / total) * 100) : 0,
+                    achievements,
+                    total
+                });
+            }
+            
+            // 年間統計
+            const yearTotal = monthlyStats.reduce((sum, m) => sum + m.total, 0);
+            const yearAchievements = monthlyStats.reduce((sum, m) => sum + m.achievements, 0);
+            const yearRate = yearTotal > 0 ? Math.round((yearAchievements / yearTotal) * 100) : 0;
+            
+            report += `
+                <div style="padding: 16px; background: var(--gradient-1); border-radius: 12px; margin: 16px 0; text-align: center; color: white;">
+                    <div style="font-size: 32px; font-weight: 800;">${yearRate}%</div>
+                    <div style="font-size: 14px; opacity: 0.9;">年間達成率</div>
+                    <div style="margin-top: 8px; font-size: 12px; opacity: 0.8;">
+                        ${yearAchievements} / ${yearTotal} 日達成
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;">
+            `;
+            
+            monthlyStats.forEach(m => {
+                if (m.total > 0) {
+                    const color = m.rate >= 80 ? '#10b981' : m.rate >= 50 ? '#3b82f6' : '#ef4444';
+                    report += `
+                        <div style="padding: 8px; background: var(--background); border-radius: 8px; text-align: center;">
+                            <div style="font-size: 10px; color: var(--text-secondary);">${m.month}月</div>
+                            <div style="font-size: 16px; font-weight: 700; color: ${color};">${m.rate}%</div>
+                        </div>
+                    `;
+                }
+            });
+            
+            report += '</div>';
+            
+            container.innerHTML = report;
+            container.style.display = 'block';
+        }
+        
+        // 習慣データをエクスポート（全データ版）
+        function exportHabitData() {
+            const data = loadData();
+            const exportData = {
+                exportDate: new Date().toISOString(),
+                version: '2.0',
+                data: data  // 全データをそのまま保存
+            };
+            
+            // JSONファイルとしてダウンロード
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `pdca-lab-backup-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showNotification('📤 全データをエクスポートしました', 'success');
+        }
+
+        // データのインポート（最初の関数は使用しない - 後の統一版を使用）
+        // function handleImportFile_old(event) {
+        //     // この関数は使用しない（後の統一版を使用）
+        //     return;
+        // }
+
+        // インポートデータの正規化
+        function normalizeImportedData(src) {
+            if (!src || typeof src !== 'object') return null;
+            // 既存ストレージ形式（そのまま）
+            if (Array.isArray(src.currentHypotheses) || Array.isArray(src.completedHypotheses)) {
+                return {
+                    currentHypotheses: src.currentHypotheses || [],
+                    completedHypotheses: src.completedHypotheses || [],
+                    cards: src.cards || { inventory: [], pendingPenalties: [] },
+                    badges: src.badges || {},
+                    meta: src.meta || {}
+                };
+            }
+            // エクスポート形式からの変換
+            if (Array.isArray(src.currentHabits) || Array.isArray(src.completedHabits)) {
+                return {
+                    currentHypotheses: src.currentHabits || [],
+                    completedHypotheses: src.completedHabits || [],
+                    cards: src.cards || { inventory: [], pendingPenalties: [] },
+                    badges: src.badges || {},
+                    meta: src.meta || {}
+                };
+            }
+            return null;
+        }
+
+
+        // カード画面を表示
+        function showCardsView() {
+            resetScrollToTop();
+            document.getElementById('home-view').style.display = 'none';
+            document.getElementById('new-hypothesis-view').style.display = 'none';
+            document.getElementById('shuffle-view').style.display = 'none';
+            document.getElementById('progress-view').style.display = 'none';
+            document.getElementById('history-view').style.display = 'none';
+            document.getElementById('stats-view').style.display = 'none';
+            document.getElementById('points-view').style.display = 'none';
+            document.getElementById('cards-view').style.display = 'block';
+            
+            updateNavigation('cards');
+            updateCardDisplay();
+            
+            // カード画面ではヘッダーのポイント表示を非表示
+            const pointDisplay = document.getElementById('point-display');
+            if (pointDisplay) {
+                pointDisplay.style.display = 'none';
+            }
+        }
+
+        // カード表示を更新
+        function updateCardDisplay() {
+            const data = loadData();
+            const inventoryContainer = document.getElementById('card-inventory');
+            const penaltyContainer = document.getElementById('penalty-cards');
+            
+            // 所持カードを集計
+            const cardCounts = {};
+            data.cards.inventory.forEach(card => {
+                if (!card.used) {
+                    cardCounts[card.cardId] = (cardCounts[card.cardId] || 0) + 1;
+                }
+            });
+            
+            // 所持カード表示
+            inventoryContainer.innerHTML = '';
+            if (Object.keys(cardCounts).length === 0) {
+                inventoryContainer.innerHTML = '<p style="color: var(--text-secondary);">所持カードはありません</p>';
+            } else {
+                Object.entries(cardCounts).forEach(([cardId, count]) => {
+                    const card = CARD_MASTER[cardId];
+                    if (card) {
+                        const cardElement = createCardElement(card, count);
+                        inventoryContainer.appendChild(cardElement);
+                    }
+                });
+            }
+            
+            // ペナルティカード表示
+            penaltyContainer.innerHTML = '';
+            if (data.cards.pendingPenalties.length === 0) {
+                penaltyContainer.innerHTML = '<p style="color: var(--text-secondary);">ペナルティカードはありません</p>';
+            } else {
+                const penaltyCounts = {};
+                data.cards.pendingPenalties.forEach(penalty => {
+                    penaltyCounts[penalty.cardId] = (penaltyCounts[penalty.cardId] || 0) + 1;
+                });
+                
+                Object.entries(penaltyCounts).forEach(([cardId, count]) => {
+                    const card = CARD_MASTER[cardId];
+                    if (card) {
+                        const cardElement = createCardElement(card, count);
+                        penaltyContainer.appendChild(cardElement);
+                    }
+                });
+            }
+        }
+
+        // カード要素を作成
+        function createCardElement(card, count) {
+            const div = document.createElement('div');
+            div.className = `card-item ${card.type}`;
+            div.innerHTML = `
+                <div class="card-icon">${card.icon}</div>
+                <div class="card-name">${card.name}</div>
+                <div class="card-description">${card.description}</div>
+                ${count > 1 ? `<div class="card-count">×${count}</div>` : ''}
+            `;
+            // カードコレクションからも使用できるようにする（報酬カードのみ）
+            if (card.type === 'reward') {
+                div.style.cursor = 'pointer';
+                div.title = 'タップして使用メニューを開く';
+                div.onclick = () => {
+                    // 既存の使用メニューを再利用
+                    showCardUseMenu();
+                };
+            }
+            return div;
+        }
+
+        // カード獲得表示
+        function showCardAcquisition(cardIds, callback) {
+            const modal = document.getElementById('card-acquisition-modal');
+            const container = document.getElementById('acquired-cards-container');
+            
+            container.innerHTML = '';
+            cardIds.forEach((cardId, index) => {
+                const card = CARD_MASTER[cardId];
+                if (card) {
+                    const cardDiv = document.createElement('div');
+                    cardDiv.className = `card-item ${card.type} card-reveal`;
+                    cardDiv.style.animationDelay = `${index * 0.3}s`;
+                    cardDiv.innerHTML = `
+                        <div class="card-icon">${card.icon}</div>
+                        <div class="card-name">${card.name}</div>
+                        <div class="card-description">${card.description}</div>
+                    `;
+                    container.appendChild(cardDiv);
+                }
+            });
+            
+            modal.style.display = 'flex';
+            
+            window.cardAcquisitionCallback = callback;
+        }
+
+        // カード獲得モーダルを閉じる
+        function closeCardAcquisition() {
+            document.getElementById('card-acquisition-modal').style.display = 'none';
+            if (window.cardAcquisitionCallback) {
+                window.cardAcquisitionCallback();
+                window.cardAcquisitionCallback = null;
+            }
+        }
+        
+        // イベント定義（シンプルで面白い仕掛け）
+        const EVENT_DEFINITIONS = [
+            // ポイント系イベント（バランス調整済み）
+            { id: 'bonus_points', name: '🎆 ボーナスポイント', description: '今日の全達成が1.3倍', effect: 'points_multiplier', value: 1.3 },
+            { id: 'point_rain', name: '💰 ポイントレイン', description: '最初の3回達成で+3ptボーナス', effect: 'achievement_bonus', value: 3 },
+            { id: 'golden_day', name: '✨ ゴールデンデー', description: '全ポイント+2の固定ボーナス', effect: 'flat_bonus', value: 2 },
+            
+            // 時間系イベント
+            { id: 'early_bird_special', name: '🌅 早起き特典', description: '朝6-9時の達成で×1.2', effect: 'time_bonus', hours: [6,7,8,9], multiplier: 1.2 },
+            { id: 'night_owl_boost', name: '🦉 夜型ボーナス', description: '20-23時の達成で×1.2', effect: 'time_bonus', hours: [20,21,22,23], multiplier: 1.2 },
+            { id: 'lucky_hour', name: '⏰ ラッキーアワー', description: '11時と17時の達成で+3pt', effect: 'lucky_time', hours: [11,17], bonus: 3 },
+            
+            // カテゴリ系イベント
+            { id: 'study_day', name: '📚 勉強デー', description: '勉強カテゴリ×1.5', effect: 'category_boost', category: 'study', multiplier: 1.5 },
+            { id: 'exercise_festival', name: '💪 運動祭り', description: '運動カテゴリ×1.5', effect: 'category_boost', category: 'exercise', multiplier: 1.5 },
+            { id: 'health_campaign', name: '🍎 健康キャンペーン', description: '健康カテゴリ×1.5', effect: 'category_boost', category: 'health', multiplier: 1.5 },
+            { id: 'work_power', name: '💼 仕事パワー', description: '仕事カテゴリ×1.5', effect: 'category_boost', category: 'work', multiplier: 1.5 },
+            { id: 'hobby_time', name: '🎨 趣味タイム', description: '趣味カテゴリ×1.5', effect: 'category_boost', category: 'hobby', multiplier: 1.5 },
+            
+            // 特殊系イベント
+            { id: 'perfect_challenge', name: '💯 パーフェクトチャレンジ', description: '全習慣達成で+10ptボーナス', effect: 'perfect_bonus', value: 10 },
+            { id: 'streak_party', name: '🔥 ストリークパーティ', description: '連続3日以上の習慣に+3pt', effect: 'streak_bonus', minDays: 3, bonus: 3 },
+            { id: 'comeback_bonus', name: '🎉 カムバックボーナス', description: '3日ぶりの達成で×1.5', effect: 'comeback', days: 3, multiplier: 1.5 },
+            
+            // ギャンブル系イベント
+            { id: 'dice_roll', name: '🎲 サイコロチャレンジ', description: '達成毎に1〜3ptランダム', effect: 'random_points', min: 1, max: 3 },
+            { id: 'coin_flip', name: '🪙 コインフリップ', description: '50%で×1.5、50%で×0.8', effect: 'coin_flip', win: 1.5, lose: 0.8 },
+            
+            // 連鎖系イベント
+            { id: 'chain_reaction', name: '⛓️ チェインリアクション', description: '達成する度に+1pt累積（最大+5）', effect: 'chain', maxBonus: 5 },
+            { id: 'momentum_builder', name: '🚀 モメンタムビルダー', description: '連続達成で倍率上昇（1→1.1→1.2→1.3）', effect: 'momentum', multipliers: [1, 1.1, 1.2, 1.3] },
+            
+            // カード系イベント
+            { id: 'card_carnival', name: '🎴 カードカーニバル', description: 'カードドロップ率1.5倍', effect: 'card_drop', multiplier: 1.5 },
+            
+            // 逆転系イベント
+            { id: 'second_chance', name: '🔁 セカンドチャンス', description: '失敗した習慣を1つリセット可能', effect: 'reset_habit', value: 1 },
+            { id: 'time_warp', name: '⏪ タイムワープ', description: '昨日の達成状況を今日にコピー', effect: 'copy_yesterday', value: 1 },
+            
+            // 週末イベント
+            { id: 'weekend_special', name: '🎈 週末スペシャル', description: '週末はポイント1.2倍！', effect: 'points_multiplier', value: 1.2 }
+        ];
+        
+        // 特別報酬を獲得（スマホ限定、1日1回）
+        function getSpecialReward() {
+            const data = loadData();
+            const today = dateKeyLocal(new Date());
+            
+            // 本日既に取得済みかチェック
+            if (!data.specialRewards) data.specialRewards = {};
+            if (data.specialRewards[today]) {
+                showNotification('📅 今日の特別報酬は既に獲得済みです', 'info');
+                return;
+            }
+            
+            // 報酬カードの候補（レアカードを含む）
+            const rewardCandidates = [
+                'event_trigger', 'point_gem', 'rainbow_boost', 'mission_master',
+                'streak_bonus', 'lucky_seven', 'conversion_magic', 'fate_dice',
+                'combo_chain', 'sparkle_streak', 'category_festival', 'happy_hour', 
+                'mystery_box', 'event_combo'
+            ];
+            
+            // ランダムに1枚選択
+            const selectedCard = rewardCandidates[Math.floor(Math.random() * rewardCandidates.length)];
+            
+            // カードを追加
+            if (!data.cards) data.cards = { inventory: [], pendingPenalties: [], activeEffects: [] };
+            data.cards.inventory.push({
+                cardId: selectedCard,
+                acquiredDate: new Date().toISOString(),
+                used: false
+            });
+            
+            // 取得済みフラグを立てる
+            data.specialRewards[today] = true;
+            
+            
+            saveData(data);
+            
+            // カード獲得演出を表示
+            showCardAcquisition([selectedCard], () => {
+                updateCardUseButton();
+                updateSpecialRewardButton();
+                showNotification('🎁 特別報酬を獲得しました！', 'success');
+            });
+        }
+        
+        // 日替わりイベントを取得（全て等確率）
+        function getDailyEvent() {
+            const data = loadData();
+            const today = dateKeyLocal(new Date());
+            const todayStr = new Date().toISOString().split('T')[0];
+            
+            // 日付から日数を取得（例：2025-01-15 → 15）
+            const dayOfMonth = new Date().getDate();
+            
+            // 7の倍数の日かチェック
+            const isLuckySevenDay = (dayOfMonth % 7 === 0);
+            
+            // 強制イベントチェック（イベントトリガーカードの効果）
+            if (data.events && data.events.forcedEvents && data.events.forcedEvents[todayStr]) {
+                // 強制イベント日は必ずイベント発生
+            } else if (isLuckySevenDay) {
+                // 7の倍数の日は必ずイベント発生
+            } else {
+                // 通常は30%の確率でイベント発生
+                const seed = today.split('-').reduce((a, b) => a + parseInt(b), 0);
+                const random = ((seed * 9301 + 49297) % 233280) / 233280;
+                if (random > 0.3) return null;
+            }
+            
+            // 土日は週末スペシャルを70%の確率で選択
+            const dayOfWeek = new Date().getDay();
+            const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+            
+            if (isWeekend) {
+                // 週末は70%の確率で週末スペシャル
+                const seed = today.split('-').reduce((a, b) => a + parseInt(b), 0);
+                const random = ((seed * 9301 + 49297) % 233280) / 233280;
+                if (random < 0.7) {
+                    // 週末スペシャルを返す
+                    return EVENT_DEFINITIONS.find(e => e.id === 'weekend_special');
+                }
+            }
+            
+            // シード値を使って一貫性のあるランダムイベント選択
+            const eventSeed = today.split('-').join('');
+            const eventIndex = (parseInt(eventSeed) * 7919) % EVENT_DEFINITIONS.length;
+            return EVENT_DEFINITIONS[eventIndex];
+        }
+        
+        // 特別報酬ボタンの表示状態を更新
+        function updateSpecialRewardButton() {
+            const data = loadData();
+            const today = dateKeyLocal(new Date());
+            const section = document.getElementById('special-reward-section');
+            const button = document.getElementById('special-reward-btn');
+            
+            if (!section) return;
+            
+            // スマホのみ表示
+            if (!isMobileDevice || !isMobileDevice()) {
+                section.style.display = 'none';
+                return;
+            }
+            
+            // 本日既に取得済みか確認
+            if (data.specialRewards && data.specialRewards[today]) {
+                button.disabled = true;
+                button.textContent = '✅ 本日は取得済み';
+                button.style.background = 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)';
+            } else {
+                button.disabled = false;
+                button.textContent = '🎁 報酬を受け取る';
+                button.style.background = 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)';
+            }
+            
+            section.style.display = 'block';
+        }
+
+        // スワイプ機能
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let touchEndX = 0;
+        let touchEndY = 0;
+        let currentViewIndex = 0;
+        const views = ['home', 'points', 'cards', 'stats', 'history'];
+        const viewElements = {
+            'home': 'home-view',
+            'points': 'points-view',
+            'cards': 'cards-view',
+            'stats': 'stats-view',
+            'history': 'history-view'
+        };
+
+        // スワイプイベントの設定
+        // スワイプ関連の変数をグローバルスコープに移動
+        let swipeState = {
+            isEnabled: true,
+            isSwiping: false,
+            scrolling: false,
+            touchStartX: 0,
+            touchStartY: 0,
+            touchEndX: 0,
+            touchEndY: 0,
+            edgeSwipe: false
+        };
+        
+        function setupSwipeListeners() {
+            const container = document.querySelector('.container');
+            
+            // フォーム要素でのスワイプを無効化
+            // 入力系のみスワイプ抑止（ボタンは許可）
+            document.querySelectorAll('input, textarea').forEach(element => {
+                element.addEventListener('touchstart', () => {
+                    swipeState.isEnabled = false;
+                }, { passive: true });
+                
+                element.addEventListener('touchend', () => {
+                    setTimeout(() => {
+                        swipeState.isEnabled = true;
+                    }, 100);
+                }, { passive: true });
+            });
+            
+            // 統計画面に専用のイベントリスナーを追加
+            const statsView = document.getElementById('stats-view');
+            if (statsView) {
+                console.log('[STATS] Adding direct event listeners to stats view');
+                
+                // キャプチャフェーズで確実にイベントを捕捉
+                statsView.addEventListener('touchstart', (e) => {
+                    console.log('[STATS DIRECT] touchstart on stats view!');
+                    const currentView = getCurrentView();
+                    if (currentView === 'stats') {
+                        swipeState.touchStartX = e.changedTouches[0].screenX;
+                        swipeState.touchStartY = e.changedTouches[0].screenY;
+                        swipeState.scrolling = false;
+                        swipeState.isSwiping = false;
+                        console.log('[STATS DIRECT] Start position:', swipeState.touchStartX, swipeState.touchStartY);
+                    }
+                }, { passive: true, capture: true });
+                
+                statsView.addEventListener('touchmove', (e) => {
+                    const currentView = getCurrentView();
+                    if (currentView === 'stats') {
+                        const diffX = Math.abs(e.changedTouches[0].screenX - swipeState.touchStartX);
+                        const diffY = Math.abs(e.changedTouches[0].screenY - swipeState.touchStartY);
+                        console.log('[STATS DIRECT] Move - diffX:', diffX, 'diffY:', diffY);
+                        if (diffX > 18 && diffX > diffY * 0.9) {
+                            swipeState.isSwiping = true;
+                            swipeState.scrolling = false;
+                            e.preventDefault();
+                        }
+                    }
+                }, { passive: false, capture: true });
+                
+                statsView.addEventListener('touchend', (e) => {
+                    const currentView = getCurrentView();
+                    if (currentView === 'stats' && swipeState.isSwiping) {
+                        swipeState.touchEndX = e.changedTouches[0].screenX;
+                        swipeState.touchEndY = e.changedTouches[0].screenY;
+                        console.log('[STATS DIRECT] End - calling handleSwipe');
+                        handleSwipe();
+                        swipeState.isSwiping = false;
+                    }
+                }, { passive: true, capture: true });
+            }
+            
+            // ポイント画面に専用のイベントリスナーを追加
+            const pointsView = document.getElementById('points-view');
+            if (pointsView) {
+                console.log('[POINTS] Adding direct event listeners to points view');
+                
+                // キャプチャフェーズで確実にイベントを捕捉
+                pointsView.addEventListener('touchstart', (e) => {
+                    console.log('[POINTS DIRECT] touchstart on points view!');
+                    const currentView = getCurrentView();
+                    if (currentView === 'points') {
+                        swipeState.touchStartX = e.changedTouches[0].screenX;
+                        swipeState.touchStartY = e.changedTouches[0].screenY;
+                        swipeState.scrolling = false;
+                        swipeState.isSwiping = false;
+                        console.log('[POINTS DIRECT] Start position:', swipeState.touchStartX, swipeState.touchStartY);
+                    }
+                }, { passive: true, capture: true });
+                
+                pointsView.addEventListener('touchmove', (e) => {
+                    const currentView = getCurrentView();
+                    if (currentView === 'points') {
+                        const diffX = Math.abs(e.changedTouches[0].screenX - swipeState.touchStartX);
+                        const diffY = Math.abs(e.changedTouches[0].screenY - swipeState.touchStartY);
+                        console.log('[POINTS DIRECT] Move - diffX:', diffX, 'diffY:', diffY);
+                        if (diffX > 18 && diffX > diffY * 0.9) {
+                            swipeState.isSwiping = true;
+                            swipeState.scrolling = false;
+                            e.preventDefault();
+                        }
+                    }
+                }, { passive: false, capture: true });
+                
+                pointsView.addEventListener('touchend', (e) => {
+                    const currentView = getCurrentView();
+                    if (currentView === 'points' && swipeState.isSwiping) {
+                        swipeState.touchEndX = e.changedTouches[0].screenX;
+                        swipeState.touchEndY = e.changedTouches[0].screenY;
+                        console.log('[POINTS DIRECT] End - calling handleSwipe');
+                        handleSwipe();
+                        swipeState.isSwiping = false;
+                    }
+                }, { passive: true, capture: true });
+            }
+
+            // カード画面に専用のイベントリスナーを追加（カードコレクション上でも横スワイプ優先）
+            const cardsView = document.getElementById('cards-view');
+            if (cardsView) {
+                cardsView.addEventListener('touchstart', (e) => {
+                    const currentView = getCurrentView();
+                    if (currentView === 'cards') {
+                        swipeState.touchStartX = e.changedTouches[0].screenX;
+                        swipeState.touchStartY = e.changedTouches[0].screenY;
+                        swipeState.scrolling = false;
+                        swipeState.isSwiping = false;
+                    }
+                }, { passive: true, capture: true });
+                cardsView.addEventListener('touchmove', (e) => {
+                    const currentView = getCurrentView();
+                    if (currentView === 'cards') {
+                        const diffX = Math.abs(e.changedTouches[0].screenX - swipeState.touchStartX);
+                        const diffY = Math.abs(e.changedTouches[0].screenY - swipeState.touchStartY);
+                        if (diffX > 18 && diffX > diffY * 0.9) {
+                            swipeState.isSwiping = true;
+                            swipeState.scrolling = false;
+                            e.preventDefault();
+                        }
+                    }
+                }, { passive: false, capture: true });
+                cardsView.addEventListener('touchend', (e) => {
+                    const currentView = getCurrentView();
+                    if (currentView === 'cards' && swipeState.isSwiping) {
+                        swipeState.touchEndX = e.changedTouches[0].screenX;
+                        swipeState.touchEndY = e.changedTouches[0].screenY;
+                        handleSwipe();
+                        swipeState.isSwiping = false;
+                    }
+                }, { passive: true, capture: true });
+            }
+
+            // 履歴画面に専用のイベントリスナーを追加（スワイプ感度向上）
+            const historyView = document.getElementById('history-view');
+            if (historyView) {
+                historyView.addEventListener('touchstart', (e) => {
+                    const currentView = getCurrentView();
+                    if (currentView === 'history') {
+                        swipeState.touchStartX = e.changedTouches[0].screenX;
+                        swipeState.touchStartY = e.changedTouches[0].screenY;
+                        swipeState.scrolling = false;
+                        swipeState.isSwiping = false;
+                    }
+                }, { passive: true, capture: true });
+                historyView.addEventListener('touchmove', (e) => {
+                    const currentView = getCurrentView();
+                    if (currentView === 'history') {
+                        const diffX = Math.abs(e.changedTouches[0].screenX - swipeState.touchStartX);
+                        const diffY = Math.abs(e.changedTouches[0].screenY - swipeState.touchStartY);
+                        if (diffX > 18 && diffX > diffY * 0.9) {
+                            swipeState.isSwiping = true;
+                            swipeState.scrolling = false;
+                            e.preventDefault();
+                        }
+                    }
+                }, { passive: false, capture: true });
+                historyView.addEventListener('touchend', (e) => {
+                    const currentView = getCurrentView();
+                    if (currentView === 'history' && swipeState.isSwiping) {
+                        swipeState.touchEndX = e.changedTouches[0].screenX;
+                        swipeState.touchEndY = e.changedTouches[0].screenY;
+                        handleSwipe();
+                        swipeState.isSwiping = false;
+                    }
+                }, { passive: true, capture: true });
+            }
+            
+            container.addEventListener('touchstart', (e) => {
+                if (!swipeState.isEnabled) {
+                    console.log('[Swipe Debug] スワイプが無効です');
+                    return;
+                }
+                
+                const currentView = getCurrentView();
+                console.log('[Swipe Debug] touchstart - 現在のビュー:', currentView);
+                
+                // 統計/ポイント/カード画面ではスクロールを無効化してスワイプを優先
+                if (currentView === 'stats' || currentView === 'points' || currentView === 'cards') {
+                    swipeState.scrolling = false;
+                    console.log('[Swipe Debug] 統計/ポイント/カード - scrolling=false');
+                } else {
+                    swipeState.scrolling = false;
+                }
+                
+                swipeState.touchStartX = e.changedTouches[0].screenX;
+                swipeState.touchStartY = e.changedTouches[0].screenY;
+                swipeState.isSwiping = false;
+                console.log('[Swipe Debug] タッチ開始位置 X:', swipeState.touchStartX, 'Y:', swipeState.touchStartY);
+                // 画面左右端からのスワイプは感度を上げる
+                const vw = window.innerWidth || document.documentElement.clientWidth;
+                swipeState.edgeSwipe = (swipeState.touchStartX < 24) || (swipeState.touchStartX > vw - 24);
+            }, { passive: true });
+            
+            container.addEventListener('touchmove', (e) => {
+                if (!swipeState.isEnabled) {
+                    console.log('[Swipe Debug] touchmove - スワイプ無効');
+                    return;
+                }
+                
+                const currentView = getCurrentView();
+                
+                // 統計画面では特別な処理
+                if (currentView === 'stats') {
+                    const diffX = Math.abs(e.changedTouches[0].screenX - swipeState.touchStartX);
+                    const diffY = Math.abs(e.changedTouches[0].screenY - swipeState.touchStartY);
+                    
+                    console.log('[Swipe Debug] 統計画面 touchmove - diffX:', diffX, 'diffY:', diffY, 'isSwiping:', swipeState.isSwiping);
+                    
+                    // 横方向の動きが縦より大きければスワイプとして扱う
+                    if (diffX > 20 && diffX > diffY * 0.8) {
+                        swipeState.isSwiping = true;
+                        swipeState.scrolling = false;
+                        console.log('[Swipe Debug] 統計画面 - スワイプ検出！');
+                        try {
+                            e.preventDefault(); // スクロールを防ぐ
+                        } catch(err) {
+                            console.log('[Swipe Debug] preventDefaultエラー:', err);
+                        }
+                    }
+                    return;
+                }
+                
+                // 統計画面以外の処理
+                if (swipeState.scrolling) return;
+                
+                const diffX = Math.abs(e.changedTouches[0].screenX - swipeState.touchStartX);
+                const diffY = Math.abs(e.changedTouches[0].screenY - swipeState.touchStartY);
+                
+                // 縦方向の動きが大きい場合はスクロールとみなす（端スワイプ時はやや緩和）
+                if (diffY > diffX && diffY > (swipeState.edgeSwipe ? 14 : 10)) {
+                    swipeState.scrolling = true;
+                    return;
+                }
+                
+                // 横方向の動きが大きい場合はスワイプとみなす（端スワイプ時は閾値を緩和）
+                if (diffX > diffY && diffX > (swipeState.edgeSwipe ? 8 : 10)) {
+                    swipeState.isSwiping = true;
+                    try { e.preventDefault(); } catch(_) {}
+                }
+            }, { passive: false });
+
+            container.addEventListener('touchend', (e) => {
+                const currentView = getCurrentView();
+                console.log('[Swipe Debug] touchend - ビュー:', currentView, 'isSwipeEnabled:', swipeState.isEnabled, 'isSwiping:', swipeState.isSwiping, 'scrolling:', swipeState.scrolling);
+                
+                // 統計画面ではscrollingフラグを無視
+                if (!swipeState.isEnabled || (!swipeState.isSwiping) || (currentView !== 'stats' && swipeState.scrolling)) {
+                    console.log('[Swipe Debug] touchend - スワイプ処理をスキップ');
+                    swipeState.scrolling = false;
+                    swipeState.isSwiping = false;
+                    return;
+                }
+                
+                swipeState.touchEndX = e.changedTouches[0].screenX;
+                swipeState.touchEndY = e.changedTouches[0].screenY;
+                console.log('[Swipe Debug] タッチ終了位置 X:', swipeState.touchEndX, 'Y:', swipeState.touchEndY);
+                console.log('[Swipe Debug] 移動量 X:', swipeState.touchStartX - swipeState.touchEndX, 'Y:', swipeState.touchStartY - swipeState.touchEndY);
+                handleSwipe();
+                swipeState.scrolling = false;
+                swipeState.isSwiping = false;
+            }, { passive: true });
+        }
+        
+        // スクロール可能な親要素を探す
+        function findScrollableParent(element) {
+            // 統計/ポイント/履歴/カード では常にnullを返してスワイプを優先
+            const v = getCurrentView();
+            if (v === 'stats' || v === 'points' || v === 'history' || v === 'cards') {
+                return null;
+            }
+            
+            let parent = element;
+            while (parent && parent !== document.body) {
+                const style = window.getComputedStyle(parent);
+                if (style.overflowY === 'auto' || style.overflowY === 'scroll' || 
+                    parent.scrollHeight > parent.clientHeight) {
+                    return parent;
+                }
+                parent = parent.parentElement;
+            }
+            return null;
+        }
+
+        // スワイプ処理
+        function handleSwipe() {
+            const diffX = swipeState.touchStartX - swipeState.touchEndX;
+            const diffY = swipeState.touchStartY - swipeState.touchEndY;
+            const currentView = getCurrentView();
+            
+            // ビューごとの閾値（端スワイプはさらに緩和）
+            const relaxedViews = ['stats','points','home','cards','history'];
+            let minSwipeDistance = relaxedViews.includes(currentView) ? 32 : 56;
+            let horizontalRatio = relaxedViews.includes(currentView) ? 1.2 : 1.6;
+            if (currentView === 'history') { minSwipeDistance = 24; horizontalRatio = 1.0; }
+            if (swipeState.edgeSwipe) {
+                minSwipeDistance = Math.min(24, minSwipeDistance);
+                horizontalRatio = 1.0;
+            }
+            
+            console.log('[Swipe Debug] handleSwipe - ビュー:', currentView);
+            console.log('[Swipe Debug] 最小距離:', minSwipeDistance, '比率:', horizontalRatio);
+            console.log('[Swipe Debug] 条件判定: |diffX|:', Math.abs(diffX), '> |diffY| *', horizontalRatio, '=', Math.abs(diffY) * horizontalRatio);
+            console.log('[Swipe Debug] 距離判定: |diffX|:', Math.abs(diffX), '>', minSwipeDistance);
+            
+            // 水平スワイプのみを検出（垂直移動が少ない場合）
+            if (Math.abs(diffX) > Math.abs(diffY) * horizontalRatio && Math.abs(diffX) > minSwipeDistance) {
+                // シャッフル画面や進捗画面ではスワイプ無効
+                if (currentView === 'shuffle' || currentView === 'progress') {
+                    console.log('[Swipe Debug] シャッフル/進捗画面のためスワイプ無効');
+                    return;
+                }
+                
+                if (diffX > 0) {
+                    console.log('[Swipe Debug] 左スワイプ検出 - 次の画面へ');
+                    // 左スワイプ（指を右から左へ） - 次の画面へ
+                    navigateToNextView();
+                } else {
+                    console.log('[Swipe Debug] 右スワイプ検出 - 前の画面へ');
+                    // 右スワイプ（指を左から右へ） - 前の画面へ
+                    navigateToPreviousView();
+                }
+            } else {
+                console.log('[Swipe Debug] スワイプ条件を満たさず');
+            }
+        }
+
+        // 現在のビューを取得
+        function getCurrentView() {
+            if (document.getElementById('home-view').style.display !== 'none') return 'home';
+            if (document.getElementById('new-hypothesis-view').style.display !== 'none') return 'new';
+            if (document.getElementById('history-view').style.display !== 'none') return 'history';
+            if (document.getElementById('stats-view').style.display !== 'none') return 'stats';
+            if (document.getElementById('points-view').style.display !== 'none') return 'points';
+            if (document.getElementById('cards-view').style.display !== 'none') return 'cards';
+            if (document.getElementById('shuffle-view').style.display !== 'none') return 'shuffle';
+            if (document.getElementById('progress-view').style.display !== 'none') return 'progress';
+            return 'home';
+        }
+
+        // 次のビューへ遷移
+        function navigateToNextView() {
+            const currentView = getCurrentView();
+            const currentIndex = views.indexOf(currentView);
+            if (currentIndex !== -1) {
+                // 最後のビューの場合は最初に戻る（ループ）
+                const nextIndex = (currentIndex + 1) % views.length;
+                const nextView = views[nextIndex];
+                showViewWithAnimation(nextView, 'left');
+            }
+        }
+
+        // 前のビューへ遷移
+        function navigateToPreviousView() {
+            const currentView = getCurrentView();
+            const currentIndex = views.indexOf(currentView);
+            if (currentIndex !== -1) {
+                // 最初のビューの場合は最後に戻る（ループ）
+                const previousIndex = currentIndex === 0 ? views.length - 1 : currentIndex - 1;
+                const previousView = views[previousIndex];
+                showViewWithAnimation(previousView, 'right');
+            }
+        }
+
+        // アニメーション付きでビューを表示
+        function showViewWithAnimation(viewName, direction) {
+            const container = document.querySelector('.container');
+            container.style.transition = 'transform 0.3s ease-out';
+            
+            // スワイプヒントを表示
+            const hint = document.createElement('div');
+            hint.className = `swipe-hint ${direction}`;
+            hint.textContent = direction === 'left' ? '→' : '←';
+            document.body.appendChild(hint);
+            setTimeout(() => hint.remove(), 500);
+            
+            // スライドアニメーション
+            if (direction === 'left') {
+                container.style.transform = 'translateX(-20px)';
+            } else {
+                container.style.transform = 'translateX(20px)';
+            }
+            
+            setTimeout(() => {
+                switch (viewName) {
+                    case 'home':
+                        showHomeView();
+                        break;
+                    case 'new':
+                        showNewHypothesisView();
+                        break;
+                    case 'history':
+                        showHistoryView();
+                        break;
+                    case 'stats':
+                        showStatsView();
+                        break;
+                    case 'points':
+                        showPointsView();
+                        break;
+                    case 'cards':
+                        showCardsView();
+                        break;
+                }
+                
+                container.style.transform = 'translateX(0)';
+                setTimeout(() => {
+                    container.style.transition = '';
+                }, 300);
+            }, 150);
+        }
+
+        // スワイプインジケーターを追加
+        function addSwipeIndicator() {
+            const indicator = document.createElement('div');
+            indicator.className = 'swipe-indicator';
+            indicator.innerHTML = '← スワイプでページ移動 →';
+            indicator.style.cssText = `
+                position: fixed;
+                bottom: 80px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(0, 0, 0, 0.7);
+                color: white;
+                padding: 8px 16px;
+                border-radius: 20px;
+                font-size: 12px;
+                z-index: 1000;
+                opacity: 0;
+                transition: opacity 0.3s;
+                pointer-events: none;
+            `;
+            document.body.appendChild(indicator);
+            
+            // 初回表示
+            setTimeout(() => {
+                indicator.style.opacity = '1';
+                setTimeout(() => {
+                    indicator.style.opacity = '0';
+                }, 3000);
+            }, 1000);
+        }
+
+        // ヘッダー高さを実測してCSS変数を更新（端末差でのズレ防止）
+        function updateHeaderHeightVar() {
+            const header = document.querySelector('.header');
+            if (!header) return;
+            const h = Math.ceil(header.getBoundingClientRect().height);
+            document.documentElement.style.setProperty('--header-height', h + 'px');
+        }
+
+        // 連続リサイズ時の負荷軽減
+        function debounce(fn, wait) {
+            let t;
+            return function(...args) {
+                clearTimeout(t);
+                t = setTimeout(() => fn.apply(this, args), wait);
+            };
+        }
+
+        // ========== ミッションチェック関数 ==========
+        
+        // デイリーミッションチェック関数
+        function checkComplete3Habits() {
+            const data = loadData();
+            const todayKey = dateKeyLocal(new Date());
+            let completedCount = 0;
+            
+            data.currentHypotheses.forEach(h => {
+                if (h.achievements && h.achievements[todayKey]) {
+                    completedCount++;
+                }
+            });
+            
+            return completedCount >= 3;
+        }
+        
+        function checkMorningRoutine() {
+            const data = loadData();
+            const todayKey = dateKeyLocal(new Date());
+            const now = new Date();
+            const noon = new Date();
+            noon.setHours(12, 0, 0, 0);
+            
+            if (now.getHours() >= 12) {
+                // 午後になったらチェック可能
+                let morningHabitsCompleted = 0;
+                data.currentHypotheses.forEach(h => {
+                    // 朝の宣言がある習慣
+                    if (h.morningDeclaration && h.achievements && h.achievements[todayKey]) {
+                        morningHabitsCompleted++;
+                    }
+                });
+                return morningHabitsCompleted > 0;
+            }
+            return false;
+        }
+        
+        function checkHighIntensityDay() {
+            const data = loadData();
+            const todayKey = dateKeyLocal(new Date());
+            let allHighIntensity = true;
+            let hasAchievements = false;
+            
+            data.currentHypotheses.forEach(h => {
+                if (h.achievements && h.achievements[todayKey]) {
+                    hasAchievements = true;
+                    const intensity = h.intensity && h.intensity[todayKey] || 1.0;
+                    if (intensity < 1.2) {
+                        allHighIntensity = false;
+                    }
+                }
+            });
+            
+            return hasAchievements && allHighIntensity;
+        }
+        
+        function checkCategoryMaster() {
+            const data = loadData();
+            const todayKey = dateKeyLocal(new Date());
+            const categoryCount = {};
+            
+            data.currentHypotheses.forEach(h => {
+                if (h.achievements && h.achievements[todayKey]) {
+                    const category = h.category || 'other';
+                    categoryCount[category] = (categoryCount[category] || 0) + 1;
+                }
+            });
+            
+            return Object.values(categoryCount).some(count => count >= 3);
+        }
+        
+        function checkEarlyBird() {
+            const data = loadData();
+            const todayKey = dateKeyLocal(new Date());
+            const now = new Date();
+            
+            if (now.getHours() >= 12) {
+                // 午後になったらチェック可能
+                let morningAchievements = 0;
+                data.currentHypotheses.forEach(h => {
+                    if (h.achievements && h.achievements[todayKey]) {
+                        // 簡易的に午前中の達成とみなす
+                        morningAchievements++;
+                    }
+                });
+                return morningAchievements >= 2;
+            }
+            return false;
+        }
+        
+        function checkVarietyDay() {
+            const data = loadData();
+            const todayKey = dateKeyLocal(new Date());
+            const categories = new Set();
+            
+            data.currentHypotheses.forEach(h => {
+                if (h.achievements && h.achievements[todayKey]) {
+                    categories.add(h.category || 'other');
+                }
+            });
+            
+            return categories.size >= 4;
+        }
+        
+        function checkEffortBonusMax() {
+            const data = loadData();
+            // 努力ボーナスの最大使用（11種類すべて使用）
+            return data.pointSystem.dailyEffortUsed >= 11;
+        }
+        
+        function checkHabitAndChallenge() {
+            const data = loadData();
+            const todayKey = dateKeyLocal(new Date());
+            let hasHabitAchievement = false;
+            
+            data.currentHypotheses.forEach(h => {
+                if (h.achievements && h.achievements[todayKey]) {
+                    hasHabitAchievement = true;
+                }
+            });
+            
+            const hasChallengeCompleted = data.challenges.completedToday.length > 0;
+            
+            return hasHabitAchievement && hasChallengeCompleted;
+        }
+        
+        // ウィークリーミッションチェック関数
+        function checkWeekPerfect() {
+            const data = loadData();
+            let allAbove90 = true;
+            
+            data.currentHypotheses.forEach(h => {
+                const achievedDays = Object.keys(h.achievements || {}).length;
+                const totalDays = h.totalDays || 1;
+                const rate = (achievedDays / totalDays) * 100;
+                if (rate < 90) {
+                    allAbove90 = false;
+                }
+            });
+            
+            return data.currentHypotheses.length > 0 && allAbove90;
+        }
+        
+        function checkWeekCardCollector() {
+            const data = loadData();
+            const oneWeekAgo = new Date();
+            oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+            
+            const recentCards = (data.cards.inventory || []).filter(card => {
+                return new Date(card.earnedAt) > oneWeekAgo;
+            });
+            
+            return recentCards.length >= 5;
+        }
+        
+        function checkWeekChallengeMaster() {
+            const data = loadData();
+            // チャレンジストリークが7以上
+            return data.challenges.streak >= 7;
+        }
+        
+        // その他のチェック関数（簡略化）
+        function checkPerfectStreak() { return false; }
+        function checkIfThenExecute() { return false; }
+        function checkDeclarationMaster() { return false; }
+        function checkConsistencyBonus() { return false; }
+        function checkWeekConsistency() { return false; }
+        function checkWeekIntensityUp() { return false; }
+        function checkWeekAllCategories() { return false; }
+        function checkWeekIfThenMaster() { return false; }
+        function checkWeekComeback() { return false; }
+        function checkWeekHabitCombo() { return false; }
+        function checkWeekDeclarationPerfect() { return false; }
+        
+        // 初期化
+        window.addEventListener('load', () => {
+            updateHeaderHeightVar();
+            // レイアウト安定後にも再測定（フォント/アドレスバー反映）
+            setTimeout(updateHeaderHeightVar, 200);
+            setTimeout(updateHeaderHeightVar, 800);
+        });
+        window.addEventListener('resize', debounce(updateHeaderHeightVar, 120));
+        window.addEventListener('orientationchange', () => setTimeout(updateHeaderHeightVar, 100));
+
+        // ビュー切替時にスクロールをトップへ揃える
+        function resetScrollToTop() {
+            try {
+                // まず window スクロールをリセット
+                window.scrollTo({ top: 0, behavior: 'auto' });
+                // 念のためドキュメントルートにも適用（iOS/Safari 対策）
+                const el = document.scrollingElement || document.documentElement;
+                el.scrollTop = 0;
+                document.body.scrollTop = 0;
+            } catch (_) {
+                // フォールバック
+                document.documentElement.scrollTop = 0;
+                document.body.scrollTop = 0;
+            }
+        }
+
+        // デバッグ機能
+        function debugAchieveToday() {
+            if (isMobileDevice && isMobileDevice()) { showNotification('⚠️ デバッグ機能はPCのみ利用できます', 'error'); return; }
+            if (!window.currentHypothesis) return;
+            
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const dateKey = dateKeyLocal(today);
+            
+            window.currentHypothesis.achievements[dateKey] = true;
+            
+            // データを保存
+            const data = loadData();
+            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (index !== -1) {
+                data.currentHypotheses[index] = window.currentHypothesis;
+                saveData(data);
+            }
+            
+            updateCalendar();
+            updateProgress();
+            showNotification('✅ 今日を達成にしました', 'success');
+        }
+        
+        function debugFailToday() {
+            if (isMobileDevice && isMobileDevice()) { showNotification('⚠️ デバッグ機能はPCのみ利用できます', 'error'); return; }
+            if (!window.currentHypothesis) return;
+            
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const dateKey = dateKeyLocal(today);
+            
+            delete window.currentHypothesis.achievements[dateKey];
+            
+            // データを保存
+            const data = loadData();
+            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (index !== -1) {
+                data.currentHypotheses[index] = window.currentHypothesis;
+                saveData(data);
+            }
+            
+            updateCalendar();
+            updateProgress();
+            showNotification('❌ 今日を未達成にしました', 'error');
+        }
+        
+        // ========== 期間中イベント関連の関数 ==========
+        
+        // イベントチェック（毎日実行）
+        function checkDailyEvents() {
+            const data = loadData();
+            // 機能停止中はイベント生成・通知を無効化
+            if (typeof EVENTS_DISABLED !== 'undefined' && EVENTS_DISABLED) {
+                if (!data.events) data.events = {};
+                data.events.activeBoosts = [];
+                data.events.lastEventCheck = new Date().toDateString();
+                saveData(data);
+                try { updateEventDisplay(); } catch (_) {}
+                return;
+            }
+            // モバイル環境でも確実に動くよう堅牢化
+            if (!data.events) {
+                data.events = {
+                    activeBoosts: [],
+                    lastEventCheck: null,
+                    milestoneNotifications: {},
+                    eventHistory: [],
+                    boostEnabled: true,
+                    forcedEvents: {}
+                };
+            } else {
+                if (!Array.isArray(data.events.activeBoosts)) data.events.activeBoosts = [];
+                if (!data.events.milestoneNotifications) data.events.milestoneNotifications = {};
+                if (!data.events.eventHistory) data.events.eventHistory = [];
+                if (typeof data.events.boostEnabled !== 'boolean') data.events.boostEnabled = true;
+                if (!data.events.forcedEvents) data.events.forcedEvents = {};
+            }
+            const today = new Date().toDateString();
+            const todayStr = new Date().toISOString().split('T')[0];
+            
+            // 最後のチェック日と同じなら何もしない
+            // ただし、activeBoostsが空または古い形式（morning_boost/night_boost）を含む場合は再チェック
+            const hasOldBoost = data.events.activeBoosts.some(b => 
+                b.eventId === 'morning_boost' || b.eventId === 'night_boost' ||
+                b.name === '🌅 朝活ボーナス' || b.name === '🌙 夜型ボーナス' ||
+                (b.effect && (b.effect.type === 'morning_boost' || b.effect.type === 'night_boost'))
+            );
+            
+            // 古いイベントがある場合は強制的にクリア
+            // または週末スペシャルの倍率が1.2以外の場合もクリア
+            const hasOldWeekendValue = data.events.activeBoosts.some(b => 
+                b.eventId === 'weekend_special' && b.value !== 1.2
+            );
+            
+            // 週末スペシャルの値が間違っている場合、または古い表記がある場合はクリア
+            const hasWrongDescription = data.events.activeBoosts.some(b =>
+                b.eventId === 'weekend_special' && 
+                (b.description.includes('1.5') || b.description.includes('2'))
+            );
+            
+            if (hasOldBoost || hasOldWeekendValue || hasWrongDescription) {
+                data.events.activeBoosts = [];
+                data.events.lastEventCheck = null; // リセット
+            }
+            
+            if (data.events.lastEventCheck === today && data.events.activeBoosts.length > 0) return;
+            
+            data.events.lastEventCheck = today;
+            data.events.activeBoosts = [];
+            
+            // 今日のイベントを取得
+            const todayEvent = getDailyEvent();
+            
+            if (todayEvent) {
+                // 週末スペシャルの場合は値を1.2倍に強制修正
+                let eventValue = todayEvent.value;
+                let eventDescription = todayEvent.description;
+                if (todayEvent.id === 'weekend_special') {
+                    eventValue = 1.2;
+                    eventDescription = '週末はポイント1.2倍！';
+                }
+                
+                // イベントを記録
+                data.events.activeBoosts.push({
+                    type: 'daily_event',
+                    eventId: todayEvent.id,
+                    name: todayEvent.name,
+                    description: eventDescription,
+                    effect: todayEvent.effect,
+                    value: eventValue,
+                    date: todayStr
+                });
+                
+                // イベント履歴に追加
+                data.events.eventHistory.push({
+                    date: todayStr,
+                    eventId: todayEvent.id,
+                    name: todayEvent.name
+                });
+                
+                // 履歴は最新100件まで保持
+                if (data.events.eventHistory.length > 100) {
+                    data.events.eventHistory = data.events.eventHistory.slice(-100);
+                }
+            }
+            
+            // イベント封印チェック
+            if (data.cards && data.cards.activeEffects) {
+                const sealEffect = data.cards.activeEffects.find(effect => 
+                    effect.type === 'event_seal' && 
+                    new Date(effect.startDate) <= new Date() && 
+                    new Date(effect.endDate) >= new Date()
+                );
+                if (sealEffect) {
+                    saveData(data);
+                    updateEventDisplay();
+                    return; // イベント封印中は何もしない
+                }
+            }
+            
+            // ブーストが有効ならチェック
+            if (data.events.boostEnabled) {
+                let eventCount = 0;
+                
+                // 強制イベントチェック
+                if (data.events.forcedEvents && data.events.forcedEvents[todayStr]) {
+                    eventCount = 1;  // 強制イベント発生
+                    delete data.events.forcedEvents[todayStr];  // 使用済みにする
+                } else {
+                    // 通常のイベント個数を決定（0個:50%, 1個:45%, 2個:5%）
+                    const eventRoll = Math.random();
+                    if (eventRoll < 0.5) {
+                        eventCount = 0;  // 50%の確率で0個
+                    } else if (eventRoll < 0.95) {
+                        eventCount = 1;  // 45%の確率で1個
+                    } else {
+                        eventCount = 2;  // 5%の確率で2個
+                    }
+                }
+                
+                if (eventCount > 0) {
+                    // 利用可能なブーストをシャッフル
+                    const availableBoosts = [...HABIT_EVENTS.boosts];
+                    const shuffled = availableBoosts.sort(() => Math.random() - 0.5);
+                    
+                    // 指定された個数だけイベントを選択
+                    let selectedCount = 0;
+                    for (const boost of shuffled) {
+                        if (selectedCount >= eventCount) break;
+                        
+                        // 条件をチェック（条件関数がある場合は実行）
+                        let shouldActivate = false;
+                        if (typeof boost.condition === 'function') {
+                            // 条件関数の結果をそのまま使用（既に確率が含まれている）
+                            shouldActivate = boost.condition(data);
+                        } else {
+                            // 条件関数がない場合はレアリティに基づく確率
+                            const rarityChance = {
+                                common: 0.5,  // 時間帯イベントが出やすいように
+                                uncommon: 0.3,
+                                rare: 0.2,
+                                legendary: 0.1
+                            };
+                            shouldActivate = Math.random() < (rarityChance[boost.rarity] || 0.3);
+                        }
+                        
+                        if (shouldActivate) {
+                            data.events.activeBoosts.push({
+                                ...boost,
+                                activatedAt: new Date().toISOString()
+                            });
+                            selectedCount++;
+                        }
+                    }
+                    
+                    // アクティブなブーストがあれば通知
+                    if (data.events.activeBoosts.length > 0) {
+                        data.events.activeBoosts.forEach(boost => {
+                            showEventNotification(boost);
+                        });
+                    }
+                }
+            }
+            
+            saveData(data);
+            // 表示を更新（イベントが無くてもコンテナは必ず表示）
+            try { updateEventDisplay(); } catch (_) { /* noop */ }
+        }
+        
+        // マイルストーンチェック
+        function checkMilestoneEvent(hypothesis, achievedDays) {
+            const data = loadData();
+            const milestones = HABIT_EVENTS.milestones;
+            
+            Object.keys(milestones).forEach(days => {
+                const daysNum = parseInt(days);
+                if (achievedDays >= daysNum && !data.events.milestoneNotifications[`${hypothesis.id}_${days}`]) {
+                    const milestone = milestones[days];
+                    
+                    // マイルストーン報酬を付与
+                    if (milestone.rewards.includes('bonus_points')) {
+                        earnPoints(daysNum * 5, 'milestone', `${hypothesis.title} ${days}日達成記念！`);
+                        // マイルストーン通知（優先度6）
+                        showNotification(
+                            `🏆 マイルストーン達成！\n${hypothesis.title}\n${days}日継続！\n+${daysNum * 5}pt`,
+                            'success',
+                            6
+                        );
+                    }
+                    if (milestone.rewards.includes('huge_bonus')) {
+                        earnPoints(50, 'milestone', `${hypothesis.title} 21日達成おめでとう！`);
+                        // 21日達成は特別（優先度7）
+                        showNotification(
+                            `🎊 祝！21日達成！\n${hypothesis.title}\n習慣化成功！\n+50pt`,
+                            'success',
+                            7
+                        );
+                    }
+                    
+                    // 通知済みとして記録
+                    data.events.milestoneNotifications[`${hypothesis.id}_${days}`] = new Date().toISOString();
+                    saveData(data);
+                }
+            });
+        }
+        
+        // イベント通知表示
+        function showEventNotification(boost) {
+            const rarityColors = {
+                common: '#64748b',
+                uncommon: '#10b981',
+                rare: '#3b82f6',
+                legendary: '#fbbf24'
+            };
+            
+            const notification = document.createElement('div');
+            notification.className = 'event-notification';
+            notification.innerHTML = `
+                <div style="background: linear-gradient(135deg, ${rarityColors[boost.rarity]}33, ${rarityColors[boost.rarity]}11); 
+                            border: 1px solid ${rarityColors[boost.rarity]}; 
+                            border-radius: 12px; padding: 16px; margin: 8px;">
+                    <div style="font-size: 20px; margin-bottom: 8px;">${boost.name}</div>
+                    <div style="font-size: 14px; color: var(--text-secondary);">${boost.description}</div>
+                    <div style="font-size: 12px; margin-top: 8px; color: ${rarityColors[boost.rarity]};">
+                        ${boost.rarity.toUpperCase()} イベント
+                    </div>
+                </div>
+            `;
+            
+            // 通知を画面に表示
+            const container = document.getElementById('notifications-container') || document.body;
+            container.appendChild(notification);
+            
+            // アニメーション
+            setTimeout(() => {
+                notification.style.animation = 'slideInFromTop 0.5s ease-out';
+            }, 100);
+            
+            // 5秒後に自動削除
+            setTimeout(() => {
+                notification.style.animation = 'fadeOut 0.5s ease-out';
+                setTimeout(() => notification.remove(), 500);
+            }, 5000);
+        }
+        
+        // マイルストーン通知表示
+        function showMilestoneNotification(milestone, habitTitle) {
+            const notification = document.createElement('div');
+            notification.className = 'milestone-notification';
+            notification.innerHTML = `
+                <div style="background: linear-gradient(135deg, #fbbf24, #f59e0b); 
+                            color: white; border-radius: 12px; padding: 20px; margin: 8px; text-align: center;">
+                    <div style="font-size: 24px; margin-bottom: 8px;">${milestone.title}</div>
+                    <div style="font-size: 16px; margin-bottom: 8px;">「${habitTitle}」</div>
+                    <div style="font-size: 14px;">${milestone.message}</div>
+                </div>
+            `;
+            
+            const container = document.getElementById('notifications-container') || document.body;
+            container.appendChild(notification);
+            
+            // 特別なアニメーション
+            notification.style.animation = 'bounceIn 1s ease-out';
+            
+            // 10秒後に自動削除
+            setTimeout(() => {
+                notification.style.animation = 'fadeOut 0.5s ease-out';
+                setTimeout(() => notification.remove(), 500);
+            }, 10000);
+        }
+        
+        // イベント表示の更新
+        function updateEventDisplay() {
+            const data = loadData();
+            const eventContainer = document.getElementById('active-events');
+            
+            if (!eventContainer) return;
+            // 機能停止中は常に非表示
+            if (typeof EVENTS_DISABLED !== 'undefined' && EVENTS_DISABLED) {
+                eventContainer.style.display = 'none';
+                return;
+            }
+            
+            if (!data.events || !data.events.activeBoosts || data.events.activeBoosts.length === 0) {
+                eventContainer.style.display = 'none';
+            } else {
+                // 週末スペシャルのサニタイズと重複排除
+                let boosts = Array.isArray(data.events.activeBoosts) ? data.events.activeBoosts.slice() : [];
+
+                // 1) 値・説明の正規化（週末スペシャル）
+                boosts = boosts.map(b => {
+                    if (b && b.eventId === 'weekend_special') {
+                        b.value = 1.2;
+                        b.description = '週末はポイント1.2倍！';
+                    }
+                    return b;
+                });
+
+                // 2) 明らかに古い表記（1.5など）を含む週末スペシャルを除外
+                boosts = boosts.filter(b => {
+                    if (!b) return false;
+                    if (b.eventId === 'weekend_special') {
+                        const desc = String(b.description || '');
+                        if (desc.includes('1.5') || desc.includes('×1.5')) return false;
+                    }
+                    return true;
+                });
+
+                // 3) eventId ベースで重複排除（最後に現れたものを優先）
+                const dedupMap = new Map();
+                for (const b of boosts) {
+                    const key = b && b.eventId ? `id:${b.eventId}` : `name:${b?.name || ''}|desc:${b?.description || ''}`;
+                    dedupMap.set(key, b);
+                }
+                boosts = Array.from(dedupMap.values());
+
+                // 永続化（今後の読み込みでも正しい状態を維持）
+                data.events.activeBoosts = boosts;
+                saveData(data);
+
+                eventContainer.style.display = 'block';
+                eventContainer.innerHTML = `
+                    <h3 style="margin-bottom: 12px; font-size: 16px;">🎉 今日のイベント</h3>
+                    ${boosts.map(boost => `
+                        <div class="event-card" style="background: rgba(251, 191, 36, 0.15); border-radius: 8px; padding: 12px; margin: 8px 0;">
+                            <div style="font-size: 16px; font-weight: bold;">${boost.name}</div>
+                            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">${boost.description}</div>
+                            <div style="font-size: 10px; margin-top: 8px; color: #f59e0b;">
+                                期間: 本日中
+                            </div>
+                        </div>
+                    `).join('')}
+                `;
+            }
+        }
+        
+        // ブースト効果を適用してポイントを計算
+        function calculatePointsWithBoosts(basePoints, source, category = null) {
+            const data = loadData();
+            let finalPoints = basePoints;
+            let multiplier = 1.0;
+            let bonus = 0;
+
+            // チャレンジ系（daily/weekly）はブースト適用なし
+            const isChallenge = (source === 'daily_challenge' || source === 'weekly_challenge' || source === 'challenge');
+            if (isChallenge) {
+                return basePoints;
+            }
+            
+            // カード効果のチェック
+            if (data.cards && data.cards.activeEffects) {
+                const now = new Date();
+                
+                // ポイントジェム効果
+                const pointGem = data.cards.activeEffects.find(effect => 
+                    effect.type === 'point_multiplier' && 
+                    new Date(effect.startDate) <= now && 
+                    new Date(effect.endDate) >= now
+                );
+                if (pointGem) {
+                    multiplier *= pointGem.multiplier;
+                }
+                
+                // レインボーブースト効果
+                const rainbowBoost = data.cards.activeEffects.find(effect => 
+                    effect.type === 'all_category_boost' && 
+                    new Date(effect.startDate) <= now && 
+                    new Date(effect.endDate) >= now
+                );
+                if (rainbowBoost && category) {
+                    multiplier *= rainbowBoost.multiplier;
+                }
+                
+                // スローダウン効果
+                const slowdown = data.cards.activeEffects.find(effect => 
+                    effect.type === 'slowdown' && 
+                    new Date(effect.startDate) <= now && 
+                    new Date(effect.endDate) >= now
+                );
+                if (slowdown) {
+                    multiplier *= 0.5;
+                }
+                
+                // 逆転の呪い効果
+                const reverseCurse = data.cards.activeEffects.find(effect => 
+                    effect.type === 'reverse_curse' && 
+                    new Date(effect.startDate) <= now && 
+                    new Date(effect.endDate) >= now
+                );
+                if (reverseCurse && source === 'habit') {
+                    // 達成で0ポイント、未達成で通常ポイント（呼び出し元で処理）
+                    return 0;
+                }
+            }
+            
+            // イベントブースト効果（機能停止中は無効）
+            if (!(typeof EVENTS_DISABLED !== 'undefined' && EVENTS_DISABLED) && data.events && data.events.activeBoosts) {
+                const currentHour = new Date().getHours();
+                
+                data.events.activeBoosts.forEach(boost => {
+                    // 新しいイベントシステムの処理
+                    if (boost.effect === 'points_multiplier') {
+                        multiplier *= boost.value;
+                    } else if (boost.effect === 'achievement_bonus' && source === 'habit') {
+                        // 最初の3回達成のボーナス
+                        if (!data.events.dailyAchievementCount) data.events.dailyAchievementCount = 0;
+                        if (data.events.dailyAchievementCount < 3) {
+                            bonus += boost.value;
+                            data.events.dailyAchievementCount++;
+                            saveData(data);
+                        }
+                    } else if (boost.effect === 'flat_bonus') {
+                        bonus += boost.value;
+                    } else if (boost.effect === 'time_bonus') {
+                        if (boost.hours && boost.hours.includes(currentHour)) {
+                            multiplier *= boost.multiplier;
+                        }
+                    } else if (boost.effect === 'lucky_time') {
+                        if (boost.hours && boost.hours.includes(currentHour)) {
+                            bonus += boost.bonus;
+                        }
+                    } else if (boost.effect === 'category_boost' && category === boost.category) {
+                        multiplier *= boost.multiplier;
+                    } else if (boost.effect === 'perfect_bonus') {
+                        // パーフェクトチャレンジは別処理で確認
+                    } else if (boost.effect === 'streak_bonus') {
+                        // ストリークパーティは別処理で確認
+                    } else if (boost.effect === 'comeback') {
+                        // カムバックボーナスは別処理で確認
+                    } else if (boost.effect === 'random_points' && source === 'habit') {
+                        // ダイスロール
+                        const dice = Math.floor(Math.random() * (boost.max - boost.min + 1)) + boost.min;
+                        bonus += dice;
+                    } else if (boost.effect === 'coin_flip' && source === 'habit') {
+                        // コインフリップ
+                        const win = Math.random() < 0.5;
+                        multiplier *= win ? boost.win : boost.lose;
+                    } else if (boost.effect === 'chain' && source === 'habit') {
+                        // チェインリアクション（最大+5）
+                        if (!data.events.chainCount) data.events.chainCount = 0;
+                        if (data.events.chainCount < boost.maxBonus) {
+                            data.events.chainCount++;
+                            bonus += data.events.chainCount;
+                            saveData(data);
+                        } else {
+                            bonus += boost.maxBonus;
+                        }
+                    } else if (boost.effect === 'momentum' && source === 'habit') {
+                        // モメンタムビルダー
+                        if (!data.events.momentumIndex) data.events.momentumIndex = 0;
+                        const index = Math.min(data.events.momentumIndex, boost.multipliers.length - 1);
+                        multiplier *= boost.multipliers[index];
+                        data.events.momentumIndex++;
+                        saveData(data);
+                    } else if (boost.effect === 'card_drop') {
+                        // カードドロップ率は別処理
+                    } else if (boost.effect === 'rare_boost') {
+                        // レアカード確率は別処理
+                    }
+                    
+                    // 旧形式のイベント処理（互換性のため）
+                    const effect = boost.effect;
+                    if (typeof effect === 'object') {
+                        switch (effect.type) {
+                            case 'global_multiplier':
+                                multiplier *= effect.value;
+                                break;
+                            case 'category_multiplier':
+                                if (category === effect.target) {
+                                    multiplier *= effect.value;
+                                }
+                                break;
+                        }
+                    }
+                });
+            }
+            
+            finalPoints = Math.round(basePoints * multiplier + bonus);
+            return finalPoints;
+        }
+
+        // ブースト効果（詳細内訳付き）
+        function calculatePointsWithBoostsDetailed(basePoints, source, category = null) {
+            const data = loadData();
+            let multiplier = 1.0;
+            let bonus = 0;
+            const notes = [];
+            const now = new Date();
+
+            // チャレンジ系（daily/weekly）はブースト適用なし
+            const isChallenge = (source === 'daily_challenge' || source === 'weekly_challenge' || source === 'challenge');
+            if (isChallenge) {
+                return { finalPoints: basePoints, multiplierTotal: 1.0, bonusTotal: 0, notes };
+            }
+            
+            // カード効果
+            if (data.cards && data.cards.activeEffects) {
+                // ポイントジェム
+                const pointGem = data.cards.activeEffects.find(e => e.type === 'point_multiplier' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
+                if (pointGem) { multiplier *= pointGem.multiplier; notes.push(`PointGem ×${pointGem.multiplier}`); }
+                // レインボーブースト（カテゴリーにのみ）
+                const rainbow = data.cards.activeEffects.find(e => e.type === 'all_category_boost' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
+                if (rainbow && category) { multiplier *= rainbow.multiplier; notes.push(`RainbowBoost ×${rainbow.multiplier}`); }
+                // コンボチェーン（コンボのみ倍化）
+                const comboChain = data.cards.activeEffects.find(e => e.type === 'combo_multiplier' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
+                if (comboChain && source === 'combo') { multiplier *= (comboChain.value || 2.0); notes.push(`Combo ×${comboChain.value || 2.0}`); }
+                // カテゴリーフェス（対象カテゴリだけ）
+                const catFest = data.cards.activeEffects.find(e => e.type === 'category_theme_boost' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
+                if (catFest && category && catFest.target === category) { multiplier *= (catFest.multiplier || 1.5); notes.push(`Festival(${category}) ×${catFest.multiplier || 1.5}`); }
+                // ハッピーアワー（指定時間帯に+10）
+                const hh = data.cards.activeEffects.find(e => e.type === 'time_window_bonus' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
+                if (hh) { bonus += (hh.value || 10); notes.push(`HappyHour +${hh.value || 10}`); }
+                // スパークルストリーク（今日の最初の3回の達成だけボーナス）
+                const todayKey = dateKeyLocal(new Date());
+                const spark = data.cards.activeEffects.find(e => e.type === 'streak_spark' && e.dayKey === todayKey && (e.count || 0) < (e.bonuses ? e.bonuses.length : 0));
+                if (spark && source === 'habit') {
+                    const idx = spark.count || 0;
+                    const add = (spark.bonuses && spark.bonuses[idx]) ? spark.bonuses[idx] : 0;
+                    if (add > 0) { bonus += add; notes.push(`Sparkle +${add}`); }
+                    // カウントを進めて保存
+                    spark.count = idx + 1;
+                    saveData(data);
+                }
+                // スローダウン
+                const slow = data.cards.activeEffects.find(e => e.type === 'slowdown' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
+                if (slow) { multiplier *= 0.5; notes.push('Slowdown ×0.5'); }
+                // 逆転の呪い（習慣達成は0ptに）
+                const reverse = data.cards.activeEffects.find(e => e.type === 'reverse_curse' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
+                if (reverse && source === 'habit') { return { finalPoints: 0, multiplierTotal: 0, bonusTotal: 0, notes: ['ReverseCurse'] }; }
+            }
+            
+            // イベント効果（機能停止中は無効）
+            if (!(typeof EVENTS_DISABLED !== 'undefined' && EVENTS_DISABLED) && data.events && data.events.activeBoosts) {
+                data.events.activeBoosts.forEach(boost => {
+                    const eff = boost.effect;
+                    switch (eff.type) {
+                        case 'global_multiplier': multiplier *= eff.value; notes.push(`Global ×${eff.value}`); break;
+                        case 'category_multiplier': if (category === eff.target) { multiplier *= eff.value; notes.push(`${eff.target} ×${eff.value}`); } break;
+                        case 'category_bonus': if (category === eff.target) { bonus += eff.value; notes.push(`${eff.target} +${eff.value}`); } break;
+                        case 'challenge_multiplier': if (source === 'challenge') { multiplier *= eff.value; notes.push(`Challenge ×${eff.value}`); } break;
+                        case 'time_bonus':
+                            const hour = new Date().getHours();
+                            if ((boost.duration === 'morning' && hour >= 6 && hour <= 9) || (boost.duration === 'night' && hour >= 20 && hour <= 23)) {
+                                bonus += eff.value; notes.push(`Time +${eff.value}`);
+                            }
+                            break;
+                    }
+                });
+            }
+            
+            const finalPoints = Math.round(basePoints * multiplier + bonus);
+            return { finalPoints, multiplierTotal: multiplier, bonusTotal: bonus, notes };
+        }
+
+
+        function debugAchieveAllPast() {
+            if (isMobileDevice && isMobileDevice()) { showNotification('⚠️ デバッグ機能はPCのみ利用できます', 'error'); return; }
+            if (!window.currentHypothesis) return;
+            
+            const startDate = new Date(window.currentHypothesis.startDate);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            // 開始日から今日までの全ての日を達成にする
+            const currentDate = new Date(startDate);
+            while (currentDate <= today) {
+                const dateKey = dateKeyLocal(currentDate);
+                window.currentHypothesis.achievements[dateKey] = true;
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+            
+            // データを保存
+            const data = loadData();
+            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (index !== -1) {
+                data.currentHypotheses[index] = window.currentHypothesis;
+                saveData(data);
+            }
+            
+            updateCalendar();
+            updateProgress();
+            showNotification('📅 過去全てを達成にしました', 'success');
+        }
+        
+        function debugSkipDays() {
+            if (isMobileDevice && isMobileDevice()) { showNotification('⚠️ デバッグ機能はPCのみ利用できます', 'error'); return; }
+            if (!window.currentHypothesis) return;
+            
+            if (!confirm('習慣の開始日を3日前にずらします。よろしいですか？')) {
+                return;
+            }
+            
+            // 開始日を3日前にずらす
+            const startDate = new Date(window.currentHypothesis.startDate);
+            startDate.setDate(startDate.getDate() - 3);
+            window.currentHypothesis.startDate = startDate.toISOString();
+            
+            // データを保存
+            const data = loadData();
+            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (index !== -1) {
+                data.currentHypotheses[index] = window.currentHypothesis;
+                saveData(data);
+            }
+            
+            updateCalendar();
+            updateProgress();  // 即座に進捗を更新
+            showNotification('⏩ 日付を3日進めました', 'success');
+        }
+        
+        function debugCompleteHypothesis() {
+            if (isMobileDevice && isMobileDevice()) { showNotification('⚠️ デバッグ機能はPCのみ利用できます', 'error'); return; }
+            if (!window.currentHypothesis) return;
+            
+            if (!confirm('習慣を強制的に完了させます。よろしいですか？')) {
+                return;
+            }
+            
+            // 開始日を totalDays 日前にずらして期間を終了させる（最終日にする）
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const newStartDate = new Date(today);
+            newStartDate.setDate(today.getDate() - window.currentHypothesis.totalDays + 1);
+            window.currentHypothesis.startDate = newStartDate.toISOString();
+            
+            // データを保存
+            const data = loadData();
+            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (index !== -1) {
+                data.currentHypotheses[index] = window.currentHypothesis;
+                saveData(data);
+            }
+            
+            updateCalendar();
+            updateProgress();  // 即座に進捗を更新
+            showNotification('🏁 習慣を完了状態にしました', 'success');
+        }
+        
+        // モバイル判定（スマホ/タブレット）
+        function isMobileDevice() {
+            const ua = navigator.userAgent || navigator.vendor || window.opera || '';
+            const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+            const narrow = Math.min(window.innerWidth, window.innerHeight) <= 820;
+            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Windows Phone/i.test(ua) || (touch && narrow);
+        }
+
+        // デバッグモードの有効化（URLパラメータまたはローカルストレージで制御）
+        function checkDebugMode() {
+            const debugButton = document.getElementById('debug-button');
+            const debugPanel = document.getElementById('debug-panel');
+            const debugToggle = document.getElementById('debug-toggle');
+            
+            // スマホ/タブレットではデバッグUIを表示しない
+            if (isMobileDevice()) {
+                if (debugButton) debugButton.style.display = 'none';
+                if (debugPanel) debugPanel.style.display = 'none';
+                if (debugToggle) debugToggle.style.display = 'none';
+                return;
+            }
+
+            // PCでのみデバッグボタンを表示
+            if (debugButton) {
+                debugButton.style.display = 'block';
+            }
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const debugMode = urlParams.get('debug') === 'true' || localStorage.getItem('debugMode') === 'true';
+            
+            if (debugMode) {
+                if (debugPanel) {
+                    debugPanel.style.display = 'block';
+                }
+                // ボタンのスタイルを更新
+                if (debugToggle) {
+                    debugToggle.style.display = 'inline-flex';
+                    debugToggle.style.background = 'var(--error)';
+                    debugToggle.style.color = 'white';
+                    debugToggle.style.border = 'none';
+                }
+            } else {
+                if (debugToggle) debugToggle.style.display = 'inline-flex';
+            }
+        }
+        
+        // デバッグモードのトグル
+        function toggleDebugMode() {
+            // モバイルでは無効
+            if (isMobileDevice()) {
+                showNotification('⚠️ デバッグ機能はPCのみ利用できます', 'error');
+                return;
+            }
+            const currentMode = localStorage.getItem('debugMode') === 'true';
+            const newMode = !currentMode;
+            localStorage.setItem('debugMode', newMode.toString());
+            
+            const debugPanel = document.getElementById('debug-panel');
+            const debugToggle = document.getElementById('debug-toggle');
+            
+            if (newMode) {
+                if (debugPanel) {
+                    debugPanel.style.display = 'block';
+                }
+                if (debugToggle) {
+                    debugToggle.style.display = 'inline-flex';
+                    debugToggle.style.background = 'var(--error)';
+                    debugToggle.style.color = 'white';
+                    debugToggle.style.border = 'none';
+                }
+                showNotification('🛠️ デバッグモードを有効化しました', 'success');
+            } else {
+                if (debugPanel) {
+                    debugPanel.style.display = 'none';
+                }
+                if (debugToggle) {
+                    debugToggle.style.display = 'inline-flex';
+                    debugToggle.style.background = 'none';
+                    debugToggle.style.color = 'var(--text-secondary)';
+                    debugToggle.style.border = '1px solid var(--border)';
+                }
+                showNotification('🛠️ デバッグモードを無効化しました', 'info');
+            }
+        }
+
+        // デバッグ：カードを追加
+        function debugAddCard(cardId) {
+            if (isMobileDevice && isMobileDevice()) { showNotification('⚠️ デバッグ機能はPCのみ利用できます', 'error'); return; }
+            const data = loadData();
+            
+            data.cards.inventory.push({
+                cardId: cardId,
+                acquiredDate: new Date().toISOString(),
+                used: false
+            });
+            
+            saveData(data);
+            updateCardUseButton();
+            
+            const card = CARD_MASTER[cardId];
+            showNotification(`🎴 ${card.name}を追加しました`, 'success');
+            
+            // パーフェクトボーナスの場合は即座に有効化
+            if (cardId === 'perfect_bonus') {
+                updatePerfectBonusIndicator();
+            }
+        }
+        
+        // デバッグ：ペナルティ効果を適用
+        function debugApplyPenalty(penaltyId) {
+            if (isMobileDevice && isMobileDevice()) { showNotification('⚠️ デバッグ機能はPCのみ利用できます', 'error'); return; }
+            if (!window.currentHypothesis && penaltyId !== 'double_or_nothing') {
+                showNotification('⚠️ 進行中の習慣がありません', 'error');
+                return;
+            }
+            
+            const card = CARD_MASTER[penaltyId];
+            
+            switch(penaltyId) {
+                case 'extension_card':
+                    // 期間を延長
+                    window.currentHypothesis.totalDays += 3;
+                    updateCalendar();
+                    updateProgress();
+                    showCardEffect('延長カード発動！', '検証期間が3日延長されました', '#ef4444');
+                    break;
+                    
+                case 'hard_mode':
+                    // ハードモードを有効化
+                    window.currentHypothesis.hardMode = true;
+                    updatePenaltyIndicators();
+                    showCardEffect('ハードモード発動！', '90%以上の達成率が必要になりました', '#dc2626');
+                    break;
+                    
+                case 'reset_risk':
+                    // リセットリスクを有効化
+                    window.currentHypothesis.resetRisk = true;
+                    updatePenaltyIndicators();
+                    showCardEffect('リセットリスク発動！', '3日連続未達成で全てリセットされます', '#dc2626');
+                    break;
+                    
+                case 'achievement_decrease':
+                    // 達成率減少を設定
+                    window.currentHypothesis.achievementDecrease = 10;
+                    updatePenaltyIndicators();
+                    showCardEffect('達成率減少発動！', '最終達成率から10%減少します', '#ef4444');
+                    break;
+                    
+                case 'chaos_vortex':
+                    // 混乱の渦を発動
+                    applyChaosVortex();
+                    break;
+                    
+                case 'double_or_nothing':
+                    // ダブルオアナッシングを設定
+                    window.doubleOrNothingActive = true;
+                    showCardEffect('ダブルオアナッシング発動！', '次の習慣で100%達成しないとペナルティカード2枚', '#dc2626');
+                    const data = loadData();
+                    if (!data.cards.activeEffects) data.cards.activeEffects = [];
+                    data.cards.activeEffects.push({
+                        cardId: 'double_or_nothing',
+                        activatedDate: new Date().toISOString()
+                    });
+                    saveData(data);
+                    break;
+                    
+                case 'event_seal':
+                    // イベント封印効果を3日間適用
+                    const sealData = loadData();
+                    const sealStart = new Date();
+                    const sealEnd = new Date();
+                    sealEnd.setDate(sealEnd.getDate() + 3);
+                    if (!sealData.cards.activeEffects) sealData.cards.activeEffects = [];
+                    sealData.cards.activeEffects.push({
+                        type: 'event_seal',
+                        startDate: sealStart.toISOString(),
+                        endDate: sealEnd.toISOString()
+                    });
+                    saveData(sealData);
+                    showCardEffect('イベント封印発動！', '3日間イベントが発生しません', '#64748b');
+                    break;
+                    
+                case 'mission_overload':
+                    // ミッション追加（今日のミッションに2つ追加）
+                    window.additionalMissions = 2;
+                    showCardEffect('ミッション追加発動！', '今日のミッションが2つ追加されました', '#991b1b');
+                    break;
+                    
+                case 'slowdown':
+                    // ポイント0.5倍効果を3日間適用
+                    const slowData = loadData();
+                    const slowStart = new Date();
+                    const slowEnd = new Date();
+                    slowEnd.setDate(slowEnd.getDate() + 3);
+                    if (!slowData.cards.activeEffects) slowData.cards.activeEffects = [];
+                    slowData.cards.activeEffects.push({
+                        type: 'slowdown',
+                        startDate: slowStart.toISOString(),
+                        endDate: slowEnd.toISOString()
+                    });
+                    saveData(slowData);
+                    showCardEffect('スローダウン発動！', '3日間獲得ポイントが0.5倍になります', '#7c2d12');
+                    break;
+                    
+                case 'reverse_curse':
+                    // 逆転の呪い効果を3日間適用
+                    const curseData = loadData();
+                    const curseStart = new Date();
+                    const curseEnd = new Date();
+                    curseEnd.setDate(curseEnd.getDate() + 3);
+                    if (!curseData.cards.activeEffects) curseData.cards.activeEffects = [];
+                    curseData.cards.activeEffects.push({
+                        type: 'reverse_curse',
+                        startDate: curseStart.toISOString(),
+                        endDate: curseEnd.toISOString()
+                    });
+                    saveData(curseData);
+                    showCardEffect('逆転の呪い発動！', '3日間、達成と未達成の効果が反転します', '#581c87');
+                    break;
+            }
+            
+            // データを保存（double_or_nothing以外）
+            if (window.currentHypothesis && penaltyId !== 'double_or_nothing') {
+                const data = loadData();
+                const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+                if (index !== -1) {
+                    data.currentHypotheses[index] = window.currentHypothesis;
+                    saveData(data);
+                }
+            }
+            
+            showNotification(`⚠️ ${card.name}の効果を適用しました`, 'error');
+        }
+        
+        // デバッグ：全カードをクリア
+        function debugClearAllCards() {
+            if (isMobileDevice && isMobileDevice()) { showNotification('⚠️ デバッグ機能はPCのみ利用できます', 'error'); return; }
+            if (!confirm('全てのカードと効果をクリアします。よろしいですか？')) {
+                return;
+            }
+            
+            const data = loadData();
+            
+            // カードインベントリをクリア
+            data.cards.inventory = [];
+            data.cards.pendingPenalties = [];
+            data.cards.activeEffects = [];
+            
+            // 現在の習慣のペナルティ効果をクリア
+            if (window.currentHypothesis) {
+                window.currentHypothesis.hardMode = false;
+                window.currentHypothesis.resetRisk = false;
+                window.currentHypothesis.achievementDecrease = 0;
+                
+                const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+                if (index !== -1) {
+                    data.currentHypotheses[index] = window.currentHypothesis;
+                }
+            }
+            
+            saveData(data);
+            
+            // UIを更新
+            updateCardUseButton();
+            updatePerfectBonusIndicator();
+            updatePenaltyIndicators();
+            
+            showNotification('🗑️ 全てのカードと効果をクリアしました', 'info');
+        }
+        
+        // 混乱の渦を適用
+        function applyChaosVortex() {
+            if (!window.currentHypothesis) return;
+            
+            const startDate = new Date(window.currentHypothesis.startDate);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            startDate.setHours(0, 0, 0, 0);
+            
+            // 現在までの日付リストを作成
+            const dates = [];
+            const currentDate = new Date(startDate);
+            while (currentDate <= today && dates.length < window.currentHypothesis.totalDays) {
+                dates.push(dateKeyLocal(currentDate));
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+            
+            // ランダムに3日を選択
+            const shuffledDates = [...dates].sort(() => Math.random() - 0.5).slice(0, 3);
+            
+            // 選択された日の達成状態を反転
+            shuffledDates.forEach(dateKey => {
+                if (window.currentHypothesis.achievements[dateKey]) {
+                    delete window.currentHypothesis.achievements[dateKey];
+                } else {
+                    window.currentHypothesis.achievements[dateKey] = true;
+                }
+            });
+            
+            updateCalendar();
+            updateProgress();
+            
+            showCardEffect('混乱の渦発動！', `${shuffledDates.length}日分の達成/未達成が入れ替わりました`, '#dc2626');
+        }
+        
+        // プロテクトシールドを使用
+        function useProtectShield() {
+            closeCardUseMenu();
+            
+            const data = loadData();
+            
+            // カードを消費
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'protect_shield' && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                showNotification('⚠️ プロテクトシールドがありません', 'error');
+                return;
+            }
+            
+            // カードを使用済みにして即座に削除
+            data.cards.inventory.splice(cardIndex, 1);
+            
+            // アクティブエフェクトに追加
+            if (!data.cards.activeEffects) {
+                data.cards.activeEffects = [];
+            }
+            
+            data.cards.activeEffects.push({
+                cardId: 'protect_shield',
+                activatedDate: new Date().toISOString()
+            });
+            
+            saveData(data);
+            
+            showNotification('🛡️ プロテクトシールドが有効になりました！\n次の習慣でペナルティカードを無効化します', 'success');
+        }
+        
+        // 達成率ブースターを使用
+        function useAchievementBooster() {
+            closeCardUseMenu();
+            
+            if (!window.currentHypothesis || window.currentHypothesis.completed) {
+                showNotification('⚠️ 進行中の習慣がありません', 'error');
+                return;
+            }
+            
+            const data = loadData();
+            
+            // カードを消費
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'achievement_booster' && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                showNotification('⚠️ 達成率ブースターがありません', 'error');
+                return;
+            }
+            
+            // カードを使用済みにして即座に削除
+            data.cards.inventory.splice(cardIndex, 1);
+            
+            // アクティブエフェクトに追加（この習慣に紐づく）
+            if (!data.cards.activeEffects) data.cards.activeEffects = [];
+            data.cards.activeEffects.push({
+                cardId: 'achievement_booster',
+                activatedDate: new Date().toISOString(),
+                targetHypothesisId: window.currentHypothesis.id
+            });
+            
+            // データを保存
+            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (index !== -1) {
+                // 習慣本体の変更は不要
+            }
+            
+            saveData(data);
+            
+            showCardEffect('達成率ブースター発動！', '最終達成率に+15%のボーナスが付与されます', '#3b82f6');
+        }
+        
+        // セカンドチャンスを使用
+        function useSecondChance() {
+            closeCardUseMenu();
+            
+            if (!window.currentHypothesis) {
+                showNotification('⚠️ 進行中の習慣がありません', 'error');
+                return;
+            }
+            
+            const startDate = new Date(window.currentHypothesis.startDate);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            startDate.setHours(0, 0, 0, 0);
+            
+            // 経過日数を計算
+            const timeDiff = today.getTime() - startDate.getTime();
+            const daysPassed = Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1);
+            
+            // まだ期間が終わっていない場合は使用不可
+            if (daysPassed < window.currentHypothesis.totalDays) {
+                showNotification('⚠️ セカンドチャンスは習慣終了後に使用できます', 'error');
+                return;
+            }
+            
+            const data = loadData();
+            
+            // カードを消費
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'second_chance' && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                showNotification('⚠️ セカンドチャンスがありません', 'error');
+                return;
+            }
+            
+            // カードを使用済みにして即座に削除
+            data.cards.inventory.splice(cardIndex, 1);
+            
+            // 期間を3日延長
+            window.currentHypothesis.totalDays += 3;
+            window.currentHypothesis.secondChanceUsed = true;
+            
+            // データを保存
+            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (index !== -1) {
+                data.currentHypotheses[index] = window.currentHypothesis;
+            }
+            
+            saveData(data);
+            
+            // UIを更新
+            updateCalendar();
+            updateProgress();
+            
+            showCardEffect('セカンドチャンス発動！', '3日分の追加チャンスを獲得しました', '#10b981');
+        }
+
+        // 新しいカード効果関数
+
+        // イベントトリガー
+        function useEventTrigger() {
+            closeCardUseMenu();
+            const data = loadData();
+            
+            // カードを消費
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'event_trigger' && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                showNotification('⚠️ イベントトリガーがありません', 'error');
+                return;
+            }
+            
+            // カードを使用済みにして即座に削除
+            data.cards.inventory.splice(cardIndex, 1);
+            
+            // 明日のイベントを確定させる
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const tomorrowStr = tomorrow.toISOString().split('T')[0];
+            
+            if (!data.events) data.events = {};
+            if (!data.events.forcedEvents) data.events.forcedEvents = {};
+            data.events.forcedEvents[tomorrowStr] = true;
+            
+            saveData(data);
+            showNotification('🎪 明日は必ずイベントが発生します！', 'success');
+            updateCardUseButton();
+        }
+
+        // コンボチェーン: 今日のコンボ×2
+        function useComboChain() {
+            closeCardUseMenu();
+            const data = loadData();
+            const idx = data.cards.inventory.findIndex(c => c.cardId === 'combo_chain' && !c.used);
+            if (idx === -1) { showNotification('⚠️ コンボチェーンがありません', 'error'); return; }
+            // カードを使用済みにして即座に削除
+            data.cards.inventory.splice(idx, 1);
+            const start = new Date();
+            const end = new Date(); end.setHours(23,59,59,999);
+            if (!data.cards.activeEffects) data.cards.activeEffects = [];
+            data.cards.activeEffects.push({ cardId:'combo_chain', type:'combo_multiplier', value:2.0, startDate:start.toISOString(), endDate:end.toISOString() });
+            saveData(data);
+            showCardEffect('🧩 コンボチェーン発動！','今日のコンボは×2','\#22c55e');
+            updateCardUseButton();
+        }
+
+        // スパークルストリーク: 今日の最初の3回 達成に+3/+5/+8
+        function useSparkleStreak() {
+            closeCardUseMenu();
+            const data = loadData();
+            const idx = data.cards.inventory.findIndex(c => c.cardId === 'sparkle_streak' && !c.used);
+            if (idx === -1) { showNotification('⚠️ スパークルストリークがありません', 'error'); return; }
+            // カードを使用済みにして即座に削除
+            data.cards.inventory.splice(idx, 1);
+            const start = new Date();
+            const end = new Date(); end.setHours(23,59,59,999);
+            const dayKey = dateKeyLocal(new Date());
+            if (!data.cards.activeEffects) data.cards.activeEffects = [];
+            data.cards.activeEffects.push({ cardId:'sparkle_streak', type:'streak_spark', bonuses:[3,5,8], count:0, dayKey, startDate:start.toISOString(), endDate:end.toISOString() });
+            saveData(data);
+            showCardEffect('🎆 スパークルストリーク！','今日の最初の3回の達成で追加ボーナス','\#f97316');
+            updateCardUseButton();
+        }
+
+        // カテゴリーフェス: 指定カテゴリ×1.5（今日）
+        function useCategoryFestival() {
+            closeCardUseMenu();
+            const data = loadData();
+            const idx = data.cards.inventory.findIndex(c => c.cardId === 'category_festival' && !c.used);
+            if (idx === -1) { showNotification('⚠️ カテゴリーフェスがありません', 'error'); return; }
+            // カテゴリ選択（簡易UI）
+            const options = ['study','exercise','health','work','hobby','other'];
+            const label = prompt('対象カテゴリを入力 (study/exercise/health/work/hobby/other):','exercise');
+            const target = options.includes((label||'').trim()) ? (label||'').trim() : null;
+            if (!target) { showNotification('⚠️ 無効なカテゴリです', 'error'); return; }
+            // カードを使用済みにして即座に削除  
+            data.cards.inventory.splice(idx, 1);
+            const start = new Date(); const end = new Date(); end.setHours(23,59,59,999);
+            if (!data.cards.activeEffects) data.cards.activeEffects = [];
+            data.cards.activeEffects.push({ cardId:'category_festival', type:'category_theme_boost', target, multiplier:1.5, startDate:start.toISOString(), endDate:end.toISOString() });
+            saveData(data);
+            showCardEffect('🎪 カテゴリーフェス！', `${target} が×1.5`, '\#8b5cf6');
+            updateCardUseButton();
+        }
+
+        // ハッピーアワー: 今から60分 +10pt
+        function useHappyHour() {
+            closeCardUseMenu();
+            const data = loadData();
+            const idx = data.cards.inventory.findIndex(c => c.cardId === 'happy_hour' && !c.used);
+            if (idx === -1) { showNotification('⚠️ ハッピーアワーがありません', 'error'); return; }
+            // カードを使用済みにして即座に削除  
+            data.cards.inventory.splice(idx, 1);
+            const start = new Date();
+            const end = new Date(start.getTime() + 60 * 60 * 1000);
+            if (!data.cards.activeEffects) data.cards.activeEffects = [];
+            data.cards.activeEffects.push({ cardId:'happy_hour', type:'time_window_bonus', value:10, startDate:start.toISOString(), endDate:end.toISOString() });
+            saveData(data);
+            showCardEffect('⏰ ハッピーアワー！','60分間 +10pt','\#06b6d4');
+            updateCardUseButton();
+        }
+
+        // ミステリーボックス: 今日の最初の達成でサプライズ
+        function useMysteryBox() {
+            closeCardUseMenu();
+            const data = loadData();
+            const idx = data.cards.inventory.findIndex(c => c.cardId === 'mystery_box' && !c.used);
+            if (idx === -1) { showNotification('⚠️ ミステリーボックスがありません', 'error'); return; }
+            // カードを使用済みにして即座に削除  
+            data.cards.inventory.splice(idx, 1);
+            const dayKey = dateKeyLocal(new Date());
+            if (!data.cards.activeEffects) data.cards.activeEffects = [];
+            data.cards.activeEffects.push({ cardId:'mystery_box', type:'mystery_reward', dayKey, claimed:false, options:['points15','event_trigger','protect_shield'] });
+            saveData(data);
+            showCardEffect('🎁 ミステリーボックス！','今日の最初の達成でサプライズ','\#f59e0b');
+            updateCardUseButton();
+        }
+
+        // イベントコンボ
+        function useEventCombo() {
+            closeCardUseMenu();
+            const data = loadData();
+            
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'event_combo' && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                showNotification('⚠️ イベントコンボがありません', 'error');
+                return;
+            }
+            
+            data.cards.inventory[cardIndex].used = true;
+            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            
+            // 3日間連続でイベントを確定
+            if (!data.events) data.events = {};
+            if (!data.events.forcedEvents) data.events.forcedEvents = {};
+            
+            for (let i = 1; i <= 3; i++) {
+                const date = new Date();
+                date.setDate(date.getDate() + i);
+                const dateStr = date.toISOString().split('T')[0];
+                data.events.forcedEvents[dateStr] = true;
+            }
+            
+            saveData(data);
+            showNotification('🔮 3日間連続でイベントが発生します！', 'success');
+            updateCardUseButton();
+        }
+
+        // ポイントジェム
+        function usePointGem() {
+            closeCardUseMenu();
+            const data = loadData();
+            
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'point_gem' && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                showNotification('⚠️ ポイントジェムがありません', 'error');
+                return;
+            }
+            
+            data.cards.inventory[cardIndex].used = true;
+            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            
+            // 明日1日限定でポイント1.2倍効果を付与
+            if (!data.cards.activeEffects) data.cards.activeEffects = [];
+            
+            // 明日の開始時刻（0時）と終了時刻（23時59分）を設定
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            tomorrow.setHours(0, 0, 0, 0);
+            
+            const endDate = new Date(tomorrow);
+            endDate.setHours(23, 59, 59, 999);
+            
+            data.cards.activeEffects.push({
+                cardId: 'point_gem',
+                type: 'point_multiplier',
+                multiplier: 1.2,
+                startDate: tomorrow.toISOString(),
+                endDate: endDate.toISOString()
+            });
+            
+            saveData(data);
+            showNotification('💎 明日1日限定でポイントが1.2倍になります！', 'success');
+            updateCardUseButton();
+        }
+
+        // ミッションマスター
+        function useMissionMaster() {
+            closeCardUseMenu();
+            const data = loadData();
+            
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'mission_master' && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                showNotification('⚠️ ミッションマスターがありません', 'error');
+                return;
+            }
+            
+            data.cards.inventory[cardIndex].used = true;
+            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            
+            // 今日のミッションを自動達成
+            const today = new Date().toISOString().split('T')[0];
+            if (!data.challenges) data.challenges = {};
+            if (!data.challenges.daily) data.challenges.daily = {};
+            if (!data.challenges.missions) data.challenges.missions = {};
+            
+            // デイリーミッションをすべて達成扱いにする
+            const dailyMissions = ['3habits', '5achievements_C', 'continuous_3days', 'morning_achievement', 
+                                   'effort_bonus_5pt', 'all_categories', 'perfect_1habit', 'weekend_10habits',
+                                   'weekday_consistency', 'evening_achievement', 'total_20pt', 'any_challenge'];
+            
+            dailyMissions.forEach(missionId => {
+                if (!data.challenges.missions[missionId]) {
+                    data.challenges.missions[missionId] = {};
+                }
+                data.challenges.missions[missionId][today] = true;
+            });
+            
+            saveData(data);
+
+            // 目に見える効果: 今日のデイリーチャレンジも完了扱いにする
+            try {
+                const daily = (data.challenges && data.challenges.daily) ? data.challenges.daily : null;
+                if (daily && !data.challenges.completedToday.includes(daily.id)) {
+                    completeChallenge('daily', daily.id);
+                }
+            } catch (e) { /* noop */ }
+
+            showNotification('🎯 今日のミッションがすべて達成されました！', 'success');
+            updateCardUseButton();
+            updateChallenges();
+        }
+
+        // レインボーブースト
+        function useRainbowBoost() {
+            closeCardUseMenu();
+            const data = loadData();
+            
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'rainbow_boost' && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                showNotification('⚠️ レインボーブーストがありません', 'error');
+                return;
+            }
+            
+            data.cards.inventory[cardIndex].used = true;
+            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            
+            // 今日のすべてのカテゴリーポイント2倍
+            const today = new Date();
+            const endDate = new Date();
+            endDate.setHours(23, 59, 59, 999);
+            
+            if (!data.cards.activeEffects) data.cards.activeEffects = [];
+            data.cards.activeEffects.push({
+                cardId: 'rainbow_boost',
+                type: 'all_category_boost',
+                multiplier: 2,
+                startDate: today.toISOString(),
+                endDate: endDate.toISOString()
+            });
+            
+            saveData(data);
+            showNotification('🌈 今日はすべてのカテゴリーでポイント2倍！', 'success');
+            updateCardUseButton();
+        }
+
+        // クイックスタート
+        function useQuickStart() {
+            closeCardUseMenu();
+            const data = loadData();
+            
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'quick_start' && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                showNotification('⚠️ クイックスタートがありません', 'error');
+                return;
+            }
+            
+            data.cards.inventory[cardIndex].used = true;
+            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            
+            // 次の習慣作成時に効果を適用するフラグを設定
+            if (!data.cards.pendingEffects) data.cards.pendingEffects = [];
+            data.cards.pendingEffects.push({
+                cardId: 'quick_start',
+                type: 'auto_achieve_first_days',
+                days: 3
+            });
+            
+            saveData(data);
+            showNotification('⚡ 次の習慣の最初の3日が自動達成されます！', 'success');
+            updateCardUseButton();
+        }
+
+        // 連続達成ボーナス
+        function useStreakBonus() {
+            closeCardUseMenu();
+            const data = loadData();
+            
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'streak_bonus' && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                showNotification('⚠️ 連続達成ボーナスがありません', 'error');
+                return;
+            }
+            
+            data.cards.inventory[cardIndex].used = true;
+            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            
+            // 7日連続達成でレアカード確定
+            if (!data.cards.activeEffects) data.cards.activeEffects = [];
+            const today = new Date();
+            const endDate = new Date();
+            endDate.setDate(endDate.getDate() + 7);
+            
+            data.cards.activeEffects.push({
+                cardId: 'streak_bonus',
+                type: 'streak_rare_guarantee',
+                targetDays: 7,
+                startDate: today.toISOString(),
+                endDate: endDate.toISOString()
+            });
+            
+            saveData(data);
+            showNotification('🔥 7日連続達成でレアカード確定！', 'success');
+            updateCardUseButton();
+        }
+
+        // ラッキーセブン
+        function useLuckySeven() {
+            closeCardUseMenu();
+            const data = loadData();
+            
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'lucky_seven' && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                showNotification('⚠️ ラッキーセブンがありません', 'error');
+                return;
+            }
+            
+            data.cards.inventory[cardIndex].used = true;
+            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            
+            // 7日間カードドロップ率2倍
+            if (!data.cards.activeEffects) data.cards.activeEffects = [];
+            const today = new Date();
+            const endDate = new Date();
+            endDate.setDate(endDate.getDate() + 7);
+            
+            data.cards.activeEffects.push({
+                cardId: 'lucky_seven',
+                type: 'drop_rate_boost',
+                multiplier: 2,
+                startDate: today.toISOString(),
+                endDate: endDate.toISOString()
+            });
+            
+            saveData(data);
+            showNotification('🎰 7日間カードドロップ率が2倍になりました！', 'success');
+            updateCardUseButton();
+        }
+
+        // 変換の魔法
+        function useConversionMagic() {
+            closeCardUseMenu();
+            const data = loadData();
+            
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'conversion_magic' && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                showNotification('⚠️ 変換の魔法がありません', 'error');
+                return;
+            }
+            
+            // ペナルティカードを探す
+            const penaltyCards = data.cards.inventory.filter(
+                card => !card.used && CARD_MASTER[card.cardId] && CARD_MASTER[card.cardId].type === 'penalty'
+            );
+            
+            if (penaltyCards.length === 0) {
+                showNotification('⚠️ 変換できるペナルティカードがありません', 'error');
+                return;
+            }
+            
+            // ランダムにペナルティカードを選択
+            const targetCard = penaltyCards[Math.floor(Math.random() * penaltyCards.length)];
+            const targetIndex = data.cards.inventory.indexOf(targetCard);
+            
+            // カードを使用済みにして即座に削除
+            data.cards.inventory.splice(cardIndex, 1);
+            
+            // ペナルティカードを削除
+            data.cards.inventory.splice(targetIndex, 1);
+            
+            // ランダムな報酬カードを追加
+            const rewardCards = Object.keys(CARD_MASTER).filter(
+                id => CARD_MASTER[id].type === 'reward'
+            );
+            const newCardId = rewardCards[Math.floor(Math.random() * rewardCards.length)];
+            
+            data.cards.inventory.push({
+                cardId: newCardId,
+                acquiredDate: new Date().toISOString(),
+                used: false
+            });
+            // ドロップ履歴に追加（報酬カード）
+            try {
+                if (!data.cards.dropHistory) data.cards.dropHistory = [];
+                data.cards.dropHistory.unshift(newCardId);
+                if (data.cards.dropHistory.length > 100) data.cards.dropHistory = data.cards.dropHistory.slice(0,100);
+            } catch(_){}
+            
+            
+            saveData(data);
+            showNotification(`🪄 ${CARD_MASTER[targetCard.cardId].name}を${CARD_MASTER[newCardId].name}に変換しました！`, 'success');
+            updateCardUseButton();
+        }
+
+        // 運命のダイス
+        function useFateDice() {
+            closeCardUseMenu();
+            const data = loadData();
+            
+            const cardIndex = data.cards.inventory.findIndex(
+                card => card.cardId === 'fate_dice' && !card.used
+            );
+            
+            if (cardIndex === -1) {
+                showNotification('⚠️ 運命のダイスがありません', 'error');
+                return;
+            }
+            
+            // カード消費
+            data.cards.inventory[cardIndex].used = true;
+            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            
+            // 50/50で報酬かペナルティ
+            const isReward = Math.random() < 0.5;
+            
+            if (isReward) {
+                // 報酬効果：10-30ポイント獲得（ブースト適用あり）
+                const points = Math.floor(Math.random() * 21) + 10;
+                earnPoints(points, 'card', '運命のダイス（大当たり）');
+                showNotification(`🎲 大当たり！+${points}pt`, 'success');
+            } else {
+                // ペナルティ効果：5-15ポイント失う（トランザクション記録）
+                const points = Math.floor(Math.random() * 11) + 5;
+                spendPoints(points, '運命のダイス（ハズレ）');
+                showNotification(`🎲 残念...-${points}pt`, 'error');
+            }
+            
+            saveData(data);
+            if (typeof updateCardUseButton === 'function') updateCardUseButton();
+            updatePointDisplay();
+        }
+        
+        // 通知を表示
+        // ========== データエクスポート/インポート機能 ==========
+        
+        // 全データをエクスポート
+        function exportAllData() {
+            try {
+                const data = loadData();
+                
+                // エクスポート用のデータ構造
+                const exportData = {
+                    version: '1.0.0',
+                    exportDate: new Date().toISOString(),
+                    appVersion: 'PDCA-Lab v3.3.0',
+                    data: {
+                        // 習慣データ
+                        currentHypotheses: data.currentHypotheses || [],
+                        completedHypotheses: data.completedHypotheses || [],
+                        
+                        // ポイントシステム
+                        pointSystem: data.pointSystem || {
+                            currentPoints: 0,
+                            lifetimeEarned: 0,
+                            lifetimeSpent: 0,
+                            currentLevel: 1,
+                            levelProgress: 0,
+                            transactions: [],
+                            customRewards: [],
+                            dailyEffortUsed: 0,
+                            dailyEffortLastReset: null
+                        },
+                        
+                        // チャレンジ
+                        challenges: data.challenges || {
+                            daily: {},
+                            weekly: {},
+                            customChallenges: [],
+                            completedToday: [],
+                            completedThisWeek: [],
+                            history: [],
+                            streak: 0,
+                            lastStreakDate: null
+                        },
+                        
+                        // カード
+                        cards: data.cards || {
+                            inventory: [],
+                            activeEffects: [],
+                            pendingPenalties: []
+                        },
+                        
+                        // イベント
+                        events: data.events || {
+                            activeBoosts: [],
+                            lastEventDate: null,
+                            milestoneRewards: {}
+                        },
+                        
+                        // バッジ
+                        badges: data.badges || {
+                            earned: []
+                        },
+                        
+                        // デイリージャーナル
+                        dailyJournal: data.dailyJournal || {
+                            entries: {},
+                            stats: {
+                                currentStreak: 0,
+                                longestStreak: 0,
+                                totalEntries: 0,
+                                lastEntry: null
+                            },
+                            settings: {
+                                morningReminderTime: "06:00",
+                                eveningReminderTime: "21:00",
+                                remindersEnabled: true
+                            }
+                        },
+                        
+                        // UI設定
+                        uiSettings: data.uiSettings || {
+                            categoryOpenStates: {},
+                            lastOpenedView: 'home'
+                        }
+                    }
+                };
+                
+                // JSONファイルとしてダウンロード
+                const jsonStr = JSON.stringify(exportData, null, 2);
+                const blob = new Blob([jsonStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                const dateStr = new Date().toISOString().split('T')[0];
+                a.href = url;
+                a.download = `pdca-lab-backup-${dateStr}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                showNotification('📤 データのエクスポートが完了しました', 'success');
+                console.log('データエクスポート完了:', exportData);
+                
+            } catch (error) {
+                console.error('エクスポートエラー:', error);
+                showNotification('❌ エクスポートに失敗しました', 'error');
+            }
+        }
+        
+        // データをインポート（統一版）
+        function handleImportFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    
+                    let dataToImport = null;
+                    let exportDate = 'Unknown';
+                    
+                    console.log('インポートデータ確認:', importedData);
+                    
+                    // 新形式（v2.0）のチェック
+                    if (importedData.version === '2.0' && importedData.data) {
+                        dataToImport = importedData.data;
+                        exportDate = importedData.exportDate || 'Unknown';
+                        console.log('v2.0形式でインポート');
+                    }
+                    // 旧形式（v1.0）のチェック
+                    else if (importedData.version === '1.0') {
+                        // 旧形式から新形式に変換
+                        const currentData = loadData();
+                        dataToImport = {
+                            ...currentData,
+                            currentHypotheses: importedData.currentHabits || importedData.currentHypotheses || [],
+                            completedHypotheses: importedData.completedHabits || importedData.completedHypotheses || [],
+                            badges: importedData.badges || {},
+                            cards: importedData.cards || currentData.cards
+                        };
+                        exportDate = importedData.exportDate || 'Unknown';
+                        console.log('v1.0形式でインポート（変換）');
+                    }
+                    // エクスポートデータに直接アクセス（version無しだがdataプロパティあり）
+                    else if (importedData.data && typeof importedData.data === 'object') {
+                        dataToImport = importedData.data;
+                        exportDate = importedData.exportDate || 'Unknown';
+                        console.log('データプロパティからインポート');
+                    }
+                    // 直接データ形式（バージョンなし）
+                    else if (importedData.currentHypotheses !== undefined || 
+                             importedData.pointSystem !== undefined ||
+                             importedData.dailyJournal !== undefined) {
+                        dataToImport = importedData;
+                        exportDate = 'Unknown';
+                        console.log('直接データ形式でインポート');
+                    }
+                    else {
+                        console.error('認識できないデータ形式:', importedData);
+                        throw new Error('サポートされていないファイル形式です。\n\nPDCA-Labからエクスポートしたファイルを選択してください。');
+                    }
+                    
+                    // データの必須プロパティを確認・補完
+                    if (!dataToImport.currentHypotheses) dataToImport.currentHypotheses = [];
+                    if (!dataToImport.completedHypotheses) dataToImport.completedHypotheses = [];
+                    if (!dataToImport.cards) dataToImport.cards = { inventory: [], pendingPenalties: [] };
+                    if (!dataToImport.badges) dataToImport.badges = {};
+                    if (!dataToImport.pointSystem) {
+                        dataToImport.pointSystem = {
+                            currentPoints: 0,
+                            lifetimeEarned: 0,
+                            lifetimeSpent: 0,
+                            transactions: [],
+                            customRewards: []
+                        };
+                    }
+                    if (!dataToImport.dailyJournal) {
+                        dataToImport.dailyJournal = {
+                            entries: {},
+                            stats: {
+                                currentStreak: 0,
+                                longestStreak: 0,
+                                totalEntries: 0,
+                                lastEntry: null
+                            }
+                        };
+                    }
+                    if (!dataToImport.challengeSystem) {
+                        dataToImport.challengeSystem = {
+                            daily: [],
+                            weekly: [],
+                            custom: [],
+                            stats: {
+                                dailyStreak: 0,
+                                weeklyStreak: 0,
+                                totalCompleted: 0,
+                                dailyCompletedCount: 0,
+                                weeklyCompletedCount: 0
+                            },
+                            history: []
+                        };
+                    }
+                    
+                    // 確認ダイアログ
+                    const dateStr = exportDate !== 'Unknown' ? `${exportDate} にエクスポートされた` : '';
+                    if (!confirm(`${dateStr}データをインポートします。\n\n現在のデータは上書きされます。続行しますか？`)) {
+                        event.target.value = ''; // ファイル選択をリセット
+                        return;
+                    }
+                    
+                    // データを保存
+                    saveData(dataToImport);
+                    
+                    showNotification('📥 データのインポートが完了しました', 'success');
+                    console.log('データインポート完了:', dataToImport);
+                    
+                    // 2秒後にページをリロード
+                    setTimeout(() => {
+                        location.reload();
+                    }, 2000);
+                    
+                } catch (error) {
+                    console.error('インポートエラー:', error);
+                    showNotification('❌ インポートに失敗しました: ' + error.message, 'error');
+                }
+                
+                // ファイル選択をリセット
+                event.target.value = '';
+            };
+            
+            reader.readAsText(file);
+        }
+        
+        // 通知キューシステム
+        let notificationQueue = [];
+        let isShowingNotification = false;
+        
+        function showNotification(message, type = 'info', priority = 0) {
+            // 通知をキューに追加（priorityが高いものほど優先）
+            notificationQueue.push({ message, type, priority });
+            
+            // priorityでソート（高い順）
+            notificationQueue.sort((a, b) => b.priority - a.priority);
+            
+            // 表示中でなければ次の通知を表示
+            if (!isShowingNotification) {
+                showNextNotification();
+            }
+        }
+        
+        function showNextNotification() {
+            if (notificationQueue.length === 0) {
+                isShowingNotification = false;
+                return;
+            }
+            
+            isShowingNotification = true;
+            const { message, type } = notificationQueue.shift();
+            
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
+                color: white;
+                padding: 16px 24px;
+                border-radius: 12px;
+                font-weight: 600;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+                z-index: 3000;
+                animation: slideIn 0.3s ease-out;
+                max-width: 300px;
+                white-space: pre-line;
+            `;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            // 表示時間を調整（重要な通知は長めに表示）
+            const displayTime = message.includes('レベルアップ') ? 4000 : 
+                               message.includes('達成率') ? 3500 : 
+                               3000;
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => {
+                    notification.remove();
+                    // 少し間を空けて次の通知を表示
+                    setTimeout(() => {
+                        showNextNotification();
+                    }, 300);
+                }, 300);
+            }, displayTime);
+        }
+
+        // データのエクスポート（JSON）
+        
+        // 初期化
+        // タッチイベント処理を初期化
+        function initTouchHandlers() {
+            let touchTimer = null;
+            let touchTarget = null;
+            
+            document.addEventListener('touchstart', function(e) {
+                const target = e.target.closest('.journal-entry-item');
+                if (target && (target.dataset.type === 'morning' || target.dataset.type === 'evening')) {
+                    const data = loadData();
+                    const todayKey = dateKeyLocal(new Date());
+                    const todayEntry = data.dailyJournal?.entries?.[todayKey];
+                    
+                    // エントリが存在する場合のみ長押しを有効化
+                    const hasEntry = target.dataset.type === 'morning' 
+                        ? todayEntry?.morning?.timestamp
+                        : todayEntry?.evening?.timestamp;
+                    
+                    if (hasEntry) {
+                        touchTarget = target;
+                        touchTimer = setTimeout(() => {
+                            // 長押しでコンテキストメニューを表示
+                            const touch = e.touches[0];
+                            showJournalContextMenu({
+                                preventDefault: () => {},
+                                clientX: touch.clientX,
+                                clientY: touch.clientY
+                            }, target.dataset.type);
+                            
+                            // 振動フィードバック（対応デバイスのみ）
+                            if (navigator.vibrate) {
+                                navigator.vibrate(50);
+                            }
+                        }, 500); // 500ms長押し
+                    }
+                }
+            });
+            
+            document.addEventListener('touchend', function() {
+                if (touchTimer) {
+                    clearTimeout(touchTimer);
+                    touchTimer = null;
+                }
+                touchTarget = null;
+            });
+            
+            document.addEventListener('touchmove', function() {
+                if (touchTimer) {
+                    clearTimeout(touchTimer);
+                    touchTimer = null;
+                }
+                touchTarget = null;
+            });
+        }
+        
+        // DOMが読み込まれたら各種初期化処理を実行
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                initializeApp();
+                initTouchHandlers();
+            });
+        } else {
+            // すでにDOMが読み込まれている場合
+            initializeApp();
+            initTouchHandlers();
+        }
+        
+        function initializeApp() {
+            // テーマを初期化
+            initializeTheme();
+
+            // 削除カードのクリーンアップ（プロテクトシールドを排除）
+            try {
+                const data = loadData();
+                if (data && data.cards) {
+                    if (Array.isArray(data.cards.inventory)) {
+                        data.cards.inventory = data.cards.inventory.filter(c => c.cardId !== 'protect_shield');
+                    }
+                    if (Array.isArray(data.cards.pendingPenalties)) {
+                        data.cards.pendingPenalties = data.cards.pendingPenalties.filter(c => c.cardId !== 'protect_shield');
+                    }
+                    if (Array.isArray(data.cards.activeEffects)) {
+                        data.cards.activeEffects = data.cards.activeEffects.filter(e => e.cardId !== 'protect_shield');
+                    }
+                    saveData(data);
+                }
+            } catch (_) { /* noop */ }
+            
+            // 古いイベント（朝活ボーナス・夜型ボーナス）のクリーンアップ
+            try {
+                const data = loadData();
+                if (data && data.events && data.events.activeBoosts) {
+                    const hasOldEvent = data.events.activeBoosts.some(b => 
+                        b.name === '🌅 朝活ボーナス' || 
+                        b.name === '🌙 夜型ボーナス' ||
+                        (b.effect && (b.effect.type === 'morning_boost' || b.effect.type === 'night_boost')) ||
+                        (b.eventId === 'weekend_special' && b.value !== 1.2)  // 1.2倍以外の古い週末スペシャル
+                    );
+                    
+                    if (hasOldEvent) {
+                        // 古いイベントがある場合は今日のイベントチェックをリセット
+                        data.events.activeBoosts = [];
+                        data.events.lastEventCheck = null;
+                        saveData(data);
+                        console.log('古いイベントをクリアしました');
+                    }
+                }
+            } catch (_) { /* noop */ }
+            
+            // カテゴリドロップダウンを初期化
+            updateCategoryDropdowns();
+            
+            // ホーム画面を表示（これが習慣リストも更新する）
+            showHomeView();
+            
+            // ポイント表示を初期化
+            updatePointDisplay();
+            
+            // 努力ボーナスエリアを初期化
+            updateEffortBonusArea();
+            
+            // イベントチェック
+            checkDailyEvents();
+            
+            
+            // 履歴初期化（ホームを現在の状態として記録）
+            try {
+                history.replaceState({ view: 'home' }, '');
+            } catch (e) { 
+                /* noop */
+            }
+            
+            // デフォルトの期間を設定
+            selectDuration('medium');
+            
+            // 開始日の初期設定
+            setStartDate('today');
+        }
+
+        // 物理戻るボタン（popstate）でホームへ戻す
+        window.addEventListener('popstate', (event) => {
+            const state = event.state || {};
+            if (state.view === 'home' || !state.view) {
+                // 習慣の中身（progress）などから戻る → ホーム表示
+                showHomeView();
+            }
+        });
+        
+        // 初期化関数内で呼び出されるように移動
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                setupSwipeListeners();
+                checkDebugMode();
+                
+                // モバイルデバイスの場合のみスワイプインジケーターを表示
+                if ('ontouchstart' in window) {
+                    addSwipeIndicator();
+                }
+            });
+        } else {
+            setupSwipeListeners();
+            checkDebugMode();
+            
+            // モバイルデバイスの場合のみスワイプインジケーターを表示
+            if ('ontouchstart' in window) {
+                addSwipeIndicator();
+            }
+        }
+
+        // windowオブジェクトに関数を登録
+        window.initializeCategoryMaster = initializeCategoryMaster;
+        window.updateCategoryDropdowns = updateCategoryDropdowns;
+        window.editCategoryMaster = editCategoryMaster;
+        window.addNewCategory = addNewCategory;
+        
+        // モバイルのズーム抑止（ダブルタップ/ピンチ）
+        (function preventZoom() {
+            let lastTouchEnd = 0;
+            document.addEventListener('touchend', function (e) {
+                const now = Date.now();
+                if (now - lastTouchEnd <= 300) {
+                    e.preventDefault();
+                }
+                lastTouchEnd = now;
+            }, { passive: false });
+            document.addEventListener('gesturestart', function (e) {
+                e.preventDefault();
+            }, { passive: false });
+        })();
