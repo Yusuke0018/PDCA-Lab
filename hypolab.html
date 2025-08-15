@@ -33,6 +33,18 @@
             --gradient-success: linear-gradient(135deg, #10b981 0%, #059669 100%);
         }
 
+        /* ライトテーマ（上品で読みやすい配色） */
+        :root.light-theme {
+            --bg-dark: #f8fafc;
+            --bg-light: #ffffff;
+            --text-primary: #111827;
+            --text-secondary: #6b7280;
+            --border: rgba(0, 0, 0, 0.08);
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --primary-light: #818cf8;
+        }
+
         body {
             font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
             background: var(--bg-dark);
@@ -42,6 +54,8 @@
             -webkit-tap-highlight-color: transparent;
             -webkit-touch-callout: none;
             touch-action: pan-y;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
         /* 背景アニメーション */
@@ -77,6 +91,13 @@
             right: 0;
             z-index: 1000;
             box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        /* ライトテーマのナビバー */
+        :root.light-theme .navbar {
+            background: rgba(255, 255, 255, 0.85);
+            border-bottom-color: rgba(0, 0, 0, 0.06);
+            box-shadow: 0 4px 16px rgba(17, 24, 39, 0.06);
         }
 
         .nav-container {
@@ -178,6 +199,13 @@
             animation: fadeInUp 0.6s ease-out;
         }
 
+        /* ライトテーマのコンテナ */
+        :root.light-theme .container {
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 12px 28px rgba(17, 24, 39, 0.08);
+            border-color: rgba(0, 0, 0, 0.06);
+        }
+
         @keyframes fadeInUp {
             from {
                 opacity: 0;
@@ -265,6 +293,13 @@
             color: var(--text-primary);
         }
 
+        :root.light-theme .login-button {
+            background: #ffffff;
+            border-color: rgba(0, 0, 0, 0.06);
+            color: #111827;
+            box-shadow: 0 6px 16px rgba(17, 24, 39, 0.06);
+        }
+
         .login-button:hover {
             background: rgba(255, 255, 255, 0.1);
             border-color: var(--primary);
@@ -296,6 +331,12 @@
             overflow: hidden;
             -webkit-tap-highlight-color: rgba(255, 255, 255, 0.1);
             user-select: none;
+        }
+
+        :root.light-theme .hypothesis-card {
+            background: #ffffff;
+            border-color: rgba(0, 0, 0, 0.06);
+            box-shadow: 0 8px 20px rgba(17, 24, 39, 0.06);
         }
 
         .hypothesis-card::before {
@@ -717,6 +758,11 @@
             border: 1px solid var(--border);
             border-radius: 20px;
             transition: all 0.3s;
+        }
+
+        :root.light-theme .progress-stat {
+            background: rgba(0, 0, 0, 0.03);
+            border-color: rgba(0, 0, 0, 0.06);
         }
 
         .progress-stat:hover {
@@ -1373,6 +1419,7 @@
                 <a class="nav-link" onclick="showScreen('hypothesis-screen')">新規仮説立案</a>
                 <a class="nav-link" onclick="showScreen('history-screen')">履歴</a>
                 <div class="user-info">
+                    <button class="nav-link" id="theme-toggle" onclick="toggleTheme()"><span id="theme-icon">🌙</span></button>
                     <div class="user-avatar" id="user-avatar">?</div>
                     <button class="nav-link" id="auth-button" onclick="handleAuth()">ログイン</button>
                 </div>
@@ -2391,6 +2438,38 @@
                 console.error("完了エラー:", error);
             }
         }
+        // テーマ切り替え
+        function toggleTheme() {
+            const root = document.documentElement;
+            const current = localStorage.getItem('theme') || 'dark';
+            const next = current === 'dark' ? 'light' : 'dark';
+            if (next === 'light') {
+                root.classList.add('light-theme');
+                const el = document.getElementById('theme-icon');
+                if (el) el.textContent = '☀️';
+            } else {
+                root.classList.remove('light-theme');
+                const el = document.getElementById('theme-icon');
+                if (el) el.textContent = '🌙';
+            }
+            localStorage.setItem('theme', next);
+        }
+
+        function initializeTheme() {
+            const saved = localStorage.getItem('theme') || 'dark';
+            const root = document.documentElement;
+            if (saved === 'light') {
+                root.classList.add('light-theme');
+                const el = document.getElementById('theme-icon');
+                if (el) el.textContent = '☀️';
+            } else {
+                root.classList.remove('light-theme');
+                const el = document.getElementById('theme-icon');
+                if (el) el.textContent = '🌙';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', initializeTheme);
     </script>
     <!-- スワイプインジケーター -->
     <div class="swipe-indicator" id="swipe-indicator">
