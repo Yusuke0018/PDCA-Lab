@@ -1520,12 +1520,11 @@
             <!-- 努力ボーナスセクション -->
             <div class="card" style="margin-bottom: 16px; background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(59, 130, 246, 0.1)); border: 1px solid rgba(16, 185, 129, 0.3);">
                 <h3 style="margin-bottom: 12px; font-size: 16px;">今日の努力ボーナス</h3>
-                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
-                    <span id="effort-stars" style="font-size: 24px;">⭐ 無制限</span>
-                    <span id="effort-count" style="color: var(--text-secondary); font-size: 14px;">今日0回使用</span>
+                <div id="effort-bonus-plans" style="margin-bottom: 12px;">
+                    <!-- 予定された努力ボーナスがここに表示される -->
                 </div>
                 <button class="btn btn-secondary" id="effort-bonus-btn" onclick="handleEffortBonusClick(event); showEffortBonusDialog()" style="padding: 8px 16px; font-size: 14px; position: relative; overflow: visible;">
-                    💪 努力を記録する (+1-3pt)
+                    💪 努力を予定する (+1-3pt)
                 </button>
             </div>
             
@@ -5305,8 +5304,8 @@
                 `;
             }
             
-            // 努力ボーナスの表示も更新
-            updateEffortBonusDisplay();
+            // 努力ボーナスエリアの表示も更新
+            updateEffortBonusArea();
         }
         
         // 努力ボーナス表示を更新（改善版：使用回数表示）
@@ -5401,7 +5400,8 @@
                     max-width: 90%;
                     width: 320px;
                 ">
-                    <h3 style="margin-bottom: 16px; color: var(--primary);">💪 努力ボーナス</h3>
+                    <h3 style="margin-bottom: 16px; color: var(--primary);">💪 努力を予定する</h3>
+                    <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 16px;">実行したい努力を予定として登録し、完了したらポイントを獲得します</p>
                     <div style="margin-bottom: 12px;">
                         <label style="display: block; margin-bottom: 8px; color: var(--text-secondary);">種類を選択</label>
                         <select id="effort-type" style="
@@ -5438,7 +5438,7 @@
                         ">
                     </div>
                     <div style="margin-bottom: 20px;">
-                        <label style="display: block; margin-bottom: 12px; color: var(--text-secondary);">ポイントを選択</label>
+                        <label style="display: block; margin-bottom: 12px; color: var(--text-secondary);">予定ポイント</label>
                         <div style="display: flex; gap: 8px;">
                             <button onclick="selectEffortPoints(1)" id="effort-1pt" class="effort-point-btn" style="
                                 flex: 1;
@@ -5450,7 +5450,7 @@
                                 cursor: pointer;
                                 font-size: 16px;
                                 font-weight: bold;
-                            ">1pt</button>
+                            ">1pt<br><small style="font-size: 11px; opacity: 0.8;">軽い努力</small></button>
                             <button onclick="selectEffortPoints(2)" id="effort-2pt" class="effort-point-btn" style="
                                 flex: 1;
                                 padding: 12px;
@@ -5461,7 +5461,7 @@
                                 cursor: pointer;
                                 font-size: 16px;
                                 font-weight: bold;
-                            ">2pt</button>
+                            ">2pt<br><small style="font-size: 11px; opacity: 0.8;">普通の努力</small></button>
                             <button onclick="selectEffortPoints(3)" id="effort-3pt" class="effort-point-btn" style="
                                 flex: 1;
                                 padding: 12px;
@@ -5472,7 +5472,7 @@
                                 cursor: pointer;
                                 font-size: 16px;
                                 font-weight: bold;
-                            ">3pt</button>
+                            ">3pt<br><small style="font-size: 11px; opacity: 0.8;">大きな努力</small></button>
                         </div>
                     </div>
                     <div style="display: flex; gap: 8px;">
@@ -5485,7 +5485,7 @@
                             color: white;
                             cursor: pointer;
                             font-weight: bold;
-                        ">獲得する</button>
+                        ">予定を作成</button>
                         <button onclick="closeEffortDialog()" style="
                             flex: 1;
                             padding: 12px;
@@ -5539,37 +5539,254 @@
             const typeSelect = document.getElementById('effort-type');
             const typeText = typeSelect.options[typeSelect.selectedIndex].text;
             const detail = document.getElementById('effort-reason').value;
-            const reason = detail ? `${typeText} - ${detail}` : typeText;
             const points = window.selectedEffortPoints || 2;
             
-            if (addEffortBonus(points, reason)) {
-                // 成功メッセージ
-                const message = document.createElement('div');
-                message.style.cssText = `
-                    position: fixed;
-                    top: 50%;
-                    left: 50%;
-                    transform: translate(-50%, -50%);
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    color: white;
-                    padding: 20px 40px;
-                    border-radius: 20px;
-                    font-size: 18px;
-                    font-weight: 600;
-                    z-index: 10001;
-                    animation: fadeInOut 2s ease-out;
-                `;
-                message.textContent = `💪 ${points}ポイント獲得！`;
-                document.body.appendChild(message);
-                
-                setTimeout(() => message.remove(), 2000);
-                
-                // 努力ボーナスエリアを更新
-                updateEffortBonusArea();
-            }
+            // 予定として追加
+            addEffortBonusPlan(points, typeText, detail);
+            
+            // 成功メッセージ
+            const message = document.createElement('div');
+            message.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: var(--primary);
+                color: white;
+                padding: 20px 40px;
+                border-radius: 20px;
+                font-size: 18px;
+                font-weight: 600;
+                z-index: 10001;
+                animation: fadeInOut 2s ease-out;
+            `;
+            message.textContent = `📋 努力予定を作成しました`;
+            document.body.appendChild(message);
+            setTimeout(() => message.remove(), 2000);
             
             closeEffortDialog();
         }
+        
+        // 努力ボーナスを予定として追加
+        function addEffortBonusPlan(points, type, reason = '') {
+            // ポイント数のバリデーション
+            if (!points || points < 1 || points > 3) {
+                return;
+            }
+            
+            const data = loadData();
+            const today = dateKeyLocal(new Date());
+            
+            // 努力ボーナスの予定リストを初期化
+            if (!data.effortBonusPlans) data.effortBonusPlans = {};
+            if (!data.effortBonusPlans[today]) data.effortBonusPlans[today] = [];
+            
+            // 新しい予定を追加
+            const plan = {
+                id: 'effort_' + Date.now(),
+                points: points,
+                type: type,
+                reason: reason,
+                completed: false,
+                createdAt: new Date().toISOString()
+            };
+            
+            data.effortBonusPlans[today].push(plan);
+            saveData(data);
+            
+            // 努力ボーナスエリアを更新
+            updateEffortBonusArea();
+        }
+        
+        // 努力ボーナス予定を完了
+        function completeEffortBonusPlan(planId) {
+            const data = loadData();
+            const today = dateKeyLocal(new Date());
+            
+            if (!data.effortBonusPlans || !data.effortBonusPlans[today]) return;
+            
+            const plan = data.effortBonusPlans[today].find(p => p.id === planId);
+            if (!plan || plan.completed) return;
+            
+            // 完了状態に変更
+            plan.completed = true;
+            plan.completedAt = new Date().toISOString();
+            
+            // 使用回数を記録
+            data.pointSystem.dailyEffortUsed = (data.pointSystem.dailyEffortUsed || 0) + 1;
+            
+            // ポイント追加（直接処理）
+            data.pointSystem.currentPoints += plan.points;
+            data.pointSystem.lifetimeEarned += plan.points;
+            data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
+            
+            // レベル更新
+            const newLevel = calculateLevel(data.pointSystem.lifetimeEarned);
+            const oldLevel = data.pointSystem.currentLevel;
+            data.pointSystem.currentLevel = newLevel.level;
+            
+            // トランザクション記録
+            data.pointSystem.transactions.unshift({
+                timestamp: new Date().toISOString(),
+                type: 'earn',
+                amount: plan.points,
+                source: 'effort_bonus',
+                description: plan.reason || `努力ボーナス: ${plan.type} (${plan.points}pt)`,
+                finalAmount: plan.points
+            });
+            
+            // トランザクション履歴を最新100件に制限
+            if (data.pointSystem.transactions.length > 100) {
+                data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100);
+            }
+            
+            saveData(data);
+            updatePointDisplay();
+            updateEffortBonusArea();
+            
+            // エフェクトを表示
+            const button = document.getElementById('effort-plan-' + planId);
+            if (button) {
+                showFloatingPoints(plan.points, button);
+            }
+            playPointSound();
+            
+            // レベルアップ通知
+            if (newLevel.level > oldLevel) {
+                showLevelUpNotification(oldLevel, newLevel);
+            }
+        }
+        
+        // 努力ボーナス予定を削除
+        function deleteEffortBonusPlan(planId) {
+            const data = loadData();
+            const today = dateKeyLocal(new Date());
+            
+            if (!data.effortBonusPlans || !data.effortBonusPlans[today]) return;
+            
+            // 予定を削除
+            data.effortBonusPlans[today] = data.effortBonusPlans[today].filter(p => p.id !== planId);
+            
+            saveData(data);
+            updateEffortBonusArea();
+        }
+        
+        // 努力ボーナスエリアを更新
+        function updateEffortBonusArea() {
+            const data = loadData();
+            const today = dateKeyLocal(new Date());
+            const plans = data.effortBonusPlans && data.effortBonusPlans[today] ? data.effortBonusPlans[today] : [];
+            
+            const container = document.getElementById('effort-bonus-plans');
+            if (!container) return;
+            
+            if (plans.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-secondary); font-size: 14px; margin: 8px 0;">予定された努力はありません</p>';
+            } else {
+                container.innerHTML = '';
+                plans.forEach(plan => {
+                    const planDiv = document.createElement('div');
+                    planDiv.style.cssText = `
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        padding: 8px;
+                        margin-bottom: 8px;
+                        background: ${plan.completed ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255, 255, 255, 0.05)'};
+                        border: 1px solid ${plan.completed ? 'rgba(16, 185, 129, 0.3)' : 'rgba(255, 255, 255, 0.1)'};
+                        border-radius: 8px;
+                        transition: all 0.3s ease;
+                    `;
+                    
+                    const leftDiv = document.createElement('div');
+                    leftDiv.style.cssText = 'display: flex; align-items: center; gap: 8px; flex: 1;';
+                    
+                    const icon = document.createElement('span');
+                    icon.style.fontSize = '20px';
+                    icon.textContent = plan.completed ? '✅' : '📋';
+                    leftDiv.appendChild(icon);
+                    
+                    const textDiv = document.createElement('div');
+                    textDiv.style.cssText = 'flex: 1;';
+                    
+                    const typeText = document.createElement('div');
+                    typeText.style.cssText = `
+                        font-size: 14px;
+                        font-weight: 500;
+                        ${plan.completed ? 'text-decoration: line-through; opacity: 0.7;' : ''}
+                    `;
+                    typeText.textContent = `${plan.type} (+${plan.points}pt)`;
+                    textDiv.appendChild(typeText);
+                    
+                    if (plan.reason) {
+                        const reasonText = document.createElement('div');
+                        reasonText.style.cssText = 'font-size: 12px; color: var(--text-secondary); margin-top: 2px;';
+                        reasonText.textContent = plan.reason;
+                        textDiv.appendChild(reasonText);
+                    }
+                    
+                    leftDiv.appendChild(textDiv);
+                    planDiv.appendChild(leftDiv);
+                    
+                    const buttonsDiv = document.createElement('div');
+                    buttonsDiv.style.cssText = 'display: flex; gap: 4px;';
+                    
+                    if (!plan.completed) {
+                        // 完了ボタン
+                        const completeBtn = document.createElement('button');
+                        completeBtn.id = 'effort-plan-' + plan.id;
+                        completeBtn.className = 'btn btn-primary';
+                        completeBtn.style.cssText = 'padding: 4px 8px; font-size: 12px;';
+                        completeBtn.textContent = '完了';
+                        completeBtn.onclick = () => completeEffortBonusPlan(plan.id);
+                        buttonsDiv.appendChild(completeBtn);
+                        
+                        // 削除ボタン
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.className = 'btn btn-secondary';
+                        deleteBtn.style.cssText = 'padding: 4px 8px; font-size: 12px; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3);';
+                        deleteBtn.textContent = '削除';
+                        deleteBtn.onclick = () => {
+                            if (confirm('この努力予定を削除しますか？')) {
+                                deleteEffortBonusPlan(plan.id);
+                            }
+                        };
+                        buttonsDiv.appendChild(deleteBtn);
+                    }
+                    
+                    planDiv.appendChild(buttonsDiv);
+                    container.appendChild(planDiv);
+                });
+            }
+            
+            // 努力ボーナスカードの更新も行う
+            const effortCard = document.getElementById('effort-bonus-card');
+            if (effortCard) {
+                const usedToday = data.pointSystem.dailyEffortUsed || 0;
+                const pendingCount = plans.filter(p => !p.completed).length;
+                const completedCount = plans.filter(p => p.completed).length;
+                
+                effortCard.innerHTML = `
+                    <h3 class="card-title">💪 努力ボーナス</h3>
+                    <p style="margin-bottom: 12px;">今日の努力を予定してポイントを獲得しましょう！</p>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <span style="color: var(--text-secondary); font-size: 14px;">
+                            予定: ${pendingCount}件 | 完了: ${completedCount}件
+                        </span>
+                        <span style="font-size: 24px;">${completedCount > 0 ? '⭐'.repeat(Math.min(completedCount, 5)) : '🌱'}</span>
+                    </div>
+                    <button class="btn btn-secondary" onclick="handleEffortBonusClick(event); showEffortBonusDialog()" style="width: 100%; padding: 10px; font-size: 14px; position: relative; overflow: visible;">
+                        💪 努力を予定する (+1-3pt)
+                    </button>
+                `;
+            }
+        }
+        
+        // Window オブジェクトに関数を登録
+        window.addEffortBonusPlan = addEffortBonusPlan;
+        window.completeEffortBonusPlan = completeEffortBonusPlan;
+        window.deleteEffortBonusPlan = deleteEffortBonusPlan;
+        window.updateEffortBonusArea = updateEffortBonusArea;
         
         // ダイアログを閉じる
         function closeEffortDialog() {
@@ -15482,6 +15699,9 @@
             
             // ポイント表示を初期化
             updatePointDisplay();
+            
+            // 努力ボーナスエリアを初期化
+            updateEffortBonusArea();
             
             // イベントチェック
             checkDailyEvents();
