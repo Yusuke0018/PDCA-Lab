@@ -1818,6 +1818,15 @@
                 </button>
             </div>
             
+            <!-- 特別報酬ボタン（スマホのみ、1日1回限定） -->
+            <div class="card" id="special-reward-section" style="margin-bottom: 16px; background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(239, 68, 68, 0.1)); border: 1px solid rgba(251, 191, 36, 0.3); display: none;">
+                <h3 style="margin-bottom: 12px; font-size: 16px;">🎁 今日の特別報酬</h3>
+                <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 12px;">1日1回限定で報酬カードを獲得できます</p>
+                <button class="btn btn-primary" id="special-reward-btn" onclick="getSpecialReward()" style="width: 100%; padding: 10px; font-size: 14px; background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);">
+                    🎁 報酬を受け取る
+                </button>
+            </div>
+            
             <!-- チャレンジセクション -->
             <div class="card" style="margin-bottom: 16px; background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(236, 72, 153, 0.1)); border: 1px solid rgba(139, 92, 246, 0.3);">
                 <h3 style="margin-bottom: 12px; font-size: 16px;">🎯 今日のチャレンジ</h3>
@@ -7960,6 +7969,7 @@
             updatePenaltyIndicators();
             updateChallenges();
             updateJournalStatus();  // ジャーナルステータスを更新
+            updateSpecialRewardButton();  // 特別報酬ボタンの状態を更新
             
             // イベント表示を更新（スマホ対応）
             try {
@@ -8773,6 +8783,9 @@
             });
             const cardUseSection = document.getElementById('card-use-section');
             cardUseSection.style.display = hasUsable ? 'block' : 'none';
+            
+            // カード使用後は即座にインベントリを更新
+            updateCardDisplay();
         }
 
         // カード使用メニューを表示
@@ -8926,9 +8939,8 @@
                 return null;
             }
             
-            // カードを使用済みにする
-            data.cards.inventory[cardIndex].used = true;
-            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            // カードを使用済みにして即座に削除
+            data.cards.inventory.splice(cardIndex, 1);
             saveData(data);
             
             return data.cards.inventory[cardIndex];
@@ -9084,9 +9096,8 @@
                 return;
             }
             
-            // カードを使用済みにする
-            data.cards.inventory[cardIndex].used = true;
-            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            // カードを使用済みにして即座に削除
+            data.cards.inventory.splice(cardIndex, 1);
             
             // アクティブエフェクトに追加
             if (!data.cards.activeEffects) {
@@ -9151,8 +9162,8 @@
             // スキップ適用ログ（開発用）
             
             // カードを消費
-            data.cards.inventory[skipTicketIndex].used = true;
-            data.cards.inventory[skipTicketIndex].usedDate = new Date().toISOString();
+            // カードを使用済みにして即座に削除
+            data.cards.inventory.splice(skipTicketIndex, 1);
             
             // 現在の習慣を更新
             const hypothesisIndex = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
@@ -13952,6 +13963,82 @@
                 window.cardAcquisitionCallback = null;
             }
         }
+        
+        // 特別報酬を獲得（スマホ限定、1日1回）
+        function getSpecialReward() {
+            const data = loadData();
+            const today = dateKeyLocal(new Date());
+            
+            // 本日既に取得済みかチェック
+            if (!data.specialRewards) data.specialRewards = {};
+            if (data.specialRewards[today]) {
+                showNotification('📅 今日の特別報酬は既に獲得済みです', 'info');
+                return;
+            }
+            
+            // 報酬カードの候補（レアカードを含む）
+            const rewardCandidates = [
+                'event_trigger', 'point_gem', 'rainbow_boost', 'mission_master',
+                'streak_bonus', 'lucky_seven', 'conversion_magic', 'fate_dice',
+                'combo_chain', 'sparkle_streak', 'category_festival', 'happy_hour', 
+                'mystery_box', 'event_combo'
+            ];
+            
+            // ランダムに1枚選択
+            const selectedCard = rewardCandidates[Math.floor(Math.random() * rewardCandidates.length)];
+            
+            // カードを追加
+            if (!data.cards) data.cards = { inventory: [], pendingPenalties: [], activeEffects: [] };
+            data.cards.inventory.push({
+                cardId: selectedCard,
+                acquiredDate: new Date().toISOString(),
+                used: false
+            });
+            
+            // 取得済みフラグを立てる
+            data.specialRewards[today] = true;
+            
+            // カード図鑑に登録
+            registerCardToAlbum(selectedCard);
+            
+            saveData(data);
+            
+            // カード獲得演出を表示
+            showCardAcquisition([selectedCard], () => {
+                updateCardUseButton();
+                updateSpecialRewardButton();
+                showNotification('🎁 特別報酬を獲得しました！', 'success');
+            });
+        }
+        
+        // 特別報酬ボタンの表示状態を更新
+        function updateSpecialRewardButton() {
+            const data = loadData();
+            const today = dateKeyLocal(new Date());
+            const section = document.getElementById('special-reward-section');
+            const button = document.getElementById('special-reward-btn');
+            
+            if (!section) return;
+            
+            // スマホのみ表示
+            if (!isMobileDevice || !isMobileDevice()) {
+                section.style.display = 'none';
+                return;
+            }
+            
+            // 本日既に取得済みか確認
+            if (data.specialRewards && data.specialRewards[today]) {
+                button.disabled = true;
+                button.textContent = '✅ 本日は取得済み';
+                button.style.background = 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)';
+            } else {
+                button.disabled = false;
+                button.textContent = '🎁 報酬を受け取る';
+                button.style.background = 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)';
+            }
+            
+            section.style.display = 'block';
+        }
 
         // スワイプ機能
         let touchStartX = 0;
@@ -15752,9 +15839,8 @@
                 return;
             }
             
-            // カードを使用済みにする
-            data.cards.inventory[cardIndex].used = true;
-            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            // カードを使用済みにして即座に削除
+            data.cards.inventory.splice(cardIndex, 1);
             
             // アクティブエフェクトに追加
             if (!data.cards.activeEffects) {
@@ -15792,9 +15878,8 @@
                 return;
             }
             
-            // カードを使用済みにする
-            data.cards.inventory[cardIndex].used = true;
-            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            // カードを使用済みにして即座に削除
+            data.cards.inventory.splice(cardIndex, 1);
             
             // アクティブエフェクトに追加（この習慣に紐づく）
             if (!data.cards.activeEffects) data.cards.activeEffects = [];
@@ -15851,9 +15936,8 @@
                 return;
             }
             
-            // カードを使用済みにする
-            data.cards.inventory[cardIndex].used = true;
-            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            // カードを使用済みにして即座に削除
+            data.cards.inventory.splice(cardIndex, 1);
             
             // 期間を3日延長
             window.currentHypothesis.totalDays += 3;
@@ -15891,9 +15975,8 @@
                 return;
             }
             
-            // カードを使用済みにする
-            data.cards.inventory[cardIndex].used = true;
-            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            // カードを使用済みにして即座に削除
+            data.cards.inventory.splice(cardIndex, 1);
             
             // 明日のイベントを確定させる
             const tomorrow = new Date();
@@ -15915,8 +15998,8 @@
             const data = loadData();
             const idx = data.cards.inventory.findIndex(c => c.cardId === 'combo_chain' && !c.used);
             if (idx === -1) { showNotification('⚠️ コンボチェーンがありません', 'error'); return; }
-            data.cards.inventory[idx].used = true;
-            data.cards.inventory[idx].usedDate = new Date().toISOString();
+            // カードを使用済みにして即座に削除
+            data.cards.inventory.splice(idx, 1);
             const start = new Date();
             const end = new Date(); end.setHours(23,59,59,999);
             if (!data.cards.activeEffects) data.cards.activeEffects = [];
@@ -15932,8 +16015,8 @@
             const data = loadData();
             const idx = data.cards.inventory.findIndex(c => c.cardId === 'sparkle_streak' && !c.used);
             if (idx === -1) { showNotification('⚠️ スパークルストリークがありません', 'error'); return; }
-            data.cards.inventory[idx].used = true;
-            data.cards.inventory[idx].usedDate = new Date().toISOString();
+            // カードを使用済みにして即座に削除
+            data.cards.inventory.splice(idx, 1);
             const start = new Date();
             const end = new Date(); end.setHours(23,59,59,999);
             const dayKey = dateKeyLocal(new Date());
@@ -15955,7 +16038,8 @@
             const label = prompt('対象カテゴリを入力 (study/exercise/health/work/hobby/other):','exercise');
             const target = options.includes((label||'').trim()) ? (label||'').trim() : null;
             if (!target) { showNotification('⚠️ 無効なカテゴリです', 'error'); return; }
-            data.cards.inventory[idx].used = true; data.cards.inventory[idx].usedDate = new Date().toISOString();
+            // カードを使用済みにして即座に削除  
+            data.cards.inventory.splice(idx, 1);
             const start = new Date(); const end = new Date(); end.setHours(23,59,59,999);
             if (!data.cards.activeEffects) data.cards.activeEffects = [];
             data.cards.activeEffects.push({ cardId:'category_festival', type:'category_theme_boost', target, multiplier:1.5, startDate:start.toISOString(), endDate:end.toISOString() });
@@ -15970,7 +16054,8 @@
             const data = loadData();
             const idx = data.cards.inventory.findIndex(c => c.cardId === 'happy_hour' && !c.used);
             if (idx === -1) { showNotification('⚠️ ハッピーアワーがありません', 'error'); return; }
-            data.cards.inventory[idx].used = true; data.cards.inventory[idx].usedDate = new Date().toISOString();
+            // カードを使用済みにして即座に削除  
+            data.cards.inventory.splice(idx, 1);
             const start = new Date();
             const end = new Date(start.getTime() + 60 * 60 * 1000);
             if (!data.cards.activeEffects) data.cards.activeEffects = [];
@@ -15986,7 +16071,8 @@
             const data = loadData();
             const idx = data.cards.inventory.findIndex(c => c.cardId === 'mystery_box' && !c.used);
             if (idx === -1) { showNotification('⚠️ ミステリーボックスがありません', 'error'); return; }
-            data.cards.inventory[idx].used = true; data.cards.inventory[idx].usedDate = new Date().toISOString();
+            // カードを使用済みにして即座に削除  
+            data.cards.inventory.splice(idx, 1);
             const dayKey = dateKeyLocal(new Date());
             if (!data.cards.activeEffects) data.cards.activeEffects = [];
             data.cards.activeEffects.push({ cardId:'mystery_box', type:'mystery_reward', dayKey, claimed:false, options:['points15','event_trigger','protect_shield'] });
@@ -16285,9 +16371,8 @@
             const targetCard = penaltyCards[Math.floor(Math.random() * penaltyCards.length)];
             const targetIndex = data.cards.inventory.indexOf(targetCard);
             
-            // カードを使用済みにする
-            data.cards.inventory[cardIndex].used = true;
-            data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
+            // カードを使用済みにして即座に削除
+            data.cards.inventory.splice(cardIndex, 1);
             
             // ペナルティカードを削除
             data.cards.inventory.splice(targetIndex, 1);
@@ -16816,6 +16901,8 @@
         window.updateCategoryDropdowns = updateCategoryDropdowns;
         window.editCategoryMaster = editCategoryMaster;
         window.addNewCategory = addNewCategory;
+        window.getSpecialReward = getSpecialReward;
+        window.updateSpecialRewardButton = updateSpecialRewardButton;
         
         // モバイルのズーム抑止（ダブルタップ/ピンチ）
         (function preventZoom() {
