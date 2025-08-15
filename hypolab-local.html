@@ -5554,7 +5554,7 @@
                     const todayKey = dateKeyLocal(new Date());
                     const mbox = data.cards.activeEffects.find(e => e.type === 'mystery_reward' && e.dayKey === todayKey && !e.claimed);
                     if (mbox) {
-                        const pool = mbox.options || ['points15','event_trigger','protect_shield'];
+                        const pool = mbox.options || ['points15','event_trigger','point_gem'];
                         const pick = pool[Math.floor(Math.random() * pool.length)];
                         if (pick === 'points15') {
                             // 追加ポイント
@@ -5566,12 +5566,23 @@
                         } else if (pick === 'event_trigger') {
                             // カード付与
                             data.cards.inventory.push({ cardId:'event_trigger', acquiredDate:new Date().toISOString(), used:false });
+                            // ドロップ履歴に追加
+                            try {
+                                if (!data.cards.dropHistory) data.cards.dropHistory = [];
+                                data.cards.dropHistory.unshift('event_trigger');
+                                if (data.cards.dropHistory.length > 100) data.cards.dropHistory = data.cards.dropHistory.slice(0,100);
+                            } catch(_){}
                             if (typeof registerCardToAlbum === 'function') { registerCardToAlbum('event_trigger'); }
                             showCardEffect('🎁 ミステリーボックス！','カード：イベントトリガー','\#f59e0b');
-                        } else if (pick === 'protect_shield') {
-                            data.cards.inventory.push({ cardId:'protect_shield', acquiredDate:new Date().toISOString(), used:false });
-                            if (typeof registerCardToAlbum === 'function') { registerCardToAlbum('protect_shield'); }
-                            showCardEffect('🎁 ミステリーボックス！','カード：プロテクトシールド','\#f59e0b');
+                        } else if (pick === 'point_gem') {
+                            data.cards.inventory.push({ cardId:'point_gem', acquiredDate:new Date().toISOString(), used:false });
+                            try {
+                                if (!data.cards.dropHistory) data.cards.dropHistory = [];
+                                data.cards.dropHistory.unshift('point_gem');
+                                if (data.cards.dropHistory.length > 100) data.cards.dropHistory = data.cards.dropHistory.slice(0,100);
+                            } catch(_){}
+                            if (typeof registerCardToAlbum === 'function') { registerCardToAlbum('point_gem'); }
+                            showCardEffect('🎁 ミステリーボックス！','カード：ポイントジェム','\#f59e0b');
                         }
                         mbox.claimed = true;
                         saveData(data);
@@ -6558,6 +6569,29 @@
                 saveData(d0);
                 showNotification('🏆 全習慣達成！素晴らしい！\n+5pt', 'success', 4);
             }
+
+            // イベント：パーフェクトデー（全習慣達成で追加ポイント）
+            try {
+                const ev = loadData().events || {};
+                const boosts = Array.isArray(ev.activeBoosts) ? ev.activeBoosts : [];
+                const perfect = boosts.find(b => b && b.effect && b.effect.type === 'perfect_bonus');
+                if (perfect && totalHabits > 0 && achievedToday === totalHabits) {
+                    const d1 = loadData();
+                    if (!d1.meta) d1.meta = {};
+                    if (!d1.meta.eventAwards) d1.meta.eventAwards = {};
+                    const already = d1.meta.eventAwards[dateKey] || 0;
+                    if (already === 0) {
+                        const val = (perfect.effect && typeof perfect.effect.value === 'number') ? perfect.effect.value : 30;
+                        const gained = earnPoints(val, 'event', 'パーフェクトデーボーナス', 1.0, null, null, { dateKey, eventId: perfect.id });
+                        const d2 = loadData();
+                        if (!d2.meta) d2.meta = {};
+                        if (!d2.meta.eventAwards) d2.meta.eventAwards = {};
+                        d2.meta.eventAwards[dateKey] = (d2.meta.eventAwards[dateKey] || 0) + gained;
+                        saveData(d2);
+                        showNotification(`✨ パーフェクトデー達成！\n+${gained}pt`, 'success', 5);
+                    }
+                }
+            } catch (_) { /* noop */ }
         }
         
         // ポイント統計を更新（統計画面用）
@@ -8761,7 +8795,7 @@
         // カード使用ボタンの更新（有効な報酬カードがある場合のみ）
         function updateCardUseButton() {
             const data = loadData();
-            const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start','second_chance']);
+            const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start','second_chance','protect_shield']);
             const hasUsable = (data.cards.inventory || []).some(card => {
                 const def = CARD_MASTER[card.cardId];
                 return def && def.type === 'reward' && !card.used && !DISABLED_CARDS.has(card.cardId);
@@ -9778,6 +9812,8 @@
                 
                 // コンボボーナスのチェックと減算
                 let comboDeduction = 0;
+                // イベント（パーフェクトデー）減算
+                let eventDeduction = 0;
                 let totalAchievedBefore = 0;
                 let totalAchievedAfter = 0;
                 
@@ -9833,14 +9869,34 @@
                 const detailed = calculatePointsWithBoostsDetailed(baseAfter, 'combo', null);
                 const expectedAfterCombo = Math.round(detailed.finalPoints);
                 comboDeduction = Math.max(0, comboAwards - expectedAfterCombo);
+
+                // パーフェクトデーが付与済みなら取り消しで減算
+                try {
+                    if (totalHabits > 0 && totalAchievedBefore === totalHabits && totalAchievedAfter < totalHabits) {
+                        const awarded = (data.meta && data.meta.eventAwards && data.meta.eventAwards[todayKey]) ? data.meta.eventAwards[todayKey] : 0;
+                        if (awarded > 0) {
+                            eventDeduction = awarded;
+                            // 二重減算防止のため0にクリア
+                            if (!data.meta) data.meta = {};
+                            if (!data.meta.eventAwards) data.meta.eventAwards = {};
+                            data.meta.eventAwards[todayKey] = 0;
+                        }
+                    }
+                } catch(_) { /* noop */ }
                 
                 // ポイント減算（基本ポイント + コンボ差分）
-                const totalDeduction = baseDeduct + comboDeduction;
+                const totalDeduction = baseDeduct + comboDeduction + eventDeduction;
                 data.pointSystem.currentPoints = Math.max(0, data.pointSystem.currentPoints - totalDeduction);
+                // レベル進行も巻き戻す（生涯獲得からも減算）
+                data.pointSystem.lifetimeEarned = Math.max(0, (data.pointSystem.lifetimeEarned || 0) - totalDeduction);
+                data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
+                // レベル再計算
+                const lvl = calculateLevel(data.pointSystem.lifetimeEarned);
+                data.pointSystem.currentLevel = lvl.level;
                 
                 // トランザクション記録（habitIdを含める）
                 data.pointSystem.transactions.unshift({
-                    type: 'deduct',
+                    type: 'spend',
                     amount: totalDeduction,
                     source: 'habit_cancel',
                     description: `${window.currentHypothesis.title} 取り消し${comboDeduction > 0 ? ' (コンボボーナス含む)' : ''}`,
@@ -9870,6 +9926,9 @@
                 let message = `習慣の達成を取り消しました (-${baseDeduct}pt)`;
                 if (comboDeduction > 0) {
                     message += `\nコンボボーナスも減算 (-${comboDeduction}pt)`;
+                }
+                if (eventDeduction > 0) {
+                    message += `\nパーフェクトデーボーナス減算 (-${eventDeduction}pt)`;
                 }
                 showNotification(message, 'info');
             }
@@ -11741,6 +11800,14 @@
                                     acquiredDate: new Date().toISOString(),
                                     used: false
                                 });
+                                // ドロップ履歴（直近10重複防止用）
+                                if (!data.cards.dropHistory) data.cards.dropHistory = [];
+                                // 先頭に追加（最新が先頭）
+                                data.cards.dropHistory.unshift(cardId);
+                                // 上限を適度に制限
+                                if (data.cards.dropHistory.length > 100) {
+                                    data.cards.dropHistory = data.cards.dropHistory.slice(0, 100);
+                                }
                                 // カード図鑑へ登録
                                 try { registerCardToAlbum(cardId); } catch (e) { /* noop */ }
                             } else if (card.type === 'penalty') {
@@ -12637,123 +12704,51 @@
             }
 
             if (achievementRate === 100) {
-                // 100%達成: 期間ボーナスでレア率上昇
-                const rand = Math.random();
-                
-                // 報酬カードプール（新方針）
-                const legendaryCards = [
-                    'perfect_bonus', 'event_combo', 'conversion_magic', 'lucky_seven'
-                ];
-                const rareCards = [
-                    'rainbow_boost', 'mission_master', 'streak_bonus', 'protect_shield'
-                ];
-                const commonCards = [
-                    'point_gem', 'event_trigger', 'fate_dice'
-                ];
-                
-                // 期間ボーナスを加味したレアリティ判定
-                let baseLegendaryChance = 0.15;
-                let legendaryChance = baseLegendaryChance + (durationBonus * 0.5); // 期間ボーナスの半分をレジェンダリーに
-                let rareChance = 0.35;
-                let adjustedRareChance = rareChance + (durationBonus * 0.3); // 期間ボーナスの30%をレアに
-                // ドロップ倍率（Lucky Seven）を適用（上限0.95）
-                legendaryChance = Math.min(0.95, legendaryChance * dropMultiplier);
-                adjustedRareChance = Math.min(0.95, adjustedRareChance * dropMultiplier);
-                
-                if (!hasStreakGuarantee && rand < legendaryChance) {
-                    // レジェンダリーカード
-                    const selectedCard = legendaryCards[Math.floor(Math.random() * legendaryCards.length)];
-                    cards.push(selectedCard);
-                } else if (!hasStreakGuarantee && rand < legendaryChance + adjustedRareChance) {
-                    // レアカード
-                    const selectedCard = rareCards[Math.floor(Math.random() * rareCards.length)];
-                    cards.push(selectedCard);
-                } else {
-                    // ストリーク保証があればレアを確定
-                    if (hasStreakGuarantee) {
-                        const selectedCard = rareCards[Math.floor(Math.random() * rareCards.length)];
-                        cards.push(selectedCard);
-                        // 消費
-                        data.cards.activeEffects = (data.cards.activeEffects || []).filter(e => !(e.cardId === 'streak_bonus' || e.type === 'streak_rare_guarantee'));
-                        saveData(data);
-                    } else {
-                        // コモンカード
-                        const selectedCard = commonCards[Math.floor(Math.random() * commonCards.length)];
-                        cards.push(selectedCard);
-                    }
+                // 報酬カード（全報酬カードから等確率で1枚）
+                const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start','second_chance','protect_shield']);
+                const rewardPoolBase = Object.keys(CARD_MASTER).filter(id => CARD_MASTER[id].type === 'reward' && !DISABLED_CARDS.has(id));
+                // 直近10回に出たカードは除外
+                const history = (data.cards && Array.isArray(data.cards.dropHistory)) ? data.cards.dropHistory : [];
+                const blocked = new Set((history || []).slice(0, 10));
+                let rewardPool = rewardPoolBase.filter(id => !blocked.has(id));
+                if (rewardPool.length === 0) rewardPool = rewardPoolBase; // 全除外時はフォールバック
+                if (rewardPool.length > 0) {
+                    const pick = rewardPool[Math.floor(Math.random() * rewardPool.length)];
+                    cards.push(pick);
                 }
-                
-                // パーフェクトボーナスが有効な場合、追加で1枚獲得
+                // パーフェクトボーナスが有効なら追加で1枚（同様に等確率）
                 if (hasPerfectBonus) {
-                    const rand2 = Math.random();
-                    if (rand2 < 0.2) {
-                        cards.push('perfect_bonus');
-                    } else if (rand2 < 0.6) {
-                        cards.push('point_gem');
-                    } else {
-                        cards.push('protect_shield');
+                    // 1枚目と被らないように再フィルタ
+                    let extraPool = rewardPool.filter(id => !cards.includes(id));
+                    if (extraPool.length === 0) extraPool = rewardPool;
+                    if (extraPool.length > 0) {
+                        const extra = extraPool[Math.floor(Math.random() * extraPool.length)];
+                        cards.push(extra);
                     }
-                    
-                    // パーフェクトボーナスを消費
-                    data.cards.activeEffects = data.cards.activeEffects.filter(effect =>
-                        effect.cardId !== 'perfect_bonus'
-                    );
+                    data.cards.activeEffects = (data.cards.activeEffects || []).filter(e => e.cardId !== 'perfect_bonus');
                     saveData(data);
-                    
-                    // エフェクトを表示
                     setTimeout(() => {
                         showCardEffect('パーフェクトボーナス発動！', '追加で報酬カードを1枚獲得！', '#f59e0b');
-                    }, 1000);
+                    }, 300);
                 }
             } else if (achievementRate >= 80) {
-                // 80-99%達成: 期間ボーナスでレア率上昇
-                const rand = Math.random();
-                
-                const rareCards = [
-                    'protect_shield', 'point_gem', 'event_trigger', 'streak_bonus'
-                ];
-                const commonCards = [
-                    'point_gem', 'event_trigger', 'fate_dice'
-                ];
-                
-                // 期間ボーナスを加味したレア率
-                let baseRareChance = 0.2;
-                let rareChance = baseRareChance + durationBonus; // 期間ボーナスをそのまま加算
-                // ドロップ倍率（Lucky Seven）を適用（上限0.95）
-                rareChance = Math.min(0.95, rareChance * dropMultiplier);
-                
-                if (rand < rareChance || hasStreakGuarantee) {
-                    // レアカード（保証時もレア確定）
-                    const selectedCard = rareCards[Math.floor(Math.random() * rareCards.length)];
-                    cards.push(selectedCard);
-                    if (hasStreakGuarantee) {
-                        data.cards.activeEffects = (data.cards.activeEffects || []).filter(e => !(e.cardId === 'streak_bonus' || e.type === 'streak_rare_guarantee'));
-                        saveData(data);
-                    }
-                } else {
-                    // コモンカード
-                    const selectedCard = commonCards[Math.floor(Math.random() * commonCards.length)];
-                    cards.push(selectedCard);
+                // 80-99%: 報酬カードを等確率で1枚
+                const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start','second_chance','protect_shield']);
+                const rewardPoolBase = Object.keys(CARD_MASTER).filter(id => CARD_MASTER[id].type === 'reward' && !DISABLED_CARDS.has(id));
+                const history = (data.cards && Array.isArray(data.cards.dropHistory)) ? data.cards.dropHistory : [];
+                const blocked = new Set((history || []).slice(0, 10));
+                let rewardPool = rewardPoolBase.filter(id => !blocked.has(id));
+                if (rewardPool.length === 0) rewardPool = rewardPoolBase;
+                if (rewardPool.length > 0) {
+                    const pick = rewardPool[Math.floor(Math.random() * rewardPool.length)];
+                    cards.push(pick);
                 }
             } else if (achievementRate < 60) {
-                // 59%以下: ペナルティカード（期間が長いほど強いペナルティ）
-                const rand = Math.random();
-                
-                // ペナルティカードプール（新方針：5枚）
-                const commonPenalties = ['slowdown', 'event_seal', 'mission_overload'];
-                const rarePenalties = ['hard_mode', 'reverse_curse'];
-                
-                // 期間が長いほどレアペナルティ率上昇（逆効果）
-                const rarePenaltyChance = 0.6 + (durationBonus * 0.5);
-                
-                if (rand < rarePenaltyChance) {
-                    // レアペナルティ
-                    const selectedCard = rarePenalties[Math.floor(Math.random() * rarePenalties.length)];
-                    cards.push(selectedCard);
-                } else {
-                    // コモンペナルティ
-                    const selectedCard = commonPenalties[Math.floor(Math.random() * commonPenalties.length)];
-                    cards.push(selectedCard);
+                // 59%以下: ペナルティカードを等確率で1枚
+                const penaltyPool = Object.keys(CARD_MASTER).filter(id => CARD_MASTER[id].type === 'penalty');
+                if (penaltyPool.length > 0) {
+                    const pick = penaltyPool[Math.floor(Math.random() * penaltyPool.length)];
+                    cards.push(pick);
                 }
             }
             // 60-79%は何も獲得しない（サプライズブーストは廃止）
@@ -14660,6 +14655,7 @@
 
         // デバッグ機能
         function debugAchieveToday() {
+            if (isMobileDevice && isMobileDevice()) { showNotification('⚠️ デバッグ機能はPCのみ利用できます', 'error'); return; }
             if (!window.currentHypothesis) return;
             
             const today = new Date();
@@ -14682,6 +14678,7 @@
         }
         
         function debugFailToday() {
+            if (isMobileDevice && isMobileDevice()) { showNotification('⚠️ デバッグ機能はPCのみ利用できます', 'error'); return; }
             if (!window.currentHypothesis) return;
             
             const today = new Date();
@@ -14708,6 +14705,23 @@
         // イベントチェック（毎日実行）
         function checkDailyEvents() {
             const data = loadData();
+            // モバイル環境でも確実に動くよう堅牢化
+            if (!data.events) {
+                data.events = {
+                    activeBoosts: [],
+                    lastEventCheck: null,
+                    milestoneNotifications: {},
+                    eventHistory: [],
+                    boostEnabled: true,
+                    forcedEvents: {}
+                };
+            } else {
+                if (!Array.isArray(data.events.activeBoosts)) data.events.activeBoosts = [];
+                if (!data.events.milestoneNotifications) data.events.milestoneNotifications = {};
+                if (!data.events.eventHistory) data.events.eventHistory = [];
+                if (typeof data.events.boostEnabled !== 'boolean') data.events.boostEnabled = true;
+                if (!data.events.forcedEvents) data.events.forcedEvents = {};
+            }
             const today = new Date().toDateString();
             const todayStr = new Date().toISOString().split('T')[0];
             
@@ -14796,7 +14810,8 @@
             }
             
             saveData(data);
-            updateEventDisplay();
+            // 表示を更新（イベントが無くてもコンテナは必ず表示）
+            try { updateEventDisplay(); } catch (_) { /* noop */ }
         }
         
         // マイルストーンチェック
@@ -15304,6 +15319,7 @@
         }
 
         function debugAchieveAllPast() {
+            if (isMobileDevice && isMobileDevice()) { showNotification('⚠️ デバッグ機能はPCのみ利用できます', 'error'); return; }
             if (!window.currentHypothesis) return;
             
             const startDate = new Date(window.currentHypothesis.startDate);
@@ -15332,6 +15348,7 @@
         }
         
         function debugSkipDays() {
+            if (isMobileDevice && isMobileDevice()) { showNotification('⚠️ デバッグ機能はPCのみ利用できます', 'error'); return; }
             if (!window.currentHypothesis) return;
             
             if (!confirm('習慣の開始日を3日前にずらします。よろしいですか？')) {
@@ -15357,6 +15374,7 @@
         }
         
         function debugCompleteHypothesis() {
+            if (isMobileDevice && isMobileDevice()) { showNotification('⚠️ デバッグ機能はPCのみ利用できます', 'error'); return; }
             if (!window.currentHypothesis) return;
             
             if (!confirm('習慣を強制的に完了させます。よろしいですか？')) {
@@ -15383,8 +15401,26 @@
             showNotification('🏁 習慣を完了状態にしました', 'success');
         }
         
+        // モバイル判定（スマホ/タブレット）
+        function isMobileDevice() {
+            const ua = navigator.userAgent || navigator.vendor || window.opera || '';
+            const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+            const narrow = Math.min(window.innerWidth, window.innerHeight) <= 820;
+            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Windows Phone/i.test(ua) || (touch && narrow);
+        }
+
         // デバッグモードの有効化（URLパラメータまたはローカルストレージで制御）
         function checkDebugMode() {
+            // スマホ/タブレットではデバッグUIを表示しない
+            if (isMobileDevice()) {
+                const dp = document.getElementById('debug-panel');
+                const dt = document.getElementById('debug-toggle');
+                if (dp) dp.style.display = 'none';
+                if (dt) dt.style.display = 'none';
+                // モバイルでは何もしない
+                return;
+            }
+
             const urlParams = new URLSearchParams(window.location.search);
             const debugMode = urlParams.get('debug') === 'true' || localStorage.getItem('debugMode') === 'true';
             
@@ -15396,15 +15432,24 @@
                 // ボタンのスタイルを更新
                 const debugToggle = document.getElementById('debug-toggle');
                 if (debugToggle) {
+                    debugToggle.style.display = 'inline-flex';
                     debugToggle.style.background = 'var(--error)';
                     debugToggle.style.color = 'white';
                     debugToggle.style.border = 'none';
                 }
+            } else {
+                const dt = document.getElementById('debug-toggle');
+                if (dt) dt.style.display = 'inline-flex';
             }
         }
         
         // デバッグモードのトグル
         function toggleDebugMode() {
+            // モバイルでは無効
+            if (isMobileDevice()) {
+                showNotification('⚠️ デバッグ機能はPCのみ利用できます', 'error');
+                return;
+            }
             const currentMode = localStorage.getItem('debugMode') === 'true';
             const newMode = !currentMode;
             localStorage.setItem('debugMode', newMode.toString());
@@ -15417,6 +15462,7 @@
                     debugPanel.style.display = 'block';
                 }
                 if (debugToggle) {
+                    debugToggle.style.display = 'inline-flex';
                     debugToggle.style.background = 'var(--error)';
                     debugToggle.style.color = 'white';
                     debugToggle.style.border = 'none';
@@ -15427,6 +15473,7 @@
                     debugPanel.style.display = 'none';
                 }
                 if (debugToggle) {
+                    debugToggle.style.display = 'inline-flex';
                     debugToggle.style.background = 'none';
                     debugToggle.style.color = 'var(--text-secondary)';
                     debugToggle.style.border = '1px solid var(--border)';
@@ -15437,6 +15484,7 @@
 
         // デバッグ：カードを追加
         function debugAddCard(cardId) {
+            if (isMobileDevice && isMobileDevice()) { showNotification('⚠️ デバッグ機能はPCのみ利用できます', 'error'); return; }
             const data = loadData();
             
             data.cards.inventory.push({
@@ -15459,6 +15507,7 @@
         
         // デバッグ：ペナルティ効果を適用
         function debugApplyPenalty(penaltyId) {
+            if (isMobileDevice && isMobileDevice()) { showNotification('⚠️ デバッグ機能はPCのみ利用できます', 'error'); return; }
             if (!window.currentHypothesis && penaltyId !== 'double_or_nothing') {
                 showNotification('⚠️ 進行中の習慣がありません', 'error');
                 return;
@@ -15584,6 +15633,7 @@
         
         // デバッグ：全カードをクリア
         function debugClearAllCards() {
+            if (isMobileDevice && isMobileDevice()) { showNotification('⚠️ デバッグ機能はPCのみ利用できます', 'error'); return; }
             if (!confirm('全てのカードと効果をクリアします。よろしいですか？')) {
                 return;
             }
@@ -16215,6 +16265,12 @@
                 acquiredDate: new Date().toISOString(),
                 used: false
             });
+            // ドロップ履歴に追加（報酬カード）
+            try {
+                if (!data.cards.dropHistory) data.cards.dropHistory = [];
+                data.cards.dropHistory.unshift(newCardId);
+                if (data.cards.dropHistory.length > 100) data.cards.dropHistory = data.cards.dropHistory.slice(0,100);
+            } catch(_){}
             
             // カード図鑑に登録
             registerCardToAlbum(newCardId);
@@ -16238,6 +16294,7 @@
                 return;
             }
             
+            // カード消費
             data.cards.inventory[cardIndex].used = true;
             data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
             
@@ -16245,21 +16302,20 @@
             const isReward = Math.random() < 0.5;
             
             if (isReward) {
-                // 報酬効果：10-30ポイント獲得
+                // 報酬効果：10-30ポイント獲得（ブースト適用あり）
                 const points = Math.floor(Math.random() * 21) + 10;
-                earnPoints(points, `運命のダイス（大当たり！）`);
-                showNotification(`🎲 大当たり！${points}ポイント獲得！`, 'success');
+                earnPoints(points, 'card', '運命のダイス（大当たり）');
+                showNotification(`🎲 大当たり！+${points}pt`, 'success');
             } else {
-                // ペナルティ効果：5-15ポイント失う
+                // ペナルティ効果：5-15ポイント失う（トランザクション記録）
                 const points = Math.floor(Math.random() * 11) + 5;
-                data.pointSystem.currentPoints = Math.max(0, data.pointSystem.currentPoints - points);
-                addTransaction(-points, 'penalty', '運命のダイス（ハズレ）');
-                showNotification(`🎲 残念...${points}ポイント失いました`, 'error');
+                spendPoints(points, '運命のダイス（ハズレ）');
+                showNotification(`🎲 残念...-${points}pt`, 'error');
             }
             
             saveData(data);
-            updateCardUseButton();
-            updatePointsDisplay();
+            if (typeof updateCardUseButton === 'function') updateCardUseButton();
+            updatePointDisplay();
         }
         
         // 通知を表示
@@ -16637,6 +16693,23 @@
         function initializeApp() {
             // テーマを初期化
             initializeTheme();
+
+            // 削除カードのクリーンアップ（プロテクトシールドを排除）
+            try {
+                const data = loadData();
+                if (data && data.cards) {
+                    if (Array.isArray(data.cards.inventory)) {
+                        data.cards.inventory = data.cards.inventory.filter(c => c.cardId !== 'protect_shield');
+                    }
+                    if (Array.isArray(data.cards.pendingPenalties)) {
+                        data.cards.pendingPenalties = data.cards.pendingPenalties.filter(c => c.cardId !== 'protect_shield');
+                    }
+                    if (Array.isArray(data.cards.activeEffects)) {
+                        data.cards.activeEffects = data.cards.activeEffects.filter(e => e.cardId !== 'protect_shield');
+                    }
+                    saveData(data);
+                }
+            } catch (_) { /* noop */ }
             
             // カテゴリドロップダウンを初期化
             updateCategoryDropdowns();

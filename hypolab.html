@@ -1484,6 +1484,8 @@
         <div id="dashboard-screen" class="screen">
             <div class="container">
                 <h1>🔥 進行中の検証</h1>
+                <!-- アクティブイベント表示（モバイルでも確実に表示） -->
+                <div id="active-events" style="margin-bottom: 16px; border-radius: 16px; padding: 16px; background: linear-gradient(135deg, rgba(251,191,36,0.08), rgba(245,158,11,0.06)); border: 1px solid rgba(251,191,36,0.3); display: none;"></div>
                 <div id="active-hypotheses-content">
                     <div class="empty-state">
                         <div class="empty-state-icon">📊</div>
@@ -1666,6 +1668,50 @@
         window.hypothesisData = null;
         window.editingHypothesisId = null;
 
+        // ====== 簡易イベント機能（ローカル保持・モバイル対応） ======
+        const EVENTS_STORAGE_KEY = 'hypolab_events_v1';
+        const HABIT_EVENTS = {
+            boosts: [
+                { id:'global_x2', name:'💥 ダブルポイントデー', description:'今日だけ獲得ポイントが2倍', rarity:'rare', duration:'today', effect:{ type:'global_multiplier', value:2.0 } },
+                { id:'exercise_bonus', name:'💪 運動ボーナス', description:'運動カテゴリーに+5pt', rarity:'uncommon', duration:'today', effect:{ type:'category_bonus', target:'exercise', value:5 } },
+                { id:'morning_time', name:'🌅 早起き特典', description:'朝6-9時の達成で+8pt', rarity:'common', duration:'morning', effect:{ type:'time_bonus', value:8 } }
+            ]
+        };
+        function loadEventsData(){ try{ return JSON.parse(localStorage.getItem(EVENTS_STORAGE_KEY))||{} }catch(_){ return {} } }
+        function saveEventsData(obj){ try{ localStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(obj)); }catch(_){} }
+        function updateEventDisplay(){
+            const box = document.getElementById('active-events');
+            if(!box) return;
+            const data = loadEventsData();
+            const boosts = Array.isArray(data.activeBoosts)? data.activeBoosts: [];
+            box.style.display = 'block';
+            if(boosts.length===0){
+                box.innerHTML = '<h3 style="margin-bottom:8px;font-size:14px;opacity:.9">🎉 アクティブイベント</h3><p style="margin:0;font-size:12px;color:#94a3b8">今日はイベントはありません。</p>';
+            } else {
+                box.innerHTML = '<h3 style="margin-bottom:12px;font-size:16px">🎉 アクティブイベント</h3>' + boosts.map(b=>`
+                    <div style="background: rgba(251,191,36,.15); border-radius:8px; padding:12px; margin:8px 0;">
+                        <div style="font-size:16px; font-weight:700;">${b.name}</div>
+                        <div style="font-size:12px; color:#94a3b8; margin-top:4px;">${b.description}</div>
+                        <div style="font-size:10px; margin-top:8px; color:#f59e0b;">期間: ${b.duration==='today'?'本日中':b.duration}</div>
+                    </div>`).join('');
+            }
+        }
+        function checkDailyEvents(){
+            const data = loadEventsData();
+            const today = new Date().toDateString();
+            if(data.lastEventCheck===today){ updateEventDisplay(); return; }
+            data.lastEventCheck = today;
+            data.activeBoosts = [];
+            // 単純な抽選: 50%で1件
+            if(Math.random() < 0.5){
+                const pool = [...HABIT_EVENTS.boosts];
+                const pick = pool[Math.floor(Math.random()*pool.length)];
+                data.activeBoosts.push({ ...pick, activatedAt: new Date().toISOString() });
+            }
+            saveEventsData(data);
+            updateEventDisplay();
+        }
+
         // 認証状態の監視
         onAuthStateChanged(auth, (user) => {
             window.currentUser = user;
@@ -1674,6 +1720,8 @@
             if (user) {
                 showScreen('dashboard-screen');
                 loadActiveHypotheses();
+                // ダッシュボード表示タイミングでイベントをチェック・表示
+                try { checkDailyEvents(); } catch(_){}
             } else {
                 showScreen('login-screen');
             }
