@@ -14815,7 +14815,11 @@
             const todayStr = new Date().toISOString().split('T')[0];
             
             // 最後のチェック日と同じなら何もしない
-            if (data.events.lastEventCheck === today) return;
+            // ただし、activeBoostsが空または古い形式（morning_boost/night_boost）を含む場合は再チェック
+            const hasOldBoost = data.events.activeBoosts.some(b => 
+                b.eventId === 'morning_boost' || b.eventId === 'night_boost'
+            );
+            if (data.events.lastEventCheck === today && !hasOldBoost && data.events.activeBoosts.length > 0) return;
             
             data.events.lastEventCheck = today;
             data.events.activeBoosts = [];
@@ -15192,16 +15196,6 @@
                                 break;
                             case 'category_multiplier':
                                 if (category === effect.target) {
-                                    multiplier *= effect.value;
-                                }
-                                break;
-                            case 'morning_boost':
-                                if (currentHour >= effect.hours[0] && currentHour <= effect.hours[1]) {
-                                    multiplier *= effect.value;
-                                }
-                                break;
-                            case 'night_boost':
-                                if (currentHour >= effect.hours[0] && currentHour <= effect.hours[1]) {
                                     multiplier *= effect.value;
                                 }
                                 break;
