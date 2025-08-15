@@ -2698,6 +2698,47 @@
             const day = String(d.getDate()).padStart(2, '0');
             return `${y}-${m}-${day}`;
         }
+
+        // 目標日数を頻度に基づいて算出（カード付与・完了判定用）
+        function getTargetDaysForHypothesis(hypothesis) {
+            if (!hypothesis) return 0;
+
+            const startDate = new Date(hypothesis.startDate);
+            const today = new Date();
+            startDate.setHours(0, 0, 0, 0);
+            today.setHours(0, 0, 0, 0);
+
+            // 経過日数（開始日を1日目として計算）
+            const timeDiff = today.getTime() - startDate.getTime();
+            const rawDaysPassed = Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1);
+            const daysPassed = hypothesis.isUnlimited
+                ? rawDaysPassed
+                : Math.min(rawDaysPassed, hypothesis.totalDays);
+
+            // デフォルトは毎日
+            let targetDays = daysPassed;
+            const frequency = hypothesis.frequency;
+
+            if (frequency) {
+                if (frequency.type === 'weekly') {
+                    // 週単位: 経過週数 × 週あたりの回数（ただし daysPassed を上限）
+                    const weeks = Math.ceil(daysPassed / 7);
+                    targetDays = Math.min(weeks * frequency.count, daysPassed);
+                } else if (frequency.type === 'weekdays') {
+                    // 特定曜日のみカウント
+                    targetDays = 0;
+                    for (let i = 0; i < daysPassed; i++) {
+                        const checkDate = new Date(startDate);
+                        checkDate.setDate(startDate.getDate() + i);
+                        if (frequency.weekdays.includes(checkDate.getDay())) {
+                            targetDays++;
+                        }
+                    }
+                }
+            }
+
+            return targetDays;
+        }
         
         // 習慣・ジャーナル用の日付キーを取得（深夜2時まで前日扱い）
         function getActivityDateKey(date = new Date()) {
@@ -11561,11 +11602,12 @@
             // カード獲得処理を先に実行
             const data = loadData();
             const hypothesis = window.currentHypothesis;
-            
+
             if (!hypothesis.cardsAcquired) {
-                // 最終的な達成率を計算
+                // 最終的な達成率を計算（頻度に基づく目標日数を分母にする）
                 const achievedDays = Object.keys(hypothesis.achievements || {}).length;
-                let finalRate = Math.round((achievedDays / hypothesis.totalDays) * 100);
+                const targetDays = getTargetDaysForHypothesis(hypothesis);
+                let finalRate = targetDays > 0 ? Math.round((achievedDays / targetDays) * 100) : 0;
                 
                 // 達成ブースターが有効かチェック
                 let hasAchievementBooster = false;
@@ -12330,8 +12372,9 @@
                 // finalAchievementRateが設定されていない場合のみ計算（通常はshowCompletionOptionsで設定済み）
                 if (!hypothesis.finalAchievementRate && hypothesis.finalAchievementRate !== 0) {
                     const achievedDays = Object.keys(hypothesis.achievements || {}).length;
-                    let finalRate = Math.round((achievedDays / hypothesis.totalDays) * 100);
-                    
+                    const targetDays = getTargetDaysForHypothesis(hypothesis);
+                    let finalRate = targetDays > 0 ? Math.round((achievedDays / targetDays) * 100) : 0;
+
                     // 達成率減少ペナルティの適用
                     if (hypothesis.achievementDecrease) {
                         finalRate = Math.max(0, finalRate - hypothesis.achievementDecrease);
