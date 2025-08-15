@@ -3099,14 +3099,28 @@
                 {
                     id: 'morning_boost',
                     name: '🌅 朝活ボーナス',
-                    description: '午前中の達成でポイント1.5倍！',
-                    condition: () => {
-                        const hour = new Date().getHours();
-                        return hour >= 5 && hour <= 11;  // 朝の時間帯
+                    description: '朝5時～11時の達成でポイント1.5倍！',
+                    condition: (data) => {
+                        // イベントチェック時の時間ではなく、実際の達成時に判定
+                        // ここではtrueを返し、実際の適用は達成時に行う
+                        return true;
                     },
-                    effect: { type: 'time_multiplier', value: 1.5 },
+                    effect: { type: 'morning_boost', value: 1.5, hours: [5, 11] },
                     rarity: 'common',
-                    duration: 'morning'
+                    duration: 'today'
+                },
+                {
+                    id: 'night_boost',
+                    name: '🌙 夜型ボーナス',
+                    description: '夜20時～23時の達成でポイント1.2倍！',
+                    condition: (data) => {
+                        // イベントチェック時の時間ではなく、実際の達成時に判定
+                        // ここではtrueを返し、実際の適用は達成時に行う
+                        return true;
+                    },
+                    effect: { type: 'night_boost', value: 1.2, hours: [20, 23] },
+                    rarity: 'common',
+                    duration: 'today'
                 },
                 
                 // 特殊系ブースト
@@ -3134,16 +3148,6 @@
                     duration: 'weekend'
                 },
                 
-                // カード系ブースト
-                {
-                    id: 'rare_card_chance',
-                    name: '🌟 レアカードチャンス',
-                    description: '今日はレアカードが出やすい！',
-                    condition: () => Math.random() < 0.08,  // 8%の確率
-                    effect: { type: 'rare_card_boost', value: 2.0 },
-                    rarity: 'rare',
-                    duration: 'today'
-                }
             ]
         };
 
@@ -14775,7 +14779,7 @@
                         } else {
                             // 条件関数がない場合はレアリティに基づく確率
                             const rarityChance = {
-                                common: 0.4,
+                                common: 0.5,  // 時間帯イベントが出やすいように
                                 uncommon: 0.3,
                                 rare: 0.2,
                                 legendary: 0.1
@@ -15016,17 +15020,34 @@
                                 bonus += effect.value;
                             }
                             break;
-                        case 'challenge_multiplier':
-                            if (source === 'challenge') {
+                        case 'morning_boost':
+                            // 朝活ボーナス：5時〜11時の達成時のみ適用
+                            const morningHour = new Date().getHours();
+                            if (morningHour >= effect.hours[0] && morningHour <= effect.hours[1]) {
                                 multiplier *= effect.value;
                             }
                             break;
-                        case 'time_bonus':
-                            const hour = new Date().getHours();
-                            if ((boost.duration === 'morning' && hour >= 6 && hour <= 9) ||
-                                (boost.duration === 'night' && hour >= 20 && hour <= 23)) {
-                                bonus += effect.value;
+                        case 'night_boost':
+                            // 夜型ボーナス：20時〜23時の達成時のみ適用
+                            const nightHour = new Date().getHours();
+                            if (nightHour >= effect.hours[0] && nightHour <= effect.hours[1]) {
+                                multiplier *= effect.value;
                             }
+                            break;
+                        case 'time_multiplier':
+                            // 旧形式の時間帯ボーナス（互換性のため残す）
+                            const hour = new Date().getHours();
+                            if (boost.duration === 'morning' && hour >= 5 && hour <= 11) {
+                                multiplier *= effect.value;
+                            }
+                            break;
+                        case 'streak_bonus':
+                            // 連続達成ボーナス
+                            bonus += effect.value;
+                            break;
+                        case 'perfect_bonus':
+                            // パーフェクトデーボーナス（全習慣達成時のみ適用）
+                            // このボーナスは別途処理される
                             break;
                     }
                 });
