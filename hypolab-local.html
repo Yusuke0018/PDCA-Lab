@@ -9972,8 +9972,8 @@
                 progressFill.style.background = 'var(--gradient-3)';
             }
 
-            // サプライズ演出（7/14/21日目）
-            triggerSurpriseIfNeeded(window.currentHypothesis, daysPassed);
+            // サプライズブースト（毎日10% / 7,14,21日は100%）
+            maybeTriggerDailySurprise(daysPassed, 0.10);
             
             // アクティブな効果を表示
             const data = loadData();
@@ -12592,6 +12592,44 @@
             }
             
             return cards;
+        }
+
+        // サプライズブースト: 毎日10%、7/14/21日は100%でグローバル付与
+        function maybeTriggerDailySurprise(daysPassed, baseProb = 0.10) {
+            try {
+                const data = loadData();
+                data.events = data.events || {};
+                const todayKey = dateKeyLocal(new Date());
+
+                // 同一日に複数回評価しない
+                if (data.events.lastSurpriseCheck === todayKey) {
+                    return;
+                }
+                data.events.lastSurpriseCheck = todayKey;
+
+                // 7/14/21日目は100%
+                const milestones = [7, 14, 21];
+                let prob = milestones.includes(daysPassed) ? 1.0 : baseProb;
+
+                if (Math.random() < prob) {
+                    if (!data.cards.activeEffects) data.cards.activeEffects = [];
+                    // グローバル効果（どの習慣にも有効）
+                    data.cards.activeEffects.push({
+                        cardId: 'surprise_boost',
+                        activatedDate: new Date().toISOString()
+                    });
+                    data.events.lastSurpriseGranted = todayKey;
+                    saveData(data);
+                    showCardEffect('🎉 サプライズ！', '次のカード抽選でレア率UP！', '#3b82f6');
+                    if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+                } else {
+                    // チェックのみ保存
+                    saveData(data);
+                }
+            } catch (e) {
+                // 失敗しても動作に影響を与えない
+                console.warn('maybeTriggerDailySurprise error', e);
+            }
         }
 
         // サプライズ演出（7/14/21日目で一度だけ発火）
