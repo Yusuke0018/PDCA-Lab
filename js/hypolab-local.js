@@ -517,7 +517,7 @@
 
         // データの読み込み
         function loadData() {
-            const data = localStorage.getItem(STORAGE_KEY);
+            const data = localStorage.getItem(window.STORAGE_KEY);
             if (!data) {
                 return {
                     currentHypotheses: [],
@@ -675,7 +675,7 @@
                 });
             }
             
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+            localStorage.setItem(window.STORAGE_KEY, JSON.stringify(data));
         }
 
         // ========== デイリージャーナル関連の関数 ==========
@@ -2759,7 +2759,7 @@
 
         // 現在のレベルを計算（モジュール存在時は再定義しない）
         window.calculateLevel = window.calculateLevel || function(lifetimeEarned) {
-            for (const threshold of LEVEL_THRESHOLDS) {
+            for (const threshold of thresholds) {
                 if (lifetimeEarned <= threshold.max) {
                     return threshold;
                 }
@@ -3585,7 +3585,7 @@
             // 次のレベル名を取得
             let nextLevelName = '超越者';
             if (levelInfo.level < 10) {
-                nextLevelName = LEVEL_THRESHOLDS[levelInfo.level].name;
+                nextLevelName = (window.LEVEL_THRESHOLDS || [])[levelInfo.level]?.name || '超越者';
             }
             
             // ポップアップを作成
@@ -3925,7 +3925,7 @@
             
             const levelProgressLabel = document.getElementById('level-progress-label');
             if (levelProgressLabel) {
-                levelProgressLabel.textContent = `Lv.${levelInfo.level + 1} ${levelInfo.level < 10 ? LEVEL_THRESHOLDS[levelInfo.level].name : '超越者'} まで`;
+                levelProgressLabel.textContent = `Lv.${levelInfo.level + 1} ${levelInfo.level < 10 ? ((window.LEVEL_THRESHOLDS || [])[levelInfo.level]?.name || '超越者') : '超越者'} まで`;
             }
             
             const levelProgressText = document.getElementById('level-progress-text');
