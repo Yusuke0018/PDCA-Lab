@@ -13758,7 +13758,8 @@
             touchStartX: 0,
             touchStartY: 0,
             touchEndX: 0,
-            touchEndY: 0
+            touchEndY: 0,
+            edgeSwipe: false
         };
         
         function setupSwipeListeners() {
@@ -13802,7 +13803,7 @@
                         const diffX = Math.abs(e.changedTouches[0].screenX - swipeState.touchStartX);
                         const diffY = Math.abs(e.changedTouches[0].screenY - swipeState.touchStartY);
                         console.log('[STATS DIRECT] Move - diffX:', diffX, 'diffY:', diffY);
-                        if (diffX > 30 && diffX > diffY) {
+                        if (diffX > 18 && diffX > diffY * 0.9) {
                             swipeState.isSwiping = true;
                             swipeState.scrolling = false;
                             e.preventDefault();
@@ -13846,7 +13847,7 @@
                         const diffX = Math.abs(e.changedTouches[0].screenX - swipeState.touchStartX);
                         const diffY = Math.abs(e.changedTouches[0].screenY - swipeState.touchStartY);
                         console.log('[POINTS DIRECT] Move - diffX:', diffX, 'diffY:', diffY);
-                        if (diffX > 30 && diffX > diffY) {
+                        if (diffX > 18 && diffX > diffY * 0.9) {
                             swipeState.isSwiping = true;
                             swipeState.scrolling = false;
                             e.preventDefault();
@@ -13904,6 +13905,9 @@
                 swipeState.touchStartY = e.changedTouches[0].screenY;
                 swipeState.isSwiping = false;
                 console.log('[Swipe Debug] タッチ開始位置 X:', swipeState.touchStartX, 'Y:', swipeState.touchStartY);
+                // 画面左右端からのスワイプは感度を上げる
+                const vw = window.innerWidth || document.documentElement.clientWidth;
+                swipeState.edgeSwipe = (swipeState.touchStartX < 24) || (swipeState.touchStartX > vw - 24);
             }, { passive: true });
             
             container.addEventListener('touchmove', (e) => {
@@ -13941,15 +13945,16 @@
                 const diffX = Math.abs(e.changedTouches[0].screenX - swipeState.touchStartX);
                 const diffY = Math.abs(e.changedTouches[0].screenY - swipeState.touchStartY);
                 
-                // 縦方向の動きが大きい場合はスクロールとみなす
-                if (diffY > diffX && diffY > 10) {
+                // 縦方向の動きが大きい場合はスクロールとみなす（端スワイプ時はやや緩和）
+                if (diffY > diffX && diffY > (swipeState.edgeSwipe ? 14 : 10)) {
                     swipeState.scrolling = true;
                     return;
                 }
                 
-                // 横方向の動きが大きい場合はスワイプとみなす
-                if (diffX > diffY && diffX > 10) {
+                // 横方向の動きが大きい場合はスワイプとみなす（端スワイプ時は閾値を緩和）
+                if (diffX > diffY && diffX > (swipeState.edgeSwipe ? 8 : 10)) {
                     swipeState.isSwiping = true;
+                    try { e.preventDefault(); } catch(_) {}
                 }
             }, { passive: false });
 
@@ -13977,8 +13982,9 @@
         
         // スクロール可能な親要素を探す
         function findScrollableParent(element) {
-            // 統計画面では常にnullを返してスワイプを優先
-            if (getCurrentView() === 'stats') {
+            // 統計/ポイント画面では常にnullを返してスワイプを優先
+            const v = getCurrentView();
+            if (v === 'stats' || v === 'points') {
                 return null;
             }
             
@@ -14000,11 +14006,14 @@
             const diffY = swipeState.touchStartY - swipeState.touchEndY;
             const currentView = getCurrentView();
             
-            // 統計画面とポイント画面では閾値を下げる
-            const minSwipeDistance = (currentView === 'stats' || currentView === 'points') ? 50 : 80;
-            
-            // 統計画面とポイント画面では条件を緩和
-            const horizontalRatio = (currentView === 'stats' || currentView === 'points') ? 1.2 : 2;
+            // ビューごとの閾値（端スワイプはさらに緩和）
+            const relaxedViews = ['stats','points','home','cards'];
+            let minSwipeDistance = relaxedViews.includes(currentView) ? 32 : 56;
+            let horizontalRatio = relaxedViews.includes(currentView) ? 1.2 : 1.6;
+            if (swipeState.edgeSwipe) {
+                minSwipeDistance = Math.min(24, minSwipeDistance);
+                horizontalRatio = 1.0;
+            }
             
             console.log('[Swipe Debug] handleSwipe - ビュー:', currentView);
             console.log('[Swipe Debug] 最小距離:', minSwipeDistance, '比率:', horizontalRatio);
