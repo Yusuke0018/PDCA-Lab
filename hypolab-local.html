@@ -14017,9 +14017,9 @@
         
         // スクロール可能な親要素を探す
         function findScrollableParent(element) {
-            // 統計/ポイント画面では常にnullを返してスワイプを優先
+            // 統計/ポイント/履歴 では常にnullを返してスワイプを優先
             const v = getCurrentView();
-            if (v === 'stats' || v === 'points') {
+            if (v === 'stats' || v === 'points' || v === 'history') {
                 return null;
             }
             
@@ -14045,6 +14045,7 @@
             const relaxedViews = ['stats','points','home','cards','history'];
             let minSwipeDistance = relaxedViews.includes(currentView) ? 32 : 56;
             let horizontalRatio = relaxedViews.includes(currentView) ? 1.2 : 1.6;
+            if (currentView === 'history') { minSwipeDistance = 24; horizontalRatio = 1.0; }
             if (swipeState.edgeSwipe) {
                 minSwipeDistance = Math.min(24, minSwipeDistance);
                 horizontalRatio = 1.0;
