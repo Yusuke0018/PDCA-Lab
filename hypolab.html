@@ -35,14 +35,20 @@
 
         /* ライトテーマ（上品で読みやすい配色） */
         :root.light-theme {
-            --bg-dark: #f8fafc;
+            --bg-dark: #f6f8fb;
             --bg-light: #ffffff;
-            --text-primary: #111827;
-            --text-secondary: #6b7280;
-            --border: rgba(0, 0, 0, 0.08);
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --border: rgba(15, 23, 42, 0.08);
             --primary: #6366f1;
             --primary-dark: #4f46e5;
             --primary-light: #818cf8;
+            --shadow-1: 0 6px 16px rgba(15, 23, 42, 0.06);
+            --shadow-2: 0 12px 28px rgba(15, 23, 42, 0.08);
+            --glass-bg1: rgba(255, 255, 255, 0.55);
+            --glass-bg2: rgba(255, 255, 255, 0.35);
+            --glass-border: rgba(255, 255, 255, 0.44);
+            --glass-blur: 16px;
         }
 
         body {
@@ -95,9 +101,11 @@
 
         /* ライトテーマのナビバー */
         :root.light-theme .navbar {
-            background: rgba(255, 255, 255, 0.85);
-            border-bottom-color: rgba(0, 0, 0, 0.06);
-            box-shadow: 0 4px 16px rgba(17, 24, 39, 0.06);
+            background: linear-gradient(135deg, rgba(255,255,255,0.6), rgba(255,255,255,0.4));
+            border-bottom-color: rgba(255, 255, 255, 0.5);
+            box-shadow: var(--shadow-1);
+            backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+            -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(120%);
         }
 
         .nav-container {
@@ -201,9 +209,11 @@
 
         /* ライトテーマのコンテナ */
         :root.light-theme .container {
-            background: rgba(255, 255, 255, 0.9);
-            box-shadow: 0 12px 28px rgba(17, 24, 39, 0.08);
-            border-color: rgba(0, 0, 0, 0.06);
+            background: linear-gradient(135deg, var(--glass-bg1), var(--glass-bg2));
+            box-shadow: var(--shadow-2);
+            border-color: var(--glass-border);
+            backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+            -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(120%);
         }
 
         @keyframes fadeInUp {
@@ -334,9 +344,11 @@
         }
 
         :root.light-theme .hypothesis-card {
-            background: #ffffff;
-            border-color: rgba(0, 0, 0, 0.06);
-            box-shadow: 0 8px 20px rgba(17, 24, 39, 0.06);
+            background: linear-gradient(135deg, var(--glass-bg1), var(--glass-bg2));
+            border-color: var(--glass-border);
+            box-shadow: var(--shadow-1);
+            backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+            -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(120%);
         }
 
         .hypothesis-card::before {

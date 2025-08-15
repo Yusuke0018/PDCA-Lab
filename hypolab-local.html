@@ -63,6 +63,11 @@
             /* シャドウ（トークン） */
             --shadow-1: 0 6px 16px rgba(15, 23, 42, 0.06);
             --shadow-2: 0 12px 28px rgba(15, 23, 42, 0.08);
+            /* グラス効果 */
+            --glass-bg1: rgba(255, 255, 255, 0.55);
+            --glass-bg2: rgba(255, 255, 255, 0.35);
+            --glass-border: rgba(255, 255, 255, 0.44);
+            --glass-blur: 16px;
         }
 
         /* 基本スタイル */
@@ -314,8 +319,21 @@
             box-shadow: var(--shadow-1);
         }
         :root.light-theme .progress-bar { background: #e5e7eb; }
-        :root.light-theme .card { box-shadow: var(--shadow-1); }
+        :root.light-theme .card { 
+            background: linear-gradient(135deg, var(--glass-bg1), var(--glass-bg2)) !important;
+            border-color: var(--glass-border) !important; 
+            box-shadow: var(--shadow-1); 
+            backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+            -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+        }
         :root.light-theme .card:hover { box-shadow: var(--shadow-2); }
+        :root.light-theme .stat-panel {
+            background: linear-gradient(135deg, var(--glass-bg1), var(--glass-bg2)) !important;
+            border-color: var(--glass-border) !important;
+            box-shadow: var(--shadow-1);
+            backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+            -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+        }
 
         /* 習慣リスト */
         .hypothesis-list {
@@ -1535,16 +1553,25 @@
 
     /* ===== Light: 今日のジャーナル/統計の背景を上品に ===== */
     :root.light-theme #daily-journal-section {
-        background: linear-gradient(135deg, rgba(99, 102, 241, 0.06), rgba(168, 85, 247, 0.06)) !important;
-        border-color: rgba(99, 102, 241, 0.18) !important;
+        background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(168, 85, 247, 0.06)) !important;
+        border-color: rgba(255, 255, 255, 0.5) !important;
+        backdrop-filter: blur(var(--glass-blur)) saturate(120%) !important;
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(120%) !important;
+        box-shadow: var(--shadow-1) !important;
     }
     :root.light-theme #journal-stats-section {
-        background: linear-gradient(135deg, rgba(99, 102, 241, 0.06), rgba(168, 85, 247, 0.06)) !important;
-        border-color: rgba(99, 102, 241, 0.18) !important;
+        background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(168, 85, 247, 0.06)) !important;
+        border-color: rgba(255, 255, 255, 0.5) !important;
+        backdrop-filter: blur(var(--glass-blur)) saturate(120%) !important;
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(120%) !important;
+        box-shadow: var(--shadow-1) !important;
     }
     :root.light-theme #active-events {
         background: linear-gradient(135deg, rgba(251, 191, 36, 0.06), rgba(245, 158, 11, 0.06)) !important;
-        border-color: rgba(251, 191, 36, 0.2) !important;
+        border-color: rgba(255, 255, 255, 0.5) !important;
+        backdrop-filter: blur(var(--glass-blur)) saturate(120%) !important;
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(120%) !important;
+        box-shadow: var(--shadow-1) !important;
     }
     </style>
 </head>
