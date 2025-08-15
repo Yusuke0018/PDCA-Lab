@@ -67,6 +67,8 @@
             display: flex;
             flex-direction: column;
             touch-action: manipulation;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
         /* ヘッダー */
@@ -81,6 +83,12 @@
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
             min-height: var(--header-height);
+        }
+
+        /* ライトテーマのヘッダーは半透明白で軽さを出す */
+        :root.light-theme .header {
+            background: rgba(255, 255, 255, 0.85);
+            border-bottom-color: rgba(0, 0, 0, 0.06);
         }
 
         .header-content {
@@ -121,6 +129,7 @@
         
         /* ライトテーマ用のナビゲーションスタイル */
         :root.light-theme .nav {
+            background: rgba(255, 255, 255, 0.8);
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
         }
 
@@ -212,6 +221,11 @@
             box-sizing: border-box;
             width: 100%;
         }
+
+        /* ライトテーマはカードに控えめなシャドウ */
+        :root.light-theme .card {
+            box-shadow: 0 6px 16px rgba(17, 24, 39, 0.06);
+        }
         
         /* 統計パネル共通 */
         .stat-panel {
@@ -271,7 +285,7 @@
         .btn-secondary {
             background: var(--surface-light);
             border: 1px solid var(--border);
-            color: var(--text);
+            color: var(--text-primary);
             transition: all 0.2s ease;
         }
 
@@ -302,6 +316,11 @@
             transform: translateY(-2px);
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
             border-color: var(--primary);
+        }
+
+        :root.light-theme .hypothesis-item:hover {
+            box-shadow: 0 10px 24px rgba(17, 24, 39, 0.08);
+            background: #ffffff;
         }
         
         .hypothesis-item.deleting {
