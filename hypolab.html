@@ -1661,8 +1661,24 @@
         const googleProvider = new GoogleAuthProvider();
 
         // グローバル変数
-        // 一時的に「今日のイベント」を停止
-        const EVENTS_DISABLED = true;
+        // 今日のイベントを停止/復帰できるフラグ（URL/LocalStorageで切替可）
+        // 優先: URL ?events=on|off > localStorage('hypolab_events_disabled') > 既定true
+        const EVENTS_DISABLED = (() => {
+            try {
+                const q = new URLSearchParams(location.search).get('events');
+                if (q === 'on' || q === 'enable') return false;
+                if (q === 'off' || q === 'disable') return true;
+            } catch (_) {}
+            try {
+                const v = localStorage.getItem('hypolab_events_disabled');
+                if (v === 'true') return true;
+                if (v === 'false') return false;
+            } catch (_) {}
+            return true;
+        })();
+        // 手動トグル（コンソールから呼び出し可）
+        window.enableEvents = () => { try { localStorage.setItem('hypolab_events_disabled','false'); } catch(_){} location.reload(); };
+        window.disableEvents = () => { try { localStorage.setItem('hypolab_events_disabled','true'); } catch(_){} location.reload(); };
         window.currentUser = null;
         window.currentHypothesis = null;
         window.selectedPeriod = null;

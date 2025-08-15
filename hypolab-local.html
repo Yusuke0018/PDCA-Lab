@@ -3012,8 +3012,24 @@
             }
         };
 
-        // イベント機能 一時停止フラグ（trueで当日イベントを全面停止）
-        const EVENTS_DISABLED = true;
+        // イベント機能 一時停止フラグ（URL/LocalStorageで切替可）
+        // 優先度: URLパラメータ ?events=on|off > localStorage('hypolab_events_disabled') > 既定true
+        const EVENTS_DISABLED = (() => {
+            try {
+                const q = new URLSearchParams(location.search).get('events');
+                if (q === 'on' || q === 'enable') return false;
+                if (q === 'off' || q === 'disable') return true;
+            } catch (_) {}
+            try {
+                const v = localStorage.getItem('hypolab_events_disabled');
+                if (v === 'true') return true;
+                if (v === 'false') return false;
+            } catch (_) {}
+            return true; // 既定で停止
+        })();
+        // 手動切替用ヘルパー
+        window.enableEvents = () => { try { localStorage.setItem('hypolab_events_disabled','false'); } catch(_){} location.reload(); };
+        window.disableEvents = () => { try { localStorage.setItem('hypolab_events_disabled','true'); } catch(_){} location.reload(); };
 
         // 期間中イベント定義
         const HABIT_EVENTS = {
