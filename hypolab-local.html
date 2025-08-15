@@ -9564,7 +9564,15 @@
             // ポイント付与（強度を考慮した実際のポイント）
             const basePoints = actualPoints;
             const bonusPoints = Math.round(actualPoints * (multiplier - 1));
-            const credited = earnPoints(actualPoints, 'habit', `${window.currentHypothesis.title} 達成`, multiplier, null, window.currentHypothesis.id, { dateKey });
+            const credited = earnPoints(
+                actualPoints,
+                'habit',
+                `${window.currentHypothesis.title} 達成`,
+                multiplier,
+                window.currentHypothesis.category || null,
+                window.currentHypothesis.id,
+                { dateKey }
+            );
             // 当日付の実際の付与ポイントを記録（取り消し時に正確に減算するため）
             if (!window.currentHypothesis.pointsByDate) window.currentHypothesis.pointsByDate = {};
             window.currentHypothesis.pointsByDate[dateKey] = credited;
@@ -12503,6 +12511,21 @@
             }
             // サプライズブーストは廃止
             
+            // ドロップ率ブースト（Lucky Seven）
+            let dropMultiplier = 1.0;
+            if (data.cards && data.cards.activeEffects) {
+                const dropBoost = data.cards.activeEffects.find(e => e.cardId === 'lucky_seven');
+                if (dropBoost && dropBoost.multiplier) {
+                    dropMultiplier = Math.max(1.0, Number(dropBoost.multiplier) || 1.0);
+                }
+            }
+
+            // レア保証（Streak Bonus）
+            let hasStreakGuarantee = false;
+            if (data.cards && data.cards.activeEffects) {
+                hasStreakGuarantee = data.cards.activeEffects.some(e => e.cardId === 'streak_bonus' || e.type === 'streak_rare_guarantee');
+            }
+
             if (achievementRate === 100) {
                 // 100%達成: 期間ボーナスでレア率上昇
                 const rand = Math.random();
@@ -12519,23 +12542,35 @@
                 ];
                 
                 // 期間ボーナスを加味したレアリティ判定
-                const baseLegendaryChance = 0.15;
-                const legendaryChance = baseLegendaryChance + (durationBonus * 0.5); // 期間ボーナスの半分をレジェンダリーに
-                const rareChance = 0.35;
-                const adjustedRareChance = rareChance + (durationBonus * 0.3); // 期間ボーナスの30%をレアに
+                let baseLegendaryChance = 0.15;
+                let legendaryChance = baseLegendaryChance + (durationBonus * 0.5); // 期間ボーナスの半分をレジェンダリーに
+                let rareChance = 0.35;
+                let adjustedRareChance = rareChance + (durationBonus * 0.3); // 期間ボーナスの30%をレアに
+                // ドロップ倍率（Lucky Seven）を適用（上限0.95）
+                legendaryChance = Math.min(0.95, legendaryChance * dropMultiplier);
+                adjustedRareChance = Math.min(0.95, adjustedRareChance * dropMultiplier);
                 
-                if (rand < legendaryChance) {
+                if (!hasStreakGuarantee && rand < legendaryChance) {
                     // レジェンダリーカード
                     const selectedCard = legendaryCards[Math.floor(Math.random() * legendaryCards.length)];
                     cards.push(selectedCard);
-                } else if (rand < legendaryChance + adjustedRareChance) {
+                } else if (!hasStreakGuarantee && rand < legendaryChance + adjustedRareChance) {
                     // レアカード
                     const selectedCard = rareCards[Math.floor(Math.random() * rareCards.length)];
                     cards.push(selectedCard);
                 } else {
-                    // コモンカード
-                    const selectedCard = commonCards[Math.floor(Math.random() * commonCards.length)];
-                    cards.push(selectedCard);
+                    // ストリーク保証があればレアを確定
+                    if (hasStreakGuarantee) {
+                        const selectedCard = rareCards[Math.floor(Math.random() * rareCards.length)];
+                        cards.push(selectedCard);
+                        // 消費
+                        data.cards.activeEffects = (data.cards.activeEffects || []).filter(e => !(e.cardId === 'streak_bonus' || e.type === 'streak_rare_guarantee'));
+                        saveData(data);
+                    } else {
+                        // コモンカード
+                        const selectedCard = commonCards[Math.floor(Math.random() * commonCards.length)];
+                        cards.push(selectedCard);
+                    }
                 }
                 
                 // パーフェクトボーナスが有効な場合、追加で1枚獲得
@@ -12572,13 +12607,19 @@
                 ];
                 
                 // 期間ボーナスを加味したレア率
-                const baseRareChance = 0.2;
-                const rareChance = baseRareChance + durationBonus; // 期間ボーナスをそのまま加算
+                let baseRareChance = 0.2;
+                let rareChance = baseRareChance + durationBonus; // 期間ボーナスをそのまま加算
+                // ドロップ倍率（Lucky Seven）を適用（上限0.95）
+                rareChance = Math.min(0.95, rareChance * dropMultiplier);
                 
-                if (rand < rareChance) {
-                    // レアカード
+                if (rand < rareChance || hasStreakGuarantee) {
+                    // レアカード（保証時もレア確定）
                     const selectedCard = rareCards[Math.floor(Math.random() * rareCards.length)];
                     cards.push(selectedCard);
+                    if (hasStreakGuarantee) {
+                        data.cards.activeEffects = (data.cards.activeEffects || []).filter(e => !(e.cardId === 'streak_bonus' || e.type === 'streak_rare_guarantee'));
+                        saveData(data);
+                    }
                 } else {
                     // コモンカード
                     const selectedCard = commonCards[Math.floor(Math.random() * commonCards.length)];
@@ -15755,6 +15796,15 @@
             });
             
             saveData(data);
+
+            // 目に見える効果: 今日のデイリーチャレンジも完了扱いにする
+            try {
+                const daily = (data.challenges && data.challenges.daily) ? data.challenges.daily : null;
+                if (daily && !data.challenges.completedToday.includes(daily.id)) {
+                    completeChallenge('daily', daily.id);
+                }
+            } catch (e) { /* noop */ }
+
             showNotification('🎯 今日のミッションがすべて達成されました！', 'success');
             updateCardUseButton();
             updateChallenges();
