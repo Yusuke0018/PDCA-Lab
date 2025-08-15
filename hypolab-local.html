@@ -14782,6 +14782,12 @@
             let finalPoints = basePoints;
             let multiplier = 1.0;
             let bonus = 0;
+
+            // チャレンジ系（daily/weekly）はブースト適用なし
+            const isChallenge = (source === 'daily_challenge' || source === 'weekly_challenge' || source === 'challenge');
+            if (isChallenge) {
+                return basePoints;
+            }
             
             // カード効果のチェック
             if (data.cards && data.cards.activeEffects) {
@@ -14875,6 +14881,12 @@
             let bonus = 0;
             const notes = [];
             const now = new Date();
+
+            // チャレンジ系（daily/weekly）はブースト適用なし
+            const isChallenge = (source === 'daily_challenge' || source === 'weekly_challenge' || source === 'challenge');
+            if (isChallenge) {
+                return { finalPoints: basePoints, multiplierTotal: 1.0, bonusTotal: 0, notes };
+            }
             
             // カード効果
             if (data.cards && data.cards.activeEffects) {
