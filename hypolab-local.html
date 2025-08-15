@@ -13866,6 +13866,41 @@
                     }
                 }, { passive: true, capture: true });
             }
+
+            // 履歴画面に専用のイベントリスナーを追加（スワイプ感度向上）
+            const historyView = document.getElementById('history-view');
+            if (historyView) {
+                historyView.addEventListener('touchstart', (e) => {
+                    const currentView = getCurrentView();
+                    if (currentView === 'history') {
+                        swipeState.touchStartX = e.changedTouches[0].screenX;
+                        swipeState.touchStartY = e.changedTouches[0].screenY;
+                        swipeState.scrolling = false;
+                        swipeState.isSwiping = false;
+                    }
+                }, { passive: true, capture: true });
+                historyView.addEventListener('touchmove', (e) => {
+                    const currentView = getCurrentView();
+                    if (currentView === 'history') {
+                        const diffX = Math.abs(e.changedTouches[0].screenX - swipeState.touchStartX);
+                        const diffY = Math.abs(e.changedTouches[0].screenY - swipeState.touchStartY);
+                        if (diffX > 18 && diffX > diffY * 0.9) {
+                            swipeState.isSwiping = true;
+                            swipeState.scrolling = false;
+                            e.preventDefault();
+                        }
+                    }
+                }, { passive: false, capture: true });
+                historyView.addEventListener('touchend', (e) => {
+                    const currentView = getCurrentView();
+                    if (currentView === 'history' && swipeState.isSwiping) {
+                        swipeState.touchEndX = e.changedTouches[0].screenX;
+                        swipeState.touchEndY = e.changedTouches[0].screenY;
+                        handleSwipe();
+                        swipeState.isSwiping = false;
+                    }
+                }, { passive: true, capture: true });
+            }
             
             container.addEventListener('touchstart', (e) => {
                 if (!swipeState.isEnabled) {
@@ -14007,7 +14042,7 @@
             const currentView = getCurrentView();
             
             // ビューごとの閾値（端スワイプはさらに緩和）
-            const relaxedViews = ['stats','points','home','cards'];
+            const relaxedViews = ['stats','points','home','cards','history'];
             let minSwipeDistance = relaxedViews.includes(currentView) ? 32 : 56;
             let horizontalRatio = relaxedViews.includes(currentView) ? 1.2 : 1.6;
             if (swipeState.edgeSwipe) {
