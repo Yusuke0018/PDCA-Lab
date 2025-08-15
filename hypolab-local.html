@@ -1585,6 +1585,68 @@
         -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(120%) !important;
         box-shadow: var(--shadow-1) !important;
     }
+
+    /* ===== FAB: クイックアクション（モバイル向け） ===== */
+    .fab-container {
+        position: fixed;
+        right: 16px;
+        bottom: 24px;
+        z-index: 1200;
+    }
+    .fab-main {
+        width: 56px; height: 56px; border-radius: 28px;
+        display: flex; align-items: center; justify-content: center;
+        background: linear-gradient(135deg, var(--glass-bg1), var(--glass-bg2));
+        border: 1px solid var(--glass-border);
+        backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+        box-shadow: var(--shadow-2);
+        color: var(--text-primary);
+        font-size: 24px; cursor: pointer;
+        transition: transform 0.2s ease;
+    }
+    .fab-main:active { transform: scale(0.95); }
+    .fab-menu { position: absolute; bottom: 70px; right: 0; display: grid; gap: 10px; }
+    .fab-item { 
+        display: flex; align-items: center; gap: 10px; 
+        transform: translateY(10px); opacity: 0; pointer-events: none;
+        transition: transform 220ms ease, opacity 220ms ease; 
+    }
+    .fab-badge {
+        padding: 8px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--text-primary);
+        background: linear-gradient(135deg, var(--glass-bg1), var(--glass-bg2)); border: 1px solid var(--glass-border);
+        backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+        box-shadow: var(--shadow-1);
+    }
+    .fab-btn {
+        width: 44px; height: 44px; border-radius: 22px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 18px;
+        background: var(--primary); color: white; border: none; box-shadow: var(--shadow-1);
+    }
+    .fab-container.open .fab-item { transform: translateY(0); opacity: 1; pointer-events: auto; }
+    .fab-item:nth-child(1) { transition-delay: 0ms; }
+    .fab-item:nth-child(2) { transition-delay: 40ms; }
+    .fab-item:nth-child(3) { transition-delay: 80ms; }
+
+    /* ===== Celebration: Confetti + Mini Modal ===== */
+    @keyframes confettiFall {
+        0% { transform: translateY(-20vh) rotate(0deg); opacity: 0; }
+        10% { opacity: 1; }
+        100% { transform: translateY(80vh) rotate(360deg); opacity: 0; }
+    }
+    .confetti { position: fixed; top: 0; left: 0; width: 8px; height: 12px; border-radius: 2px; z-index: 2000; }
+    .mini-modal {
+        position: fixed; left: 50%; top: 18%; transform: translateX(-50%);
+        background: linear-gradient(135deg, var(--glass-bg1), var(--glass-bg2));
+        border: 1px solid var(--glass-border); backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+        padding: 14px 16px; border-radius: 16px; box-shadow: var(--shadow-2); z-index: 2100;
+        text-align: center; color: var(--text-primary); min-width: 220px;
+        animation: fadeUp 260ms ease;
+    }
+    .mini-modal .title { font-weight: 800; margin-bottom: 6px; font-size: 16px; }
+    .mini-modal .desc { font-size: 13px; opacity: 0.85; }
+    @keyframes fadeUp { from { opacity: 0; transform: translate(-50%, -6px); } to { opacity: 1; transform: translate(-50%, 0); } }
     </style>
 </head>
 <body>
@@ -1660,6 +1722,25 @@
             <span class="dot" data-page="4" style="width: 6px; height: 6px; background: var(--surface-light); border-radius: 50%; transition: all 0.3s;"></span>
         </div>
     </nav>
+
+    <!-- FAB: クイックアクション -->
+    <div class="fab-container" id="fab">
+        <div class="fab-menu">
+            <div class="fab-item" id="fab-action-habit">
+                <div class="fab-badge">新しい習慣</div>
+                <button class="fab-btn" onclick="showNewHypothesisView()">➕</button>
+            </div>
+            <div class="fab-item" id="fab-action-journal">
+                <div class="fab-badge">今日のジャーナル</div>
+                <button class="fab-btn" onclick="openJournalModal()">📝</button>
+            </div>
+            <div class="fab-item" id="fab-action-reward">
+                <div class="fab-badge">報酬</div>
+                <button class="fab-btn" onclick="(function(){ showPointsView(); setTimeout(showRewardsTab, 50); })()">💎</button>
+            </div>
+        </div>
+        <button class="fab-main" id="fab-main" aria-label="Quick actions" onclick="toggleFab()">＋</button>
+    </div>
 
     <!-- メインコンテナ -->
     <div class="container">
@@ -5980,6 +6061,50 @@
                 `;
             }
         }
+
+        // ===== FAB（クイックアクション） =====
+        function toggleFab() {
+            const fab = document.getElementById('fab');
+            if (!fab) return;
+            const open = fab.classList.toggle('open');
+            const main = document.getElementById('fab-main');
+            if (main) main.textContent = open ? '×' : '＋';
+        }
+        window.toggleFab = toggleFab;
+
+        // ===== Celebration: Confetti + Mini Modal =====
+        function showConfetti(duration = 1200, count = 24) {
+            const colors = ['#22c55e','#06b6d4','#f59e0b','#ef4444','#8b5cf6'];
+            for (let i = 0; i < count; i++) {
+                const piece = document.createElement('div');
+                piece.className = 'confetti';
+                const size = 6 + Math.random() * 6;
+                piece.style.width = size + 'px';
+                piece.style.height = (size * 1.2) + 'px';
+                piece.style.left = (Math.random() * 100) + 'vw';
+                piece.style.background = colors[i % colors.length];
+                piece.style.transform = `translateY(-20vh) rotate(${Math.random()*360}deg)`;
+                piece.style.animation = `confettiFall ${0.9 + Math.random()*0.6}s ease-out forwards`;
+                piece.style.animationDelay = (Math.random()*0.2) + 's';
+                document.body.appendChild(piece);
+                setTimeout(() => piece.remove(), duration + 600);
+            }
+        }
+
+        function showMiniModal(title, desc) {
+            const modal = document.createElement('div');
+            modal.className = 'mini-modal';
+            modal.innerHTML = `<div class="title">${title}</div><div class="desc">${desc}</div>`;
+            document.body.appendChild(modal);
+            setTimeout(() => { modal.style.opacity = '0'; modal.style.transform = 'translate(-50%, -6px)'; }, 1100);
+            setTimeout(() => modal.remove(), 1400);
+        }
+
+        function showLevelUpCelebration(oldLevel, newLevel) {
+            showConfetti(1200, 28);
+            showMiniModal('🎉 レベルアップ！', `Lv.${oldLevel} → Lv.${newLevel.level}｜${newLevel.name}`);
+        }
+        window.showLevelUpCelebration = showLevelUpCelebration;
         
         // Window オブジェクトに関数を登録
         window.addEffortBonusPlan = addEffortBonusPlan;
@@ -5998,12 +6123,9 @@
 
         // レベルアップ通知
         function showLevelUpNotification(oldLevel, newLevel) {
-            // 優先度10で最優先表示
-            showNotification(
-                `🎉 レベルアップ！\nLv.${oldLevel} → Lv.${newLevel.level}\n${newLevel.name}`,
-                'success',
-                10
-            );
+            // 軽量な祝祭演出＋短い通知
+            try { showLevelUpCelebration(oldLevel, newLevel); } catch(e) {}
+            showNotification(`Lv.${oldLevel} → Lv.${newLevel.level}｜${newLevel.name}`, 'success', 6);
         }
 
         // ポイント獲得アニメーション
@@ -11177,17 +11299,14 @@
                 newBadges.push('badge_hunter');
             }
             
-            // 新しいバッジを通知
+            // 新しいバッジを祝う（軽量コンフェッティ＋ミニモーダル）
             newBadges.forEach(badgeId => {
                 const badge = BADGE_DEFINITIONS[badgeId];
                 if (badge) {
                     setTimeout(() => {
-                        showCardEffect(
-                            '🏆 バッジ獲得！',
-                            `${badge.name}\n${badge.description}`,
-                            '#fbbf24'
-                        );
-                    }, 500);
+                        try { showConfetti(1000, 20); } catch(e) {}
+                        try { showMiniModal('🏆 バッジ獲得！', `${badge.emoji} ${badge.name}`); } catch(e) {}
+                    }, 200);
                 }
             });
             
