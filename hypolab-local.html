@@ -1524,7 +1524,7 @@
                     <!-- 予定された努力ボーナスがここに表示される -->
                 </div>
                 <button class="btn btn-secondary" id="effort-bonus-btn" onclick="handleEffortBonusClick(event); showEffortBonusDialog()" style="padding: 8px 16px; font-size: 14px; position: relative; overflow: visible;">
-                    💪 努力を予定する (+1-3pt)
+                    💪 目標を追加する (+1-3pt)
                 </button>
             </div>
             
@@ -5400,8 +5400,8 @@
                     max-width: 90%;
                     width: 320px;
                 ">
-                    <h3 style="margin-bottom: 16px; color: var(--primary);">💪 努力を予定する</h3>
-                    <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 16px;">実行したい努力を予定として登録し、完了したらポイントを獲得します</p>
+                    <h3 style="margin-bottom: 16px; color: var(--primary);">💪 今日の目標</h3>
+                    <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 16px;">達成したい目標を設定し、完了したらポイントを獲得します</p>
                     <div style="margin-bottom: 12px;">
                         <label style="display: block; margin-bottom: 8px; color: var(--text-secondary);">種類を選択</label>
                         <select id="effort-type" style="
@@ -5438,7 +5438,7 @@
                         ">
                     </div>
                     <div style="margin-bottom: 20px;">
-                        <label style="display: block; margin-bottom: 12px; color: var(--text-secondary);">予定ポイント</label>
+                        <label style="display: block; margin-bottom: 12px; color: var(--text-secondary);">獲得ポイント</label>
                         <div style="display: flex; gap: 8px;">
                             <button onclick="selectEffortPoints(1)" id="effort-1pt" class="effort-point-btn" style="
                                 flex: 1;
@@ -5485,7 +5485,7 @@
                             color: white;
                             cursor: pointer;
                             font-weight: bold;
-                        ">予定を作成</button>
+                        ">目標を設定</button>
                         <button onclick="closeEffortDialog()" style="
                             flex: 1;
                             padding: 12px;
@@ -5560,14 +5560,14 @@
                 z-index: 10001;
                 animation: fadeInOut 2s ease-out;
             `;
-            message.textContent = `📋 努力予定を作成しました`;
+            message.textContent = `📋 目標を設定しました`;
             document.body.appendChild(message);
             setTimeout(() => message.remove(), 2000);
             
             closeEffortDialog();
         }
         
-        // 努力ボーナスを予定として追加
+        // 努力ボーナスの目標を追加
         function addEffortBonusPlan(points, type, reason = '') {
             // ポイント数のバリデーション
             if (!points || points < 1 || points > 3) {
@@ -5598,7 +5598,7 @@
             updateEffortBonusArea();
         }
         
-        // 努力ボーナス予定を完了
+        // 努力ボーナスの目標を完了
         function completeEffortBonusPlan(planId) {
             const data = loadData();
             const today = dateKeyLocal(new Date());
@@ -5657,7 +5657,7 @@
             }
         }
         
-        // 努力ボーナス予定を削除
+        // 努力ボーナスの目標を削除
         function deleteEffortBonusPlan(planId) {
             const data = loadData();
             const today = dateKeyLocal(new Date());
@@ -5681,7 +5681,7 @@
             if (!container) return;
             
             if (plans.length === 0) {
-                container.innerHTML = '<p style="color: var(--text-secondary); font-size: 14px; margin: 8px 0;">予定された努力はありません</p>';
+                container.innerHTML = '<p style="color: var(--text-secondary); font-size: 14px; margin: 8px 0;">設定された目標はありません</p>';
             } else {
                 container.innerHTML = '';
                 plans.forEach(plan => {
@@ -5747,7 +5747,7 @@
                         deleteBtn.style.cssText = 'padding: 4px 8px; font-size: 12px; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3);';
                         deleteBtn.textContent = '削除';
                         deleteBtn.onclick = () => {
-                            if (confirm('この努力予定を削除しますか？')) {
+                            if (confirm('この目標を削除しますか？')) {
                                 deleteEffortBonusPlan(plan.id);
                             }
                         };
@@ -5768,15 +5768,15 @@
                 
                 effortCard.innerHTML = `
                     <h3 class="card-title">💪 努力ボーナス</h3>
-                    <p style="margin-bottom: 12px;">今日の努力を予定してポイントを獲得しましょう！</p>
+                    <p style="margin-bottom: 12px;">今日達成したい目標を設定してポイントを獲得しましょう！</p>
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                         <span style="color: var(--text-secondary); font-size: 14px;">
-                            予定: ${pendingCount}件 | 完了: ${completedCount}件
+                            未完了: ${pendingCount}件 | 完了: ${completedCount}件
                         </span>
                         <span style="font-size: 24px;">${completedCount > 0 ? '⭐'.repeat(Math.min(completedCount, 5)) : '🌱'}</span>
                     </div>
                     <button class="btn btn-secondary" onclick="handleEffortBonusClick(event); showEffortBonusDialog()" style="width: 100%; padding: 10px; font-size: 14px; position: relative; overflow: visible;">
-                        💪 努力を予定する (+1-3pt)
+                        💪 目標を追加する (+1-3pt)
                     </button>
                 `;
             }
