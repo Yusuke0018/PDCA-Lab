@@ -13929,7 +13929,7 @@
             { id: 'time_warp', name: '⏪ タイムワープ', description: '昨日の達成状況を今日にコピー', effect: 'copy_yesterday', value: 1 },
             
             // 週末イベント
-            { id: 'weekend_special', name: '🎈 週末スペシャル', description: '週末はポイント2倍！', effect: 'points_multiplier', value: 2.0 }
+            { id: 'weekend_special', name: '🎈 週末スペシャル', description: '週末はポイント1.2倍！', effect: 'points_multiplier', value: 1.2 }
         ];
         
         // 特別報酬を獲得（スマホ限定、1日1回）
@@ -14829,7 +14829,7 @@
             // 古いイベントがある場合は強制的にクリア
             // または週末スペシャルの倍率が1.5の場合もクリア
             const hasOldWeekendValue = data.events.activeBoosts.some(b => 
-                b.eventId === 'weekend_special' && b.value === 1.5
+                b.eventId === 'weekend_special' && (b.value === 1.5 || b.value === 2.0 || b.value !== 1.2)
             );
             
             if (hasOldBoost || hasOldWeekendValue) {
@@ -15065,6 +15065,16 @@
             if (!data.events || !data.events.activeBoosts || data.events.activeBoosts.length === 0) {
                 eventContainer.style.display = 'none';
             } else {
+                // 週末スペシャルの古い値を修正
+                data.events.activeBoosts = data.events.activeBoosts.map(boost => {
+                    if (boost.eventId === 'weekend_special') {
+                        // 週末スペシャルの値と説明を強制的に1.2倍に修正
+                        boost.value = 1.2;
+                        boost.description = '週末はポイント1.2倍！';
+                    }
+                    return boost;
+                });
+                
                 eventContainer.style.display = 'block';
                 eventContainer.innerHTML = `
                     <h3 style="margin-bottom: 12px; font-size: 16px;">🎉 今日のイベント</h3>
@@ -16698,7 +16708,7 @@
                         b.name === '🌅 朝活ボーナス' || 
                         b.name === '🌙 夜型ボーナス' ||
                         (b.effect && (b.effect.type === 'morning_boost' || b.effect.type === 'night_boost')) ||
-                        (b.eventId === 'weekend_special' && b.value === 1.5)  // 古い1.5倍の週末スペシャル
+                        (b.eventId === 'weekend_special' && b.value !== 1.2)  // 1.2倍以外の古い週末スペシャル
                     );
                     
                     if (hasOldEvent) {
