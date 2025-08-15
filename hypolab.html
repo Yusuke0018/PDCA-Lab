@@ -1661,6 +1661,8 @@
         const googleProvider = new GoogleAuthProvider();
 
         // グローバル変数
+        // 一時的に「今日のイベント」を停止
+        const EVENTS_DISABLED = true;
         window.currentUser = null;
         window.currentHypothesis = null;
         window.selectedPeriod = null;
@@ -1680,6 +1682,11 @@
         function loadEventsData(){ try{ return JSON.parse(localStorage.getItem(EVENTS_STORAGE_KEY))||{} }catch(_){ return {} } }
         function saveEventsData(obj){ try{ localStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(obj)); }catch(_){} }
         function updateEventDisplay(){
+            if (typeof EVENTS_DISABLED !== 'undefined' && EVENTS_DISABLED) {
+                const box = document.getElementById('active-events');
+                if (box) box.style.display = 'none';
+                return;
+            }
             const box = document.getElementById('active-events');
             if(!box) return;
             const data = loadEventsData();
@@ -1697,6 +1704,14 @@
             }
         }
         function checkDailyEvents(){
+            if (typeof EVENTS_DISABLED !== 'undefined' && EVENTS_DISABLED) {
+                const data = loadEventsData();
+                data.lastEventCheck = new Date().toDateString();
+                data.activeBoosts = [];
+                saveEventsData(data);
+                updateEventDisplay();
+                return;
+            }
             const data = loadEventsData();
             const today = new Date().toDateString();
             if(data.lastEventCheck===today){ updateEventDisplay(); return; }

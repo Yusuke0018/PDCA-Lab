@@ -3012,6 +3012,9 @@
             }
         };
 
+        // イベント機能 一時停止フラグ（trueで当日イベントを全面停止）
+        const EVENTS_DISABLED = true;
+
         // 期間中イベント定義
         const HABIT_EVENTS = {
             // マイルストーンイベント（7/14/21日達成時）
@@ -14836,6 +14839,15 @@
         // イベントチェック（毎日実行）
         function checkDailyEvents() {
             const data = loadData();
+            // 機能停止中はイベント生成・通知を無効化
+            if (typeof EVENTS_DISABLED !== 'undefined' && EVENTS_DISABLED) {
+                if (!data.events) data.events = {};
+                data.events.activeBoosts = [];
+                data.events.lastEventCheck = new Date().toDateString();
+                saveData(data);
+                try { updateEventDisplay(); } catch (_) {}
+                return;
+            }
             // モバイル環境でも確実に動くよう堅牢化
             if (!data.events) {
                 data.events = {
@@ -15113,6 +15125,11 @@
             const eventContainer = document.getElementById('active-events');
             
             if (!eventContainer) return;
+            // 機能停止中は常に非表示
+            if (typeof EVENTS_DISABLED !== 'undefined' && EVENTS_DISABLED) {
+                eventContainer.style.display = 'none';
+                return;
+            }
             
             if (!data.events || !data.events.activeBoosts || data.events.activeBoosts.length === 0) {
                 eventContainer.style.display = 'none';
@@ -15226,8 +15243,8 @@
                 }
             }
             
-            // イベントブースト効果
-            if (data.events && data.events.activeBoosts) {
+            // イベントブースト効果（機能停止中は無効）
+            if (!(typeof EVENTS_DISABLED !== 'undefined' && EVENTS_DISABLED) && data.events && data.events.activeBoosts) {
                 const currentHour = new Date().getHours();
                 
                 data.events.activeBoosts.forEach(boost => {
@@ -15362,8 +15379,8 @@
                 if (reverse && source === 'habit') { return { finalPoints: 0, multiplierTotal: 0, bonusTotal: 0, notes: ['ReverseCurse'] }; }
             }
             
-            // イベント効果
-            if (data.events && data.events.activeBoosts) {
+            // イベント効果（機能停止中は無効）
+            if (!(typeof EVENTS_DISABLED !== 'undefined' && EVENTS_DISABLED) && data.events && data.events.activeBoosts) {
                 data.events.activeBoosts.forEach(boost => {
                     const eff = boost.effect;
                     switch (eff.type) {
