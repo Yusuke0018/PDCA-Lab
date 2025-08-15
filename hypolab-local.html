@@ -3311,6 +3311,18 @@
 
         // データの保存
         function saveData(data) {
+            // 週末スペシャルの値を保存前に検証
+            if (data.events && data.events.activeBoosts) {
+                data.events.activeBoosts = data.events.activeBoosts.map(boost => {
+                    if (boost.eventId === 'weekend_special') {
+                        // 週末スペシャルは必ず1.2倍に修正
+                        boost.value = 1.2;
+                        boost.description = '週末はポイント1.2倍！';
+                    }
+                    return boost;
+                });
+            }
+            
             localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
         }
 
@@ -14827,12 +14839,18 @@
             );
             
             // 古いイベントがある場合は強制的にクリア
-            // または週末スペシャルの倍率が1.5の場合もクリア
+            // または週末スペシャルの倍率が1.2以外の場合もクリア
             const hasOldWeekendValue = data.events.activeBoosts.some(b => 
-                b.eventId === 'weekend_special' && (b.value === 1.5 || b.value === 2.0 || b.value !== 1.2)
+                b.eventId === 'weekend_special' && b.value !== 1.2
             );
             
-            if (hasOldBoost || hasOldWeekendValue) {
+            // 週末スペシャルの値が間違っている場合、または古い表記がある場合はクリア
+            const hasWrongDescription = data.events.activeBoosts.some(b =>
+                b.eventId === 'weekend_special' && 
+                (b.description.includes('1.5') || b.description.includes('2'))
+            );
+            
+            if (hasOldBoost || hasOldWeekendValue || hasWrongDescription) {
                 data.events.activeBoosts = [];
                 data.events.lastEventCheck = null; // リセット
             }
@@ -14846,14 +14864,22 @@
             const todayEvent = getDailyEvent();
             
             if (todayEvent) {
+                // 週末スペシャルの場合は値を1.2倍に強制修正
+                let eventValue = todayEvent.value;
+                let eventDescription = todayEvent.description;
+                if (todayEvent.id === 'weekend_special') {
+                    eventValue = 1.2;
+                    eventDescription = '週末はポイント1.2倍！';
+                }
+                
                 // イベントを記録
                 data.events.activeBoosts.push({
                     type: 'daily_event',
                     eventId: todayEvent.id,
                     name: todayEvent.name,
-                    description: todayEvent.description,
+                    description: eventDescription,
                     effect: todayEvent.effect,
-                    value: todayEvent.value,
+                    value: eventValue,
                     date: todayStr
                 });
                 
