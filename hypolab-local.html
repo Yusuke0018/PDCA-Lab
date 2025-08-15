@@ -13710,6 +13710,15 @@
                 <div class="card-description">${card.description}</div>
                 ${count > 1 ? `<div class="card-count">×${count}</div>` : ''}
             `;
+            // カードコレクションからも使用できるようにする（報酬カードのみ）
+            if (card.type === 'reward') {
+                div.style.cursor = 'pointer';
+                div.title = 'タップして使用メニューを開く';
+                div.onclick = () => {
+                    // 既存の使用メニューを再利用
+                    showCardUseMenu();
+                };
+            }
             return div;
         }
 
