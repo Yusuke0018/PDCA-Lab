@@ -14798,6 +14798,24 @@
         // イベントチェック（毎日実行）
         function checkDailyEvents() {
             const data = loadData();
+            
+            // 一時的に週末スペシャルのデータを完全クリア（デバッグ用）
+            if (data.events && data.events.activeBoosts) {
+                const hasWeekendSpecial = data.events.activeBoosts.some(b => 
+                    b.eventId === 'weekend_special'
+                );
+                if (hasWeekendSpecial) {
+                    // 週末スペシャルがある場合は完全にクリア
+                    data.events.activeBoosts = [];
+                    data.events.lastEventCheck = null;
+                    saveData(data);
+                    console.log('週末スペシャルデータをクリアしました');
+                }
+            }
+            
+            // 今日のイベント機能を一時的に無効化
+            return;
+            
             // モバイル環境でも確実に動くよう堅牢化
             if (!data.events) {
                 data.events = {
@@ -15061,6 +15079,10 @@
             const eventContainer = document.getElementById('active-events');
             
             if (!eventContainer) return;
+            
+            // 一時的にイベント表示を完全に無効化
+            eventContainer.style.display = 'none';
+            return;
             
             if (!data.events || !data.events.activeBoosts || data.events.activeBoosts.length === 0) {
                 eventContainer.style.display = 'none';
