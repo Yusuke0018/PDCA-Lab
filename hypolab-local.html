@@ -1480,9 +1480,10 @@
             label { font-size: 14px; }
             input, textarea { font-size: 15px; }
             
-            /* バッジ表示を確実に3列にする */
+            /* バッジ表示を確実に3列にする
+               display に !important を付けるとトグルが効かなくなるため、
+               ここでは列レイアウトのみを強制し display は指定しない */
             #badge-collection {
-                display: grid !important;
                 grid-template-columns: repeat(3, 1fr) !important;
                 gap: 4px !important;
             }
