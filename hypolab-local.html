@@ -1818,14 +1818,6 @@
                 </button>
             </div>
             
-            <!-- 特別報酬ボタン（スマホのみ、1日1回限定） -->
-            <div class="card" id="special-reward-section" style="margin-bottom: 16px; background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(239, 68, 68, 0.1)); border: 1px solid rgba(251, 191, 36, 0.3); display: none;">
-                <h3 style="margin-bottom: 12px; font-size: 16px;">🎁 今日の特別報酬</h3>
-                <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 12px;">1日1回限定で報酬カードを獲得できます</p>
-                <button class="btn btn-primary" id="special-reward-btn" onclick="getSpecialReward()" style="width: 100%; padding: 10px; font-size: 14px; background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);">
-                    🎁 報酬を受け取る
-                </button>
-            </div>
             
             <!-- チャレンジセクション -->
             <div class="card" style="margin-bottom: 16px; background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(236, 72, 153, 0.1)); border: 1px solid rgba(139, 92, 246, 0.3);">
@@ -7969,7 +7961,6 @@
             updatePenaltyIndicators();
             updateChallenges();
             updateJournalStatus();  // ジャーナルステータスを更新
-            updateSpecialRewardButton();  // 特別報酬ボタンの状態を更新
             
             // イベント表示を更新（スマホ対応）
             try {
@@ -13964,6 +13955,46 @@
             }
         }
         
+        // イベント定義（シンプルで面白い仕掛け）
+        const EVENT_DEFINITIONS = [
+            // ポイント系イベント
+            { id: 'double_points', name: '🎯 ダブルポイント', description: '今日の全達成が2倍ポイント', effect: 'points_multiplier', value: 2.0 },
+            { id: 'point_rain', name: '💰 ポイントレイン', description: '最初の3回達成で+5ptボーナス', effect: 'achievement_bonus', value: 5 },
+            { id: 'golden_day', name: '✨ ゴールデンデー', description: '全ポイント+3の固定ボーナス', effect: 'flat_bonus', value: 3 },
+            
+            // 時間系イベント  
+            { id: 'early_bird_special', name: '🌅 早起き特典', description: '朝6-9時の達成で×1.5', effect: 'time_bonus', hours: [6,7,8], multiplier: 1.5 },
+            { id: 'night_owl_boost', name: '🦉 夜型ボーナス', description: '20-23時の達成で×1.2', effect: 'time_bonus', hours: [20,21,22,23], multiplier: 1.2 },
+            { id: 'lucky_hour', name: '⏰ ラッキーアワー', description: '11時と17時の達成で+7pt', effect: 'lucky_time', hours: [11,17], bonus: 7 },
+            
+            // カテゴリ系イベント
+            { id: 'study_day', name: '📚 勉強デー', description: '勉強カテゴリ×2', effect: 'category_boost', category: 'study', multiplier: 2.0 },
+            { id: 'exercise_festival', name: '💪 運動祭り', description: '運動カテゴリ×2', effect: 'category_boost', category: 'exercise', multiplier: 2.0 },
+            { id: 'health_campaign', name: '🍎 健康キャンペーン', description: '健康カテゴリ×2', effect: 'category_boost', category: 'health', multiplier: 2.0 },
+            
+            // 特殊系イベント
+            { id: 'reverse_day', name: '🔄 リバースデー', description: '未達成で+1pt（達成で0pt）', effect: 'reverse_points', value: 1 },
+            { id: 'perfect_challenge', name: '💯 パーフェクトチャレンジ', description: '全習慣達成で+20ptボーナス', effect: 'perfect_bonus', value: 20 },
+            { id: 'streak_party', name: '🔥 ストリークパーティ', description: '連続3日以上の習慣に+5pt', effect: 'streak_bonus', minDays: 3, bonus: 5 },
+            { id: 'comeback_bonus', name: '🎉 カムバックボーナス', description: '3日ぶりの達成で×3', effect: 'comeback', days: 3, multiplier: 3.0 },
+            
+            // ギャンブル系イベント
+            { id: 'dice_roll', name: '🎲 サイコロチャレンジ', description: '達成毎に1〜6ptランダム', effect: 'random_points', min: 1, max: 6 },
+            { id: 'coin_flip', name: '🪙 コインフリップ', description: '50%で×3、50%で×0.5', effect: 'coin_flip', win: 3.0, lose: 0.5 },
+            
+            // 連鎖系イベント
+            { id: 'chain_reaction', name: '⛓️ チェインリアクション', description: '達成する度に+1pt累積（最大+10）', effect: 'chain', maxBonus: 10 },
+            { id: 'momentum_builder', name: '🚀 モメンタムビルダー', description: '連続達成で倍率上昇（1→1.5→2→2.5）', effect: 'momentum', multipliers: [1, 1.5, 2, 2.5] },
+            
+            // カード系イベント
+            { id: 'card_carnival', name: '🎴 カードカーニバル', description: 'カードドロップ率2倍', effect: 'card_drop', multiplier: 2.0 },
+            { id: 'rare_hunt', name: '💎 レアハント', description: 'レアカード確率UP', effect: 'rare_boost', value: 0.3 },
+            
+            // 逆転系イベント
+            { id: 'second_chance', name: '🔁 セカンドチャンス', description: '失敗した習慣を1つリセット可能', effect: 'reset_habit', value: 1 },
+            { id: 'time_warp', name: '⏪ タイムワープ', description: '昨日の達成状況を今日にコピー', effect: 'copy_yesterday', value: 1 }
+        ];
+        
         // 特別報酬を獲得（スマホ限定、1日1回）
         function getSpecialReward() {
             const data = loadData();
@@ -14009,6 +14040,28 @@
                 updateSpecialRewardButton();
                 showNotification('🎁 特別報酬を獲得しました！', 'success');
             });
+        }
+        
+        // 日替わりイベントを取得（全て等確率）
+        function getDailyEvent() {
+            const data = loadData();
+            const today = dateKeyLocal(new Date());
+            const todayStr = new Date().toISOString().split('T')[0];
+            
+            // 強制イベントチェック（イベントトリガーカードの効果）
+            if (data.events && data.events.forcedEvents && data.events.forcedEvents[todayStr]) {
+                // 強制イベント日は必ずイベント発生
+            } else {
+                // 通常は30%の確率でイベント発生
+                const seed = today.split('-').reduce((a, b) => a + parseInt(b), 0);
+                const random = ((seed * 9301 + 49297) % 233280) / 233280;
+                if (random > 0.3) return null;
+            }
+            
+            // シード値を使って一貫性のあるランダムイベント選択
+            const eventSeed = today.split('-').join('');
+            const eventIndex = (parseInt(eventSeed) * 7919) % EVENT_DEFINITIONS.length;
+            return EVENT_DEFINITIONS[eventIndex];
         }
         
         // 特別報酬ボタンの表示状態を更新
@@ -14814,6 +14867,34 @@
             data.events.lastEventCheck = today;
             data.events.activeBoosts = [];
             
+            // 今日のイベントを取得
+            const todayEvent = getDailyEvent();
+            
+            if (todayEvent) {
+                // イベントを記録
+                data.events.activeBoosts.push({
+                    type: 'daily_event',
+                    eventId: todayEvent.id,
+                    name: todayEvent.name,
+                    description: todayEvent.description,
+                    effect: todayEvent.effect,
+                    value: todayEvent.value,
+                    date: todayStr
+                });
+                
+                // イベント履歴に追加
+                data.events.eventHistory.push({
+                    date: todayStr,
+                    eventId: todayEvent.id,
+                    name: todayEvent.name
+                });
+                
+                // 履歴は最新100件まで保持
+                if (data.events.eventHistory.length > 100) {
+                    data.events.eventHistory = data.events.eventHistory.slice(-100);
+                }
+            }
+            
             // イベント封印チェック
             if (data.cards && data.cards.activeEffects) {
                 const sealEffect = data.cards.activeEffects.find(effect => 
@@ -15007,21 +15088,17 @@
             if (!eventContainer) return;
             
             if (!data.events || !data.events.activeBoosts || data.events.activeBoosts.length === 0) {
-                eventContainer.style.display = 'block';
-                eventContainer.innerHTML = `
-                    <h3 style="margin-bottom: 8px; font-size: 14px; opacity: 0.9;">🎉 アクティブイベント</h3>
-                    <p style="margin: 0; font-size: 12px; color: var(--text-secondary);">今日はイベントはありません。</p>
-                `;
+                eventContainer.style.display = 'none';
             } else {
                 eventContainer.style.display = 'block';
                 eventContainer.innerHTML = `
-                    <h3 style="margin-bottom: 12px; font-size: 16px;">🎉 アクティブイベント</h3>
+                    <h3 style="margin-bottom: 12px; font-size: 16px;">🎉 今日のイベント</h3>
                     ${data.events.activeBoosts.map(boost => `
                         <div class="event-card" style="background: rgba(251, 191, 36, 0.15); border-radius: 8px; padding: 12px; margin: 8px 0;">
                             <div style="font-size: 16px; font-weight: bold;">${boost.name}</div>
                             <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">${boost.description}</div>
                             <div style="font-size: 10px; margin-top: 8px; color: #f59e0b;">
-                                期間: ${boost.duration === 'today' ? '本日中' : boost.duration}
+                                期間: 本日中
                             </div>
                         </div>
                     `).join('')}
@@ -15090,52 +15167,91 @@
             
             // イベントブースト効果
             if (data.events && data.events.activeBoosts) {
+                const currentHour = new Date().getHours();
+                
                 data.events.activeBoosts.forEach(boost => {
-                    const effect = boost.effect;
+                    // 新しいイベントシステムの処理
+                    if (boost.effect === 'points_multiplier') {
+                        multiplier *= boost.value;
+                    } else if (boost.effect === 'achievement_bonus' && source === 'habit') {
+                        // 最初の3回達成のボーナス
+                        if (!data.events.dailyAchievementCount) data.events.dailyAchievementCount = 0;
+                        if (data.events.dailyAchievementCount < 3) {
+                            bonus += boost.value;
+                            data.events.dailyAchievementCount++;
+                            saveData(data);
+                        }
+                    } else if (boost.effect === 'flat_bonus') {
+                        bonus += boost.value;
+                    } else if (boost.effect === 'time_bonus') {
+                        if (boost.hours && boost.hours.includes(currentHour)) {
+                            multiplier *= boost.multiplier;
+                        }
+                    } else if (boost.effect === 'lucky_time') {
+                        if (boost.hours && boost.hours.includes(currentHour)) {
+                            bonus += boost.bonus;
+                        }
+                    } else if (boost.effect === 'category_boost' && category === boost.category) {
+                        multiplier *= boost.multiplier;
+                    } else if (boost.effect === 'reverse_points' && source === 'habit') {
+                        // リバースデー：達成で0pt（未達成は別処理）
+                        return 0;
+                    } else if (boost.effect === 'perfect_bonus') {
+                        // パーフェクトチャレンジは別処理で確認
+                    } else if (boost.effect === 'streak_bonus') {
+                        // ストリークパーティは別処理で確認
+                    } else if (boost.effect === 'comeback') {
+                        // カムバックボーナスは別処理で確認
+                    } else if (boost.effect === 'random_points' && source === 'habit') {
+                        // ダイスロール
+                        const dice = Math.floor(Math.random() * (boost.max - boost.min + 1)) + boost.min;
+                        bonus += dice;
+                    } else if (boost.effect === 'coin_flip' && source === 'habit') {
+                        // コインフリップ
+                        const win = Math.random() < 0.5;
+                        multiplier *= win ? boost.win : boost.lose;
+                    } else if (boost.effect === 'chain' && source === 'habit') {
+                        // チェインリアクション
+                        if (!data.events.chainCount) data.events.chainCount = 0;
+                        data.events.chainCount = Math.min(data.events.chainCount + 1, boost.maxBonus);
+                        bonus += data.events.chainCount;
+                        saveData(data);
+                    } else if (boost.effect === 'momentum' && source === 'habit') {
+                        // モメンタムビルダー
+                        if (!data.events.momentumIndex) data.events.momentumIndex = 0;
+                        const index = Math.min(data.events.momentumIndex, boost.multipliers.length - 1);
+                        multiplier *= boost.multipliers[index];
+                        data.events.momentumIndex++;
+                        saveData(data);
+                    } else if (boost.effect === 'card_drop') {
+                        // カードドロップ率は別処理
+                    } else if (boost.effect === 'rare_boost') {
+                        // レアカード確率は別処理
+                    }
                     
-                    switch (effect.type) {
-                        case 'global_multiplier':
-                            multiplier *= effect.value;
-                            break;
-                        case 'category_multiplier':
-                            if (category === effect.target) {
+                    // 旧形式のイベント処理（互換性のため）
+                    const effect = boost.effect;
+                    if (typeof effect === 'object') {
+                        switch (effect.type) {
+                            case 'global_multiplier':
                                 multiplier *= effect.value;
-                            }
-                            break;
-                        case 'category_bonus':
-                            if (category === effect.target) {
-                                bonus += effect.value;
-                            }
-                            break;
-                        case 'morning_boost':
-                            // 朝活ボーナス：5時〜11時の達成時のみ適用
-                            const morningHour = new Date().getHours();
-                            if (morningHour >= effect.hours[0] && morningHour <= effect.hours[1]) {
-                                multiplier *= effect.value;
-                            }
-                            break;
-                        case 'night_boost':
-                            // 夜型ボーナス：20時〜23時の達成時のみ適用
-                            const nightHour = new Date().getHours();
-                            if (nightHour >= effect.hours[0] && nightHour <= effect.hours[1]) {
-                                multiplier *= effect.value;
-                            }
-                            break;
-                        case 'time_multiplier':
-                            // 旧形式の時間帯ボーナス（互換性のため残す）
-                            const hour = new Date().getHours();
-                            if (boost.duration === 'morning' && hour >= 5 && hour <= 11) {
-                                multiplier *= effect.value;
-                            }
-                            break;
-                        case 'streak_bonus':
-                            // 連続達成ボーナス
-                            bonus += effect.value;
-                            break;
-                        case 'perfect_bonus':
-                            // パーフェクトデーボーナス（全習慣達成時のみ適用）
-                            // このボーナスは別途処理される
-                            break;
+                                break;
+                            case 'category_multiplier':
+                                if (category === effect.target) {
+                                    multiplier *= effect.value;
+                                }
+                                break;
+                            case 'morning_boost':
+                                if (currentHour >= effect.hours[0] && currentHour <= effect.hours[1]) {
+                                    multiplier *= effect.value;
+                                }
+                                break;
+                            case 'night_boost':
+                                if (currentHour >= effect.hours[0] && currentHour <= effect.hours[1]) {
+                                    multiplier *= effect.value;
+                                }
+                                break;
+                        }
                     }
                 });
             }
@@ -16901,8 +17017,8 @@
         window.updateCategoryDropdowns = updateCategoryDropdowns;
         window.editCategoryMaster = editCategoryMaster;
         window.addNewCategory = addNewCategory;
-        window.getSpecialReward = getSpecialReward;
-        window.updateSpecialRewardButton = updateSpecialRewardButton;
+        window.showCardAlbum = showCardAlbum;
+        window.registerCardToAlbum = registerCardToAlbum;
         
         // モバイルのズーム抑止（ダブルタップ/ピンチ）
         (function preventZoom() {
