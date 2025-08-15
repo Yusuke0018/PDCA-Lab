@@ -12509,14 +12509,13 @@
                 
                 // 報酬カードプール（新方針）
                 const legendaryCards = [
-                    'perfect_bonus', 'event_combo', 'rainbow_boost',
-                    'lucky_seven', 'mission_master', 'conversion_magic'
+                    'perfect_bonus', 'event_combo', 'conversion_magic', 'lucky_seven'
                 ];
                 const rareCards = [
-                    'protect_shield', 'event_trigger', 'point_gem', 'streak_bonus'
+                    'rainbow_boost', 'mission_master', 'streak_bonus', 'protect_shield'
                 ];
                 const commonCards = [
-                    'point_gem'
+                    'point_gem', 'event_trigger', 'fate_dice'
                 ];
                 
                 // 期間ボーナスを加味したレアリティ判定
@@ -12542,12 +12541,12 @@
                 // パーフェクトボーナスが有効な場合、追加で1枚獲得
                 if (hasPerfectBonus) {
                     const rand2 = Math.random();
-                    if (rand2 < 0.1) {
+                    if (rand2 < 0.2) {
                         cards.push('perfect_bonus');
-                    } else if (rand2 < 0.4) {
-                        cards.push('achievement_boost');
+                    } else if (rand2 < 0.6) {
+                        cards.push('point_gem');
                     } else {
-                        cards.push('skip_ticket');
+                        cards.push('protect_shield');
                     }
                     
                     // パーフェクトボーナスを消費
@@ -12566,10 +12565,10 @@
                 const rand = Math.random();
                 
                 const rareCards = [
-                    'protect_shield', 'event_trigger', 'point_gem', 'streak_bonus'
+                    'protect_shield', 'point_gem', 'event_trigger', 'streak_bonus'
                 ];
                 const commonCards = [
-                    'point_gem'
+                    'point_gem', 'event_trigger', 'fate_dice'
                 ];
                 
                 // 期間ボーナスを加味したレア率
