@@ -1,5 +1,5 @@
 // GitHub Pagesなどサブパス配信でも動くようにベースパス対応
-const VERSION = 'v4';
+const VERSION = 'v5';
 const CACHE_NAME = `hypolab-cache-${VERSION}`;
 
 // ベースURL（例: https://example.com/PDCA-Lab/）
@@ -7,8 +7,21 @@ const BASE_URL = new URL(self.registration.scope);
 
 // キャッシュしたいコアアセット（相対パスで定義）
 const CORE_ASSETS = [
+  // HTML
   'index.html',
   'hypolab-local.html',
+  'hypolab.html',
+  // CSS
+  'css/hypolab-local.css',
+  'css/hypolab.css',
+  // JS (main + modules)
+  'js/hypolab-local.js',
+  'js/hypolab.js',
+  'js/modules/hypolab-utils.js',
+  'js/modules/hypolab-storage.js',
+  'js/modules/hypolab-events.js',
+  'js/modules/hypolab-points.js',
+  // Manifest & icons
   'manifest.webmanifest',
   'icons/icon.svg'
 ];
