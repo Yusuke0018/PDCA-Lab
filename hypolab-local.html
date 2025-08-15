@@ -13867,6 +13867,41 @@
                 }, { passive: true, capture: true });
             }
 
+            // カード画面に専用のイベントリスナーを追加（カードコレクション上でも横スワイプ優先）
+            const cardsView = document.getElementById('cards-view');
+            if (cardsView) {
+                cardsView.addEventListener('touchstart', (e) => {
+                    const currentView = getCurrentView();
+                    if (currentView === 'cards') {
+                        swipeState.touchStartX = e.changedTouches[0].screenX;
+                        swipeState.touchStartY = e.changedTouches[0].screenY;
+                        swipeState.scrolling = false;
+                        swipeState.isSwiping = false;
+                    }
+                }, { passive: true, capture: true });
+                cardsView.addEventListener('touchmove', (e) => {
+                    const currentView = getCurrentView();
+                    if (currentView === 'cards') {
+                        const diffX = Math.abs(e.changedTouches[0].screenX - swipeState.touchStartX);
+                        const diffY = Math.abs(e.changedTouches[0].screenY - swipeState.touchStartY);
+                        if (diffX > 18 && diffX > diffY * 0.9) {
+                            swipeState.isSwiping = true;
+                            swipeState.scrolling = false;
+                            e.preventDefault();
+                        }
+                    }
+                }, { passive: false, capture: true });
+                cardsView.addEventListener('touchend', (e) => {
+                    const currentView = getCurrentView();
+                    if (currentView === 'cards' && swipeState.isSwiping) {
+                        swipeState.touchEndX = e.changedTouches[0].screenX;
+                        swipeState.touchEndY = e.changedTouches[0].screenY;
+                        handleSwipe();
+                        swipeState.isSwiping = false;
+                    }
+                }, { passive: true, capture: true });
+            }
+
             // 履歴画面に専用のイベントリスナーを追加（スワイプ感度向上）
             const historyView = document.getElementById('history-view');
             if (historyView) {
@@ -13911,27 +13946,10 @@
                 const currentView = getCurrentView();
                 console.log('[Swipe Debug] touchstart - 現在のビュー:', currentView);
                 
-                // 統計画面とポイント画面ではスクロールを常に無効化してスワイプを優先
-                if (currentView === 'stats' || currentView === 'points') {
+                // 統計/ポイント/カード画面ではスクロールを無効化してスワイプを優先
+                if (currentView === 'stats' || currentView === 'points' || currentView === 'cards') {
                     swipeState.scrolling = false;
-                    console.log('[Swipe Debug] 統計/ポイント画面 - scrollingをfalseに設定');
-                } else if (currentView === 'cards') {
-                    // カード画面でのみスクロール可能な要素上の場合はスワイプを無効化
-                    const target = e.target;
-                    const cardsView = target.closest('#cards-view');
-                    
-                    if (cardsView) {
-                        // スクロール可能な要素かチェック
-                        const scrollableParent = findScrollableParent(target);
-                        if (scrollableParent && scrollableParent.scrollHeight > scrollableParent.clientHeight) {
-                            swipeState.scrolling = true;
-                            swipeState.touchStartX = e.changedTouches[0].screenX;
-                            swipeState.touchStartY = e.changedTouches[0].screenY;
-                            console.log('[Swipe Debug] カード画面 - スクロール可能な要素のため中断');
-                            return;
-                        }
-                    }
-                    swipeState.scrolling = false;
+                    console.log('[Swipe Debug] 統計/ポイント/カード - scrolling=false');
                 } else {
                     swipeState.scrolling = false;
                 }
@@ -14017,9 +14035,9 @@
         
         // スクロール可能な親要素を探す
         function findScrollableParent(element) {
-            // 統計/ポイント/履歴 では常にnullを返してスワイプを優先
+            // 統計/ポイント/履歴/カード では常にnullを返してスワイプを優先
             const v = getCurrentView();
-            if (v === 'stats' || v === 'points' || v === 'history') {
+            if (v === 'stats' || v === 'points' || v === 'history' || v === 'cards') {
                 return null;
             }
             
