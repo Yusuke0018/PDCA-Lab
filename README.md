@@ -108,6 +108,16 @@
 
 ## 📝 更新履歴
 
+### v3.6.1 (2025年1月15日)
+- **バグ修正**
+  - 🔧 カテゴリマスター機能のエラーを修正
+  - ⚠️ JavaScriptエラーでホーム画面が表示されない問題を解決
+  - 🛡️ 初期化処理にエラーハンドリングを追加
+- **開発者向けドキュメント**
+  - 📚 バグの再発防止策をREADMEに記載
+  - 🔍 デバッグ方法とテスト方法を明記
+  - ✅ 開発時のチェックリストを追加
+
 ### v3.6.0 (2025年1月15日)
 - **ジャーナル機能の改善**
   - 📊 ジャーナルエントリの展開/折りたたみ機能を追加
@@ -180,6 +190,116 @@
 - 初回リリース
 - 基本的な習慣トラッカー機能
 - PWA対応
+
+## 🔧 開発者向けガイドライン
+
+### 🚫 バグの再発防止策
+
+#### よくあるバグと対策
+
+##### 1. ホーム画面が表示されない・ナビゲーションが動かない
+**原因**: JavaScriptエラーで初期化処理が止まる
+
+**防止策**:
+```javascript
+// ✗ 悪い例：エラーハンドリングなし
+function initializeApp() {
+    updateCategoryDropdowns();  // この関数が存在しないと全て止まる
+    showHomeView();
+}
+
+// ○ 良い例：エラーハンドリングあり
+function initializeApp() {
+    try {
+        updateCategoryDropdowns();
+    } catch (e) {
+        console.error('カテゴリ初期化エラー:', e);
+    }
+    showHomeView();  // エラーがあってもホーム画面は表示される
+}
+```
+
+##### 2. 関数が未定義エラー
+**原因**: 関数を定義する前に呼び出している
+
+**防止策**:
+```javascript
+// ✗ 悪い例
+function editCategoryMaster() {
+    addNewCategory();  // まだ定義されていない
+}
+
+// ○ 良い例
+function addNewCategory() {
+    // 先に定義
+}
+
+function editCategoryMaster() {
+    addNewCategory();  // 定義後に使用
+}
+
+// または、windowオブジェクトに登録
+window.addNewCategory = addNewCategory;
+```
+
+##### 3. DOM要素が見つからないエラー
+**原因**: 要素がまだ存在しない、またはIDが間違っている
+
+**防止策**:
+```javascript
+// ✗ 悪い例
+const element = document.getElementById('category-filter');
+element.value = 'all';  // elementがnullだとエラー
+
+// ○ 良い例
+const element = document.getElementById('category-filter');
+if (element) {
+    element.value = 'all';
+}
+```
+
+#### 開発時のチェックリスト
+
+✅ **新機能追加時**
+- [ ] 新しい関数は定義してから使用しているか？
+- [ ] windowオブジェクトへの登録が必要な場合、登録しているか？
+- [ ] DOM要素の存在チェックをしているか？
+- [ ] try-catchでエラーハンドリングをしているか？
+
+✅ **初期化処理の変更時**
+- [ ] initializeApp関数内の処理にtry-catchで囲まれているか？
+- [ ] 重要な処理（ホーム画面表示など）がtryブロックの外にあるか？
+- [ ] コンソールでエラーが出ていないか確認したか？
+
+#### デバッグ方法
+
+**ブラウザの開発者ツールを使用**:
+1. Chrome/Edge/FirefoxでF12キーを押す
+2. Consoleタブを開く
+3. 赤いエラーメッセージを確認
+4. エラーの行番号をクリックして問題箇所を特定
+
+**デバッグモードの有効化**:
+URLに`?debug=true`を追加すると詳細なログが表示されます
+
+#### テスト環境での確認事項
+
+1. **ローカルストレージのクリア**
+   - 開発者ツール → Application → Local Storage → Clear
+
+2. **キャッシュのクリア**
+   - Ctrl+Shift+R（Windows）またはCmd+Shift+R（Mac）
+
+3. **スマホでのテスト**
+   - 開発者ツールのデバイスモードを使用
+   - iPhone/Androidの実機でも確認
+
+#### 緊急時の対応
+
+**バグが発生した場合**:
+1. `git revert HEAD --no-edit` で前回のコミットを取り消し
+2. `git push origin main` で即座にプッシュ
+3. 落ち着いてから原因を調査
 
 ## 🤝 貢献
 
