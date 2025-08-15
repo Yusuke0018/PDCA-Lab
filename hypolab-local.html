@@ -7528,9 +7528,6 @@
             document.getElementById('points-view').style.display = 'none';
             document.getElementById('cards-view').style.display = 'none';
             
-            // ホーム画面のジャーナル履歴トグルを閉じる
-            closeHomeToggles();
-            
             updateNavigation('home');
             
             // カテゴリドロップダウンを更新
@@ -7573,6 +7570,11 @@
             } else {
                 banner.style.display = 'none';
             }
+            
+            // ホーム画面のすべてのトグルを確実に閉じる
+            setTimeout(() => {
+                closeHomeToggles();
+            }, 100);
         }
         
         // 習慣の休眠モード切り替え
@@ -12697,6 +12699,9 @@
             
             // ポイント統計を表示
             updatePointStatistics();
+            
+            // すべてのトグルを確実に閉じる
+            closeAllStatToggles();
         }
         
         // 達成率ランキングを表示
