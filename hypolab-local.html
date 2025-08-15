@@ -7997,6 +7997,13 @@
             updateChallenges();
             updateJournalStatus();  // ジャーナルステータスを更新
             
+            // イベント表示を更新（スマホ対応）
+            try {
+                updateEventDisplay();
+            } catch (e) {
+                console.error('イベント表示エラー:', e);
+            }
+            
             // ホーム画面ではヘッダーのポイント表示を再表示
             const pointDisplay = document.getElementById('point-display');
             if (pointDisplay) {
@@ -12707,11 +12714,23 @@
                 // 報酬カード（全報酬カードから等確率で1枚）
                 const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start','second_chance','protect_shield']);
                 const rewardPoolBase = Object.keys(CARD_MASTER).filter(id => CARD_MASTER[id].type === 'reward' && !DISABLED_CARDS.has(id));
-                // 直近10回に出たカードは除外
+                
+                // 直近10回の報酬カードのみをブロック（ペナルティカードは含めない）
                 const history = (data.cards && Array.isArray(data.cards.dropHistory)) ? data.cards.dropHistory : [];
-                const blocked = new Set((history || []).slice(0, 10));
+                const recentRewards = history.filter(cardId => {
+                    const card = CARD_MASTER[cardId];
+                    return card && card.type === 'reward';
+                }).slice(0, 10);
+                const blocked = new Set(recentRewards);
+                
                 let rewardPool = rewardPoolBase.filter(id => !blocked.has(id));
-                if (rewardPool.length === 0) rewardPool = rewardPoolBase; // 全除外時はフォールバック
+                if (rewardPool.length === 0) {
+                    // 全除外時は、最も古いカードから順に解禁
+                    const oldestBlocked = recentRewards[recentRewards.length - 1];
+                    rewardPool = rewardPoolBase.filter(id => id !== oldestBlocked);
+                    if (rewardPool.length === 0) rewardPool = rewardPoolBase;
+                }
+                
                 if (rewardPool.length > 0) {
                     const pick = rewardPool[Math.floor(Math.random() * rewardPool.length)];
                     cards.push(pick);
@@ -12735,10 +12754,23 @@
                 // 80-99%: 報酬カードを等確率で1枚
                 const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start','second_chance','protect_shield']);
                 const rewardPoolBase = Object.keys(CARD_MASTER).filter(id => CARD_MASTER[id].type === 'reward' && !DISABLED_CARDS.has(id));
+                
+                // 直近10回の報酬カードのみをブロック（ペナルティカードは含めない）
                 const history = (data.cards && Array.isArray(data.cards.dropHistory)) ? data.cards.dropHistory : [];
-                const blocked = new Set((history || []).slice(0, 10));
+                const recentRewards = history.filter(cardId => {
+                    const card = CARD_MASTER[cardId];
+                    return card && card.type === 'reward';
+                }).slice(0, 10);
+                const blocked = new Set(recentRewards);
+                
                 let rewardPool = rewardPoolBase.filter(id => !blocked.has(id));
-                if (rewardPool.length === 0) rewardPool = rewardPoolBase;
+                if (rewardPool.length === 0) {
+                    // 全除外時は、最も古いカードから順に解禁
+                    const oldestBlocked = recentRewards[recentRewards.length - 1];
+                    rewardPool = rewardPoolBase.filter(id => id !== oldestBlocked);
+                    if (rewardPool.length === 0) rewardPool = rewardPoolBase;
+                }
+                
                 if (rewardPool.length > 0) {
                     const pick = rewardPool[Math.floor(Math.random() * rewardPool.length)];
                     cards.push(pick);
@@ -15150,6 +15182,18 @@
         // カード取得時の処理
         function registerCardToAlbum(cardId) {
             const data = loadData();
+            
+            // カード図鑑が初期化されていない場合は初期化
+            if (!data.cardAlbum) {
+                initializeCardAlbum();
+                const updatedData = loadData();
+                Object.assign(data, updatedData);
+            }
+            
+            if (!data.cardAlbum.collection) {
+                data.cardAlbum.collection = {};
+            }
+            
             if (!data.cardAlbum.collection[cardId]) {
                 data.cardAlbum.collection[cardId] = {
                     obtained: false,
@@ -15160,10 +15204,15 @@
             }
             
             const cardEntry = data.cardAlbum.collection[cardId];
+            const wasNewCard = !cardEntry.obtained;
+            
             if (!cardEntry.obtained) {
                 cardEntry.obtained = true;
                 cardEntry.firstObtained = new Date().toISOString();
-                data.cardAlbum.totalCardsObtained++;
+                
+                // totalCardsObtainedを正しく計算
+                const obtainedCount = Object.values(data.cardAlbum.collection).filter(c => c.obtained).length;
+                data.cardAlbum.totalCardsObtained = obtainedCount;
                 
                 // 図鑑コンプリート率をチェック
                 checkAlbumCompletion(data);
