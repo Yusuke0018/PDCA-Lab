@@ -2631,9 +2631,9 @@
         </div>
     </div>
 
-    <!-- デバッグボタン（固定表示） -->
+    <!-- デバッグボタン（PCのみ表示） -->
     <button id="debug-button" onclick="openDebugMenu()" 
-            style="position: fixed; right: 16px; bottom: 88px; z-index: 2000; border: none; border-radius: 999px; padding: 10px 14px; background: #0ea5e9; color: white; font-weight: 700; box-shadow: 0 6px 16px rgba(0,0,0,0.25); cursor: pointer; opacity: 0.6;">
+            style="position: fixed; right: 16px; bottom: 88px; z-index: 2000; border: none; border-radius: 999px; padding: 10px 14px; background: #0ea5e9; color: white; font-weight: 700; box-shadow: 0 6px 16px rgba(0,0,0,0.25); cursor: pointer; opacity: 0.6; display: none;">
         🛠️ Debug
     </button>
 
@@ -2862,7 +2862,7 @@
                 id: 'point_gem',
                 type: 'reward',
                 name: 'ポイントジェム',
-                description: '次の3日間、獲得ポイントが2倍になる',
+                description: '明日1日限定でポイントが1.2倍になる',
                 icon: '💎',
                 rarity: 'rare',
                 color: '#06b6d4'
@@ -15441,26 +15441,31 @@
 
         // デバッグモードの有効化（URLパラメータまたはローカルストレージで制御）
         function checkDebugMode() {
+            const debugButton = document.getElementById('debug-button');
+            const debugPanel = document.getElementById('debug-panel');
+            const debugToggle = document.getElementById('debug-toggle');
+            
             // スマホ/タブレットではデバッグUIを表示しない
             if (isMobileDevice()) {
-                const dp = document.getElementById('debug-panel');
-                const dt = document.getElementById('debug-toggle');
-                if (dp) dp.style.display = 'none';
-                if (dt) dt.style.display = 'none';
-                // モバイルでは何もしない
+                if (debugButton) debugButton.style.display = 'none';
+                if (debugPanel) debugPanel.style.display = 'none';
+                if (debugToggle) debugToggle.style.display = 'none';
                 return;
+            }
+
+            // PCでのみデバッグボタンを表示
+            if (debugButton) {
+                debugButton.style.display = 'block';
             }
 
             const urlParams = new URLSearchParams(window.location.search);
             const debugMode = urlParams.get('debug') === 'true' || localStorage.getItem('debugMode') === 'true';
             
             if (debugMode) {
-                const debugPanel = document.getElementById('debug-panel');
                 if (debugPanel) {
                     debugPanel.style.display = 'block';
                 }
                 // ボタンのスタイルを更新
-                const debugToggle = document.getElementById('debug-toggle');
                 if (debugToggle) {
                     debugToggle.style.display = 'inline-flex';
                     debugToggle.style.background = 'var(--error)';
@@ -15468,8 +15473,7 @@
                     debugToggle.style.border = 'none';
                 }
             } else {
-                const dt = document.getElementById('debug-toggle');
-                if (dt) dt.style.display = 'inline-flex';
+                if (debugToggle) debugToggle.style.display = 'inline-flex';
             }
         }
         
@@ -16041,23 +16045,27 @@
             data.cards.inventory[cardIndex].used = true;
             data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
             
-            // 3日間ポイント2倍効果を付与
+            // 明日1日限定でポイント1.2倍効果を付与
             if (!data.cards.activeEffects) data.cards.activeEffects = [];
             
-            const today = new Date();
-            const endDate = new Date();
-            endDate.setDate(endDate.getDate() + 3);
+            // 明日の開始時刻（0時）と終了時刻（23時59分）を設定
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            tomorrow.setHours(0, 0, 0, 0);
+            
+            const endDate = new Date(tomorrow);
+            endDate.setHours(23, 59, 59, 999);
             
             data.cards.activeEffects.push({
                 cardId: 'point_gem',
                 type: 'point_multiplier',
-                multiplier: 2,
-                startDate: today.toISOString(),
+                multiplier: 1.2,
+                startDate: tomorrow.toISOString(),
                 endDate: endDate.toISOString()
             });
             
             saveData(data);
-            showNotification('💎 3日間ポイントが2倍になります！', 'success');
+            showNotification('💎 明日1日限定でポイントが1.2倍になります！', 'success');
             updateCardUseButton();
         }
 
