@@ -108,7 +108,7 @@
 
         /* ナビゲーションバー */
         .nav {
-            background: rgba(30, 41, 59, 0.95);
+            background: var(--surface);
             border-bottom: 1px solid var(--border);
             position: sticky;
             /* ヘッダー直下に吸着し、隙間をなくす */
@@ -116,6 +116,12 @@
             z-index: 99;
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+        
+        /* ライトテーマ用のナビゲーションスタイル */
+        :root.light-theme .nav {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
         }
 
         .nav-content {
@@ -144,6 +150,9 @@
             transition: all 0.3s;
             position: relative;
             white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
 
         .nav-btn::after {
@@ -156,6 +165,17 @@
             height: 3px;
             background: var(--gradient-1);
             transition: width 0.3s;
+            border-radius: 2px;
+        }
+        
+        /* ライトテーマ用のナビボタンスタイル */
+        :root.light-theme .nav-btn {
+            font-weight: 500;
+        }
+        
+        :root.light-theme .nav-btn.active {
+            background: linear-gradient(135deg, rgba(52, 211, 153, 0.1), rgba(96, 165, 250, 0.1));
+            border-radius: 12px;
         }
 
         .nav-btn:hover {
@@ -1506,19 +1526,19 @@
     <nav class="nav">
         <div class="nav-content">
             <button class="nav-btn active" onclick="showHomeView()" data-view="home">
-                🏠 ホーム
+                <span style="font-size: 18px;">🏠</span> ホーム
             </button>
             <button class="nav-btn" onclick="showPointsView()" data-view="points">
-                💰 ポイント
+                <span style="font-size: 18px;">💰</span> ポイント
             </button>
             <button class="nav-btn" onclick="showCardsView()" data-view="cards">
-                🎴 カード
+                <span style="font-size: 18px;">🎴</span> カード
             </button>
             <button class="nav-btn" onclick="showStatsView()" data-view="stats">
-                📊 統計
+                <span style="font-size: 18px;">📊</span> 統計
             </button>
             <button class="nav-btn" onclick="showHistoryView()" data-view="history">
-                📚 履歴
+                <span style="font-size: 18px;">📚</span> 履歴
             </button>
         </div>
         <!-- ページインジケーター -->
