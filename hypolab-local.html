@@ -2059,7 +2059,7 @@
                         <h3 style="margin-bottom:8px; cursor: pointer; user-select: none;" onclick="toggleStatSection('badge-collection')">
                             <span id="badge-collection-arrow">▶</span> 🏆 獲得バッジ
                         </h3>
-                        <div id="badge-collection" style="display: none; display: grid; grid-template-columns: repeat(3, 1fr) !important; gap:8px; margin-top:12px;"></div>
+                        <div id="badge-collection" style="display: none; grid-template-columns: repeat(3, 1fr) !important; gap:8px; margin-top:12px;"></div>
                     </div>
                     <!-- チャレンジ統計セクション -->
                     <div class="stat-panel" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(236, 72, 153, 0.1)); padding: 16px; border-radius: 12px; border: 1px solid rgba(139, 92, 246, 0.3);">
@@ -6866,6 +6866,46 @@
             }
         }
         
+        // すべての統計トグルを閉じる
+        function closeAllStatToggles() {
+            const toggleSections = [
+                'achievement-level-distribution',
+                'journal-stats-content',
+                'point-stats-content',
+                'badge-collection',
+                'challenge-stats-content',
+                'habit-report',
+                'ranking-content'
+            ];
+            
+            toggleSections.forEach(sectionId => {
+                const content = document.getElementById(sectionId);
+                const arrow = document.getElementById(sectionId + '-arrow');
+                if (content) {
+                    content.style.display = 'none';
+                }
+                if (arrow) {
+                    arrow.textContent = '▶';
+                }
+            });
+        }
+        
+        // ホーム画面のトグルを閉じる
+        function closeHomeToggles() {
+            // ジャーナル履歴の各エントリを閉じる
+            const journalEntries = document.querySelectorAll('.journal-entry');
+            journalEntries.forEach(entry => {
+                const content = entry.querySelector('.journal-content');
+                const arrow = entry.querySelector('.journal-arrow');
+                if (content) {
+                    content.style.display = 'none';
+                }
+                if (arrow) {
+                    arrow.style.transform = 'rotate(0deg)';
+                }
+            });
+        }
+        
         // 詳細な報酬統計を更新
         function updateDetailedRewardStatistics() {
             const data = loadData();
@@ -7482,6 +7522,9 @@
             document.getElementById('stats-view').style.display = 'none';
             document.getElementById('points-view').style.display = 'none';
             document.getElementById('cards-view').style.display = 'none';
+            
+            // ホーム画面のジャーナル履歴トグルを閉じる
+            closeHomeToggles();
             
             updateNavigation('home');
             
@@ -12262,6 +12305,9 @@
             document.getElementById('stats-view').style.display = 'block';
             document.getElementById('points-view').style.display = 'none';
             document.getElementById('cards-view').style.display = 'none';
+            
+            // 統計画面のすべてのトグルを閉じる
+            closeAllStatToggles();
             
             updateNavigation('stats');
             
