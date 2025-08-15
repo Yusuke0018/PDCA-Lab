@@ -1763,10 +1763,6 @@
                 <div class="fab-badge">報酬を使う</div>
                 <button class="fab-btn" onclick="openRewardsUseFlow()">🎁</button>
             </div>
-            <div class="fab-item" id="fab-action-today">
-                <div class="fab-badge">今日の達成</div>
-                <button class="fab-btn" onclick="quickAchieveToday()">✅</button>
-            </div>
         </div>
         <button class="fab-main" id="fab-main" aria-label="Quick actions" onclick="toggleFab()">＋</button>
     </div>
@@ -6159,16 +6155,7 @@
         }
         window.openRewardsUseFlow = openRewardsUseFlow;
 
-        function quickAchieveToday(){
-            if (window.currentHypothesis && window.currentHypothesis.id){
-                showProgressView(window.currentHypothesis.id);
-                showMiniModal('✅ 今日の達成を記録', '進捗画面で今日をタップして記録');
-            } else {
-                showHomeView();
-                showNotification('まず習慣を選択/作成してください', 'info');
-            }
-        }
-        window.quickAchieveToday = quickAchieveToday;
+        // quickAchieveToday は仕様変更により削除
         
         // Window オブジェクトに関数を登録
         window.addEffortBonusPlan = addEffortBonusPlan;
