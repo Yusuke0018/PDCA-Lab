@@ -6852,7 +6852,11 @@
             
             if (!content) return;
             
-            if (content.style.display === 'none' || content.style.display === '') {
+            // 現在の表示状態を取得（computedStyleで実際の表示状態を確認）
+            const computedDisplay = window.getComputedStyle(content).display;
+            const isHidden = computedDisplay === 'none';
+            
+            if (isHidden) {
                 // バッジコレクションの場合はgridを維持
                 if (sectionId === 'badge-collection') {
                     content.style.display = 'grid';
@@ -6861,6 +6865,7 @@
                 }
                 if (arrow) arrow.textContent = '▼';
             } else {
+                // gridでもblockでも、表示されていれば隠す
                 content.style.display = 'none';
                 if (arrow) arrow.textContent = '▶';
             }
