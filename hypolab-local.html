@@ -1554,7 +1554,13 @@
                         font-size: 14px;
                         cursor: pointer;
                     ">
-                        <!-- カテゴリオプションは動的に生成 -->
+                        <option value="all">📂 全て表示</option>
+                        <option value="study">📚 勉強</option>
+                        <option value="exercise">💪 運動</option>
+                        <option value="health">🧘 健康</option>
+                        <option value="work">💼 仕事</option>
+                        <option value="hobby">🎨 趣味</option>
+                        <option value="other">📝 その他</option>
                     </select>
                 </div>
                 <div id="current-hypothesis-list" class="hypothesis-list">
@@ -1586,7 +1592,12 @@
                     <div class="form-group">
                         <label for="hypothesis-category">カテゴリー</label>
                         <select id="hypothesis-category" required>
-                            <!-- カテゴリオプションは動的に生成 -->
+                            <option value="study">📚 勉強</option>
+                            <option value="exercise">💪 運動</option>
+                            <option value="health">🧘 健康</option>
+                            <option value="work">💼 仕事</option>
+                            <option value="hobby">🎨 趣味</option>
+                            <option value="other">📝 その他</option>
                         </select>
                     </div>
 
@@ -7921,8 +7932,9 @@
             const sleepingLabel = hypothesis.isSleeping ? ' | 😴 休眠中' : '';
             
             // カテゴリ情報を取得
-            const categoryMaster = initializeCategoryMaster();
-            const categoryInfo = categoryMaster[hypothesis.category] || { name: 'その他', icon: '📝', color: '#6b7280' };
+            const categoryInfo = data.categoryMaster && data.categoryMaster[hypothesis.category] 
+                ? data.categoryMaster[hypothesis.category] 
+                : { name: 'その他', icon: '📝', color: '#6b7280' };
             
             daysInfo.innerHTML = `
                 <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
@@ -9327,8 +9339,20 @@
             const data = loadData();
             
             // カテゴリマスターの初期化
-            const categoryMaster = initializeCategoryMaster();
-            const categoryInfo = categoryMaster[hyp.category] || { name: 'その他', icon: '📝', color: '#6b7280' };
+            if (!data.categoryMaster) {
+                data.categoryMaster = {
+                    study: { name: '勉強', icon: '📚', color: '#3b82f6' },
+                    exercise: { name: '運動', icon: '💪', color: '#ef4444' },
+                    health: { name: '健康', icon: '🧘', color: '#10b981' },
+                    work: { name: '仕事', icon: '💼', color: '#f59e0b' },
+                    hobby: { name: '趣味', icon: '🎨', color: '#8b5cf6' },
+                    other: { name: 'その他', icon: '📝', color: '#6b7280' }
+                };
+                saveData(data);
+            }
+            
+            const categoryInfo = data.categoryMaster[hyp.category] || 
+                                { name: 'その他', icon: '📝', color: '#6b7280' };
             
             let panel = document.getElementById('category-change-panel');
             if (!panel) {
@@ -9470,7 +9494,16 @@
         // カテゴリマスターを編集する関数
         function editCategoryMaster() {
             const data = loadData();
-            const categoryMaster = initializeCategoryMaster();
+            if (!data.categoryMaster) {
+                data.categoryMaster = {
+                    study: { name: '勉強', icon: '📚', color: '#3b82f6' },
+                    exercise: { name: '運動', icon: '💪', color: '#ef4444' },
+                    health: { name: '健康', icon: '🧘', color: '#10b981' },
+                    work: { name: '仕事', icon: '💼', color: '#f59e0b' },
+                    hobby: { name: '趣味', icon: '🎨', color: '#8b5cf6' },
+                    other: { name: 'その他', icon: '📝', color: '#6b7280' }
+                };
+            }
             
             const overlay = document.createElement('div');
             overlay.className = 'overlay active';
@@ -9554,100 +9587,11 @@
                 saveData(data);
                 overlay.remove();
                 showNotification('カテゴリを更新しました', 'success');
-                updateCategoryDropdowns();  // ドロップダウンを更新
                 updateCurrentHypothesisList();
             };
         }
         
-        // カテゴリマスターを初期化（存在しない場合のみ）
-        function initializeCategoryMaster() {
-            const data = loadData();
-            if (!data.categoryMaster) {
-                data.categoryMaster = {
-                    study: { name: '勉強', icon: '📚', color: '#3b82f6' },
-                    exercise: { name: '運動', icon: '💪', color: '#ef4444' },
-                    health: { name: '健康', icon: '🧘', color: '#10b981' },
-                    work: { name: '仕事', icon: '💼', color: '#f59e0b' },
-                    hobby: { name: '趣味', icon: '🎨', color: '#8b5cf6' },
-                    other: { name: 'その他', icon: '📝', color: '#6b7280' }
-                };
-                saveData(data);
-            }
-            return data.categoryMaster;
-        }
-        
-        // カテゴリドロップダウンを更新
-        function updateCategoryDropdowns() {
-            const categoryMaster = initializeCategoryMaster();
-            
-            // ホーム画面のフィルター
-            const filterSelect = document.getElementById('category-filter');
-            if (filterSelect) {
-                const currentValue = filterSelect.value || localStorage.getItem('selectedCategory') || 'all';
-                filterSelect.innerHTML = '<option value="all">📂 全て表示</option>';
-                Object.entries(categoryMaster).forEach(([key, cat]) => {
-                    const option = document.createElement('option');
-                    option.value = key;
-                    option.textContent = `${cat.icon} ${cat.name}`;
-                    filterSelect.appendChild(option);
-                });
-                filterSelect.value = currentValue;
-            }
-            
-            // 新規立案画面のカテゴリ選択
-            const categorySelect = document.getElementById('hypothesis-category');
-            if (categorySelect) {
-                const currentValue = categorySelect.value || localStorage.getItem('selectedCategory') || 'other';
-                categorySelect.innerHTML = '';
-                Object.entries(categoryMaster).forEach(([key, cat]) => {
-                    const option = document.createElement('option');
-                    option.value = key;
-                    option.textContent = `${cat.icon} ${cat.name}`;
-                    categorySelect.appendChild(option);
-                });
-                // ホーム画面で選択されたカテゴリを設定
-                const selectedCategory = localStorage.getItem('selectedCategory');
-                if (selectedCategory && selectedCategory !== 'all') {
-                    categorySelect.value = selectedCategory;
-                } else {
-                    categorySelect.value = currentValue;
-                }
-            }
-        }
-        
         // 新しいカテゴリを追加
-        function addNewCategory() {
-            const data = loadData();
-            const categoryMaster = data.categoryMaster || {};
-            
-            // 新しいカテゴリのIDを生成
-            let newKey = 'custom_' + Date.now();
-            
-            // デフォルト値を設定
-            categoryMaster[newKey] = {
-                name: '新カテゴリ',
-                icon: '✨',
-                color: '#' + Math.floor(Math.random()*16777215).toString(16)
-            };
-            
-            data.categoryMaster = categoryMaster;
-            saveData(data);
-            
-            // モーダルを再表示
-            const modal = document.querySelector('.skip-modal');
-            if (modal) {
-                modal.remove();
-            }
-            const overlay = document.querySelector('.overlay');
-            if (overlay) {
-                overlay.remove();
-            }
-            
-            editCategoryMaster();
-            showNotification('新しいカテゴリを追加しました', 'success');
-        }
-        
-        // 新しいカテゴリを追加（別名）
         window.addNewCategory = function() {
             const categoryKey = prompt('カテゴリのID（英数字）を入力してください');
             if (!categoryKey || !/^[a-z0-9]+$/i.test(categoryKey)) {
@@ -9824,7 +9768,16 @@
             if (!window.currentHypothesis) return;
             
             const data = loadData();
-            const categoryMaster = initializeCategoryMaster();
+            if (!data.categoryMaster) {
+                data.categoryMaster = {
+                    study: { name: '勉強', icon: '📚', color: '#3b82f6' },
+                    exercise: { name: '運動', icon: '💪', color: '#ef4444' },
+                    health: { name: '健康', icon: '🧘', color: '#10b981' },
+                    work: { name: '仕事', icon: '💼', color: '#f59e0b' },
+                    hobby: { name: '趣味', icon: '🎨', color: '#8b5cf6' },
+                    other: { name: 'その他', icon: '📝', color: '#6b7280' }
+                };
+            }
             
             const overlay = document.createElement('div');
             overlay.className = 'overlay active';
@@ -9868,7 +9821,7 @@
                     modal.querySelectorAll('label').forEach(label => {
                         if (label.querySelector('input[type="radio"]')) {
                             const catKey = label.querySelector('input').value;
-                            const catInfo = categoryMaster[catKey];}
+                            const catInfo = data.categoryMaster[catKey];
                             label.style.border = radio.value === catKey ? `2px solid ${catInfo.color}` : '2px solid var(--border)';
                         }
                     });
@@ -10994,8 +10947,18 @@
             // 日付が変わったら宣言状態をチェック（深夜対応）
             const todayKey = getActivityDateKey();
             
-            // カテゴリーマスターを初期化
-            const categoryMaster = initializeCategoryMaster();
+            // カテゴリーマスター（編集可能）
+            if (!data.categoryMaster) {
+                data.categoryMaster = {
+                    study: { name: '勉強', icon: '📚', color: '#3b82f6' },
+                    exercise: { name: '運動', icon: '💪', color: '#ef4444' },
+                    health: { name: '健康', icon: '🧘', color: '#10b981' },
+                    work: { name: '仕事', icon: '💼', color: '#f59e0b' },
+                    hobby: { name: '趣味', icon: '🎨', color: '#8b5cf6' },
+                    other: { name: 'その他', icon: '📝', color: '#6b7280' }
+                };
+                saveData(data);
+            }
             
             // 頻度タイプ別にグループ分け（大分類）
             const frequencyGroups = {
@@ -11023,7 +10986,7 @@
             filteredHypotheses.forEach(hypothesis => {
                 // 休眠中の習慣は別グループに
                 if (hypothesis.isSleeping) {
-                    const categoryInfo = categoryMaster[hypothesis.category || 'other'] || categoryMaster.other;
+                    const categoryInfo = data.categoryMaster[hypothesis.category || 'other'] || data.categoryMaster.other;
                     const categoryKey = hypothesis.category || 'other';
                     
                     if (!frequencyGroups.sleeping) {
@@ -11087,7 +11050,7 @@
                 Object.entries(frequencyData.categories).forEach(([categoryKey, habits]) => {
                     if (habits.length === 0) return;
                     
-                    const categoryInfo = categoryMaster[categoryKey] || { name: categoryKey, icon: '📝', color: '#6b7280' };
+                    const categoryInfo = data.categoryMaster[categoryKey] || { name: categoryKey, icon: '📝', color: '#6b7280' };
                     const categorySection = document.createElement('div');
                     categorySection.style.cssText = 'margin-bottom: 12px;';
                     
@@ -15433,9 +15396,6 @@
         }
         
         function initializeApp() {
-            // カテゴリドロップダウンを初期化
-            updateCategoryDropdowns();
-            
             // ホーム画面を表示（これが習慣リストも更新する）
             showHomeView();
             
@@ -15492,12 +15452,6 @@
             }
         }
 
-        // windowオブジェクトに関数を登録
-        window.initializeCategoryMaster = initializeCategoryMaster;
-        window.updateCategoryDropdowns = updateCategoryDropdowns;
-        window.editCategoryMaster = editCategoryMaster;
-        window.addNewCategory = addNewCategory;
-        
         // モバイルのズーム抑止（ダブルタップ/ピンチ）
         (function preventZoom() {
             let lastTouchEnd = 0;
