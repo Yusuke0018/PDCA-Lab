@@ -14827,7 +14827,12 @@
             );
             
             // 古いイベントがある場合は強制的にクリア
-            if (hasOldBoost) {
+            // または週末スペシャルの倍率が1.5の場合もクリア
+            const hasOldWeekendValue = data.events.activeBoosts.some(b => 
+                b.eventId === 'weekend_special' && b.value === 1.5
+            );
+            
+            if (hasOldBoost || hasOldWeekendValue) {
                 data.events.activeBoosts = [];
                 data.events.lastEventCheck = null; // リセット
             }
@@ -16692,7 +16697,8 @@
                     const hasOldEvent = data.events.activeBoosts.some(b => 
                         b.name === '🌅 朝活ボーナス' || 
                         b.name === '🌙 夜型ボーナス' ||
-                        (b.effect && (b.effect.type === 'morning_boost' || b.effect.type === 'night_boost'))
+                        (b.effect && (b.effect.type === 'morning_boost' || b.effect.type === 'night_boost')) ||
+                        (b.eventId === 'weekend_special' && b.value === 1.5)  // 古い1.5倍の週末スペシャル
                     );
                     
                     if (hasOldEvent) {
