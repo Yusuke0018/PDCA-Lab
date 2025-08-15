@@ -23,7 +23,7 @@
             -webkit-tap-highlight-color: transparent;
         }
 
-        /* CSS変数 */
+        /* CSS変数 - ダークテーマ（デフォルト） */
         :root {
             --primary: #10b981;
             --secondary: #3b82f6;
@@ -40,6 +40,21 @@
             --header-height: 56px;
             /* セーフエリア（iOS notch対応） */
             --safe-top: env(safe-area-inset-top, 0px);
+        }
+
+        /* ライトテーマ */
+        :root.light-theme {
+            --primary: #059669;
+            --secondary: #2563eb;
+            --background: #fefce8;
+            --surface: #fffbeb;
+            --surface-light: #fef3c7;
+            --text-primary: #1f2937;
+            --text-secondary: #6b7280;
+            --border: rgba(0, 0, 0, 0.1);
+            --gradient-1: linear-gradient(135deg, #059669 0%, #2563eb 100%);
+            --gradient-2: linear-gradient(135deg, #7c3aed 0%, #db2777 100%);
+            --gradient-3: linear-gradient(135deg, #d97706 0%, #dc2626 100%);
         }
 
         /* 基本スタイル */
@@ -1450,8 +1465,26 @@
             <div class="header-logo">
                 <h1>🧪 HypoLab</h1>
             </div>
-            <!-- ポイント表示 -->
-            <div id="point-display" style="
+            <!-- テーマ切り替えボタンとポイント表示 -->
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <!-- テーマ切り替えボタン -->
+                <button id="theme-toggle" onclick="toggleTheme()" style="
+                    background: var(--surface-light);
+                    border: 1px solid var(--border);
+                    border-radius: 12px;
+                    padding: 8px 12px;
+                    color: var(--text-primary);
+                    cursor: pointer;
+                    font-size: 20px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    transition: all 0.3s ease;
+                " title="テーマを切り替え">
+                    <span id="theme-icon">🌙</span>
+                </button>
+                <!-- ポイント表示 -->
+                <div id="point-display" style="
                 display: flex;
                 align-items: center;
                 gap: 12px;
@@ -1464,6 +1497,7 @@
             " onclick="showLevelProgress()">
                 <span class="point-amount" style="font-weight: bold; color: #fbbf24;">💰 0pt</span>
                 <span class="level-info" style="font-size: 12px; color: var(--text-secondary);">Lv.1 初心者</span>
+            </div>
             </div>
         </div>
     </header>
@@ -5670,6 +5704,41 @@
             saveData(data);
             updateEffortBonusArea();
         }
+        
+        // テーマ切り替え関数
+        function toggleTheme() {
+            const root = document.documentElement;
+            const currentTheme = localStorage.getItem('theme') || 'dark';
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            if (newTheme === 'light') {
+                root.classList.add('light-theme');
+                document.getElementById('theme-icon').textContent = '☀️';
+            } else {
+                root.classList.remove('light-theme');
+                document.getElementById('theme-icon').textContent = '🌙';
+            }
+            
+            localStorage.setItem('theme', newTheme);
+        }
+        
+        // テーマを初期化
+        function initializeTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            const root = document.documentElement;
+            
+            if (savedTheme === 'light') {
+                root.classList.add('light-theme');
+                document.getElementById('theme-icon').textContent = '☀️';
+            } else {
+                root.classList.remove('light-theme');
+                document.getElementById('theme-icon').textContent = '🌙';
+            }
+        }
+        
+        // windowオブジェクトに登録
+        window.toggleTheme = toggleTheme;
+        window.initializeTheme = initializeTheme;
         
         // 努力ボーナスエリアを更新
         function updateEffortBonusArea() {
@@ -15691,6 +15760,9 @@
         }
         
         function initializeApp() {
+            // テーマを初期化
+            initializeTheme();
+            
             // カテゴリドロップダウンを初期化
             updateCategoryDropdowns();
             
