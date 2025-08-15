@@ -1668,6 +1668,22 @@
     /* ハイライトユーティリティ */
     @keyframes pulseBorder { 0% { box-shadow: 0 0 0 0 rgba(99,102,241,0.4);} 100%{ box-shadow: 0 0 0 12px rgba(99,102,241,0);} }
     .pulse-highlight { animation: pulseBorder 1.2s ease-out 2; }
+
+    /* ===== Edge Nubs: 左右の小さな突起（ページ移動） ===== */
+    .edge-nub { 
+        position: fixed; top: 50%; transform: translateY(-50%);
+        width: 26px; height: 56px; display: flex; align-items: center; justify-content: center;
+        background: linear-gradient(135deg, var(--glass-bg1), var(--glass-bg2));
+        border: 1px solid var(--glass-border);
+        backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+        box-shadow: var(--shadow-1);
+        color: var(--text-primary); font-size: 18px; z-index: 1200;
+        opacity: 0.6; transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+    .edge-nub:active { transform: translateY(-50%) scale(0.96); opacity: 0.9; }
+    .edge-nub.left { left: 0; border-radius: 0 12px 12px 0; }
+    .edge-nub.right { right: 0; border-radius: 12px 0 0 12px; }
     </style>
 </head>
 <body>
@@ -1766,6 +1782,10 @@
         </div>
         <button class="fab-main" id="fab-main" aria-label="Quick actions" onclick="toggleFab()">＋</button>
     </div>
+
+    <!-- Edge Nubs: 左右の小さな突起（ページ移動） -->
+    <button class="edge-nub left" id="edge-nub-left" aria-label="前のページへ" onclick="navigateToPreviousView()">‹</button>
+    <button class="edge-nub right" id="edge-nub-right" aria-label="次のページへ" onclick="navigateToNextView()">›</button>
 
     <!-- メインコンテナ -->
     <div class="container">
@@ -7824,6 +7844,18 @@
             } catch (e) {
                 // noop
             }
+
+            // エッジナブの表示制御（進捗/シャッフルでは非表示）
+            try {
+                const leftNub = document.getElementById('edge-nub-left');
+                const rightNub = document.getElementById('edge-nub-right');
+                if (leftNub && rightNub) {
+                    const hideOn = ['progress','shuffle'];
+                    const show = !hideOn.includes(activeView);
+                    leftNub.style.display = show ? 'flex' : 'none';
+                    rightNub.style.display = show ? 'flex' : 'none';
+                }
+            } catch (_) {}
         }
 
         // ホーム画面を表示
