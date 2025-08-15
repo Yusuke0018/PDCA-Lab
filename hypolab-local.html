@@ -14817,9 +14817,18 @@
             // 最後のチェック日と同じなら何もしない
             // ただし、activeBoostsが空または古い形式（morning_boost/night_boost）を含む場合は再チェック
             const hasOldBoost = data.events.activeBoosts.some(b => 
-                b.eventId === 'morning_boost' || b.eventId === 'night_boost'
+                b.eventId === 'morning_boost' || b.eventId === 'night_boost' ||
+                b.name === '🌅 朝活ボーナス' || b.name === '🌙 夜型ボーナス' ||
+                (b.effect && (b.effect.type === 'morning_boost' || b.effect.type === 'night_boost'))
             );
-            if (data.events.lastEventCheck === today && !hasOldBoost && data.events.activeBoosts.length > 0) return;
+            
+            // 古いイベントがある場合は強制的にクリア
+            if (hasOldBoost) {
+                data.events.activeBoosts = [];
+                data.events.lastEventCheck = null; // リセット
+            }
+            
+            if (data.events.lastEventCheck === today && data.events.activeBoosts.length > 0) return;
             
             data.events.lastEventCheck = today;
             data.events.activeBoosts = [];
@@ -16669,6 +16678,26 @@
                         data.cards.activeEffects = data.cards.activeEffects.filter(e => e.cardId !== 'protect_shield');
                     }
                     saveData(data);
+                }
+            } catch (_) { /* noop */ }
+            
+            // 古いイベント（朝活ボーナス・夜型ボーナス）のクリーンアップ
+            try {
+                const data = loadData();
+                if (data && data.events && data.events.activeBoosts) {
+                    const hasOldEvent = data.events.activeBoosts.some(b => 
+                        b.name === '🌅 朝活ボーナス' || 
+                        b.name === '🌙 夜型ボーナス' ||
+                        (b.effect && (b.effect.type === 'morning_boost' || b.effect.type === 'night_boost'))
+                    );
+                    
+                    if (hasOldEvent) {
+                        // 古いイベントがある場合は今日のイベントチェックをリセット
+                        data.events.activeBoosts = [];
+                        data.events.lastEventCheck = null;
+                        saveData(data);
+                        console.log('古いイベントをクリアしました');
+                    }
                 }
             } catch (_) { /* noop */ }
             
