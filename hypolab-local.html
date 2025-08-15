@@ -3040,23 +3040,14 @@
             
             // ランダムブーストイベント
             boosts: [
-                // 強度系ブースト
+                // ポイント系ブースト
                 {
-                    id: 'intensity_boost_a',
-                    name: '🔥 燃える月曜日',
-                    description: '今日だけA強度の習慣が1.5倍ポイント！',
-                    condition: (data) => new Date().getDay() === 1,  // 月曜日のみ
-                    effect: { type: 'intensity_multiplier', target: 'A', value: 1.5 },
-                    rarity: 'common',
-                    duration: 'today'
-                },
-                {
-                    id: 'super_intensity',
-                    name: '⚡ スーパー強度デー',
-                    description: '今日は全ての強度が+0.3倍！',
-                    condition: () => true,  // 条件なし（レアリティで制御）
-                    effect: { type: 'all_intensity_bonus', value: 0.3 },
-                    rarity: 'rare',
+                    id: 'double_points',
+                    name: '💰 ダブルポイントデー',
+                    description: '今日だけ全てのポイントが2倍！',
+                    condition: () => Math.random() < 0.1,  // 10%の確率
+                    effect: { type: 'global_multiplier', value: 2.0 },
+                    rarity: 'legendary',
                     duration: 'today'
                 },
                 
@@ -3065,7 +3056,7 @@
                     id: 'exercise_fever',
                     name: '💪 運動フィーバー',
                     description: '運動カテゴリーの習慣が2倍ポイント！',
-                    condition: () => true,  // レアリティで制御
+                    condition: () => Math.random() < 0.15,  // 15%の確率
                     effect: { type: 'category_multiplier', target: 'exercise', value: 2.0 },
                     rarity: 'uncommon',
                     duration: 'today'
@@ -3073,53 +3064,49 @@
                 {
                     id: 'study_power',
                     name: '📚 勉強パワーアップ',
-                    description: '勉強カテゴリーの習慣が+5ポイントボーナス！',
-                    condition: () => true,  // レアリティで制御
-                    effect: { type: 'category_bonus', target: 'study', value: 5 },
+                    description: '勉強カテゴリーの習慣が2倍ポイント！',
+                    condition: () => Math.random() < 0.15,  // 15%の確率
+                    effect: { type: 'category_multiplier', target: 'study', value: 2.0 },
                     rarity: 'uncommon',
                     duration: 'today'
                 },
                 
                 // 連続達成系ブースト
                 {
-                    id: 'streak_accelerator',
-                    name: '🚀 ストリーク加速',
-                    description: '連続達成ボーナスが2倍になる！',
+                    id: 'streak_bonus',
+                    name: '🔥 連続達成ボーナス',
+                    description: '7日以上連続達成でボーナスポイント！',
                     condition: (data) => {
-                        // 3日以上連続達成している習慣がある場合のみ
-                        return data.currentHypotheses.some(h => 
-                            Object.keys(h.achievements || {}).length >= 3
-                        );
+                        // 7日以上連続達成している習慣がある場合
+                        return data.currentHypotheses.some(h => {
+                            const achievements = Object.keys(h.achievements || {});
+                            if (achievements.length < 7) return false;
+                            
+                            // 直近7日間の連続をチェック
+                            const sortedDates = achievements.sort().slice(-7);
+                            const startDate = new Date(sortedDates[0]);
+                            const endDate = new Date(sortedDates[6]);
+                            const daysDiff = Math.floor((endDate - startDate) / (1000 * 60 * 60 * 24));
+                            return daysDiff === 6; // 7日連続
+                        });
                     },
-                    effect: { type: 'streak_multiplier', value: 2.0 },
+                    effect: { type: 'streak_bonus', value: 10 },
                     rarity: 'rare',
                     duration: 'today'
                 },
                 
                 // 時間帯系ブースト
                 {
-                    id: 'early_bird',
-                    name: '🌅 早起きボーナス',
-                    description: '朝6時〜9時の達成で+10ポイント！',
+                    id: 'morning_boost',
+                    name: '🌅 朝活ボーナス',
+                    description: '午前中の達成でポイント1.5倍！',
                     condition: () => {
                         const hour = new Date().getHours();
-                        return hour >= 6 && hour <= 9;  // 朝の時間帯のみ
+                        return hour >= 5 && hour <= 11;  // 朝の時間帯
                     },
-                    effect: { type: 'time_bonus', value: 10 },
+                    effect: { type: 'time_multiplier', value: 1.5 },
                     rarity: 'common',
                     duration: 'morning'
-                },
-                {
-                    id: 'night_owl',
-                    name: '🦉 夜型ボーナス',
-                    description: '夜20時〜23時の達成で+8ポイント！',
-                    condition: () => {
-                        const hour = new Date().getHours();
-                        return hour >= 20 && hour <= 23;  // 夜の時間帯のみ
-                    },
-                    effect: { type: 'time_bonus', value: 8 },
-                    rarity: 'common',
-                    duration: 'night'
                 },
                 
                 // 特殊系ブースト
@@ -3127,27 +3114,9 @@
                     id: 'perfect_day',
                     name: '✨ パーフェクトデー',
                     description: '今日全ての習慣を達成すると+30ポイント！',
-                    condition: () => true,  // レアリティで制御
+                    condition: () => Math.random() < 0.05,  // 5%の確率
                     effect: { type: 'perfect_bonus', value: 30 },
                     rarity: 'legendary',
-                    duration: 'today'
-                },
-                {
-                    id: 'double_points',
-                    name: '💰 ダブルポイントデー',
-                    description: '今日だけ全てのポイントが2倍！',
-                    condition: () => true,  // レアリティで制御
-                    effect: { type: 'global_multiplier', value: 2.0 },
-                    rarity: 'legendary',
-                    duration: 'today'
-                },
-                {
-                    id: 'challenge_master',
-                    name: '🎯 チャレンジマスター',
-                    description: 'チャレンジ達成ポイント+50%！',
-                    condition: () => true,  // レアリティで制御
-                    effect: { type: 'challenge_multiplier', value: 1.5 },
-                    rarity: 'uncommon',
                     duration: 'today'
                 },
                 
@@ -3155,33 +3124,24 @@
                 {
                     id: 'weekend_special',
                     name: '🎈 週末スペシャル',
-                    description: '土日限定！努力ボーナスが無制限に！',
+                    description: '週末はポイント1.5倍！',
                     condition: () => {
                         const day = new Date().getDay();
                         return (day === 0 || day === 6);  // 土日のみ
                     },
-                    effect: { type: 'unlimited_effort', value: true },
-                    rarity: 'rare',
+                    effect: { type: 'global_multiplier', value: 1.5 },
+                    rarity: 'uncommon',
                     duration: 'weekend'
                 },
                 
                 // カード系ブースト
                 {
-                    id: 'card_drop_up',
-                    name: '🎴 カードドロップ率UP',
-                    description: 'カード出現率が2倍！',
-                    condition: () => true,  // レアリティで制御
-                    effect: { type: 'card_drop_rate', value: 2.0 },
-                    rarity: 'rare',
-                    duration: 'today'
-                },
-                {
                     id: 'rare_card_chance',
                     name: '🌟 レアカードチャンス',
-                    description: 'レアカードの出現率が大幅UP！',
-                    condition: () => true,  // レアリティで制御
-                    effect: { type: 'rare_card_boost', value: 3.0 },
-                    rarity: 'legendary',
+                    description: '今日はレアカードが出やすい！',
+                    condition: () => Math.random() < 0.08,  // 8%の確率
+                    effect: { type: 'rare_card_boost', value: 2.0 },
+                    rarity: 'rare',
                     duration: 'today'
                 }
             ]
