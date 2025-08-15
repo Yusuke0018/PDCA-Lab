@@ -1554,13 +1554,7 @@
                         font-size: 14px;
                         cursor: pointer;
                     ">
-                        <option value="all">📂 全て表示</option>
-                        <option value="study">📚 勉強</option>
-                        <option value="exercise">💪 運動</option>
-                        <option value="health">🧘 健康</option>
-                        <option value="work">💼 仕事</option>
-                        <option value="hobby">🎨 趣味</option>
-                        <option value="other">📝 その他</option>
+                        <!-- カテゴリオプションは動的に生成 -->
                     </select>
                 </div>
                 <div id="current-hypothesis-list" class="hypothesis-list">
@@ -1592,12 +1586,7 @@
                     <div class="form-group">
                         <label for="hypothesis-category">カテゴリー</label>
                         <select id="hypothesis-category" required>
-                            <option value="study">📚 勉強</option>
-                            <option value="exercise">💪 運動</option>
-                            <option value="health">🧘 健康</option>
-                            <option value="work">💼 仕事</option>
-                            <option value="hobby">🎨 趣味</option>
-                            <option value="other">📝 その他</option>
+                            <!-- カテゴリオプションは動的に生成 -->
                         </select>
                     </div>
 
@@ -7174,6 +7163,9 @@
             
             updateNavigation('home');
             
+            // カテゴリドロップダウンを更新
+            updateCategoryDropdowns();
+            
             // 保存されたカテゴリフィルターを復元
             const savedCategory = localStorage.getItem('selectedCategory') || 'all';
             const categoryFilter = document.getElementById('category-filter');
@@ -7378,6 +7370,9 @@
             resetScrollToTop();
             document.getElementById('home-view').style.display = 'none';
             document.getElementById('new-hypothesis-view').style.display = 'block';
+            
+            // カテゴリドロップダウンを更新
+            updateCategoryDropdowns();
             
             // ホーム画面で選択していたカテゴリを自動設定
             const selectedCategory = localStorage.getItem('selectedCategory');
@@ -9587,8 +9582,101 @@
                 saveData(data);
                 overlay.remove();
                 showNotification('カテゴリを更新しました', 'success');
+                updateCategoryDropdowns();  // ドロップダウンを更新
                 updateCurrentHypothesisList();
             };
+        }
+        
+        // カテゴリマスターを初期化（存在しない場合のみ）
+        function initializeCategoryMaster() {
+            const data = loadData();
+            if (!data.categoryMaster) {
+                data.categoryMaster = {
+                    study: { name: '勉強', icon: '📚', color: '#3b82f6' },
+                    exercise: { name: '運動', icon: '💪', color: '#ef4444' },
+                    health: { name: '健康', icon: '🧘', color: '#10b981' },
+                    work: { name: '仕事', icon: '💼', color: '#f59e0b' },
+                    hobby: { name: '趣味', icon: '🎨', color: '#8b5cf6' },
+                    other: { name: 'その他', icon: '📝', color: '#6b7280' }
+                };
+                saveData(data);
+            }
+            return data.categoryMaster;
+        }
+        
+        // カテゴリドロップダウンを更新
+        function updateCategoryDropdowns() {
+            try {
+                const categoryMaster = initializeCategoryMaster();
+                
+                // ホーム画面のフィルター
+                const filterSelect = document.getElementById('category-filter');
+                if (filterSelect) {
+                    const currentValue = filterSelect.value || localStorage.getItem('selectedCategory') || 'all';
+                    filterSelect.innerHTML = '<option value="all">📂 全て表示</option>';
+                    Object.entries(categoryMaster).forEach(([key, cat]) => {
+                        const option = document.createElement('option');
+                        option.value = key;
+                        option.textContent = `${cat.icon} ${cat.name}`;
+                        filterSelect.appendChild(option);
+                    });
+                    filterSelect.value = currentValue;
+                }
+                
+                // 新規立案画面のカテゴリ選択
+                const categorySelect = document.getElementById('hypothesis-category');
+                if (categorySelect) {
+                    const currentValue = categorySelect.value || localStorage.getItem('selectedCategory') || 'other';
+                    categorySelect.innerHTML = '';
+                    Object.entries(categoryMaster).forEach(([key, cat]) => {
+                        const option = document.createElement('option');
+                        option.value = key;
+                        option.textContent = `${cat.icon} ${cat.name}`;
+                        categorySelect.appendChild(option);
+                    });
+                    // ホーム画面で選択されたカテゴリを設定
+                    const selectedCategory = localStorage.getItem('selectedCategory');
+                    if (selectedCategory && selectedCategory !== 'all') {
+                        categorySelect.value = selectedCategory;
+                    } else {
+                        categorySelect.value = currentValue;
+                    }
+                }
+            } catch (e) {
+                console.error('カテゴリドロップダウンの更新に失敗:', e);
+            }
+        }
+        
+        // 新しいカテゴリを追加
+        function addNewCategory() {
+            const data = loadData();
+            const categoryMaster = data.categoryMaster || {};
+            
+            // 新しいカテゴリのIDを生成
+            let newKey = 'custom_' + Date.now();
+            
+            // デフォルト値を設定
+            categoryMaster[newKey] = {
+                name: '新カテゴリ',
+                icon: '✨',
+                color: '#' + Math.floor(Math.random()*16777215).toString(16)
+            };
+            
+            data.categoryMaster = categoryMaster;
+            saveData(data);
+            
+            // モーダルを再表示
+            const modal = document.querySelector('.skip-modal');
+            if (modal) {
+                modal.remove();
+            }
+            const overlay = document.querySelector('.overlay');
+            if (overlay) {
+                overlay.remove();
+            }
+            
+            editCategoryMaster();
+            showNotification('新しいカテゴリを追加しました', 'success');
         }
         
         // 新しいカテゴリを追加
@@ -10947,18 +11035,8 @@
             // 日付が変わったら宣言状態をチェック（深夜対応）
             const todayKey = getActivityDateKey();
             
-            // カテゴリーマスター（編集可能）
-            if (!data.categoryMaster) {
-                data.categoryMaster = {
-                    study: { name: '勉強', icon: '📚', color: '#3b82f6' },
-                    exercise: { name: '運動', icon: '💪', color: '#ef4444' },
-                    health: { name: '健康', icon: '🧘', color: '#10b981' },
-                    work: { name: '仕事', icon: '💼', color: '#f59e0b' },
-                    hobby: { name: '趣味', icon: '🎨', color: '#8b5cf6' },
-                    other: { name: 'その他', icon: '📝', color: '#6b7280' }
-                };
-                saveData(data);
-            }
+            // カテゴリーマスターを初期化
+            const categoryMaster = initializeCategoryMaster();
             
             // 頻度タイプ別にグループ分け（大分類）
             const frequencyGroups = {
@@ -15396,6 +15474,9 @@
         }
         
         function initializeApp() {
+            // カテゴリドロップダウンを初期化
+            updateCategoryDropdowns();
+            
             // ホーム画面を表示（これが習慣リストも更新する）
             showHomeView();
             
@@ -15452,6 +15533,12 @@
             }
         }
 
+        // windowオブジェクトに関数を登録
+        window.initializeCategoryMaster = initializeCategoryMaster;
+        window.updateCategoryDropdowns = updateCategoryDropdowns;
+        window.editCategoryMaster = editCategoryMaster;
+        window.addNewCategory = addNewCategory;
+        
         // モバイルのズーム抑止（ダブルタップ/ピンチ）
         (function preventZoom() {
             let lastTouchEnd = 0;
