@@ -6934,6 +6934,28 @@
                     arrow.style.transform = 'rotate(0deg)';
                 }
             });
+
+            // カテゴリセクション（id="content-..."）を全て閉じる＋トグル矢印をリセット
+            const categoryContents = document.querySelectorAll('[id^="content-"]');
+            categoryContents.forEach(el => {
+                el.style.maxHeight = '0';
+            });
+            const categoryToggles = document.querySelectorAll('[id^="toggle-"]');
+            categoryToggles.forEach(tg => {
+                tg.textContent = '▶';
+            });
+
+            // LocalStorageのカテゴリトグル状態も全てfalseにリセット
+            try {
+                const states = JSON.parse(localStorage.getItem('categoryToggleStates') || '{}');
+                const keys = Object.keys(states);
+                if (keys.length > 0) {
+                    keys.forEach(k => { states[k] = false; });
+                    localStorage.setItem('categoryToggleStates', JSON.stringify(states));
+                }
+            } catch (e) {
+                // noop
+            }
         }
         
         // 詳細な報酬統計を更新
