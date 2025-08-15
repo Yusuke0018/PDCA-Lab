@@ -2608,12 +2608,6 @@
             <div class="card" style="margin-top: 0;">
                 <h2 style="margin-bottom: 24px; margin-top: 0;">🎴 カードコレクション</h2>
                 
-                <!-- カード図鑑ボタン -->
-                <div style="margin-bottom: 20px;">
-                    <button class="btn btn-secondary" onclick="showCardAlbum()" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #fbbf24, #f59e0b);">
-                        📖 カード図鑑を開く
-                    </button>
-                </div>
                 
                 <div style="margin-bottom: 24px;">
                     <h3 style="font-size: 18px; margin-bottom: 12px; color: var(--primary);">📦 所持カード</h3>
@@ -3239,12 +3233,6 @@
                         eventHistory: [],
                         boostEnabled: true
                     },
-                    cardAlbum: {
-                        collection: {},
-                        totalCardsObtained: 0,
-                        firstObtainedDates: {},
-                        viewHistory: []
-                    },
                     meta: {}
                 };
             }
@@ -3310,15 +3298,6 @@
                     milestoneNotifications: {},
                     eventHistory: [],
                     boostEnabled: true
-                };
-            }
-            // カード図鑑がない場合は初期化
-            if (!parsed.cardAlbum) {
-                parsed.cardAlbum = {
-                    collection: {},
-                    totalCardsObtained: 0,
-                    firstObtainedDates: {},
-                    viewHistory: []
                 };
             }
             
@@ -5537,7 +5516,6 @@
                                 data.cards.dropHistory.unshift('event_trigger');
                                 if (data.cards.dropHistory.length > 100) data.cards.dropHistory = data.cards.dropHistory.slice(0,100);
                             } catch(_){}
-                            if (typeof registerCardToAlbum === 'function') { registerCardToAlbum('event_trigger'); }
                             showCardEffect('🎁 ミステリーボックス！','カード：イベントトリガー','\#f59e0b');
                         } else if (pick === 'point_gem') {
                             data.cards.inventory.push({ cardId:'point_gem', acquiredDate:new Date().toISOString(), used:false });
@@ -5546,7 +5524,6 @@
                                 data.cards.dropHistory.unshift('point_gem');
                                 if (data.cards.dropHistory.length > 100) data.cards.dropHistory = data.cards.dropHistory.slice(0,100);
                             } catch(_){}
-                            if (typeof registerCardToAlbum === 'function') { registerCardToAlbum('point_gem'); }
                             showCardEffect('🎁 ミステリーボックス！','カード：ポイントジェム','\#f59e0b');
                         }
                         mbox.claimed = true;
@@ -11781,15 +11758,11 @@
                                 if (data.cards.dropHistory.length > 100) {
                                     data.cards.dropHistory = data.cards.dropHistory.slice(0, 100);
                                 }
-                                // カード図鑑へ登録
-                                try { registerCardToAlbum(cardId); } catch (e) { /* noop */ }
                             } else if (card.type === 'penalty') {
                                 data.cards.pendingPenalties.push({
                                     cardId: cardId,
                                     acquiredDate: new Date().toISOString()
                                 });
-                                // ペナルティも図鑑に登録
-                                try { registerCardToAlbum(cardId); } catch (e) { /* noop */ }
                             }
                         }
                     });
@@ -14029,8 +14002,6 @@
             // 取得済みフラグを立てる
             data.specialRewards[today] = true;
             
-            // カード図鑑に登録
-            registerCardToAlbum(selectedCard);
             
             saveData(data);
             
@@ -15342,223 +15313,6 @@
             return { finalPoints, multiplierTotal: multiplier, bonusTotal: bonus, notes };
         }
 
-        // ========== カード図鑑関連の関数 ==========
-        
-        // カード図鑑の初期化
-        function initializeCardAlbum() {
-            const data = loadData();
-            if (!data.cardAlbum) {
-                data.cardAlbum = {
-                    collection: {},
-                    totalCardsObtained: 0,
-                    firstObtainedDates: {},
-                    viewHistory: []
-                };
-            }
-            
-            // 全カードの定義を図鑑に登録
-            const allCards = { ...CARD_MASTER };
-            Object.keys(allCards).forEach(cardId => {
-                if (!data.cardAlbum.collection[cardId]) {
-                    data.cardAlbum.collection[cardId] = {
-                        obtained: false,
-                        count: 0,
-                        firstObtained: null,
-                        hints: getCardHints(cardId)
-                    };
-                }
-            });
-            
-            saveData(data);
-        }
-        
-        // カード取得時の処理
-        function registerCardToAlbum(cardId) {
-            const data = loadData();
-            
-            // カード図鑑が初期化されていない場合は初期化
-            if (!data.cardAlbum) {
-                initializeCardAlbum();
-                const updatedData = loadData();
-                Object.assign(data, updatedData);
-            }
-            
-            if (!data.cardAlbum.collection) {
-                data.cardAlbum.collection = {};
-            }
-            
-            if (!data.cardAlbum.collection[cardId]) {
-                data.cardAlbum.collection[cardId] = {
-                    obtained: false,
-                    count: 0,
-                    firstObtained: null,
-                    hints: getCardHints(cardId)
-                };
-            }
-            
-            const cardEntry = data.cardAlbum.collection[cardId];
-            const wasNewCard = !cardEntry.obtained;
-            
-            if (!cardEntry.obtained) {
-                cardEntry.obtained = true;
-                cardEntry.firstObtained = new Date().toISOString();
-                
-                // totalCardsObtainedを正しく計算
-                const obtainedCount = Object.values(data.cardAlbum.collection).filter(c => c.obtained).length;
-                data.cardAlbum.totalCardsObtained = obtainedCount;
-                
-                // 図鑑コンプリート率をチェック
-                checkAlbumCompletion(data);
-            }
-            cardEntry.count++;
-            
-            saveData(data);
-        }
-        
-        // カードヒントの取得
-        function getCardHints(cardId) {
-            const hints = {
-                // 報酬カード
-                skip_ticket: '習慣を継続的に達成していると出現しやすい',
-                achievement_boost: '連続達成記録を更新すると出現率UP',
-                perfect_bonus: '全ての習慣を達成した日に高確率で出現',
-                protect_shield: 'ペナルティカードを引いた後に出現しやすい',
-                achievement_booster: '達成率が低い時に応援として出現',
-                second_chance: '習慣期限が近づくと出現率UP',
-                event_trigger: 'イベントが少ない日が続くと出現',
-                event_combo: '複数イベントが同時発生した日に稀に出現',
-                point_gem: 'ポイントを大量に使った後に出現しやすい',
-                mission_master: '全ミッションクリアで出現率UP',
-                rainbow_boost: '全カテゴリーの習慣を持つと出現',
-                quick_start: '新しい習慣を始める時に出現しやすい',
-                streak_bonus: '連続達成記録が途切れた後に出現',
-                lucky_seven: '7の付く日に出現率UP',
-                
-                // ペナルティカード
-                hard_mode: '簡単すぎる習慣には試練が待っている',
-                reset_risk: '油断は禁物、連続失敗に注意',
-                achievement_decrease: '最初から躓くこともある',
-                short_term: '長期習慣の後に現れやすい',
-                extension_card: '短期習慣を選びすぎると...',
-                chaos_vortex: 'カオスな日々を過ごすと...',
-                double_or_nothing: '大きな賭けには大きなリスク',
-                event_seal: 'イベントが多すぎた日の翌日に',
-                mission_overload: 'ミッションを怠けていると...',
-                slowdown: '急ぎすぎには注意が必要',
-                reverse_curse: '不規則な達成パターンで出現',
-                
-                // 特殊カード
-                conversion_magic: '伝説の習慣達成者のみが手にする',
-                fate_dice: '運命を信じる者に与えられる'
-            };
-            
-            return hints[cardId] || '条件は秘密...探し出そう！';
-        }
-        
-        // 図鑑コンプリート率チェック
-        function checkAlbumCompletion(data) {
-            const totalCards = Object.keys(CARD_MASTER).length;
-            const obtainedCards = data.cardAlbum.totalCardsObtained;
-            const completionRate = (obtainedCards / totalCards) * 100;
-            
-            // コンプリート率に応じた報酬
-            const milestones = [25, 50, 75, 100];
-            milestones.forEach(rate => {
-                if (completionRate >= rate && !data.badges?.[`album_${rate}`]) {
-                    if (!data.badges) data.badges = {};
-                    data.badges[`album_${rate}`] = { earnedAt: new Date().toISOString() };
-                    
-                    // 報酬ポイント
-                    earnPoints(rate * 10, 'album', `カード図鑑${rate}%達成！`);
-                    
-                    // 特別通知
-                    showNotification(`🎴 カード図鑑${rate}%コンプリート！`, 'success');
-                }
-            });
-        }
-        
-        // カード図鑑の表示
-        function showCardAlbum() {
-            const data = loadData();
-            initializeCardAlbum();
-            
-            const modal = document.createElement('div');
-            modal.className = 'modal-overlay';
-            modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.98); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px;';
-            
-            const totalCards = Object.keys(CARD_MASTER).length;
-            const obtainedCards = data.cardAlbum.totalCardsObtained;
-            const completionRate = Math.round((obtainedCards / totalCards) * 100);
-            
-            modal.innerHTML = `
-                <div style="background: #0f172a; border-radius: 16px; padding: 24px; max-width: 600px; width: 100%; max-height: 80vh; overflow-y: auto; border: 2px solid rgba(59, 130, 246, 0.5); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.9);">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <h2 style="font-size: 24px; font-weight: bold; color: #e2e8f0;">🎴 カード図鑑</h2>
-                        <button onclick="this.closest('.modal-overlay').remove()" style="background: none; border: none; color: #94a3b8; font-size: 24px; cursor: pointer;">×</button>
-                    </div>
-                    
-                    <div style="background: rgba(139, 92, 246, 0.15); border-radius: 12px; padding: 16px; margin-bottom: 20px; border: 1px solid rgba(139, 92, 246, 0.3);">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <div style="font-size: 14px; color: #94a3b8;">コンプリート率</div>
-                                <div style="font-size: 28px; font-weight: bold; color: #8b5cf6;">${completionRate}%</div>
-                            </div>
-                            <div style="text-align: right;">
-                                <div style="font-size: 14px; color: #94a3b8;">取得カード</div>
-                                <div style="font-size: 20px; font-weight: bold; color: #e2e8f0;">${obtainedCards} / ${totalCards}</div>
-                            </div>
-                        </div>
-                        <div style="margin-top: 12px; background: rgba(0,0,0,0.5); border-radius: 8px; height: 8px; overflow: hidden;">
-                            <div style="background: linear-gradient(90deg, #10b981, #3b82f6); height: 100%; width: ${completionRate}%; transition: width 0.3s;"></div>
-                        </div>
-                    </div>
-                    
-                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px;">
-                        ${Object.entries(CARD_MASTER).map(([cardId, card]) => {
-                            const entry = data.cardAlbum.collection[cardId] || { obtained: false, count: 0, hints: '' };
-                            const isObtained = entry.obtained;
-                            
-                            return `
-                                <div style="background: ${isObtained ? '#1e293b' : '#0f172a'}; 
-                                            border: 2px solid ${isObtained ? card.color : '#334155'}; 
-                                            border-radius: 12px; padding: 12px; 
-                                            opacity: ${isObtained ? '1' : '0.6'};">
-                                    <div style="font-size: 32px; text-align: center; margin-bottom: 8px;">
-                                        ${isObtained ? card.icon : '❓'}
-                                    </div>
-                                    <div style="font-size: 12px; font-weight: bold; text-align: center; color: ${isObtained ? '#e2e8f0' : '#94a3b8'};">
-                                        ${isObtained ? card.name : '???'}
-                                    </div>
-                                    <div style="font-size: 10px; color: #94a3b8; text-align: center; margin-top: 4px;">
-                                        ${isObtained ? `所持: ${entry.count}枚` : entry.hints}
-                                    </div>
-                                    ${isObtained && entry.firstObtained ? `
-                                        <div style="font-size: 9px; color: #64748b; text-align: center; margin-top: 4px;">
-                                            初回: ${new Date(entry.firstObtained).toLocaleDateString()}
-                                        </div>
-                                    ` : ''}
-                                </div>
-                            `;
-                        }).join('')}
-                    </div>
-                    
-                    <div style="margin-top: 20px; padding: 12px; background: rgba(59, 130, 246, 0.15); border-radius: 8px; border: 1px solid rgba(59, 130, 246, 0.3);">
-                        <div style="font-size: 12px; color: #94a3b8;">
-                            💡 ヒント: カードは習慣達成時やイベント発生時に獲得できます。全種類集めて図鑑をコンプリートしよう！
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            document.body.appendChild(modal);
-            
-            // 閲覧履歴を記録
-            data.cardAlbum.viewHistory.push(new Date().toISOString());
-            if (data.cardAlbum.viewHistory.length > 100) {
-                data.cardAlbum.viewHistory = data.cardAlbum.viewHistory.slice(-100);
-            }
-            saveData(data);
-        }
 
         function debugAchieveAllPast() {
             if (isMobileDevice && isMobileDevice()) { showNotification('⚠️ デバッグ機能はPCのみ利用できます', 'error'); return; }
@@ -16520,8 +16274,6 @@
                 if (data.cards.dropHistory.length > 100) data.cards.dropHistory = data.cards.dropHistory.slice(0,100);
             } catch(_){}
             
-            // カード図鑑に登録
-            registerCardToAlbum(newCardId);
             
             saveData(data);
             showNotification(`🪄 ${CARD_MASTER[targetCard.cardId].name}を${CARD_MASTER[newCardId].name}に変換しました！`, 'success');
@@ -16621,13 +16373,6 @@
                             activeBoosts: [],
                             lastEventDate: null,
                             milestoneRewards: {}
-                        },
-                        
-                        // カード図鑑
-                        cardAlbum: data.cardAlbum || {
-                            collection: {},
-                            totalCardsObtained: 0,
-                            rewardsEarned: []
                         },
                         
                         // バッジ
@@ -16974,8 +16719,6 @@
             // イベントチェック
             checkDailyEvents();
             
-            // カード図鑑初期化
-            initializeCardAlbum();
             
             // 履歴初期化（ホームを現在の状態として記録）
             try {
@@ -17026,8 +16769,6 @@
         window.updateCategoryDropdowns = updateCategoryDropdowns;
         window.editCategoryMaster = editCategoryMaster;
         window.addNewCategory = addNewCategory;
-        window.showCardAlbum = showCardAlbum;
-        window.registerCardToAlbum = registerCardToAlbum;
         
         // モバイルのズーム抑止（ダブルタップ/ピンチ）
         (function preventZoom() {
