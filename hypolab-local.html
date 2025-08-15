@@ -3827,6 +3827,32 @@
             updateJournalStreak(data);
             
             // ジャーナルデータを保存
+            // 最後にアクティブイベントをサニタイズ＆重複排除
+            try {
+                if (data.events && Array.isArray(data.events.activeBoosts)) {
+                    let boosts = data.events.activeBoosts.map(b => {
+                        if (b && b.eventId === 'weekend_special') {
+                            b.value = 1.2;
+                            b.description = '週末はポイント1.2倍！';
+                        }
+                        return b;
+                    }).filter(b => {
+                        if (!b) return false;
+                        if (b.eventId === 'weekend_special') {
+                            const desc = String(b.description || '');
+                            if (desc.includes('1.5') || desc.includes('×1.5')) return false;
+                        }
+                        return true;
+                    });
+                    const dedup = new Map();
+                    for (const b of boosts) {
+                        const key = b && b.eventId ? `id:${b.eventId}` : `name:${b?.name || ''}|desc:${b?.description || ''}`;
+                        dedup.set(key, b);
+                    }
+                    data.events.activeBoosts = Array.from(dedup.values());
+                }
+            } catch (_) { /* noop */ }
+
             saveData(data);
             
             // ポイントを付与（初回のみ）
@@ -15091,20 +15117,44 @@
             if (!data.events || !data.events.activeBoosts || data.events.activeBoosts.length === 0) {
                 eventContainer.style.display = 'none';
             } else {
-                // 週末スペシャルの古い値を修正
-                data.events.activeBoosts = data.events.activeBoosts.map(boost => {
-                    if (boost.eventId === 'weekend_special') {
-                        // 週末スペシャルの値と説明を強制的に1.2倍に修正
-                        boost.value = 1.2;
-                        boost.description = '週末はポイント1.2倍！';
+                // 週末スペシャルのサニタイズと重複排除
+                let boosts = Array.isArray(data.events.activeBoosts) ? data.events.activeBoosts.slice() : [];
+
+                // 1) 値・説明の正規化（週末スペシャル）
+                boosts = boosts.map(b => {
+                    if (b && b.eventId === 'weekend_special') {
+                        b.value = 1.2;
+                        b.description = '週末はポイント1.2倍！';
                     }
-                    return boost;
+                    return b;
                 });
-                
+
+                // 2) 明らかに古い表記（1.5など）を含む週末スペシャルを除外
+                boosts = boosts.filter(b => {
+                    if (!b) return false;
+                    if (b.eventId === 'weekend_special') {
+                        const desc = String(b.description || '');
+                        if (desc.includes('1.5') || desc.includes('×1.5')) return false;
+                    }
+                    return true;
+                });
+
+                // 3) eventId ベースで重複排除（最後に現れたものを優先）
+                const dedupMap = new Map();
+                for (const b of boosts) {
+                    const key = b && b.eventId ? `id:${b.eventId}` : `name:${b?.name || ''}|desc:${b?.description || ''}`;
+                    dedupMap.set(key, b);
+                }
+                boosts = Array.from(dedupMap.values());
+
+                // 永続化（今後の読み込みでも正しい状態を維持）
+                data.events.activeBoosts = boosts;
+                saveData(data);
+
                 eventContainer.style.display = 'block';
                 eventContainer.innerHTML = `
                     <h3 style="margin-bottom: 12px; font-size: 16px;">🎉 今日のイベント</h3>
-                    ${data.events.activeBoosts.map(boost => `
+                    ${boosts.map(boost => `
                         <div class="event-card" style="background: rgba(251, 191, 36, 0.15); border-radius: 8px; padding: 12px; margin: 8px 0;">
                             <div style="font-size: 16px; font-weight: bold;">${boost.name}</div>
                             <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">${boost.description}</div>
