@@ -1713,6 +1713,26 @@
                     </div>
                 ` : ''
                 }
+
+                ${
+                    // 睡眠時間の推移（過去30日）
+                    totalEntries > 0 ? `
+                    <div style=\"background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; margin-top: 16px;\">
+                        <h4 style=\"font-size: 14px; margin-bottom: 12px; color: var(--text-primary);\">😴 睡眠時間の推移（30日）</h4>
+                        ${generateSleepTrend(entries)}
+                    </div>
+                ` : ''
+                }
+
+                ${
+                    // 睡眠と体調/気分/達成率の相関
+                    totalEntries > 0 ? `
+                    <div style=\"background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; margin-top: 16px;\">
+                        <h4 style=\"font-size: 14px; margin-bottom: 12px; color: var(--text-primary);\">🔗 睡眠と各指標の相関</h4>
+                        ${generateSleepCorrelations(entries, data)}
+                    </div>
+                ` : ''
+                }
                 
                 ${
                     // 曜日別パターン
@@ -1810,6 +1830,135 @@
                     </div>
                 ` : ''
                 }
+            `;
+        }
+
+        // 過去30日の睡眠時間トレンド（簡易バーグラフ）
+        function generateSleepTrend(entries) {
+            const days = [];
+            const today = new Date();
+            for (let i = 29; i >= 0; i--) {
+                const d = new Date(today);
+                d.setDate(d.getDate() - i);
+                const key = dateKeyLocal(d);
+                const e = entries[key];
+                const hours = e?.morning?.sleepHours ? parseFloat(e.morning.sleepHours) : null;
+                days.push({ label: `${d.getMonth()+1}/${d.getDate()}`, value: hours });
+            }
+            const values = days.map(d => d.value).filter(v => v != null);
+            const max = values.length ? Math.max(6, Math.ceil(Math.max(...values))) : 8;
+            const min = 0;
+            return `
+                <div style=\"display:flex; gap:4px; align-items:flex-end; height:140px;\">
+                    ${days.map(d => {
+                        const h = d.value == null ? 0 : Math.max(2, Math.round(((d.value - min) / (max - min)) * 120));
+                        const color = d.value == null ? 'transparent' : '#06b6d4';
+                        const border = d.value == null ? '1px dashed rgba(255,255,255,0.2)' : 'none';
+                        const tip = d.value == null ? `${d.label}: データなし` : `${d.label}: ${d.value.toFixed(1)}h`;
+                        return `<div title=\"${tip}\" style=\"width:8px;height:${h}px;background:${color};border:${border};border-radius:3px;\"></div>`;
+                    }).join('')}
+                </div>
+                <div style=\"display:flex; justify-content:space-between; font-size:10px; color: var(--text-secondary); margin-top:6px;\">
+                    <span>${days[0].label}</span><span>${days[days.length-1].label}</span>
+                </div>
+            `;
+        }
+
+        // 相関: 睡眠時間と体調/気分/達成率
+        function generateSleepCorrelations(entries, data) {
+            function pearson(xs, ys) {
+                const n = xs.length;
+                if (n === 0) return { r: null, n: 0 };
+                const mean = arr => arr.reduce((a,b)=>a+b,0)/arr.length;
+                const mx = mean(xs), my = mean(ys);
+                let num=0, dx=0, dy=0;
+                for (let i=0;i<n;i++){ const x=xs[i]-mx; const y=ys[i]-my; num+=x*y; dx+=x*x; dy+=y*y; }
+                const den = Math.sqrt(dx*dy);
+                if (den === 0) return { r: 0, n };
+                return { r: Math.round((num/den)*100)/100, n };
+            }
+
+            function dailyAchievementRate(key) {
+                // 当日有効な習慣に対して達成率を計算（current + completed）
+                const all = [...(data.currentHypotheses||[]), ...(data.completedHypotheses||[])];
+                let total=0, achieved=0;
+                all.forEach(h => {
+                    try {
+                        const start = new Date(h.startDate);
+                        const end = h.endDate ? new Date(h.endDate) : new Date();
+                        const kDate = new Date(key);
+                        start.setHours(0,0,0,0); end.setHours(23,59,59,999); kDate.setHours(12,0,0,0);
+                        if (kDate >= start && kDate <= end) {
+                            total++;
+                            if (h.achievements && h.achievements[key]) achieved++;
+                        }
+                    } catch(_){}
+                });
+                if (total === 0) return null;
+                return achieved/total; // 0〜1
+            }
+
+            // 収集
+            const keys = Object.keys(entries).sort();
+            const sleep = [], condition = [], mood = [], achToday = [], achPrev = [];
+            keys.forEach(k => {
+                const m = entries[k]?.morning;
+                if (!m || m.sleepHours == null) return;
+                const s = parseFloat(m.sleepHours);
+                // 体調・気分
+                if (typeof m.condition === 'number') { sleep.push(s); condition.push(m.condition); }
+                if (typeof m.mood === 'number') { /* separate arrays */ }
+            });
+            // 別途もう一度（気分用）
+            const sleep2 = [], mood2 = [];
+            keys.forEach(k => {
+                const m = entries[k]?.morning; if (!m || m.sleepHours == null) return;
+                const s = parseFloat(m.sleepHours);
+                if (typeof m.mood === 'number') { sleep2.push(s); mood2.push(m.mood); }
+            });
+            // 達成率
+            const sleep3 = [], rateToday = [], sleep4 = [], ratePrev = [];
+            keys.forEach(k => {
+                const m = entries[k]?.morning; if (!m || m.sleepHours == null) return;
+                const s = parseFloat(m.sleepHours);
+                const rT = dailyAchievementRate(k);
+                // 前日
+                const d = new Date(k); d.setDate(d.getDate()-1); const kPrev = dateKeyLocal(d);
+                const rP = dailyAchievementRate(kPrev);
+                if (rT != null) { sleep3.push(s); rateToday.push(rT); }
+                if (rP != null) { sleep4.push(s); ratePrev.push(rP); }
+            });
+
+            const c1 = pearson(sleep, condition);
+            const c2 = pearson(sleep2, mood2);
+            const c3 = pearson(sleep3, rateToday);
+            const c4 = pearson(sleep4, ratePrev);
+
+            function label(c){ if (c.r==null) return '-'; const a=Math.abs(c.r); if(a>=0.7) return `${c.r} (強)`; if(a>=0.4) return `${c.r} (中)`; if(a>=0.2) return `${c.r} (弱)`; return `${c.r} (ほぼ無)`; }
+
+            return `
+                <div style=\"display:grid;grid-template-columns:repeat(2,1fr);gap:12px;\">
+                    <div style=\"background:rgba(255,255,255,0.05);padding:10px;border-radius:8px;\">
+                        <div style=\"font-size:13px;\">😊 体調 × 睡眠</div>
+                        <div style=\"font-size:22px;font-weight:800;color:#10b981;\">${label(c1)}</div>
+                        <div style=\"font-size:10px;color:var(--text-secondary);\">n=${c1.n}</div>
+                    </div>
+                    <div style=\"background:rgba(255,255,255,0.05);padding:10px;border-radius:8px;\">
+                        <div style=\"font-size:13px;\">💭 気分 × 睡眠</div>
+                        <div style=\"font-size:22px;font-weight:800;color:#f59e0b;\">${label(c2)}</div>
+                        <div style=\"font-size:10px;color:var(--text-secondary);\">n=${c2.n}</div>
+                    </div>
+                    <div style=\"background:rgba(255,255,255,0.05);padding:10px;border-radius:8px;\">
+                        <div style=\"font-size:13px;\">✅ 当日達成率 × 睡眠</div>
+                        <div style=\"font-size:22px;font-weight:800;color:#3b82f6;\">${label(c3)}</div>
+                        <div style=\"font-size:10px;color:var(--text-secondary);\">n=${c3.n}</div>
+                    </div>
+                    <div style=\"background:rgba(255,255,255,0.05);padding:10px;border-radius:8px;\">
+                        <div style=\"font-size:13px;\">📅 前日達成率 × 睡眠</div>
+                        <div style=\"font-size:22px;font-weight:800;color:#8b5cf6;\">${label(c4)}</div>
+                        <div style=\"font-size:10px;color:var(--text-secondary);\">n=${c4.n}</div>
+                    </div>
+                </div>
             `;
         }
         
