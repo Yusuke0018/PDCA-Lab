@@ -14184,8 +14184,18 @@
             }
             
             // 新しい日のイベントを取得
-            const dailyEvent = getDailyEvent();
+            let dailyEvent = getDailyEvent();
             console.log('Daily event:', dailyEvent);
+            
+            // デバッグ用：イベントがnullの場合は強制的にイベントを生成
+            if (!dailyEvent) {
+                console.log('No event today, forcing weekend special for debug');
+                console.log('EVENT_DEFINITIONS:', typeof EVENT_DEFINITIONS !== 'undefined' ? EVENT_DEFINITIONS : 'undefined');
+                if (typeof EVENT_DEFINITIONS !== 'undefined' && EVENT_DEFINITIONS.length > 0) {
+                    dailyEvent = EVENT_DEFINITIONS.find(e => e.id === 'weekend_special') || EVENT_DEFINITIONS[0];
+                    console.log('Forced event:', dailyEvent);
+                }
+            }
             
             if (dailyEvent) {
                 data.events.activeBoosts = [dailyEvent];
