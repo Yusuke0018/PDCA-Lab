@@ -5023,12 +5023,15 @@
             if (isHidden) {
                 content.classList.remove('is-hidden');
                 // 表示レイアウトを適用
-                if (sectionId === 'badge-collection') {
+                if (sectionId === 'badge-collection' || sectionId === 'popular-rewards' || sectionId === 'top-spent-rewards' || sectionId === 'category-statistics' || sectionId === 'reward-time-pattern' || sectionId === 'recent-used-rewards') {
                     content.style.display = 'grid';
                 } else {
                     content.style.display = 'block';
                 }
                 if (arrow) arrow.textContent = '▼';
+
+                // セクション表示時に最新データで更新（特にモバイルでの遅延描画対策）
+                try { updateDetailedRewardStatistics(); } catch (e) {}
             } else {
                 // 非表示クラスを付与（!importantで確実に隠す）
                 content.classList.add('is-hidden');
