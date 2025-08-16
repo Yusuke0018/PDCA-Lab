@@ -4644,6 +4644,17 @@
 
             // 前借りセクションの更新
             updateLoanSection();
+
+            // 報酬サマリ（回数・ポイント）
+            try {
+                const tx = (ps.transactions || []).filter(t => t.type === 'spend' && t.source === 'reward');
+                const count = tx.length;
+                const spent = tx.reduce((sum, t) => sum + (t.amount || 0), 0);
+                const usedEl = document.getElementById('reward-used-count');
+                const spentEl = document.getElementById('reward-spent-total');
+                if (usedEl) usedEl.textContent = count.toLocaleString();
+                if (spentEl) spentEl.textContent = `${spent.toLocaleString()}pt`;
+            } catch (e) { /* noop */ }
         }
 
         function dateKeyToday() { return dateKeyLocal(new Date()); }
