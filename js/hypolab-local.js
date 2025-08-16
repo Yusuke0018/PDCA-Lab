@@ -2374,14 +2374,10 @@
             
             // 獲得したポイントがある場合は減算
             if (entry.pointsEarned && entry.pointsEarned > 0) {
-                console.log(`ジャーナル削除：${entry.pointsEarned}ポイント減算`);
-                
                 // 現在のブースト効果を考慮して元のポイントを計算
                 const basePoints = 1; // ジャーナルの基本ポイント
                 const boostedPoints = calculatePointsWithBoosts(basePoints, 'journal', null);
                 const actualPointsToDeduct = Math.round(boostedPoints);
-                
-                console.log(`基本ポイント: ${basePoints}, ブースト後: ${boostedPoints}, 減算額: ${actualPointsToDeduct}`);
                 
                 // ポイントを減算
                 data.pointSystem.currentPoints = Math.max(0, data.pointSystem.currentPoints - actualPointsToDeduct);
@@ -7484,11 +7480,9 @@
                 data.currentHypotheses[index].intensity = window.currentHypothesis.intensity;
                 saveData(data);
                 
-                console.log('[applyAchievementWithIntensity] 達成を保存しました。現在の達成数:', Object.keys(window.currentHypothesis.achievements).length);
-            }
+                }
             
             // カード取得チェック（達成時）
-            console.log('[applyAchievementWithIntensity] カード取得チェックを呼び出します');
             checkCardAcquisitionOnAchievement(dateKey);
             
             // ポイント獲得処理
@@ -10504,18 +10498,12 @@
 
         // 習慣達成時のカード取得チェック
         function checkCardAcquisitionOnAchievement(dateKey) {
-            console.log('[カード取得チェック開始] dateKey:', dateKey);
-            
             const data = loadData();
             const hypothesis = window.currentHypothesis;
             
             if (!hypothesis || !hypothesis.id) {
-                console.log('[カード取得チェック] 習慣が存在しない');
                 return;
             }
-            
-            console.log('[カード取得チェック] 習慣ID:', hypothesis.id);
-            console.log('[カード取得チェック] 現在の達成数:', Object.keys(hypothesis.achievements || {}).length);
             
             // カード取得履歴の初期化
             if (!hypothesis.cardAcquisitionHistory) {
@@ -10534,14 +10522,8 @@
                 const achievedCount = Object.keys(hypothesis.achievements || {}).length;
                 const sevenAchievementMilestones = Math.floor(achievedCount / 7);
                 
-                console.log('[カード取得チェック] 毎日の習慣');
-                console.log('[カード取得チェック] 達成回数:', achievedCount);
-                console.log('[カード取得チェック] 7回達成の回数:', sevenAchievementMilestones);
-                console.log('[カード取得チェック] 既に取得したカード数:', hypothesis.cardAcquisitionHistory.sevenDays.length);
-                
                 // まだ取得していない7回達成があるか確認
                 if (sevenAchievementMilestones > hypothesis.cardAcquisitionHistory.sevenDays.length) {
-                    console.log('[カード取得チェック] 新しい7回達成を検出！カードを取得します');
                     // 新しい7回達成 - カード取得
                     const cardId = getRandomRewardCard();
                     if (cardId) {
@@ -10554,15 +10536,10 @@
                         });
                         
                         // カード獲得演出
-                        console.log('[カード取得チェック] カードID:', cardId, 'を取得しました');
                         window.showCardAcquisition([cardId], () => {
                             showNotification('🎉 7回達成！報酬カードを獲得しました！', 'success');
                         });
-                    } else {
-                        console.log('[カード取得チェック] カードIDがnullです（getRandomRewardCardの問題）');
                     }
-                } else {
-                    console.log('[カード取得チェック] まだ新しい7回達成に達していません');
                 }
             }
             
@@ -10616,11 +10593,6 @@
                 
                 // window.currentHypothesisも更新
                 window.currentHypothesis.cardAcquisitionHistory = hypothesis.cardAcquisitionHistory;
-                
-                console.log('[カード取得チェック] データ保存完了');
-                console.log('[カード取得チェック] 保存後の7回達成記録:', data.currentHypotheses[index].cardAcquisitionHistory.sevenDays.length);
-            } else {
-                console.log('[カード取得チェック] エラー：習慣が見つかりません');
             }
         }
         
@@ -10645,15 +10617,11 @@
         
         // ランダムな報酬カードを取得
         function getRandomRewardCard() {
-            console.log('[getRandomRewardCard] 開始');
-            
             const data = loadData();
             const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start','second_chance']);
             const rewardPoolBase = Object.keys(CARD_MASTER).filter(id => 
                 CARD_MASTER[id].type === 'reward' && !DISABLED_CARDS.has(id)
             );
-            
-            console.log('[getRandomRewardCard] 利用可能な報酬カード数:', rewardPoolBase.length);
             
             // 直近10回の報酬カードをブロック
             const history = (data.cards && Array.isArray(data.cards.dropHistory)) ? data.cards.dropHistory : [];
@@ -10677,34 +10645,20 @@
                     const ex = rewardPool.filter(id => id !== 'conversion_magic');
                     if (ex.length > 0) return ex[Math.floor(Math.random() * ex.length)];
                 }
-                const selectedCard = rewardPool[Math.floor(Math.random() * rewardPool.length)];
-                console.log('[getRandomRewardCard] 選択されたカード:', selectedCard);
-                return selectedCard;
+                return rewardPool[Math.floor(Math.random() * rewardPool.length)];
             }
             
-            console.log('[getRandomRewardCard] 報酬カードプールが空です');
             return null;
         }
         
         // カードをインベントリに追加
         function addCardToInventory(cardId) {
-            console.log('[addCardToInventory] カードID:', cardId);
-            
-            if (!cardId) {
-                console.log('[addCardToInventory] カードIDがnullです');
-                return;
-            }
+            if (!cardId) return;
             
             const data = loadData();
             const card = CARD_MASTER[cardId];
             
-            if (!card) {
-                console.log('[addCardToInventory] カードマスターにカードが見つかりません:', cardId);
-                return;
-            }
-            
-            console.log('[addCardToInventory] カードタイプ:', card.type);
-            console.log('[addCardToInventory] インベントリ追加前のカード数:', data.cards.inventory.length);
+            if (!card) return;
             
             if (card.type === 'reward') {
                 data.cards.inventory.push({
@@ -10719,8 +10673,6 @@
                 if (data.cards.dropHistory.length > 100) {
                     data.cards.dropHistory = data.cards.dropHistory.slice(0, 100);
                 }
-                
-                console.log('[addCardToInventory] インベントリ追加後のカード数:', data.cards.inventory.length);
             } else if (card.type === 'penalty') {
                 data.cards.pendingPenalties.push({
                     cardId: cardId,
@@ -10729,7 +10681,6 @@
             }
             
             saveData(data);
-            console.log('[addCardToInventory] データ保存完了');
         }
 
         // 達成率に基づいてカードを取得
