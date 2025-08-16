@@ -5,6 +5,7 @@
 // イベントチェック（毎日実行）
 function checkDailyEvents() {
     const data = loadData();
+    const now = new Date();
     // 機能停止中はイベント生成・通知を無効化
     if (typeof EVENTS_DISABLED !== 'undefined' && EVENTS_DISABLED) {
         if (!data.events) data.events = {};
@@ -123,14 +124,32 @@ function checkDailyEvents() {
             eventCount = 1;  // 強制イベント発生
             delete data.events.forcedEvents[todayStr];  // 使用済みにする
         } else {
-            // 通常のイベント個数を決定（0個:50%, 1個:45%, 2個:5%）
+            // ラッキーセブンが有効なら発生率を2倍相当へ（0:25% / 1:65% / 2:10%）
+            let hasLuckySeven = false;
+            try {
+                hasLuckySeven = !!(data.cards && Array.isArray(data.cards.activeEffects) &&
+                    data.cards.activeEffects.some(e => e && e.cardId === 'lucky_seven' && e.startDate && e.endDate &&
+                        new Date(e.startDate) <= now && new Date(e.endDate) >= now));
+            } catch(_) {}
+
             const eventRoll = Math.random();
-            if (eventRoll < 0.5) {
-                eventCount = 0;  // 50%の確率で0個
-            } else if (eventRoll < 0.95) {
-                eventCount = 1;  // 45%の確率で1個
+            if (hasLuckySeven) {
+                if (eventRoll < 0.25) {
+                    eventCount = 0;  // 25%
+                } else if (eventRoll < 0.90) {
+                    eventCount = 1;  // 65%
+                } else {
+                    eventCount = 2;  // 10%
+                }
             } else {
-                eventCount = 2;  // 5%の確率で2個
+                // 通常（0個:50%, 1個:45%, 2個:5%）
+                if (eventRoll < 0.5) {
+                    eventCount = 0;
+                } else if (eventRoll < 0.95) {
+                    eventCount = 1;
+                } else {
+                    eventCount = 2;
+                }
             }
         }
         
@@ -344,6 +363,10 @@ function updateEventDisplay() {
                     <div style="font-size: 10px; margin-top: 8px; color: #f59e0b;">
                         期間: 本日中
                     </div>
+                    ${boost.eventId === 'card_carnival' ? `
+                    <div style="margin-top:8px;">
+                        <button class="btn btn-secondary" onclick="window.openCardCarnivalModal && window.openCardCarnivalModal()" style="padding:6px 10px; font-size:12px;">✨ カード変化を実行</button>
+                    </div>` : ''}
                 </div>
             `).join('')}
         `;
@@ -356,4 +379,3 @@ window.checkMilestoneEvent = checkMilestoneEvent;
 window.showEventNotification = showEventNotification;
 window.showMilestoneNotification = showMilestoneNotification;
 window.updateEventDisplay = updateEventDisplay;
-

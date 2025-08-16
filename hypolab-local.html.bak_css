@@ -1,0 +1,2669 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>HypoLab - 習慣トラッカー</title>
+    
+    <!-- PWA対応 -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" href="icons/icon.svg" sizes="any" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="icons/icon.svg">
+    
+    <style>
+        /* リセット */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* CSS変数 - ダークテーマ（デフォルト） */
+        :root {
+            --primary: #10b981;
+            --secondary: #3b82f6;
+            --background: #0f172a;
+            --surface: #1e293b;
+            --surface-light: #334155;
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --border: rgba(255, 255, 255, 0.1);
+            --gradient-1: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+            --gradient-2: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
+            --gradient-3: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+            /* ヘッダーの高さ（JSで実測し更新） */
+            --header-height: 56px;
+            /* セーフエリア（iOS notch対応） */
+            --safe-top: env(safe-area-inset-top, 0px);
+        }
+
+        /* ライトテーマ - スタイリッシュで視認性の高い配色 */
+        :root.light-theme {
+            /* ブランド */
+            --primary: #16a34a; /* エメラルド */
+            --secondary: #0ea5e9; /* スカイ */
+            /* サーフェス */
+            --background: #f8fafc; /* クールなホワイト */
+            --surface: #ffffff;
+            --surface-light: #f1f5f9; /* ごく薄いグレー */
+            /* テキスト */
+            --text-primary: #0f172a; /* ほぼ黒に近い紺 */
+            --text-secondary: #475569; /* ミッドグレー */
+            /* 枠線・セパレーター */
+            --border: rgba(15, 23, 42, 0.06);
+            /* グラデーション（少しだけ鮮やかに） */
+            --gradient-1: linear-gradient(135deg, #22c55e 0%, #06b6d4 100%);
+            --gradient-2: linear-gradient(135deg, #a78bfa 0%, #f472b6 100%);
+            --gradient-3: linear-gradient(135deg, #fde047 0%, #fb7185 100%);
+            /* シャドウ（トークン） */
+            --shadow-1: 0 6px 16px rgba(15, 23, 42, 0.06);
+            --shadow-2: 0 12px 28px rgba(15, 23, 42, 0.08);
+            /* グラス効果 */
+            --glass-bg1: rgba(255, 255, 255, 0.55);
+            --glass-bg2: rgba(255, 255, 255, 0.35);
+            --glass-border: rgba(255, 255, 255, 0.44);
+            --glass-blur: 16px;
+        }
+
+        /* 基本スタイル */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            background: var(--background);
+            color: var(--text-primary);
+            overflow-x: hidden;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            touch-action: manipulation;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* ヘッダー */
+        .header {
+            background: var(--surface);
+            padding: 16px 20px;
+            padding-top: calc(16px + var(--safe-top));
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            min-height: var(--header-height);
+        }
+
+        /* ライトテーマのヘッダーは半透明白で軽さを出す */
+        :root.light-theme .header {
+            background: rgba(255, 255, 255, 0.85);
+            border-bottom-color: rgba(0, 0, 0, 0.06);
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .header-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 800;
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* ナビゲーションバー */
+        .nav {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            /* ヘッダー直下に吸着し、隙間をなくす */
+            top: var(--header-height);
+            z-index: 99;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+        
+        /* ライトテーマ用のナビゲーションスタイル */
+        :root.light-theme .nav {
+            background: rgba(255, 255, 255, 0.8);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        .nav-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            position: relative;
+        }
+
+        .nav-content::-webkit-scrollbar {
+            display: none;
+        }
+
+        .nav-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            padding: 16px 20px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* 旧: 個別下線は非表示にしてスライドインジケーターを使用 */
+        .nav-btn::after { display: none; }
+        
+        /* ライトテーマ用のナビボタンスタイル */
+        :root.light-theme .nav-btn {
+            font-weight: 500;
+        }
+        
+        :root.light-theme .nav-btn.active {
+            background: linear-gradient(135deg, rgba(52, 211, 153, 0.1), rgba(96, 165, 250, 0.1));
+            border-radius: 12px;
+        }
+
+        .nav-btn:hover {
+            color: var(--text-primary);
+        }
+
+        .nav-btn.active {
+            color: var(--text-primary);
+        }
+
+        .nav-btn.active::after {
+            width: 0;
+        }
+
+        /* スライドピル（下線インジケーター） */
+        .nav-indicator {
+            position: absolute;
+            bottom: 0;
+            height: 3px;
+            width: 0;
+            background: var(--gradient-1);
+            border-radius: 2px;
+            transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1), width 300ms cubic-bezier(0.22, 1, 0.36, 1);
+            will-change: transform, width;
+        }
+
+        /* メインコンテナ */
+        .container {
+            flex: 1;
+            /* 上部の余白をなくしてナビ直下に揃える */
+            padding: 0 20px 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* カード共通 */
+        .card {
+            background: var(--surface);
+            border-radius: 20px;
+            padding: 24px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border);
+            position: relative;
+            overflow: hidden;
+            box-sizing: border-box;
+            width: 100%;
+            transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 220ms ease;
+            will-change: transform;
+        }
+
+        /* ライトテーマはカードに控えめなシャドウ */
+        :root.light-theme .card {
+            box-shadow: 0 6px 16px rgba(17, 24, 39, 0.06);
+        }
+        
+        /* 統計パネル共通 */
+        .stat-panel {
+            box-sizing: border-box;
+            width: 100%;
+            overflow: hidden;
+        }
+        
+        .stats-grid {
+            box-sizing: border-box;
+            width: 100%;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--gradient-1);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .card:hover::before {
+            opacity: 1;
+        }
+
+        /* ボタン */
+        .btn {
+            background: var(--gradient-1);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 28px rgba(34, 197, 94, 0.22);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: var(--surface-light);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            transition: all 0.2s ease;
+        }
+
+        .btn-secondary:hover {
+            background: #475569;
+            box-shadow: 0 10px 30px rgba(71, 85, 105, 0.3);
+            border-color: var(--primary);
+        }
+
+        /* ライトテーマ時の微調整 */
+        :root.light-theme .btn-secondary {
+            background: var(--surface-light);
+            border-color: var(--border);
+        }
+        :root.light-theme .btn-secondary:hover {
+            background: #e7eef6;
+            border-color: rgba(15, 23, 42, 0.12);
+            box-shadow: var(--shadow-1);
+        }
+        :root.light-theme .progress-bar { background: #e5e7eb; }
+        :root.light-theme .card { 
+            background: linear-gradient(135deg, var(--glass-bg1), var(--glass-bg2)) !important;
+            border-color: var(--glass-border) !important; 
+            box-shadow: var(--shadow-1); 
+            backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+            -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+        }
+        :root.light-theme .card:hover { box-shadow: var(--shadow-2); }
+        :root.light-theme .stat-panel {
+            background: linear-gradient(135deg, var(--glass-bg1), var(--glass-bg2)) !important;
+            border-color: var(--glass-border) !important;
+            box-shadow: var(--shadow-1);
+            backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+            -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+        }
+
+        /* 習慣リスト */
+        .hypothesis-list {
+            display: grid;
+            gap: 16px;
+        }
+
+        .hypothesis-item {
+            background: var(--surface);
+            border-radius: 16px;
+            padding: 20px;
+            border: 1px solid var(--border);
+            transition: all 0.3s;
+            cursor: pointer;
+            position: relative;
+            user-select: none;
+        }
+
+        .hypothesis-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border-color: var(--primary);
+        }
+
+        /* デスクトップのみカードに軽い3Dチルト */
+        @media (hover: hover) and (pointer: fine) {
+            .card:hover {
+                transform: perspective(900px) rotateX(0.6deg) rotateY(0.6deg) translateY(-2px);
+            }
+        }
+
+        :root.light-theme .hypothesis-item:hover {
+            box-shadow: 0 10px 24px rgba(17, 24, 39, 0.08);
+            background: #ffffff;
+        }
+        
+        .hypothesis-item.deleting {
+            animation: pulse-delete 0.5s ease-in-out;
+            border-color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+        }
+        
+        @keyframes pulse-delete {
+            0% { transform: scale(1); }
+            50% { transform: scale(0.98); }
+            100% { transform: scale(1); }
+        }
+
+        .hypothesis-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .hypothesis-description {
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+            line-height: 1.5;
+        }
+
+        .hypothesis-meta {
+            display: flex;
+            gap: 16px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .hypothesis-days {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .hypothesis-progress {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* フォーム */
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        input, textarea {
+            width: 100%;
+            background: var(--background);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 12px 16px;
+            font-size: 16px;
+            color: var(--text-primary);
+            transition: all 0.3s;
+        }
+
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        /* シャッフル選択 */
+        .duration-selector {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .duration-option {
+            background: var(--surface-light);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .duration-option:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .duration-option.selected {
+            background: var(--gradient-1);
+            border-color: transparent;
+            color: white;
+        }
+
+        .duration-option h3 {
+            font-size: 18px;
+            margin-bottom: 4px;
+        }
+
+        .duration-option p {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        /* シャッフルアニメーション */
+        .shuffle-container {
+            text-align: center;
+            padding: 40px;
+            display: none;
+        }
+
+        .shuffle-number {
+            font-size: 80px;
+            font-weight: 800;
+            margin: 20px 0;
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        @keyframes shuffle {
+            0% { transform: scale(1) rotate(0deg); opacity: 1; }
+            50% { transform: scale(1.2) rotate(180deg); opacity: 0.5; }
+            100% { transform: scale(1) rotate(360deg); opacity: 1; }
+        }
+
+        .shuffling {
+            animation: shuffle 0.3s ease-in-out;
+        }
+
+        @keyframes slideIn {
+            0% { 
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            100% { 
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* カレンダー */
+        .calendar-container {
+            background: var(--surface);
+            border-radius: 20px;
+            padding: 24px;
+            margin-bottom: 20px;
+            overflow-x: auto;
+        }
+
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .calendar-title {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(40px, 1fr));
+            gap: 8px;
+            min-width: 320px;
+            position: relative;
+        }
+        
+        .week-info {
+            grid-column: 1 / -1;
+            padding: 6px 12px;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(59, 130, 246, 0.1));
+            border-radius: 8px;
+            margin: 4px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            font-weight: 600;
+            border: 1px solid var(--border);
+        }
+        
+        .week-info .progress {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .week-info .progress-bar {
+            width: 80px;
+            height: 6px;
+            background: var(--surface-dark);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        
+        .week-info .progress-fill {
+            height: 100%;
+            background: var(--gradient-1);
+            transition: width 0.3s ease;
+        }
+
+        @media (max-width: 640px) {
+            .calendar-grid {
+                gap: 4px;
+            }
+        }
+
+        .day-cell {
+            aspect-ratio: 1;
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+            padding: 5px;
+        }
+        
+        .day-cell small {
+            font-size: 12px;
+            font-weight: 400;
+            color: var(--text-secondary);
+            line-height: 1;
+        }
+
+        .day-cell::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: rgba(255, 255, 255, 0.05);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .day-cell:hover::before {
+            opacity: 1;
+        }
+
+        .day-cell.achieved {
+            background: var(--gradient-1);
+            color: white;
+            position: relative;
+            animation: achievedPulse 0.5s ease-out;
+        }
+
+        @keyframes achievedPulse {
+            0% { 
+                transform: scale(0.8) rotate(0deg);
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+            }
+            25% {
+                transform: scale(1.3) rotate(90deg);
+                box-shadow: 0 0 20px 10px rgba(16, 185, 129, 0.3);
+            }
+            50% { 
+                transform: scale(1.1) rotate(180deg);
+                box-shadow: 0 0 30px 20px rgba(16, 185, 129, 0.1);
+            }
+            75% {
+                transform: scale(1.2) rotate(270deg);
+                box-shadow: 0 0 10px 30px rgba(16, 185, 129, 0);
+            }
+            100% { 
+                transform: scale(1) rotate(360deg);
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+            }
+        }
+
+        .day-cell.achieved::after {
+            content: '✨';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            animation: sparkle 1s ease-in-out;
+        }
+
+        @keyframes sparkle {
+            0% {
+                transform: scale(0) rotate(0deg) translateY(0);
+                opacity: 0;
+            }
+            25% {
+                transform: scale(1.8) rotate(90deg) translateY(-10px);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.5) rotate(180deg) translateY(-5px);
+                opacity: 1;
+            }
+            75% {
+                transform: scale(1.3) rotate(270deg) translateY(-8px);
+                opacity: 0.8;
+            }
+            100% {
+                transform: scale(1) rotate(360deg) translateY(0);
+                opacity: 1;
+            }
+        }
+
+        /* カードスタイル */
+        .card-item {
+            background: var(--surface);
+            border: 2px solid var(--border);
+            border-radius: 16px;
+            padding: 16px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .card-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .card-item.reward {
+            border-color: var(--primary);
+        }
+
+        .card-item.penalty {
+            border-color: #ef4444;
+        }
+
+        .card-icon {
+            font-size: 36px;
+            margin-bottom: 8px;
+        }
+
+        .card-name {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .card-description {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .card-count {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: var(--primary);
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 12px;
+        }
+
+        @keyframes cardFlip {
+            0% {
+                transform: rotateY(0deg) scale(0.8);
+                opacity: 0;
+            }
+            50% {
+                transform: rotateY(180deg) scale(1.2);
+            }
+            100% {
+                transform: rotateY(360deg) scale(1);
+                opacity: 1;
+            }
+        }
+
+        .card-reveal {
+            animation: cardFlip 0.8s ease-out;
+        }
+
+        /* ペナルティエフェクト */
+        @keyframes penaltyShake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-10px); }
+            20%, 40%, 60%, 80% { transform: translateX(10px); }
+        }
+
+        .penalty-effect {
+            animation: penaltyShake 0.5s ease-out;
+            border: 3px solid #ef4444 !important;
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
+        }
+
+        /* 努力ボーナスボタンのエフェクト */
+        @keyframes effortPulse {
+            0% {
+                transform: scale(1);
+                box-shadow: 0 0 0 rgba(16, 185, 129, 0);
+            }
+            50% {
+                transform: scale(1.05);
+                box-shadow: 0 0 20px rgba(16, 185, 129, 0.5);
+            }
+            100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 rgba(16, 185, 129, 0);
+            }
+        }
+
+        @keyframes effortStar {
+            0% {
+                transform: translateY(0) rotate(0deg) scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-50px) rotate(360deg) scale(0);
+                opacity: 0;
+            }
+        }
+
+        .effort-click-effect {
+            animation: effortPulse 0.4s ease-out;
+        }
+
+        .effort-star-particle {
+            position: absolute;
+            font-size: 20px;
+            pointer-events: none;
+            animation: effortStar 0.8s ease-out forwards;
+            z-index: 1000;
+        }
+
+        .day-cell.not-achieved {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-secondary);
+        }
+
+        .day-cell.future {
+            background: rgba(255, 255, 255, 0.02);
+            color: var(--text-secondary);
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* 進捗表示 */
+        .progress-container {
+            background: var(--surface);
+            border-radius: 20px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .progress-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .progress-percentage {
+            font-size: 36px;
+            font-weight: 800;
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .progress-bar {
+            background: var(--surface-light);
+            height: 12px;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--gradient-1);
+            transition: width 0.5s ease-out;
+        }
+
+        .progress-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        /* モーダル */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+
+        .modal-content {
+            background: var(--surface);
+            border-radius: 24px;
+            padding: 32px;
+            max-width: 500px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .modal-title {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            padding: 8px;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+
+        .close-btn:hover {
+            background: var(--surface-light);
+            color: var(--text-primary);
+        }
+
+        /* 達成アニメーション */
+        .achievement-animation {
+            position: fixed;
+            font-size: 60px;
+            z-index: 2000;
+            pointer-events: none;
+            animation: achievementBurst 2s ease-out forwards;
+        }
+
+        @keyframes achievementBurst {
+            0% {
+                transform: scale(0) rotate(0deg);
+                opacity: 0;
+            }
+            20% {
+                transform: scale(1.5) rotate(180deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateX(calc(var(--endX) - var(--startX))) 
+                         translateY(calc(var(--endY) - var(--startY))) 
+                         scale(0.8) 
+                         rotate(720deg);
+                opacity: 0;
+            }
+        }
+
+        /* 完了オプション */
+        .completion-options {
+            background: var(--gradient-1);
+            border-radius: 20px;
+            padding: 24px;
+            margin-bottom: 20px;
+            text-align: center;
+            display: none;
+        }
+
+        .completion-options h3 {
+            font-size: 24px;
+            margin-bottom: 16px;
+            color: white;
+        }
+
+        .completion-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .completion-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .completion-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        /* 履歴 */
+        .history-item {
+            background: var(--surface);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 12px;
+            border: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .history-info h4 {
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+
+        .history-meta {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .achievement-badge {
+            font-size: 32px;
+            font-weight: 800;
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* スワイプインジケーター */
+        .swipe-hint {
+            position: fixed;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 40px;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 2000;
+            animation: swipeHint 0.5s ease-out;
+        }
+        
+        .swipe-hint.left {
+            left: 20px;
+        }
+        
+        .swipe-hint.right {
+            right: 20px;
+        }
+        
+        @keyframes swipeHint {
+            0% {
+                opacity: 0;
+                transform: translateY(-50%) scale(0.5);
+            }
+            50% {
+                opacity: 0.8;
+                transform: translateY(-50%) scale(1.2);
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(-50%) scale(1);
+            }
+        }
+
+        /* 頻度選択のスタイル */
+        .frequency-option {
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .frequency-option input[type="radio"] {
+            position: absolute;
+            opacity: 0;
+        }
+        
+        .frequency-option input[type="radio"]:checked + label {
+            background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+            color: white;
+            font-weight: 600;
+        }
+        
+        .frequency-option label {
+            display: block;
+            padding: 16px 20px;
+            background: var(--surface-light);
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .frequency-option label:hover {
+            background: rgba(59, 130, 246, 0.1);
+            transform: translateY(-2px);
+        }
+        
+        .weekday-option {
+            position: relative;
+        }
+        
+        .weekday-option input[type="checkbox"] {
+            position: absolute;
+            opacity: 0;
+        }
+        
+        .weekday-option input[type="checkbox"]:checked + label {
+            background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+            color: white;
+            transform: scale(1.05);
+        }
+        
+        .weekday-option label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px;
+            background: var(--surface-light);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-height: 48px;
+        }
+        
+        .weekday-option label:hover {
+            background: rgba(59, 130, 246, 0.1);
+            transform: translateY(-2px);
+        }
+
+        /* レスポンシブ */
+        @media (max-width: 768px) {
+            .container {
+                padding: 0 12px 100px; /* 上部パディングを削除、フッター分の余白は維持 */
+            }
+            
+            .card {
+                padding: 16px;
+                border-radius: 16px;
+            }
+            
+            .btn {
+                padding: 16px 24px;
+                font-size: 16px;
+                min-height: 48px; /* タッチターゲットの最小サイズ */
+            }
+            
+            .nav-btn {
+                padding: 16px 16px;
+                font-size: 14px;
+            }
+            
+            .duration-selector {
+                grid-template-columns: 1fr;
+            }
+            
+            .duration-option {
+                padding: 24px;
+                min-height: 80px;
+            }
+            
+            .calendar-grid {
+                gap: 4px;
+            }
+            
+            .day-cell {
+                font-size: 14px;
+                padding: 3px;
+                min-height: 44px;
+                min-width: 44px;
+            }
+            
+            .day-cell small {
+                font-size: 10px;
+            }
+            
+            .progress-percentage {
+                font-size: 28px;
+            }
+            
+            .hypothesis-item {
+                padding: 16px;
+                margin-bottom: 12px;
+            }
+            
+            input, textarea {
+                padding: 14px 16px;
+                font-size: 16px; /* iOS のズーム防止 */
+            }
+            
+            .header {
+                padding: 12px 16px;
+            }
+            
+            h1 {
+                font-size: 20px;
+            }
+            
+            .stats-grid {
+                gap: 12px;
+            }
+            
+            .stat-card {
+                padding: 16px !important;
+            }
+        }
+
+        @media (max-width: 480px) {
+            h1 {
+                font-size: 22px;
+            }
+            
+            .day-cell {
+                font-size: 12px;
+                padding: 2px;
+            }
+            
+            .day-cell small {
+                font-size: 9px;
+            }
+            
+            .shuffle-number {
+                font-size: 60px;
+            }
+        }
+
+        /* アニメーション */
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .slide-in {
+            animation: slideIn 0.5s ease-out;
+        }
+        
+        /* カードエフェクトアニメーション */
+        @keyframes cardEffectAnimation {
+            0% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.5);
+            }
+            20% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1.1);
+            }
+            80% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.9);
+            }
+        }
+        
+        /* パルスアニメーション */
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+                box-shadow: 0 4px 20px rgba(245, 158, 11, 0.3);
+            }
+            50% {
+                transform: scale(1.05);
+                box-shadow: 0 4px 30px rgba(245, 158, 11, 0.5);
+            }
+            100% {
+                transform: scale(1);
+                box-shadow: 0 4px 20px rgba(245, 158, 11, 0.3);
+            }
+        }
+        
+        /* スキップモーダル */
+        .skip-modal {
+            background: var(--surface);
+            padding: 32px;
+            border-radius: 20px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+        }
+        
+        .skip-modal .modal-header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        
+        .skip-modal .modal-header h3 {
+            font-size: 24px;
+            margin-bottom: 12px;
+        }
+        
+        .skip-modal .modal-header p {
+            color: var(--text-secondary);
+            font-size: 16px;
+        }
+        
+        .skip-dates {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 10px 0;
+            margin-bottom: 24px;
+        }
+        
+        .date-button {
+            flex: 0 0 calc(50% - 5px);
+            padding: 12px;
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid #334155;
+            color: #e2e8f0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 16px;
+            font-weight: 500;
+        }
+        
+        .date-button:hover {
+            background: rgba(51, 65, 85, 0.5);
+            transform: translateY(-1px);
+        }
+        
+        .date-button.selected {
+            background: #10b981;
+            border-color: #10b981;
+            color: white;
+        }
+        
+        .modal-footer {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+        
+        .modal-footer .button {
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            font-size: 16px;
+        }
+        
+        .modal-footer .button.primary {
+            background: var(--primary);
+            color: white;
+        }
+        
+        .modal-footer .button.primary:hover:not(:disabled) {
+            background: #0ea567;
+            transform: translateY(-1px);
+        }
+        
+        .modal-footer .button.primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .modal-footer .button.secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+        
+        .modal-footer .button.secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+        
+        /* オーバーレイ */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+        }
+        
+        .overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        /* アニメーション */
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+
+        /* ===== モバイル最適化（統計ビュー） ===== */
+        @media (max-width: 480px) {
+            .stats-grid { 
+                grid-template-columns: 1fr 1fr !important; 
+                gap: 4px !important; 
+                padding: 0 !important;
+                width: 100% !important;
+                margin: 0 !important;
+                box-sizing: border-box !important;
+            }
+            .stat-value { 
+                font-size: 16px !important;
+                word-break: break-all !important;
+                line-height: 1.2 !important;
+            }
+            .stat-label {
+                font-size: 9px !important;
+                line-height: 1.2 !important;
+                word-wrap: break-word !important;
+            }
+            .stat-card {
+                padding: 6px !important;
+                min-width: 0 !important;
+                overflow: hidden !important;
+                box-sizing: border-box !important;
+            }
+            .stat-panel {
+                padding: 8px !important;
+            }
+            .stat-panel h3 {
+                font-size: 13px !important;
+                margin-bottom: 6px !important;
+            }
+            #stats-view .btn {
+                font-size: 10px !important;
+                padding: 6px 8px !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+            #stats-view {
+                padding: 4px !important;
+                overflow-x: hidden !important;
+                overflow-y: auto !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+                -webkit-overflow-scrolling: touch !important;
+                touch-action: pan-y !important;
+            }
+            #stats-view .card {
+                padding: 8px !important;
+                margin: 0 !important;
+                overflow-x: hidden !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+            #donut-intensity {
+                width: 80px !important;
+                height: 80px !important;
+            }
+            #donut-legend {
+                font-size: 9px !important;
+            }
+            #weekday-stats {
+                display: flex !important;
+                flex-wrap: nowrap !important;
+                overflow-x: auto !important;
+                gap: 2px !important;
+                padding-bottom: 4px !important;
+                -webkit-overflow-scrolling: touch !important;
+                justify-content: space-between !important;
+            }
+            #weekday-stats > div {
+                flex: 1 1 calc(14% - 2px) !important;
+                min-width: 38px !important;
+                max-width: 50px !important;
+            }
+            .achievement-chart {
+                gap: 6px !important;
+            }
+            #badge-collection {
+                grid-template-columns: repeat(3, 1fr) !important;
+                gap: 4px !important;
+            }
+            #badge-collection > div {
+                font-size: 9px !important;
+                padding: 4px !important;
+                min-height: 65px !important;
+            }
+            #badge-collection > div > div:first-child {
+                font-size: 24px !important;
+            }
+            #achievement-level-distribution > div {
+                margin-bottom: 6px !important;
+            }
+            #achievement-level-distribution .stage-name {
+                font-size: 10px !important;
+            }
+            #ranking-list .ranking-item {
+                font-size: 11px !important;
+                padding: 6px !important;
+            }
+            #achievement-level-distribution { grid-template-columns: 1fr !important; }
+            #badge-collection { grid-template-columns: repeat(3, 1fr) !important; gap: 8px !important; }
+            .achievement-chart { gap: 12px !important; }
+        }
+
+        /* ===== モバイル最適化（全体） ===== */
+        @media (max-width: 480px) {
+            .header { padding: 12px 16px; }
+            h1 { font-size: 20px; }
+            .nav-content { padding: 0 12px; }
+            .nav-btn { padding: 12px 12px; font-size: 14px; }
+            .nav-btn::after { height: 2px; }
+            .container { padding: 0 12px 16px; }
+            .card { padding: 16px; border-radius: 16px; }
+            .btn { padding: 12px 16px; font-size: 15px; }
+            .progress-percentage { font-size: 28px; }
+            .progress-bar { height: 10px; }
+            label { font-size: 14px; }
+            input, textarea { font-size: 15px; }
+            
+            /* バッジ表示を確実に3列にする
+               display に !important を付けるとトグルが効かなくなるため、
+               ここでは列レイアウトのみを強制し display は指定しない */
+            #badge-collection {
+                grid-template-columns: repeat(3, 1fr) !important;
+                gap: 4px !important;
+            }
+        }
+    
+    /* ===== 共通: 非表示制御 ===== */
+    .is-hidden { display: none !important; }
+
+    /* ===== Light: 今日のジャーナル/統計の背景を上品に ===== */
+    :root.light-theme #daily-journal-section {
+        background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(168, 85, 247, 0.06)) !important;
+        border-color: rgba(255, 255, 255, 0.5) !important;
+        backdrop-filter: blur(var(--glass-blur)) saturate(120%) !important;
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(120%) !important;
+        box-shadow: var(--shadow-1) !important;
+    }
+    :root.light-theme #journal-stats-section {
+        background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(168, 85, 247, 0.06)) !important;
+        border-color: rgba(255, 255, 255, 0.5) !important;
+        backdrop-filter: blur(var(--glass-blur)) saturate(120%) !important;
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(120%) !important;
+        box-shadow: var(--shadow-1) !important;
+    }
+    :root.light-theme #active-events {
+        background: linear-gradient(135deg, rgba(251, 191, 36, 0.06), rgba(245, 158, 11, 0.06)) !important;
+        border-color: rgba(255, 255, 255, 0.5) !important;
+        backdrop-filter: blur(var(--glass-blur)) saturate(120%) !important;
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(120%) !important;
+        box-shadow: var(--shadow-1) !important;
+    }
+
+    /* ===== FAB: クイックアクション（モバイル向け） ===== */
+    .fab-container {
+        position: fixed;
+        right: 16px;
+        bottom: 24px;
+        z-index: 1200;
+    }
+    .fab-main {
+        width: 56px; height: 56px; border-radius: 28px;
+        display: flex; align-items: center; justify-content: center;
+        background: linear-gradient(135deg, var(--glass-bg1), var(--glass-bg2));
+        border: 1px solid var(--glass-border);
+        backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+        box-shadow: var(--shadow-2);
+        color: var(--text-primary);
+        font-size: 24px; cursor: pointer;
+        transition: transform 0.2s ease;
+    }
+    .fab-main:active { transform: scale(0.95); }
+    .fab-menu { position: absolute; bottom: 70px; right: 0; display: grid; gap: 10px; }
+    .fab-item { 
+        display: flex; align-items: center; gap: 10px; 
+        transform: translateY(10px); opacity: 0; pointer-events: none;
+        transition: transform 220ms ease, opacity 220ms ease; 
+    }
+    .fab-badge {
+        padding: 8px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--text-primary);
+        background: linear-gradient(135deg, var(--glass-bg1), var(--glass-bg2)); border: 1px solid var(--glass-border);
+        backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+        box-shadow: var(--shadow-1);
+    }
+    .fab-btn {
+        width: 44px; height: 44px; border-radius: 22px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 18px;
+        background: var(--primary); color: white; border: none; box-shadow: var(--shadow-1);
+    }
+    .fab-container.open .fab-item { transform: translateY(0); opacity: 1; pointer-events: auto; }
+    .fab-item:nth-child(1) { transition-delay: 0ms; }
+    .fab-item:nth-child(2) { transition-delay: 40ms; }
+    .fab-item:nth-child(3) { transition-delay: 80ms; }
+
+    /* ===== Celebration: Confetti + Mini Modal ===== */
+    @keyframes confettiFall {
+        0% { transform: translateY(-20vh) rotate(0deg); opacity: 0; }
+        10% { opacity: 1; }
+        100% { transform: translateY(80vh) rotate(360deg); opacity: 0; }
+    }
+    .confetti { position: fixed; top: 0; left: 0; width: 8px; height: 12px; border-radius: 2px; z-index: 2000; }
+    .mini-modal {
+        position: fixed; left: 50%; top: 18%; transform: translateX(-50%);
+        background: linear-gradient(135deg, var(--glass-bg1), var(--glass-bg2));
+        border: 1px solid var(--glass-border); backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+        padding: 14px 16px; border-radius: 16px; box-shadow: var(--shadow-2); z-index: 2100;
+        text-align: center; color: var(--text-primary); min-width: 220px;
+        animation: fadeUp 260ms ease;
+    }
+    .mini-modal .title { font-weight: 800; margin-bottom: 6px; font-size: 16px; }
+    .mini-modal .desc { font-size: 13px; opacity: 0.85; }
+    .mini-modal .actions { display: flex; gap: 8px; justify-content: center; margin-top: 10px; }
+    .mini-modal .actions button { 
+        padding: 6px 10px; font-size: 12px; border-radius: 999px; border: none; cursor: pointer; 
+        background: var(--primary); color: white; box-shadow: var(--shadow-1);
+    }
+    @keyframes fadeUp { from { opacity: 0; transform: translate(-50%, -6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+    /* バッジショーケース */
+    @keyframes popIn { 0% { transform: translate(-50%, -50%) scale(0.8); opacity:0; } 100% { transform: translate(-50%, -50%) scale(1); opacity:1; } }
+    .badge-showcase {
+        position: fixed; left: 50%; top: 40%; transform: translate(-50%, -50%);
+        background: linear-gradient(135deg, var(--glass-bg1), var(--glass-bg2));
+        border: 1px solid var(--glass-border); border-radius: 20px; padding: 18px 20px; 
+        box-shadow: var(--shadow-2); z-index: 2200; text-align: center; color: var(--text-primary);
+        width: 200px; animation: popIn 180ms ease;
+    }
+    .badge-showcase .emoji { font-size: 56px; line-height: 1; }
+    .badge-showcase .name { margin-top: 6px; font-weight: 800; font-size: 16px; }
+
+    /* ハイライトユーティリティ */
+    @keyframes pulseBorder { 0% { box-shadow: 0 0 0 0 rgba(99,102,241,0.4);} 100%{ box-shadow: 0 0 0 12px rgba(99,102,241,0);} }
+    .pulse-highlight { animation: pulseBorder 1.2s ease-out 2; }
+
+    /* ===== Edge Nubs: 左右の小さな突起（ページ移動） ===== */
+    .edge-nub { 
+        position: fixed; top: 50%; transform: translateY(-50%);
+        width: 26px; height: 56px; display: flex; align-items: center; justify-content: center;
+        background: linear-gradient(135deg, var(--glass-bg1), var(--glass-bg2));
+        border: 1px solid var(--glass-border);
+        backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+        box-shadow: var(--shadow-1);
+        color: var(--text-primary); font-size: 18px; z-index: 1200;
+        opacity: 0.6; transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+    .edge-nub:active { transform: translateY(-50%) scale(0.96); opacity: 0.9; }
+    .edge-nub.left { left: 0; border-radius: 0 12px 12px 0; }
+    .edge-nub.right { right: 0; border-radius: 12px 0 0 12px; }
+    </style>
+</head>
+<body>
+    <!-- ヘッダー -->
+    <header class="header">
+        <div class="header-content">
+            <div class="header-logo">
+                <h1>🧪 HypoLab</h1>
+            </div>
+            <!-- テーマ切り替えボタンとポイント表示 -->
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <!-- テーマ切り替えボタン -->
+                <button id="theme-toggle" onclick="toggleTheme()" style="
+                    background: var(--surface-light);
+                    border: 1px solid var(--border);
+                    border-radius: 12px;
+                    padding: 8px 12px;
+                    color: var(--text-primary);
+                    cursor: pointer;
+                    font-size: 20px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    transition: all 0.3s ease;
+                " title="テーマを切り替え">
+                    <span id="theme-icon">🌙</span>
+                </button>
+                <!-- ポイント表示 -->
+                <div id="point-display" style="
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1));
+                padding: 8px 16px;
+                border-radius: 12px;
+                border: 1px solid rgba(251, 191, 36, 0.3);
+                cursor: pointer;
+                position: relative;
+            " onclick="showLevelProgress()">
+                <span class="point-amount" style="font-weight: bold; color: #fbbf24;">💰 0pt</span>
+                <span class="level-info" style="font-size: 12px; color: var(--text-secondary);">Lv.1 初心者</span>
+            </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ナビゲーションバー -->
+    <nav class="nav">
+        <div class="nav-content">
+            <button class="nav-btn active" onclick="showHomeView()" data-view="home">
+                <span style="font-size: 18px;">🏠</span> ホーム
+            </button>
+            <button class="nav-btn" onclick="showPointsView()" data-view="points">
+                <span style="font-size: 18px;">💰</span> ポイント
+            </button>
+            <button class="nav-btn" onclick="showCardsView()" data-view="cards">
+                <span style="font-size: 18px;">🎴</span> カード
+            </button>
+            <button class="nav-btn" onclick="showStatsView()" data-view="stats">
+                <span style="font-size: 18px;">📊</span> 統計
+            </button>
+            <button class="nav-btn" onclick="showHistoryView()" data-view="history">
+                <span style="font-size: 18px;">📚</span> 履歴
+            </button>
+            <div class="nav-indicator" id="nav-indicator"></div>
+        </div>
+        <!-- ページインジケーター -->
+        <div class="page-indicator" style="position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px;">
+            <span class="dot active" data-page="0" style="width: 6px; height: 6px; background: var(--primary); border-radius: 50%; transition: all 0.3s;"></span>
+            <span class="dot" data-page="1" style="width: 6px; height: 6px; background: var(--surface-light); border-radius: 50%; transition: all 0.3s;"></span>
+            <span class="dot" data-page="2" style="width: 6px; height: 6px; background: var(--surface-light); border-radius: 50%; transition: all 0.3s;"></span>
+            <span class="dot" data-page="3" style="width: 6px; height: 6px; background: var(--surface-light); border-radius: 50%; transition: all 0.3s;"></span>
+            <span class="dot" data-page="4" style="width: 6px; height: 6px; background: var(--surface-light); border-radius: 50%; transition: all 0.3s;"></span>
+        </div>
+    </nav>
+
+    <!-- FAB: クイックアクション -->
+    <div class="fab-container" id="fab">
+        <div class="fab-menu">
+            <div class="fab-item" id="fab-action-habit">
+                <div class="fab-badge">新しい習慣</div>
+                <button class="fab-btn" onclick="showNewHypothesisView()">➕</button>
+            </div>
+            <div class="fab-item" id="fab-action-journal">
+                <div class="fab-badge">今日のジャーナル</div>
+                <button class="fab-btn" onclick="openJournalModal()">📝</button>
+            </div>
+            <div class="fab-item" id="fab-action-reward">
+                <div class="fab-badge">報酬</div>
+                <button class="fab-btn" onclick="(function(){ showPointsView(); setTimeout(showRewardsTab, 50); })()">💎</button>
+            </div>
+            <div class="fab-item" id="fab-action-reward-use">
+                <div class="fab-badge">報酬を使う</div>
+                <button class="fab-btn" onclick="openRewardsUseFlow()">🎁</button>
+            </div>
+        </div>
+        <button class="fab-main" id="fab-main" aria-label="Quick actions" onclick="toggleFab()">＋</button>
+    </div>
+
+    <!-- Edge Nubs: 左右の小さな突起（ページ移動） -->
+    <button class="edge-nub left" id="edge-nub-left" aria-label="前のページへ" onclick="navigateToPreviousView()">‹</button>
+    <button class="edge-nub right" id="edge-nub-right" aria-label="次のページへ" onclick="navigateToNextView()">›</button>
+
+    <!-- メインコンテナ -->
+    <div class="container">
+        <!-- ホーム画面 -->
+        <div id="home-view">
+            <!-- イベント通知セクション -->
+            <div id="active-events" class="card" style="margin-bottom: 16px; background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1)); border: 1px solid rgba(251, 191, 36, 0.3); display: none;">
+                <!-- 動的に生成 -->
+            </div>
+            
+            <!-- デイリージャーナルセクション -->
+            <div class="card" id="daily-journal-section" style="margin-bottom: 16px; background: linear-gradient(135deg, rgba(168, 85, 247, 0.1), rgba(59, 130, 246, 0.1)); border: 1px solid rgba(168, 85, 247, 0.3);">
+                <h3 style="margin-bottom: 12px; font-size: 16px;">📔 今日のジャーナル</h3>
+                <div id="journal-status" style="margin-bottom: 12px;">
+                    <!-- 動的に生成 -->
+                </div>
+                <button class="btn btn-primary" onclick="openJournalModal()" style="width: 100%; padding: 10px; font-size: 14px; background: linear-gradient(135deg, #a855f7 0%, #3b82f6 100%);">
+                    📝 記録する
+                </button>
+            </div>
+            
+            <!-- 努力ボーナスセクション -->
+            <div class="card" style="margin-bottom: 16px; background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(59, 130, 246, 0.1)); border: 1px solid rgba(16, 185, 129, 0.3);">
+                <h3 style="margin-bottom: 12px; font-size: 16px;">今日の努力ボーナス</h3>
+                <div id="effort-bonus-plans" style="margin-bottom: 12px;">
+                    <!-- 予定された努力ボーナスがここに表示される -->
+                </div>
+                <button class="btn btn-secondary" id="effort-bonus-btn" onclick="handleEffortBonusClick(event); showEffortBonusDialog()" style="padding: 8px 16px; font-size: 14px; position: relative; overflow: visible;">
+                    💪 目標を追加する (+1-3pt)
+                </button>
+            </div>
+            
+            
+            <!-- チャレンジセクション -->
+            <div class="card" style="margin-bottom: 16px; background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(236, 72, 153, 0.1)); border: 1px solid rgba(139, 92, 246, 0.3);">
+                <h3 style="margin-bottom: 12px; font-size: 16px;">🎯 今日のチャレンジ</h3>
+                <div id="daily-challenge-container" style="margin-bottom: 12px;">
+                    <!-- 動的に生成 -->
+                </div>
+                <div id="weekly-challenge-container" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(139, 92, 246, 0.2);">
+                    <h4 style="margin-bottom: 8px; font-size: 14px; color: var(--text-secondary);">📅 今週のチャレンジ</h4>
+                    <!-- 動的に生成 -->
+                </div>
+            </div>
+            
+            <div class="card">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                    <h2>現在の習慣</h2>
+                    <!-- カテゴリフィルター -->
+                    <select id="category-filter" onchange="filterHabitsByCategory()" style="
+                        padding: 6px 12px;
+                        border: 1px solid var(--border);
+                        border-radius: 8px;
+                        background: var(--surface);
+                        color: var(--text-primary);
+                        font-size: 14px;
+                        cursor: pointer;
+                    ">
+                        <!-- カテゴリオプションは動的に生成 -->
+                    </select>
+                </div>
+                <div id="current-hypothesis-list" class="hypothesis-list">
+                    <!-- 動的に生成 -->
+                </div>
+                <button class="btn" onclick="showNewHypothesisView()" style="margin-top: 16px;">
+                    ➕ 新規習慣立案
+                </button>
+            </div>
+            
+            
+        </div>
+
+        <!-- 新規習慣作成画面 -->
+        <div id="new-hypothesis-view" style="display: none;">
+            <div class="card">
+                <h2 style="margin-bottom: 24px;">新規習慣立案</h2>
+                <form onsubmit="createHypothesis(event)">
+                    <div class="form-group">
+                        <label for="hypothesis-title">習慣タイトル</label>
+                        <input type="text" id="hypothesis-title" required placeholder="例: 毎日10分の瞑想" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="hypothesis-description">習慣の詳細</label>
+                        <textarea id="hypothesis-description" required placeholder="この習慣で何を実現したいか詳しく記述してください" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="hypothesis-category">カテゴリー</label>
+                        <select id="hypothesis-category" required>
+                            <!-- カテゴリオプションは動的に生成 -->
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="hypothesis-benefit">朝の1行宣言（⭕️に入れる言葉）</label>
+                        <input type="text" id="hypothesis-benefit" required placeholder="例: 集中力が上がる" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+                        <small style="color: var(--text-secondary);">宣言文: 「この習慣を実証することで（この入力）が実現する」</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>IF-THEN ルール</label>
+                        <div id="ifthen-list" style="display:grid; gap:8px; margin-bottom:8px;"></div>
+                        <button type="button" class="btn btn-secondary" onclick="addIfThenRow()">＋ IF-THEN を追加</button>
+                        <small style="color: var(--text-secondary); display:block; margin-top:6px;">形式: もし（トリガー）なら（行動）する</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>開始日を選択</label>
+                        <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+                            <button type="button" class="btn btn-secondary" onclick="setStartDate('today')" id="start-today-btn" style="flex: 1; padding: 12px; background: var(--primary); color: white;">
+                                今日から開始
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="showDatePicker()" id="start-later-btn" style="flex: 1; padding: 12px;">
+                                日付を指定
+                            </button>
+                        </div>
+                        <input type="date" id="habit-start-date" style="display: none; width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface);" onchange="updateStartDateDisplay()">
+                        <div id="start-date-display" style="padding: 8px 12px; background: var(--surface-light); border-radius: 8px; margin-bottom: 12px; display: none;">
+                            <span style="color: var(--text-secondary); font-size: 14px;">開始日: </span>
+                            <span id="selected-start-date" style="font-weight: 600;"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>検証期間を選択</label>
+                        <div class="duration-selector" id="duration-selector">
+                            <div class="duration-option" onclick="selectDuration('short')" data-duration="short">
+                                <h3>短期間</h3>
+                                <p id="duration-short-text">3〜7日</p>
+                            </div>
+                            <div class="duration-option" onclick="selectDuration('medium')" data-duration="medium">
+                                <h3>中期間</h3>
+                                <p id="duration-medium-text">8〜14日</p>
+                            </div>
+                            <div class="duration-option" onclick="selectDuration('long')" data-duration="long">
+                                <h3>長期間</h3>
+                                <p id="duration-long-text">15〜30日</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>実施頻度を選択</label>
+                        <div style="display: grid; gap: 12px; margin-top: 12px;">
+                            <!-- 毎日 -->
+                            <div class="frequency-option">
+                                <input type="radio" id="freq-daily" name="frequency" value="daily" checked>
+                                <label for="freq-daily">
+                                    <div style="font-weight: 600; margin-bottom: 4px;">毎日</div>
+                                    <div style="font-size: 12px; opacity: 0.8;">すべての日で実施します</div>
+                                </label>
+                            </div>
+                            
+                            <!-- 週に◯回 -->
+                            <div class="frequency-option">
+                                <input type="radio" id="freq-weekly" name="frequency" value="weekly">
+                                <label for="freq-weekly">
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <span style="font-weight: 600;">週に</span>
+                                        <input type="number" id="weekly-count" min="1" max="7" value="3" 
+                                               style="width: 50px; padding: 4px 8px; border: 1px solid var(--border); 
+                                                      border-radius: 6px; background: var(--surface); text-align: center;" 
+                                               onclick="event.stopPropagation(); document.getElementById('freq-weekly').click();">
+                                        <span style="font-weight: 600;">回</span>
+                                    </div>
+                                    <div style="font-size: 12px; opacity: 0.8; margin-top: 4px;">1週間あたりの実施回数を指定</div>
+                                </label>
+                            </div>
+                            
+                            <!-- 特定の曜日 -->
+                            <div class="frequency-option">
+                                <input type="radio" id="freq-weekdays" name="frequency" value="weekdays">
+                                <label for="freq-weekdays">
+                                    <div style="font-weight: 600; margin-bottom: 4px;">特定の曜日</div>
+                                    <div style="font-size: 12px; opacity: 0.8;">実施する曜日を選択</div>
+                                </label>
+                            </div>
+                            
+                            <!-- 曜日選択ボタン -->
+                            <div id="weekdays-selector" style="display: none; margin-top: 12px; padding: 16px; background: var(--surface); border-radius: 12px; border: 1px solid var(--border);">
+                                <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px;">
+                                    <div class="weekday-option">
+                                        <input type="checkbox" id="weekday-1" name="weekday" value="1">
+                                        <label for="weekday-1">月</label>
+                                    </div>
+                                    <div class="weekday-option">
+                                        <input type="checkbox" id="weekday-2" name="weekday" value="2">
+                                        <label for="weekday-2">火</label>
+                                    </div>
+                                    <div class="weekday-option">
+                                        <input type="checkbox" id="weekday-3" name="weekday" value="3">
+                                        <label for="weekday-3">水</label>
+                                    </div>
+                                    <div class="weekday-option">
+                                        <input type="checkbox" id="weekday-4" name="weekday" value="4">
+                                        <label for="weekday-4">木</label>
+                                    </div>
+                                    <div class="weekday-option">
+                                        <input type="checkbox" id="weekday-5" name="weekday" value="5">
+                                        <label for="weekday-5">金</label>
+                                    </div>
+                                    <div class="weekday-option">
+                                        <input type="checkbox" id="weekday-6" name="weekday" value="6">
+                                        <label for="weekday-6">土</label>
+                                    </div>
+                                    <div class="weekday-option">
+                                        <input type="checkbox" id="weekday-0" name="weekday" value="0">
+                                        <label for="weekday-0">日</label>
+                                    </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <button type="submit" class="btn">
+                            🎲 シャッフルして開始
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="showHomeView()" style="margin-left: 12px;">
+                            キャンセル
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- シャッフル画面 -->
+        <div id="shuffle-view" style="display: none;">
+            <div class="card">
+                <div class="shuffle-container">
+                    <h2>検証期間を決定中...</h2>
+                    <div class="shuffle-number" id="shuffle-number">?</div>
+                    <p>日間</p>
+                </div>
+                <div style="text-align: center; display: none;" id="shuffle-result">
+                    <h2 style="margin-bottom: 16px;">検証期間が決まりました！</h2>
+                    <div class="shuffle-number" id="final-days">7</div>
+                    <p style="margin-bottom: 24px;">日間</p>
+                    <button class="btn" onclick="startHypothesis()">
+                        検証を開始する
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 検証進捗画面 -->
+        <div id="progress-view" style="display: none;">
+            <div class="card">
+                <h2 id="progress-hypothesis-title" style="margin-bottom: 8px;"></h2>
+                <p id="progress-hypothesis-description" style="color: var(--text-secondary); margin-bottom: 16px;"></p>
+                <div id="progress-days-info" style="margin-bottom: 24px; color: var(--text-secondary);"></div>
+                <div id="affirmation-panel"></div>
+            </div>
+
+            <div class="progress-container">
+                <div class="progress-header">
+                    <div class="progress-title">達成率</div>
+                    <div class="progress-percentage" id="achievement-rate">0%</div>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill" style="width: 0%;"></div>
+                </div>
+                <div class="progress-info">
+                    <span id="achieved-days">達成: 0日</span>
+                    <span id="remaining-days">残り: 0日</span>
+                </div>
+                
+                <!-- アクティブな効果の表示 -->
+                <div id="active-effects-display" style="margin-top: 16px; display: none;">
+                    <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px;">アクティブな効果:</div>
+                    <div id="active-effects-list" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
+                </div>
+            </div>
+
+            <!-- IF-THEN 表示/編集 -->
+            <div class="card" id="ifthen-panel" style="display: none;"></div>
+
+            <!-- カード使用ボタン -->
+            <div id="card-use-section" style="margin-bottom: 20px; display: none;">
+                <button class="btn btn-secondary" onclick="showCardUseMenu()" style="width: 100%;">
+                    🎴 カードを使用
+                </button>
+            </div>
+
+            <!-- メモ入力（アウトプット/インプット）はデータ入出力と混同を避けるため削除 -->
+
+            <!-- 完了報告ボタン -->
+            <div id="completion-report-section" style="display: none; margin-bottom: 20px;">
+                <button class="btn" onclick="showCompletionOptions()" style="width: 100%; background: var(--gradient-1);">
+                    📝 完了報告する
+                </button>
+            </div>
+
+            <div class="completion-options" id="completion-options" style="display: none;">
+                <h3>🎉 検証が完了しました！</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 20px;">次のアクションを選択してください</p>
+                <div class="completion-buttons">
+                    <button class="completion-btn" onclick="continueHypothesis()">
+                        ➡️ 継続する
+                    </button>
+                    <button class="completion-btn" onclick="modifyAndContinue()">
+                        ✏️ 修正して継続
+                    </button>
+                    <button class="completion-btn" onclick="completeHypothesis()">
+                        ✅ 完了する
+                    </button>
+                </div>
+            </div>
+
+            <div class="calendar-container">
+                <div class="calendar-header">
+                    <div class="calendar-title">進捗カレンダー</div>
+                </div>
+                <div class="calendar-grid" id="calendar-grid">
+                    <!-- 動的に生成 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 履歴画面 -->
+        <div id="history-view" style="display: none;">
+            <div class="card" style="margin-top: 0;">
+                <h2 style="margin-bottom: 24px; margin-top: 0;">完了した習慣</h2>
+                <div id="history-list">
+                    <!-- 動的に生成 -->
+                </div>
+            </div>
+            
+            <!-- データ管理セクション -->
+            <div class="card" style="margin-top: 24px; background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(168, 85, 247, 0.1)); border: 1px solid rgba(99, 102, 241, 0.3);">
+                <h3 style="margin-bottom: 16px; font-size: 16px;">⚙️ データ管理</h3>
+                
+                <!-- エクスポート -->
+                <div style="margin-bottom: 12px;">
+                    <button class="btn btn-secondary" onclick="exportAllData()" style="width: 100%; padding: 10px; font-size: 14px; background: linear-gradient(135deg, #6366f1, #8b5cf6);">
+                        📤 全データをエクスポート
+                    </button>
+                    <small style="display: block; margin-top: 6px; color: var(--text-secondary); font-size: 12px;">
+                        習慣、ジャーナル、ポイント、カード等すべてのデータをJSON形式で保存
+                    </small>
+                </div>
+                
+                <!-- インポート -->
+                <div>
+                    <input type="file" id="import-file-history" accept=".json" style="display: none;" onchange="handleImportFile(event)">
+                    <button class="btn btn-secondary" onclick="document.getElementById('import-file-history').click()" style="width: 100%; padding: 10px; font-size: 14px; background: linear-gradient(135deg, #10b981, #3b82f6);">
+                        📥 データをインポート
+                    </button>
+                    <small style="display: block; margin-top: 6px; color: var(--text-secondary); font-size: 12px;">
+                        以前エクスポートしたJSONファイルからデータを復元
+                    </small>
+                </div>
+                
+                <!-- 警告メッセージ -->
+                <div style="margin-top: 12px; padding: 8px; background: rgba(239, 68, 68, 0.1); border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.3);">
+                    <small style="color: #ef4444; font-size: 11px;">
+                        ⚠️ インポートすると現在のデータが上書きされます。事前にエクスポートしてバックアップを取ることをお勧めします。
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <!-- 統計画面 -->
+        <div id="stats-view" style="display: none;">
+            <div class="card" style="margin-top: 0;">
+                <h2 style="margin-bottom: 16px; margin-top: 0;">📊 統計データ</h2>
+                <div class="stats-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 16px;">
+                    <div class="stat-card" style="background: var(--background); padding: 12px; border-radius: 8px; text-align: center; min-width: 0; overflow: hidden; box-sizing: border-box;">
+                        <div class="stat-value" id="total-hypotheses" style="font-size: 28px; font-weight: 800; color: #6366f1;">0</div>
+                        <div class="stat-label" style="color: var(--text-secondary); margin-top: 8px;">総習慣数</div>
+                    </div>
+                    <div class="stat-card" style="background: var(--background); padding: 12px; border-radius: 8px; text-align: center; min-width: 0; overflow: hidden; box-sizing: border-box;">
+                        <div class="stat-value" id="avg-achievement" style="font-size: 28px; font-weight: 800; color: #f59e0b;">0%</div>
+                        <div class="stat-label" style="color: var(--text-secondary); margin-top: 4px; font-size: 11px;">平均達成率</div>
+                    </div>
+                    <div class="stat-card" style="background: var(--background); padding: 12px; border-radius: 8px; text-align: center; min-width: 0; overflow: hidden; box-sizing: border-box;">
+                        <div class="stat-value" id="total-days" style="font-size: 28px; font-weight: 800; color: #10b981;">0</div>
+                        <div class="stat-label" style="color: var(--text-secondary); margin-top: 4px; font-size: 11px;">総検証日数</div>
+                    </div>
+                    <div class="stat-card" style="background: var(--background); padding: 12px; border-radius: 8px; text-align: center; min-width: 0; overflow: hidden; box-sizing: border-box;">
+                        <div class="stat-value" id="weighted-achieved" style="font-size: 28px; font-weight: 800; color: #ef4444;">0</div>
+                        <div class="stat-label" style="color: var(--text-secondary); margin-top: 4px; font-size: 11px;">達成日数</div>
+                    </div>
+                </div>
+                <div class="achievement-chart" id="achievement-chart" style="display:grid; gap:16px;">
+                    <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
+                        <h3 style="margin-bottom:8px;">⏰ 曜日別達成率（毎日の習慣）</h3>
+                        <div id="weekday-stats" style="display:flex; gap:3px; margin-top:8px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; justify-content: space-between;"></div>
+                    </div>
+                    <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
+                        <h3 style="margin-bottom:8px; cursor: pointer; user-select: none;" onclick="toggleStatSection('achievement-level-distribution')">
+                            <span id="achievement-level-distribution-arrow">▶</span> 🎮 達成率レベル分布
+                        </h3>
+                        <div id="achievement-level-distribution" style="display: none;" style="display:grid; gap:8px; margin-top:12px;"></div>
+                    </div>
+                    <!-- ジャーナル統計セクション -->
+                    <div class="stat-panel" id="journal-stats-section" style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.1), rgba(59, 130, 246, 0.1)); padding: 16px; border-radius: 12px; border: 1px solid rgba(168, 85, 247, 0.3);">
+                        <h3 style="margin-bottom:12px; cursor: pointer; user-select: none;" onclick="toggleStatSection('journal-stats-content')">
+                            <span id="journal-stats-content-arrow">▶</span> 📔 ジャーナル統計
+                        </h3>
+                        <div id="journal-stats-content" style="display: none;">
+                            <!-- 動的に生成 -->
+                        </div>
+                    </div>
+                    
+                    <!-- ポイント統計セクション -->
+                    <div class="stat-panel" style="background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1)); padding: 16px; border-radius: 12px; border: 1px solid rgba(251, 191, 36, 0.3);">
+                        <h3 style="margin-bottom:12px; cursor: pointer; user-select: none;" onclick="toggleStatSection('point-stats-content')">
+                            <span id="point-stats-content-arrow">▶</span> 💰 ポイント統計
+                        </h3>
+                        <div id="point-stats-content" style="display: none;">
+                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+                                <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                                    <div id="current-points-stat" style="font-size: 24px; font-weight: bold; color: #fbbf24;">0</div>
+                                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">現在のポイント</div>
+                                </div>
+                                <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                                    <div id="lifetime-earned-stat" style="font-size: 24px; font-weight: bold; color: #10b981;">0</div>
+                                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">累計獲得</div>
+                                </div>
+                                <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                                    <div id="lifetime-spent-stat" style="font-size: 24px; font-weight: bold; color: #ef4444;">0</div>
+                                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">累計消費</div>
+                                </div>
+                                <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                                    <div id="current-level-stat" style="font-size: 24px; font-weight: bold; color: #8b5cf6;">Lv.1</div>
+                                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">現在のレベル</div>
+                                </div>
+                            </div>
+                            <!-- レベル進捗バー -->
+                            <div style="margin-top: 16px;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                    <span id="level-progress-label" style="font-size: 12px; color: var(--text-secondary);">次のレベルまで</span>
+                                    <span id="level-progress-text" style="font-size: 12px; color: var(--text-secondary);">0/50pt</span>
+                                </div>
+                                <div style="background: rgba(0,0,0,0.3); height: 8px; border-radius: 4px; overflow: hidden;">
+                                    <div id="level-progress-bar" style="background: linear-gradient(90deg, #fbbf24, #f59e0b); height: 100%; width: 0%; transition: width 0.3s ease;"></div>
+                                </div>
+                            </div>
+                            
+                            <!-- ポイント推移グラフ -->
+                            <div id="point-trend-graph" style="margin-top: 16px;">
+                                <!-- 動的に生成 -->
+                            </div>
+                        
+                        <!-- 時間帯別獲得パターン -->
+                            <div id="point-time-pattern" style="margin-top: 16px;">
+                                <!-- 動的に生成 -->
+                            </div>
+                            
+                            <!-- ブースト効果分析 -->
+                            <div id="boost-effect-analysis" style="margin-top: 16px;">
+                                <!-- 動的に生成 -->
+                            </div>
+                            
+                            <!-- 最近のトランザクション -->
+                            <div style="margin-top: 16px;">
+                                <h4 style="font-size: 14px; margin-bottom: 8px;">📝 最近の獲得/消費</h4>
+                                <div id="recent-transactions" style="display: grid; gap: 4px; max-height: 150px; overflow-y: auto; font-size: 12px;">
+                                    <!-- 動的に生成 -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
+                        <h3 style="margin-bottom:8px; cursor: pointer; user-select: none;" onclick="toggleStatSection('intensity-stats')">
+                            <span id="intensity-stats-arrow">▶</span> 🧩 強度ラベル使用割合
+                        </h3>
+                        <div id="intensity-stats" class="is-hidden" style="gap:12px; align-items:center; flex-wrap:wrap; justify-content:center;">
+                            <svg id="donut-intensity" width="160" height="160" viewBox="0 0 160 160" style="flex-shrink: 0;"></svg>
+                            <div id="donut-legend" style="display:grid; gap:6px; font-size:12px; min-width: 100px;"></div>
+                        </div>
+                    </div>
+                    <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
+                        <h3 style="margin-bottom:8px; cursor: pointer; user-select: none;" onclick="toggleStatSection('streak-stats')">
+                            <span id="streak-stats-arrow">▶</span> 🔥 連続達成日数
+                        </h3>
+                        <div id="streak-stats" class="is-hidden" style="display:flex; gap:16px; font-weight:700;"></div>
+                    </div>
+                    <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
+                        <h3 style="margin-bottom:8px; cursor: pointer; user-select: none;" onclick="toggleStatSection('ranking-content')">
+                            <span id="ranking-content-arrow">▶</span> 🏆 習慣ランキング
+                        </h3>
+                        <div id="ranking-content" class="is-hidden">
+                        <!-- タブ切り替え -->
+                        <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+                            <button id="ranking-achievement-tab" onclick="showAchievementRanking()" style="flex: 1; padding: 6px; font-size: 12px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer;">達成率</button>
+                            <button id="ranking-points-tab" onclick="showPointsRanking()" style="flex: 1; padding: 6px; font-size: 12px; background: var(--surface); color: var(--text-primary); border: none; border-radius: 6px; cursor: pointer;">ポイント</button>
+                            <button id="ranking-streak-tab" onclick="showStreakRanking()" style="flex: 1; padding: 6px; font-size: 12px; background: var(--surface); color: var(--text-primary); border: none; border-radius: 6px; cursor: pointer;">連続</button>
+                        </div>
+                        <div id="ranking-list" style="display:grid; gap:8px;"></div>
+                        </div>
+                    </div>
+                    <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
+                        <h3 style="margin-bottom:8px; cursor: pointer; user-select: none;" onclick="toggleStatSection('badge-collection')">
+                            <span id="badge-collection-arrow">▶</span> 🏆 獲得バッジ
+                        </h3>
+                        <div id="badge-collection" class="is-hidden" style="grid-template-columns: repeat(3, 1fr) !important; gap:8px; margin-top:12px;"></div>
+                    </div>
+                    <!-- チャレンジ統計セクション -->
+                    <div class="stat-panel" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(236, 72, 153, 0.1)); padding: 16px; border-radius: 12px; border: 1px solid rgba(139, 92, 246, 0.3);">
+                        <h3 style="margin-bottom:12px; cursor: pointer; user-select: none;" onclick="toggleStatSection('challenge-stats-content')">
+                            <span id="challenge-stats-content-arrow">▶</span> 🎯 チャレンジ統計
+                        </h3>
+                        <div id="challenge-stats-content" class="is-hidden">
+                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px;">
+                            <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                                <div id="challenge-streak" style="font-size: 24px; font-weight: bold; color: #fbbf24;">0</div>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">連続達成日数</div>
+                            </div>
+                            <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                                <div id="total-challenges-completed" style="font-size: 24px; font-weight: bold; color: #10b981;">0</div>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">累計完了</div>
+                            </div>
+                            <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                                <div id="daily-completion-rate" style="font-size: 24px; font-weight: bold; color: #8b5cf6;">0%</div>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">デイリー達成率</div>
+                            </div>
+                            <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                                <div id="weekly-completion-rate" style="font-size: 24px; font-weight: bold; color: #ec4899;">0%</div>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">ウィークリー達成率</div>
+                            </div>
+                        </div>
+                        <!-- お気に入りチャレンジ -->
+                        <div style="margin-bottom: 16px;">
+                            <h4 style="font-size: 14px; margin-bottom: 8px;">⭐ よく達成するチャレンジ</h4>
+                            <div id="favorite-challenges" style="display: grid; gap: 8px; max-height: 150px; overflow-y: auto;">
+                                <!-- 動的に生成 -->
+                            </div>
+                        </div>
+                        <!-- チャレンジ履歴 -->
+                            <div>
+                                <h4 style="font-size: 14px; margin-bottom: 8px;">📝 最近のチャレンジ達成</h4>
+                                <div id="recent-challenges" style="display: grid; gap: 4px; max-height: 150px; overflow-y: auto; font-size: 12px;">
+                                    <!-- 動的に生成 -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-panel" style="background: var(--background); padding: 10px; border-radius: 8px;">
+                        <h3 style="margin-bottom:8px; cursor: pointer; user-select: none;" onclick="toggleStatSection('habit-report')">
+                            <span id="habit-report-arrow">▶</span> 📈 習慣レポート
+                        </h3>
+                        <div id="habit-report" style="display: none;">
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 16px;">
+                            <button class="btn btn-secondary" onclick="showMonthlyReport()">📅 月次</button>
+                            <button class="btn btn-secondary" onclick="showYearlyReport()">📊 年次</button>
+                            <button class="btn btn-secondary" onclick="exportHabitData()">📤 エクスポート</button>
+                            <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()">📥 インポート</button>
+                            <input id="import-file" type="file" accept="application/json,.json" style="display:none" onchange="handleImportFile(event)">
+                        </div>
+                        </div>
+                        <div id="report-container" style="display: none; padding: 16px; background: var(--surface); border-radius: 12px; margin-top: 12px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- ポイント画面 -->
+        <div id="points-view" style="display: none;">
+            <!-- ポイント状況 -->
+            <div class="card" style="margin-top: 0; background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1)); border: 1px solid rgba(251, 191, 36, 0.3);">
+                <h2 style="margin-bottom: 16px; margin-top: 0;">💰 ポイント</h2>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 20px;">
+                    <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 12px;">
+                        <div id="points-current" style="font-size: 24px; font-weight: bold; color: #fbbf24;">0</div>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">現在</div>
+                    </div>
+                    <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 12px;">
+                        <div id="points-level" style="font-size: 24px; font-weight: bold; color: #8b5cf6;">Lv.1</div>
+                        <div id="points-level-name" style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">初心者</div>
+                    </div>
+                    <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 12px;">
+                        <div id="points-lifetime" style="font-size: 24px; font-weight: bold; color: #10b981;">0</div>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">累計</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- タブナビゲーション -->
+            <div style="display: flex; gap: 8px; margin-bottom: 16px; background: var(--surface); padding: 8px; border-radius: 12px;">
+                <button id="rewards-tab" class="btn btn-secondary" onclick="showRewardsTab()" style="flex: 1; padding: 10px; font-size: 14px; background: var(--primary); color: white;">
+                    🎁 報酬
+                </button>
+                <button id="history-tab" class="btn btn-secondary" onclick="showHistoryTab()" style="flex: 1; padding: 10px; font-size: 14px;">
+                    📝 履歴
+                </button>
+                <button id="create-tab" class="btn btn-secondary" onclick="showCreateTab()" style="flex: 1; padding: 10px; font-size: 14px;">
+                    ➕ 作成
+                </button>
+            </div>
+            
+            <!-- 報酬タブ -->
+            <div id="rewards-tab-content" class="card">
+                <h3 style="margin-bottom: 16px;">🎁 報酬リスト</h3>
+                
+                <!-- 報酬統計 -->
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px;">
+                    <div style="background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1)); padding: 12px; border-radius: 8px; text-align: center;">
+                        <div id="total-rewards-count" style="font-size: 20px; font-weight: bold; color: #fbbf24;">0</div>
+                        <div style="font-size: 10px; color: var(--text-secondary); margin-top: 2px;">報酬数</div>
+                    </div>
+                    <div style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(236, 72, 153, 0.1)); padding: 12px; border-radius: 8px; text-align: center;">
+                        <div id="total-rewards-used" style="font-size: 20px; font-weight: bold; color: #8b5cf6;">0</div>
+                        <div style="font-size: 10px; color: var(--text-secondary); margin-top: 2px;">使用回数</div>
+                    </div>
+                    <div style="background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(16, 185, 129, 0.1)); padding: 12px; border-radius: 8px; text-align: center;">
+                        <div id="total-rewards-spent" style="font-size: 20px; font-weight: bold; color: #10b981;">0pt</div>
+                        <div style="font-size: 10px; color: var(--text-secondary); margin-top: 2px;">累計消費</div>
+                    </div>
+                </div>
+                
+                <!-- 詳細統計ボタン -->
+                <button onclick="window.toggleRewardStatistics()" style="
+                    width: 100%;
+                    padding: 12px;
+                    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1));
+                    border: 1px solid rgba(59, 130, 246, 0.3);
+                    border-radius: 12px;
+                    color: var(--text);
+                    font-size: 14px;
+                    font-weight: bold;
+                    cursor: pointer;
+                    margin-bottom: 16px;
+                    transition: all 0.2s;
+                " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(59, 130, 246, 0.3)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+                    📊 詳細統計を見る
+                </button>
+                
+                <!-- 詳細統計パネル -->
+                <div id="reward-statistics-panel" style="display: none; margin-bottom: 16px;">
+                    <!-- 人気報酬ランキング -->
+                    <div style="background: var(--surface); padding: 16px; border-radius: 12px; margin-bottom: 12px;">
+                        <h4 style="margin-bottom: 12px; font-size: 16px; cursor: pointer; user-select: none;" onclick="toggleStatSection('popular-rewards')">
+                            <span id="popular-rewards-arrow">▼</span> 🏆 人気報酬TOP5
+                        </h4>
+                        <div id="popular-rewards" style="display: grid; gap: 8px;">
+                            <!-- 動的に生成 -->
+                        </div>
+                    </div>
+                    
+                    <!-- カテゴリー別統計 -->
+                    <div style="background: var(--surface); padding: 16px; border-radius: 12px; margin-bottom: 12px;">
+                        <h4 style="margin-bottom: 12px; font-size: 16px; cursor: pointer; user-select: none;" onclick="toggleStatSection('category-statistics')">
+                            <span id="category-statistics-arrow">▼</span> 📂 カテゴリー別使用状況
+                        </h4>
+                        <div id="category-statistics" style="display: grid; gap: 8px;">
+                            <!-- 動的に生成 -->
+                        </div>
+                    </div>
+                    
+                    <!-- 時間帯別使用パターン -->
+                    <div style="background: var(--surface); padding: 16px; border-radius: 12px; margin-bottom: 12px;">
+                        <h4 style="margin-bottom: 12px; font-size: 16px; cursor: pointer; user-select: none;" onclick="toggleStatSection('reward-time-pattern')">
+                            <span id="reward-time-pattern-arrow">▼</span> ⏰ 時間帯別使用パターン
+                        </h4>
+                        <div id="reward-time-pattern" style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px;">
+                            <!-- 動的に生成 -->
+                        </div>
+                    </div>
+                    
+                    <!-- コスト分析 -->
+                    <div style="background: var(--surface); padding: 16px; border-radius: 12px; margin-bottom: 12px;">
+                        <h4 style="margin-bottom: 12px; font-size: 16px; cursor: pointer; user-select: none;" onclick="toggleStatSection('cost-analysis')">
+                            <span id="cost-analysis-arrow">▼</span> 💎 コスト分析
+                        </h4>
+                        <div id="cost-analysis" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+                            <!-- 動的に生成 -->
+                        </div>
+                    </div>
+                    
+                    <!-- 最近使用した報酬 -->
+                    <div style="background: var(--surface); padding: 16px; border-radius: 12px;">
+                        <h4 style="margin-bottom: 12px; font-size: 16px; cursor: pointer; user-select: none;" onclick="toggleStatSection('recent-used-rewards')">
+                            <span id="recent-used-rewards-arrow">▼</span> ⏱️ 最近使用した報酬
+                        </h4>
+                        <div id="recent-used-rewards" style="display: grid; gap: 8px;">
+                            <!-- 動的に生成 -->
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="rewards-list" style="display: grid; gap: 12px;">
+                    <!-- 報酬カードが動的に生成される -->
+                    <div style="text-align: center; color: var(--text-secondary); padding: 40px;">
+                        報酬がまだありません<br>
+                        「➕ 作成」タブから報酬を追加してください
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 履歴タブ -->
+            <div id="history-tab-content" class="card" style="display: none;">
+                <h3 style="margin-bottom: 16px;">📝 取引履歴</h3>
+                <div id="points-history" style="display: grid; gap: 8px; max-height: 400px; overflow-y: auto;">
+                    <!-- 履歴が動的に生成される -->
+                </div>
+            </div>
+            
+            <!-- 作成タブ -->
+            <div id="create-tab-content" class="card" style="display: none;">
+                <!-- タブ選択 -->
+                <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+                    <button class="btn btn-secondary" onclick="showRewardCreation()" id="reward-creation-btn" style="flex: 1; padding: 8px; font-size: 14px; background: var(--primary); color: white;">
+                        🎁 報酬作成
+                    </button>
+                    <button class="btn btn-secondary" onclick="showChallengeCreation()" id="challenge-creation-btn" style="flex: 1; padding: 8px; font-size: 14px;">
+                        🎯 チャレンジ作成
+                    </button>
+                </div>
+                
+                <!-- 報酬作成フォーム -->
+                <div id="reward-creation-form" style="display: block;">
+                    <h3 style="margin-bottom: 16px;">➕ 新しい報酬を作成</h3>
+                <form onsubmit="createReward(event)">
+                    <div class="form-group">
+                        <label for="reward-name">報酬の名前</label>
+                        <input type="text" id="reward-name" required placeholder="例: 15分SNS" autocomplete="off">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="reward-cost">必要ポイント</label>
+                        <input type="number" id="reward-cost" required min="1" max="999" placeholder="例: 10" autocomplete="off">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="reward-emoji">アイコン（絵文字）</label>
+                        <input type="text" id="reward-emoji" placeholder="例: 📱" maxlength="2" autocomplete="off">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="reward-category">カテゴリー</label>
+                        <select id="reward-category">
+                            <option value="休憩">🍵 休憩</option>
+                            <option value="娯楽">🎮 娯楽</option>
+                            <option value="食事">🍰 食事</option>
+                            <option value="買い物">🛍️ 買い物</option>
+                            <option value="体験">🎭 体験</option>
+                            <option value="自由時間">⏰ 自由時間</option>
+                            <option value="その他">📦 その他</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="reward-memo">メモ（任意）</label>
+                        <textarea id="reward-memo" placeholder="この報酬の詳細説明" autocomplete="off"></textarea>
+                    </div>
+                    
+                    <button type="submit" class="btn" style="width: 100%;">
+                        ✨ 報酬を作成
+                    </button>
+                </form>
+                </div>
+                
+                <!-- チャレンジ作成フォーム -->
+                <div id="challenge-creation-form" style="display: none;">
+                    <h3 style="margin-bottom: 16px;">🎯 カスタムチャレンジを作成</h3>
+                    <form onsubmit="createCustomChallenge(event)">
+                        <div class="form-group">
+                            <label for="challenge-name">チャレンジ名</label>
+                            <input type="text" id="challenge-name" required placeholder="例: 腕立て伏せ20回" autocomplete="off">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="challenge-type">タイプ</label>
+                            <select id="challenge-type" required>
+                                <option value="daily">デイリー</option>
+                                <option value="weekly">ウィークリー</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="challenge-points">報酬ポイント</label>
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <input type="range" id="challenge-points-slider" min="1" max="30" value="5" style="flex: 1;" oninput="updateChallengePoints(this.value)">
+                                <span id="challenge-points-display" style="min-width: 40px; text-align: right; font-weight: bold;">5pt</span>
+                            </div>
+                            <input type="hidden" id="challenge-points" value="5">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="challenge-emoji">アイコン（絵文字）</label>
+                            <input type="text" id="challenge-emoji" placeholder="例: 💪" maxlength="2" autocomplete="off">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="challenge-category">カテゴリー</label>
+                            <select id="challenge-category">
+                                <option value="health">🏃 健康・運動</option>
+                                <option value="study">📚 学習・成長</option>
+                                <option value="mindfulness">🧘 マインドフルネス</option>
+                                <option value="social">🤝 社会・人間関係</option>
+                                <option value="creativity">🎨 創造性</option>
+                                <option value="productivity">⚡ 生産性</option>
+                                <option value="other">📦 その他</option>
+                            </select>
+                        </div>
+                        
+                        <button type="submit" class="btn" style="width: 100%; margin-top: 16px;">
+                            チャレンジを作成
+                        </button>
+                    </form>
+                    
+                    <!-- カスタムチャレンジリスト -->
+                    <div style="margin-top: 24px;">
+                        <h4 style="margin-bottom: 12px; font-size: 14px;">📝 作成したチャレンジ</h4>
+                        <div id="custom-challenges-list" style="display: grid; gap: 8px;">
+                            <!-- 動的に生成 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- カード一覧画面 -->
+        <div id="cards-view" style="display: none;">
+            <div class="card" style="margin-top: 0;">
+                <h2 style="margin-bottom: 24px; margin-top: 0;">🎴 カードコレクション</h2>
+                
+                
+                <div style="margin-bottom: 24px;">
+                    <h3 style="font-size: 18px; margin-bottom: 12px; color: var(--primary);">📦 所持カード</h3>
+                    <div id="card-inventory" style="display: grid; gap: 12px;">
+                        <!-- 動的に生成 -->
+                    </div>
+                </div>
+                
+                <div style="margin-bottom: 24px;">
+                    <h3 style="font-size: 18px; margin-bottom: 12px; color: var(--secondary);">⚠️ ペナルティカード</h3>
+                    <div id="penalty-cards" style="display: grid; gap: 12px;">
+                        <!-- 動的に生成 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- デバッグボタン（PCのみ表示） -->
+    <button id="debug-button" onclick="openDebugMenu()" 
+            style="position: fixed; right: 16px; bottom: 88px; z-index: 2000; border: none; border-radius: 999px; padding: 10px 14px; background: #0ea5e9; color: white; font-weight: 700; box-shadow: 0 6px 16px rgba(0,0,0,0.25); cursor: pointer; opacity: 0.6; display: none;">
+        🛠️ Debug
+    </button>
+
+    <!-- カード獲得モーダル -->
+    <div id="card-acquisition-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="text-align: center; max-width: 400px;">
+            <h2 style="margin-bottom: 24px;">🎉 カード獲得！</h2>
+            <div id="acquired-cards-container" style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px;">
+                <!-- 動的に生成 -->
+            </div>
+            <button class="btn" onclick="closeCardAcquisition()">確認</button>
+        </div>
+    </div>
+
+    <!-- カード使用メニュー -->
+    <div id="card-use-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2 class="modal-title">カードを使用</h2>
+                <button class="close-btn" onclick="closeCardUseMenu()">×</button>
+            </div>
+            <div id="usable-cards-container" style="display: grid; gap: 12px;">
+                <!-- 動的に生成 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- フッター -->
+    <footer style="background: var(--surface); border-top: 1px solid var(--border); padding: 20px; margin-top: auto;">
+        <div style="max-width: 1200px; margin: 0 auto; text-align: center; color: var(--text-secondary); font-size: 14px;">
+            <p>© 2025 HypoLab - 習慣検証プラットフォーム</p>
+            <p style="margin-top: 8px; opacity: 0.7;">すべてのデータはブラウザ内に保存されます</p>
+        </div>
+    </footer>
+
+    <script src="js/hypolab-local.js"></script>
+</body>
+</html>
