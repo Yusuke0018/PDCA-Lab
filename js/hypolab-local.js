@@ -10425,6 +10425,45 @@
                     }, 500);
                 }
                 
+                // 習慣完了時のカード取得処理
+                // showCompletionOptionsで既に取得済みかチェック
+                if (!hypothesis.cardAcquisitionHistory) {
+                    hypothesis.cardAcquisitionHistory = {
+                        sevenDays: [],
+                        weeklyComplete: [],
+                        completion: false
+                    };
+                }
+                
+                // まだ完了時のカードを取得していない場合のみ取得
+                if (!hypothesis.cardAcquisitionHistory.completion) {
+                    // 達成率に基づいてカードを取得
+                    const cards = getCardsBasedOnAchievement(hypothesis.finalAchievementRate, hypothesis);
+                    
+                    if (cards.length > 0) {
+                        // カードをインベントリに追加
+                        cards.forEach(cardId => {
+                            addCardToInventory(cardId);
+                        });
+                        
+                        // カード取得履歴を更新
+                        hypothesis.cardAcquisitionHistory.completion = true;
+                        
+                        // カード獲得演出
+                        setTimeout(() => {
+                            showCardAcquisition(cards, () => {
+                                const achievementText = hypothesis.finalAchievementRate === 100 ? 
+                                    '完璧な達成！' : 
+                                    `達成率 ${hypothesis.finalAchievementRate}%`;
+                                showNotification(`🎉 習慣完了！${achievementText} 報酬カードを${cards.length}枚獲得！`, 'success');
+                            });
+                        }, 1000);
+                    } else {
+                        // カードがなくてもフラグは更新
+                        hypothesis.cardAcquisitionHistory.completion = true;
+                    }
+                }
+                
                 // 完了リストに追加
                 data.completedHypotheses.push(hypothesis);
                 
