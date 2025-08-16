@@ -11440,48 +11440,6 @@
         }
         
         // イベント定義（シンプルで面白い仕掛け）
-        /* 重複定義をコメントアウト - 365行目の定義を使用
-        const EVENT_DEFINITIONS = [
-            // ポイント系イベント（バランス調整済み）
-            { id: 'bonus_points', name: '🎆 ボーナスポイント', description: '今日の全達成が1.3倍', effect: 'points_multiplier', value: 1.3 },
-            { id: 'point_rain', name: '💰 ポイントレイン', description: '最初の3回達成で+3ptボーナス', effect: 'achievement_bonus', value: 3 },
-            { id: 'golden_day', name: '✨ ゴールデンデー', description: '全ポイント+2の固定ボーナス', effect: 'flat_bonus', value: 2 },
-            
-            // 時間系イベント
-            { id: 'early_bird_special', name: '🌅 早起き特典', description: '朝6-9時の達成で×1.2', effect: 'time_bonus', hours: [6,7,8,9], multiplier: 1.2 },
-            { id: 'night_owl_boost', name: '🦉 夜型ボーナス', description: '20-23時の達成で×1.2', effect: 'time_bonus', hours: [20,21,22,23], multiplier: 1.2 },
-            { id: 'lucky_hour', name: '⏰ ラッキーアワー', description: '11時と17時の達成で+3pt', effect: 'lucky_time', hours: [11,17], bonus: 3 },
-            
-            // カテゴリ系イベント
-            { id: 'study_day', name: '📚 勉強デー', description: '勉強カテゴリ×1.5', effect: 'category_boost', category: 'study', multiplier: 1.5 },
-            { id: 'exercise_festival', name: '💪 運動祭り', description: '運動カテゴリ×1.5', effect: 'category_boost', category: 'exercise', multiplier: 1.5 },
-            { id: 'health_campaign', name: '🍎 健康キャンペーン', description: '健康カテゴリ×1.5', effect: 'category_boost', category: 'health', multiplier: 1.5 },
-            { id: 'work_power', name: '💼 仕事パワー', description: '仕事カテゴリ×1.5', effect: 'category_boost', category: 'work', multiplier: 1.5 },
-            { id: 'hobby_time', name: '🎨 趣味タイム', description: '趣味カテゴリ×1.5', effect: 'category_boost', category: 'hobby', multiplier: 1.5 },
-            
-            // 特殊系イベント
-            { id: 'perfect_challenge', name: '💯 パーフェクトチャレンジ', description: '全習慣達成で+10ptボーナス', effect: 'perfect_bonus', value: 10 },
-            { id: 'streak_party', name: '🔥 ストリークパーティ', description: '連続3日以上の習慣に+3pt', effect: 'streak_bonus', minDays: 3, bonus: 3 },
-            { id: 'comeback_bonus', name: '🎉 カムバックボーナス', description: '3日ぶりの達成で×1.5', effect: 'comeback', days: 3, multiplier: 1.5 },
-            
-            // ギャンブル系イベント
-            { id: 'dice_roll', name: '🎲 サイコロチャレンジ', description: '達成毎に1〜3ptランダム', effect: 'random_points', min: 1, max: 3 },
-            { id: 'coin_flip', name: '🪙 コインフリップ', description: '50%で×1.5、50%で×0.8', effect: 'coin_flip', win: 1.5, lose: 0.8 },
-            
-            // 連鎖系イベント
-            { id: 'chain_reaction', name: '⛓️ チェインリアクション', description: '達成する度に+1pt累積（最大+5）', effect: 'chain', maxBonus: 5 },
-            { id: 'momentum_builder', name: '🚀 モメンタムビルダー', description: '連続達成で倍率上昇（1→1.1→1.2→1.3）', effect: 'momentum', multipliers: [1, 1.1, 1.2, 1.3] },
-            
-            // カード系イベント
-            { id: 'card_carnival', name: '🎴 カードカーニバル', description: 'カードドロップ率1.5倍', effect: 'card_drop', multiplier: 1.5 },
-            
-            // 逆転系イベント
-            { id: 'second_chance', name: '🔁 セカンドチャンス', description: '失敗した習慣を1つリセット可能', effect: 'reset_habit', value: 1 },
-            { id: 'time_warp', name: '⏪ タイムワープ', description: '昨日の達成状況を今日にコピー', effect: 'copy_yesterday', value: 1 },
-            
-            // 週末イベント
-            { id: 'weekend_special', name: '🎈 週末スペシャル', description: '週末はポイント1.2倍！', effect: 'points_multiplier', value: 1.2 }
-        ]; */
         
         // 特別報酬を獲得（スマホ限定、1日1回）
         function getSpecialReward() {
@@ -11527,50 +11485,6 @@
                 showNotification('🎁 特別報酬を獲得しました！', 'success');
             });
         }
-        
-        // getDailyEvent関数は14041行目で定義済み（重複削除）
-        /* function getDailyEvent() {
-            const data = loadData();
-            const today = dateKeyLocal(new Date());
-            const todayStr = new Date().toISOString().split('T')[0];
-            
-            // 日付から日数を取得（例：2025-01-15 → 15）
-            const dayOfMonth = new Date().getDate();
-            
-            // 7の倍数の日かチェック
-            const isLuckySevenDay = (dayOfMonth % 7 === 0);
-            
-            // 強制イベントチェック（イベントトリガーカードの効果）
-            if (data.events && data.events.forcedEvents && data.events.forcedEvents[todayStr]) {
-                // 強制イベント日は必ずイベント発生
-            } else if (isLuckySevenDay) {
-                // 7の倍数の日は必ずイベント発生
-            } else {
-                // 通常は30%の確率でイベント発生
-                const seed = today.split('-').reduce((a, b) => a + parseInt(b), 0);
-                const random = ((seed * 9301 + 49297) % 233280) / 233280;
-                if (random > 0.3) return null;
-            }
-            
-            // 土日は週末スペシャルを70%の確率で選択
-            const dayOfWeek = new Date().getDay();
-            const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
-            
-            if (isWeekend) {
-                // 週末は70%の確率で週末スペシャル
-                const seed = today.split('-').reduce((a, b) => a + parseInt(b), 0);
-                const random = ((seed * 9301 + 49297) % 233280) / 233280;
-                if (random < 0.7) {
-                    // 週末スペシャルを返す
-                    return EVENT_DEFINITIONS.find(e => e.id === 'weekend_special');
-                }
-            }
-            
-            // シード値を使って一貫性のあるランダムイベント選択
-            const eventSeed = today.split('-').join('');
-            const eventIndex = (parseInt(eventSeed) * 7919) % EVENT_DEFINITIONS.length;
-            return EVENT_DEFINITIONS[eventIndex];
-        } */
         
         // 特別報酬ボタンの表示状態を更新
         function updateSpecialRewardButton() {
@@ -14084,31 +13998,19 @@
         
         // イベント表示の更新
         function updateEventDisplay() {
-            console.log('updateEventDisplay called');
             const data = loadData();
             const eventContainer = document.getElementById('active-events');
             
-            console.log('Event container:', eventContainer);
-            console.log('EVENTS_DISABLED:', typeof EVENTS_DISABLED !== 'undefined' ? EVENTS_DISABLED : 'undefined');
-            
-            if (!eventContainer) {
-                console.log('Event container not found');
-                return;
-            }
+            if (!eventContainer) return;
             // 機能停止中は常に非表示
             if (typeof EVENTS_DISABLED !== 'undefined' && EVENTS_DISABLED) {
-                console.log('Events are disabled');
                 eventContainer.style.display = 'none';
                 return;
             }
             
-            console.log('Event data:', data.events);
-            
             if (!data.events || !data.events.activeBoosts || data.events.activeBoosts.length === 0) {
-                console.log('No active events');
                 eventContainer.style.display = 'none';
             } else {
-                console.log('Active events:', data.events.activeBoosts);
                 // 週末スペシャルのサニタイズと重複排除
                 let boosts = Array.isArray(data.events.activeBoosts) ? data.events.activeBoosts.slice() : [];
 
@@ -14161,7 +14063,6 @@
         
         // デイリーイベントをチェック
         function checkDailyEvents() {
-            console.log('checkDailyEvents called');
             const data = loadData();
             const today = dateKeyLocal(new Date());
             
@@ -14173,29 +14074,14 @@
                 };
             }
             
-            // デバッグ用：強制的にイベントを再チェック（後で削除）
-            const forceRecheck = true;
-            
-            // 今日既にチェック済みならスキップ（デバッグ時は強制実行）
-            if (!forceRecheck && data.events.lastEventCheck === today) {
-                console.log('Event already checked today');
+            // 今日既にチェック済みならスキップ
+            if (data.events.lastEventCheck === today) {
                 updateEventDisplay();
                 return;
             }
             
             // 新しい日のイベントを取得
-            let dailyEvent = getDailyEvent();
-            console.log('Daily event:', dailyEvent);
-            
-            // デバッグ用：イベントがnullの場合は強制的にイベントを生成
-            if (!dailyEvent) {
-                console.log('No event today, forcing weekend special for debug');
-                console.log('EVENT_DEFINITIONS:', typeof EVENT_DEFINITIONS !== 'undefined' ? EVENT_DEFINITIONS : 'undefined');
-                if (typeof EVENT_DEFINITIONS !== 'undefined' && EVENT_DEFINITIONS.length > 0) {
-                    dailyEvent = EVENT_DEFINITIONS.find(e => e.id === 'weekend_special') || EVENT_DEFINITIONS[0];
-                    console.log('Forced event:', dailyEvent);
-                }
-            }
+            const dailyEvent = getDailyEvent();
             
             if (dailyEvent) {
                 data.events.activeBoosts = [dailyEvent];
