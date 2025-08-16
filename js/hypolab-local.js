@@ -10205,15 +10205,15 @@
                     <div class="duration-selector" style="display: flex; gap: 10px; margin-top: 10px;">
                         <div class="duration-option" onclick="selectContinueDuration('short')" data-continue-duration="short" style="flex: 1; padding: 12px; border: 2px solid var(--border); border-radius: 8px; text-align: center; cursor: pointer;">
                             <h4 style="margin: 0; font-size: 14px;">短期間</h4>
-                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary); transition: color 0.3s;" id="continue-short-text">1〜2週間</p>
+                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary); transition: color 0.3s;" id="continue-short-text">${isWeekly ? '1〜2週間' : '7〜14日'}</p>
                         </div>
                         <div class="duration-option selected" onclick="selectContinueDuration('medium')" data-continue-duration="medium" style="flex: 1; padding: 12px; border: 2px solid var(--primary); border-radius: 8px; text-align: center; cursor: pointer; background: rgba(59, 130, 246, 0.1);">
                             <h4 style="margin: 0; font-size: 14px;">中期間</h4>
-                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary); transition: color 0.3s;" id="continue-medium-text">3〜4週間</p>
+                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary); transition: color 0.3s;" id="continue-medium-text">${isWeekly ? '3〜4週間' : '21〜28日'}</p>
                         </div>
                         <div class="duration-option" onclick="selectContinueDuration('long')" data-continue-duration="long" style="flex: 1; padding: 12px; border: 2px solid var(--border); border-radius: 8px; text-align: center; cursor: pointer;">
                             <h4 style="margin: 0; font-size: 14px;">長期間</h4>
-                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary); transition: color 0.3s;" id="continue-long-text">5〜8週間</p>
+                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary); transition: color 0.3s;" id="continue-long-text">${isWeekly ? '5〜8週間' : '35〜56日'}</p>
                         </div>
                     </div>
                 </div>
@@ -10244,7 +10244,7 @@
             document.body.appendChild(overlay);
             
             // 期間をランダムに設定
-            shuffleContinueDurations();
+            shuffleContinueDurations(isWeekly);
         }
         
         // 継続時の期間選択
@@ -10263,11 +10263,15 @@
             selected.style.background = 'rgba(59, 130, 246, 0.1)';
         }
         
-        function shuffleContinueDurations() {
-            const durations = {
-                short: { min: 1, max: 2 },
-                medium: { min: 3, max: 4 },
-                long: { min: 5, max: 8 }
+        function shuffleContinueDurations(isWeekly = false) {
+            const durations = isWeekly ? {
+                short: { min: 1, max: 2 },   // 週
+                medium: { min: 3, max: 4 },   // 週
+                long: { min: 5, max: 8 }      // 週
+            } : {
+                short: { min: 7, max: 14 },   // 日
+                medium: { min: 21, max: 28 },  // 日
+                long: { min: 35, max: 56 }     // 日
             };
             
             // アニメーション用のインターバル
@@ -10277,12 +10281,17 @@
             const shuffleInterval = setInterval(() => {
                 Object.keys(durations).forEach(key => {
                     const range = durations[key];
-                    const weeks = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+                    const value = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
                     const textElement = document.getElementById(`continue-${key}-text`);
                     if (textElement) {
-                        textElement.textContent = `${weeks}週間`;
-                        textElement.dataset.weeks = weeks;
-                        textElement.dataset.days = weeks * 7; // 週を日数に変換して保存
+                        if (isWeekly) {
+                            textElement.textContent = `${value}週間`;
+                            textElement.dataset.weeks = value;
+                            textElement.dataset.days = value * 7;
+                        } else {
+                            textElement.textContent = `${value}日`;
+                            textElement.dataset.days = value;
+                        }
                     }
                 });
                 
@@ -10292,12 +10301,17 @@
                     // 最終的な値を設定
                     Object.keys(durations).forEach(key => {
                         const range = durations[key];
-                        const weeks = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+                        const value = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
                         const textElement = document.getElementById(`continue-${key}-text`);
                         if (textElement) {
-                            textElement.textContent = `${weeks}週間`;
-                            textElement.dataset.weeks = weeks;
-                            textElement.dataset.days = weeks * 7;
+                            if (isWeekly) {
+                                textElement.textContent = `${value}週間`;
+                                textElement.dataset.weeks = value;
+                                textElement.dataset.days = value * 7;
+                            } else {
+                                textElement.textContent = `${value}日`;
+                                textElement.dataset.days = value;
+                            }
                             textElement.style.color = 'var(--primary)';
                             setTimeout(() => {
                                 textElement.style.color = 'var(--text-secondary)';
@@ -10441,15 +10455,15 @@
                     <div class="duration-selector" style="display: flex; gap: 10px; margin-top: 10px;">
                         <div class="duration-option" onclick="selectModifyDuration('short')" data-modify-duration="short" style="flex: 1; padding: 12px; border: 2px solid var(--border); border-radius: 8px; text-align: center; cursor: pointer;">
                             <h4 style="margin: 0; font-size: 14px;">短期間</h4>
-                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary); transition: color 0.3s;" id="modify-short-text">1〜2週間</p>
+                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary); transition: color 0.3s;" id="modify-short-text">${isWeekly ? '1〜2週間' : '7〜14日'}</p>
                         </div>
                         <div class="duration-option selected" onclick="selectModifyDuration('medium')" data-modify-duration="medium" style="flex: 1; padding: 12px; border: 2px solid var(--primary); border-radius: 8px; text-align: center; cursor: pointer; background: rgba(59, 130, 246, 0.1);">
                             <h4 style="margin: 0; font-size: 14px;">中期間</h4>
-                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary); transition: color 0.3s;" id="modify-medium-text">3〜4週間</p>
+                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary); transition: color 0.3s;" id="modify-medium-text">${isWeekly ? '3〜4週間' : '21〜28日'}</p>
                         </div>
                         <div class="duration-option" onclick="selectModifyDuration('long')" data-modify-duration="long" style="flex: 1; padding: 12px; border: 2px solid var(--border); border-radius: 8px; text-align: center; cursor: pointer;">
                             <h4 style="margin: 0; font-size: 14px;">長期間</h4>
-                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary); transition: color 0.3s;" id="modify-long-text">5〜8週間</p>
+                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary); transition: color 0.3s;" id="modify-long-text">${isWeekly ? '5〜8週間' : '35〜56日'}</p>
                         </div>
                     </div>
                 </div>
@@ -10474,7 +10488,7 @@
             document.body.appendChild(overlay);
             
             // 期間をランダムに設定
-            shuffleModifyDurations();
+            shuffleModifyDurations(isWeekly);
         }
         
         // 修正時の期間選択
@@ -10493,11 +10507,15 @@
             selected.style.background = 'rgba(59, 130, 246, 0.1)';
         }
         
-        function shuffleModifyDurations() {
-            const durations = {
-                short: { min: 1, max: 2 },
-                medium: { min: 3, max: 4 },
-                long: { min: 5, max: 8 }
+        function shuffleModifyDurations(isWeekly = false) {
+            const durations = isWeekly ? {
+                short: { min: 1, max: 2 },   // 週
+                medium: { min: 3, max: 4 },   // 週
+                long: { min: 5, max: 8 }      // 週
+            } : {
+                short: { min: 7, max: 14 },   // 日
+                medium: { min: 21, max: 28 },  // 日
+                long: { min: 35, max: 56 }     // 日
             };
             
             // アニメーション用のインターバル
@@ -10507,12 +10525,17 @@
             const shuffleInterval = setInterval(() => {
                 Object.keys(durations).forEach(key => {
                     const range = durations[key];
-                    const weeks = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+                    const value = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
                     const textElement = document.getElementById(`modify-${key}-text`);
                     if (textElement) {
-                        textElement.textContent = `${weeks}週間`;
-                        textElement.dataset.weeks = weeks;
-                        textElement.dataset.days = weeks * 7; // 週を日数に変換して保存
+                        if (isWeekly) {
+                            textElement.textContent = `${value}週間`;
+                            textElement.dataset.weeks = value;
+                            textElement.dataset.days = value * 7;
+                        } else {
+                            textElement.textContent = `${value}日`;
+                            textElement.dataset.days = value;
+                        }
                     }
                 });
                 
@@ -10522,12 +10545,17 @@
                     // 最終的な値を設定
                     Object.keys(durations).forEach(key => {
                         const range = durations[key];
-                        const weeks = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+                        const value = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
                         const textElement = document.getElementById(`modify-${key}-text`);
                         if (textElement) {
-                            textElement.textContent = `${weeks}週間`;
-                            textElement.dataset.weeks = weeks;
-                            textElement.dataset.days = weeks * 7;
+                            if (isWeekly) {
+                                textElement.textContent = `${value}週間`;
+                                textElement.dataset.weeks = value;
+                                textElement.dataset.days = value * 7;
+                            } else {
+                                textElement.textContent = `${value}日`;
+                                textElement.dataset.days = value;
+                            }
                             textElement.style.color = 'var(--primary)';
                             setTimeout(() => {
                                 textElement.style.color = 'var(--text-secondary)';
