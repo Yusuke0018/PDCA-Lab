@@ -7556,11 +7556,11 @@
             showAchievementAnimation();
             
             // データを保存
-            const data = loadData();
-            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            const saveData2 = loadData();
+            const index = saveData2.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
             if (index !== -1) {
-                data.currentHypotheses[index] = window.currentHypothesis;
-                saveData(data);
+                saveData2.currentHypotheses[index] = window.currentHypothesis;
+                saveData(saveData2);
             }
             
             updateProgress();
