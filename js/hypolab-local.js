@@ -7766,8 +7766,49 @@
                     }
                 }
                 
-                // シンプルに基本ポイントのみ減算（コンボボーナスは触らない）
-                const totalDeduction = baseDeduct;
+                // コンボボーナスを再計算して調整
+                let comboDeduction = 0;
+                
+                // 取り消し前の達成数を確認
+                let achievedBeforeCancel = 0;
+                data.currentHypotheses.forEach(h => {
+                    if (h.achievements && h.achievements[dateKey]) {
+                        achievedBeforeCancel++;
+                    }
+                });
+                
+                // 取り消し後の達成数（現在の習慣は既に取り消し済み）
+                const achievedAfterCancel = achievedBeforeCancel - 1;
+                
+                // コンボボーナスの差分を計算
+                if (data.meta && data.meta.comboAwards && data.meta.comboAwards[dateKey]) {
+                    const previousComboBonus = data.meta.comboAwards[dateKey] || 0;
+                    
+                    // 新しいコンボボーナスを計算
+                    let newComboBonus = 0;
+                    const totalHabits = data.currentHypotheses.length;
+                    
+                    if (achievedAfterCancel === 2) {
+                        newComboBonus = 1; // 2習慣同時達成ボーナス
+                    } else if (achievedAfterCancel === 3) {
+                        newComboBonus = 3; // 3習慣同時達成ボーナス
+                    } else if (totalHabits >= 4 && achievedAfterCancel === totalHabits) {
+                        newComboBonus = 5; // 全習慣達成ボーナス
+                    }
+                    
+                    // 差分を計算
+                    comboDeduction = previousComboBonus - newComboBonus;
+                    
+                    // メタデータを更新
+                    if (newComboBonus > 0) {
+                        data.meta.comboAwards[dateKey] = newComboBonus;
+                    } else {
+                        delete data.meta.comboAwards[dateKey];
+                    }
+                }
+                
+                // 基本ポイントとコンボボーナスの差分を減算
+                const totalDeduction = baseDeduct + comboDeduction;
                 data.pointSystem.currentPoints = Math.max(0, data.pointSystem.currentPoints - totalDeduction);
                 // レベル進行も巻き戻す（生涯獲得からも減算）
                 data.pointSystem.lifetimeEarned = Math.max(0, (data.pointSystem.lifetimeEarned || 0) - totalDeduction);
@@ -7777,13 +7818,21 @@
                 data.pointSystem.currentLevel = lvl.level;
                 
                 // トランザクション記録（habitIdを含める）
+                const transactionDescription = comboDeduction > 0 ? 
+                    `${window.currentHypothesis.title} 取り消し（コンボ -${comboDeduction}pt含む）` :
+                    `${window.currentHypothesis.title} 取り消し`;
+                    
                 data.pointSystem.transactions.unshift({
                     type: 'spend',
                     amount: totalDeduction,
                     source: 'habit_cancel',
-                    description: `${window.currentHypothesis.title} 取り消し`,
+                    description: transactionDescription,
                     timestamp: new Date().toISOString(),
-                    habitId: window.currentHypothesis.id
+                    habitId: window.currentHypothesis.id,
+                    meta: {
+                        baseDeduction: baseDeduct,
+                        comboDeduction: comboDeduction
+                    }
                 });
                 
                 // トランザクション履歴を100件に制限
