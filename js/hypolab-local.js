@@ -146,8 +146,7 @@
                 rarity: 'common',
                 color: '#ef4444'
             },
-            // 新しいカード
-            
+            // 新しいカード（プロテクトシールドは削除）
             // 旧カード（廃止）：achievement_booster はプールから除外
             chaos_vortex: {
                 id: 'chaos_vortex',
@@ -182,7 +181,7 @@
                 id: 'point_gem',
                 type: 'reward',
                 name: 'ポイントジェム',
-                description: '明日1日限定でポイントが1.2倍になる',
+                description: '明日1日限定でポイントが1.5倍になる',
                 icon: '💎',
                 rarity: 'rare',
                 color: '#06b6d4'
@@ -210,7 +209,7 @@
                 id: 'streak_bonus',
                 type: 'reward',
                 name: '連続達成ボーナス',
-                description: '7日連続達成でレアカード確定',
+                description: '2日間、連続達成ボーナスの倍率が2倍',
                 icon: '🔥',
                 rarity: 'rare',
                 color: '#f97316'
@@ -219,7 +218,7 @@
                 id: 'lucky_seven',
                 type: 'reward',
                 name: 'ラッキーセブン',
-                description: '今日から7日間、カードドロップ率2倍',
+                description: '今日から7日間、イベント発生率2倍',
                 icon: '🎰',
                 rarity: 'legendary',
                 color: '#eab308'
@@ -331,7 +330,7 @@
                 id: 'mini_rainbow',
                 type: 'reward',
                 name: 'ミニレインボー',
-                description: '今日だけ全カテゴリのポイントが×1.2',
+                description: '今日だけ全カテゴリのポイントが×1.5',
                 icon: '🌈',
                 rarity: 'uncommon',
                 color: '#a855f7'
@@ -358,7 +357,7 @@
                 id: 'afternoon_gem',
                 type: 'reward',
                 name: 'アフタヌーンジェム',
-                description: '今日だけポイントが×1.2',
+                description: '今日だけポイントが×1.5',
                 icon: '☕',
                 rarity: 'uncommon',
                 color: '#10b981'
@@ -6273,29 +6272,7 @@
         function applyPenaltyCards() {
             const data = loadData();
             
-            // プロテクトシールドが有効かチェック
-            let hasProtectShield = false;
-            if (data.cards && data.cards.activeEffects) {
-                const protectIndex = data.cards.activeEffects.findIndex(effect => 
-                    effect.cardId === 'protect_shield'
-                );
-                if (protectIndex !== -1) {
-                    hasProtectShield = true;
-                    // プロテクトシールドを消費
-                    data.cards.activeEffects.splice(protectIndex, 1);
-                    saveData(data);
-                    
-                    showCardEffect('プロテクトシールド発動！', 'ペナルティカードを無効化しました', '#10b981');
-                    
-                    // ペナルティカードをクリア
-                    data.cards.pendingPenalties = [];
-                    saveData(data);
-                    
-                    // シャッフル画面を表示
-                    setTimeout(() => showShuffleView(), 2000);
-                    return;
-                }
-            }
+            // プロテクトシールドは削除（無効化処理は行わない）
             
             const penalties = [];
             
@@ -6640,7 +6617,7 @@
             container.innerHTML = '';
             
             // 使用可能なカードを集計（無効カードは除外）
-            const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start','second_chance']);
+            const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start','second_chance','protect_shield']);
             const usableCards = {};
             data.cards.inventory.forEach(card => {
                 if (!card.used && CARD_MASTER[card.cardId] && CARD_MASTER[card.cardId].type === 'reward' && !DISABLED_CARDS.has(card.cardId)) {
@@ -7517,7 +7494,20 @@
             
             // 連続日数を計算
             const streakDays = calculateCurrentStreak(window.currentHypothesis);
-            const multiplier = calculateStreakMultiplier(streakDays);
+            let multiplier = calculateStreakMultiplier(streakDays);
+            // ストリーク倍率ブースト（カード）: ボーナス部分を2倍などに拡張
+            try {
+                const data = loadData();
+                const now = new Date();
+                if (data.cards && Array.isArray(data.cards.activeEffects)) {
+                    const boost = data.cards.activeEffects.find(e => e && e.type === 'streak_multiplier_boost' && e.startDate && e.endDate && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
+                    if (boost && boost.multiplier && Number(boost.multiplier) > 1) {
+                        const base = 1;
+                        const bonus = multiplier - 1;
+                        multiplier = base + bonus * Number(boost.multiplier);
+                    }
+                }
+            } catch(_) {}
             
             // ポイント付与（強度を考慮した実際のポイント）
             const basePoints = actualPoints;
@@ -7985,6 +7975,9 @@
                 }
                 if (ae.find(e => e.type === 'time_window_bonus')) {
                     addBadge('⏰ ハッピーアワー +10', 'background: rgba(6,182,212,0.2); color:#06b6d4; padding:4px 12px; border-radius:16px; font-size:12px; border:1px solid #06b6d4;');
+                }
+                if (ae.find(e => e.type === 'streak_multiplier_boost')) {
+                    addBadge('🔥 ストリーク倍率×2', 'background: rgba(249,115,22,0.2); color:#f97316; padding:4px 12px; border-radius:16px; font-size:12px; border:1px solid #f97316;');
                 }
                 const spark = ae.find(e => e.type === 'streak_spark' && e.dayKey === todayKey);
                 if (spark) {
@@ -9691,17 +9684,12 @@
             }
         }
 
-        // デブリーフを促してから完了オプションを表示
+        // デブリーフをスキップし、直接完了オプションを表示
         function requestDebriefThenShowOptions() {
-            const showOptions = () => {
+            try {
                 document.getElementById('completion-report-section').style.display = 'none';
                 document.getElementById('completion-options').style.display = 'block';
-            };
-            if (!window.currentHypothesis.debrief) {
-                showDebriefModal(() => showOptions());
-            } else {
-                showOptions();
-            }
+            } catch (_) {}
         }
 
         // デブリーフ（満足度/一言）モーダル
@@ -11586,13 +11574,14 @@
             
             const monthlyRate = monthlyTotal > 0 ? Math.round((monthlyAchievements / monthlyTotal) * 100) : 0;
             
+            const missedDays = monthlyTotal - monthlyAchievements;
             report += `
                 <div style="display: grid; gap: 12px; margin-top: 16px;">
                     <div style="padding: 12px; background: var(--background); border-radius: 8px;">
                         <div style="font-size: 24px; font-weight: 700; color: var(--primary);">${monthlyRate}%</div>
                         <div style="font-size: 12px; color: var(--text-secondary);">月間達成率</div>
                     </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+                    <div style="display: grid; grid-template-columns: ${missedDays > 0 ? '1fr 1fr 1fr' : '1fr 1fr'}; gap: 8px;">
                         <div style="padding: 8px; background: var(--background); border-radius: 8px; text-align: center;">
                             <div style="font-weight: 600;">${habitsActive}</div>
                             <div style="font-size: 10px; color: var(--text-secondary);">活動中の習慣</div>
@@ -11601,10 +11590,11 @@
                             <div style="font-weight: 600;">${monthlyAchievements}</div>
                             <div style="font-size: 10px; color: var(--text-secondary);">達成日数</div>
                         </div>
+                        ${missedDays > 0 ? `
                         <div style="padding: 8px; background: var(--background); border-radius: 8px; text-align: center;">
-                            <div style="font-weight: 600;">${monthlyTotal - monthlyAchievements}</div>
+                            <div style="font-weight: 600;">${missedDays}</div>
                             <div style="font-size: 10px; color: var(--text-secondary);">未達成日数</div>
-                        </div>
+                        </div>` : ''}
                     </div>
                 </div>
             `;
@@ -11871,6 +11861,48 @@
         }
         
         // イベント定義（シンプルで面白い仕掛け）
+        const EVENT_DEFINITIONS = [
+            // ポイント系イベント（バランス調整済み）
+            { id: 'bonus_points', name: '🎆 ボーナスポイント', description: '今日の全達成が1.3倍', effect: 'points_multiplier', value: 1.3 },
+            { id: 'point_rain', name: '💰 ポイントレイン', description: '最初の3回達成で+3ptボーナス', effect: 'achievement_bonus', value: 3 },
+            { id: 'golden_day', name: '✨ ゴールデンデー', description: '全ポイント+2の固定ボーナス', effect: 'flat_bonus', value: 2 },
+            
+            // 時間系イベント
+            { id: 'early_bird_special', name: '🌅 早起き特典', description: '朝6-9時の達成で×1.2', effect: 'time_bonus', hours: [6,7,8,9], multiplier: 1.2 },
+            { id: 'night_owl_boost', name: '🦉 夜型ボーナス', description: '20-23時の達成で×1.2', effect: 'time_bonus', hours: [20,21,22,23], multiplier: 1.2 },
+            { id: 'lucky_hour', name: '⏰ ラッキーアワー', description: '11時と17時の達成で+3pt', effect: 'lucky_time', hours: [11,17], bonus: 3 },
+            
+            // カテゴリ系イベント
+            { id: 'study_day', name: '📚 勉強デー', description: '勉強カテゴリ×1.5', effect: 'category_boost', category: 'study', multiplier: 1.5 },
+            { id: 'exercise_festival', name: '💪 運動祭り', description: '運動カテゴリ×1.5', effect: 'category_boost', category: 'exercise', multiplier: 1.5 },
+            { id: 'health_campaign', name: '🍎 健康キャンペーン', description: '健康カテゴリ×1.5', effect: 'category_boost', category: 'health', multiplier: 1.5 },
+            { id: 'work_power', name: '💼 仕事パワー', description: '仕事カテゴリ×1.5', effect: 'category_boost', category: 'work', multiplier: 1.5 },
+            { id: 'hobby_time', name: '🎨 趣味タイム', description: '趣味カテゴリ×1.5', effect: 'category_boost', category: 'hobby', multiplier: 1.5 },
+            
+            // 特殊系イベント
+            { id: 'perfect_challenge', name: '💯 パーフェクトチャレンジ', description: '全習慣達成で+10ptボーナス', effect: 'perfect_bonus', value: 10 },
+            { id: 'streak_party', name: '🔥 ストリークパーティ', description: '連続3日以上の習慣に+3pt', effect: 'streak_bonus', minDays: 3, bonus: 3 },
+            { id: 'comeback_bonus', name: '🎉 カムバックボーナス', description: '3日ぶりの達成で×1.5', effect: 'comeback', days: 3, multiplier: 1.5 },
+            
+            // ギャンブル系イベント
+            { id: 'dice_roll', name: '🎲 サイコロチャレンジ', description: '達成毎に1〜3ptランダム', effect: 'random_points', min: 1, max: 3 },
+            { id: 'coin_flip', name: '🪙 コインフリップ', description: '50%で×1.5、50%で×0.8', effect: 'coin_flip', win: 1.5, lose: 0.8 },
+            
+            // 連鎖系イベント
+            { id: 'chain_reaction', name: '⛓️ チェインリアクション', description: '達成する度に+1pt累積（最大+5）', effect: 'chain', maxBonus: 5 },
+            { id: 'momentum_builder', name: '🚀 モメンタムビルダー', description: '連続達成で倍率上昇（1→1.1→1.2→1.3）', effect: 'momentum', multipliers: [1, 1.1, 1.2, 1.3] },
+            
+            // カード系イベント
+            { id: 'card_carnival', name: '🎴 カードカーニバル', description: 'インベントリのカード1枚を指定したカードに変化', effect: 'card_transform' },
+            
+            // 逆転系イベント
+            { id: 'second_chance', name: '🔁 セカンドチャンス', description: '失敗した習慣を1つリセット可能', effect: 'reset_habit', value: 1 },
+            { id: 'time_warp', name: '⏪ タイムワープ', description: '昨日の達成状況を今日にコピー', effect: 'copy_yesterday', value: 1 },
+            
+            // 週末イベント
+            { id: 'weekend_special', name: '🎈 週末スペシャル', description: '週末はポイント1.2倍！', effect: 'points_multiplier', value: 1.2 }
+        ];
+        
         
         // 特別報酬を獲得（スマホ限定、1日1回）
         function getSpecialReward() {
@@ -11945,6 +11977,84 @@
             
             section.style.display = 'block';
         }
+
+        // カードカーニバル: 所持カード1枚を別カードへ変化させる
+        function openCardCarnivalModal() {
+            const data = loadData();
+            // 今日のイベントに card_carnival があるか確認
+            const todayStr = new Date().toISOString().split('T')[0];
+            const hasEvent = !!(data.events && Array.isArray(data.events.activeBoosts) && data.events.activeBoosts.some(b => b && b.eventId === 'card_carnival' && b.date === todayStr));
+            if (!hasEvent) {
+                showNotification('⚠️ 本日はカードカーニバルが有効ではありません', 'error');
+                return;
+            }
+            const inventory = (data.cards && Array.isArray(data.cards.inventory)) ? data.cards.inventory.filter(c => !c.used) : [];
+            if (inventory.length === 0) {
+                showNotification('🎴 変化できるカードがありません', 'info');
+                return;
+            }
+            const DISABLED = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start']);
+            const allTargets = Object.keys(CARD_MASTER).filter(id => !DISABLED.has(id));
+            
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay active';
+            const modal = document.createElement('div');
+            modal.className = 'skip-modal active';
+            modal.style.maxWidth = '520px';
+            modal.innerHTML = `
+                <div class="modal-header">
+                    <h3>🎴 カードカーニバル</h3>
+                    <p>手持ちのカード1枚を選び、変化後のカードを指定します</p>
+                </div>
+                <div class="form-group">
+                    <label>変化させるカード</label>
+                    <select id="cc-source" style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border);">
+                        ${inventory.map((c, idx) => {
+                            const def = CARD_MASTER[c.cardId];
+                            const label = def ? `${def.icon || '🎴'} ${def.name}` : c.cardId;
+                            return `<option value="${idx}">${label}</option>`;
+                        }).join('')}
+                    </select>
+                </div>
+                <div class="form-group" style="margin-top:12px;">
+                    <label>変化後のカード</label>
+                    <select id="cc-target" style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border);">
+                        ${allTargets.map(id => {
+                            const def = CARD_MASTER[id];
+                            const label = def ? `${def.icon || '🎴'} ${def.name}` : id;
+                            return `<option value="${id}">${label}</option>`;
+                        }).join('')}
+                    </select>
+                </div>
+                <div class="modal-footer" style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px;">
+                    <button class="button secondary" onclick="this.closest('.overlay').remove()">キャンセル</button>
+                    <button class="button primary" id="cc-exec">変化させる</button>
+                </div>
+            `;
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            
+            document.getElementById('cc-exec').onclick = () => {
+                try {
+                    const srcIndex = parseInt(document.getElementById('cc-source').value, 10);
+                    const targetId = String(document.getElementById('cc-target').value);
+                    const d = loadData();
+                    if (!d.cards || !Array.isArray(d.cards.inventory) || !d.cards.inventory[srcIndex]) {
+                        showNotification('❌ 変化に失敗しました', 'error');
+                        return;
+                    }
+                    d.cards.inventory[srcIndex].cardId = targetId;
+                    saveData(d);
+                    showCardEffect('✨ カード変化！', `${CARD_MASTER[inventory[srcIndex].cardId]?.name || inventory[srcIndex].cardId} → ${CARD_MASTER[targetId]?.name || targetId}`, '#8b5cf6');
+                    overlay.remove();
+                    if (typeof updateCardUseButton === 'function') updateCardUseButton();
+                } catch(e) {
+                    console.error(e);
+                    showNotification('❌ 変化に失敗しました', 'error');
+                }
+            };
+        }
+        window.openCardCarnivalModal = openCardCarnivalModal;
 
         // スワイプ機能
         let touchStartX = 0;
@@ -13330,11 +13440,7 @@
             showCardEffect('混乱の渦発動！', `${shuffledDates.length}日分の達成/未達成が入れ替わりました`, '#dc2626');
         }
         
-        // プロテクトシールド（廃止）
-        function useProtectShield() {
-            closeCardUseMenu();
-            showNotification('🛡️ プロテクトシールドは廃止されました', 'error');
-        }
+        // プロテクトシールドは削除
         
         // 達成率ブースターを使用
         function useAchievementBooster() {
@@ -13682,8 +13788,13 @@
             // カードを使用済みにして即座に削除  
             data.cards.inventory.splice(idx, 1);
             const dayKey = dateKeyLocal(new Date());
+<<<<<<< HEAD
             if (!data.cards.activeEffects) data.cards.activeEffects = [];
-            data.cards.activeEffects.push({ cardId:'mystery_box', type:'mystery_reward', dayKey, claimed:false, options:['points15','event_trigger'] });
+            data.cards.activeEffects.push({ cardId:'mystery_box', type:'mystery_reward', dayKey, claimed:false, options:['points15','event_trigger','point_gem'] });
+=======
+                if (!data.cards.activeEffects) data.cards.activeEffects = [];
+                data.cards.activeEffects.push({ cardId:'mystery_box', type:'mystery_reward', dayKey, claimed:false, options:['points15','event_trigger','point_gem'] });
+>>>>>>> f88a768 (feat: 連続達成ボーナスを2日間×2に変更・カードカーニバルをカード変化に変更・ラッキーセブン=イベント発生率×2・デブリーフ削除・未達成0の非表示・プロテクトシールド削除)
             saveData(data);
             showCardEffect('🎁 ミステリーボックス！','今日の最初の達成でサプライズ','\#f59e0b');
             updateCardUseButton();
@@ -13879,7 +13990,7 @@
             updateCardUseButton();
         }
 
-        // 連続達成ボーナス
+        // 連続達成ボーナス（仕様変更：ストリークによるボーナス倍率を2倍に）
         function useStreakBonus() {
             closeCardUseMenu();
             const data = loadData();
@@ -13896,26 +14007,26 @@
             data.cards.inventory[cardIndex].used = true;
             data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
             
-            // 7日連続達成でレアカード確定
+            // 7日間、ストリークボーナス倍率×2
             if (!data.cards.activeEffects) data.cards.activeEffects = [];
             const today = new Date();
             const endDate = new Date();
-            endDate.setDate(endDate.getDate() + 7);
+            endDate.setDate(endDate.getDate() + 2);
             
             data.cards.activeEffects.push({
                 cardId: 'streak_bonus',
-                type: 'streak_rare_guarantee',
-                targetDays: 7,
+                type: 'streak_multiplier_boost',
+                multiplier: 2,
                 startDate: today.toISOString(),
                 endDate: endDate.toISOString()
             });
             
             saveData(data);
-            showNotification('🔥 7日連続達成でレアカード確定！', 'success');
+            showNotification('🔥 7日間、連続達成ボーナスの倍率が2倍！', 'success');
             updateCardUseButton();
         }
 
-        // ラッキーセブン
+        // ラッキーセブン（仕様変更：イベント発生率×2 を7日間）
         function useLuckySeven() {
             closeCardUseMenu();
             const data = loadData();
@@ -13932,7 +14043,7 @@
             data.cards.inventory[cardIndex].used = true;
             data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
             
-            // 7日間カードドロップ率2倍
+            // 7日間 イベント発生率2倍
             if (!data.cards.activeEffects) data.cards.activeEffects = [];
             const today = new Date();
             const endDate = new Date();
@@ -13940,14 +14051,14 @@
             
             data.cards.activeEffects.push({
                 cardId: 'lucky_seven',
-                type: 'drop_rate_boost',
+                type: 'event_rate_multiplier',
                 multiplier: 2,
                 startDate: today.toISOString(),
                 endDate: endDate.toISOString()
             });
             
             saveData(data);
-            showNotification('🎰 7日間カードドロップ率が2倍になりました！', 'success');
+            showNotification('🎰 7日間イベント発生率が2倍になりました！', 'success');
             updateCardUseButton();
         }
 
