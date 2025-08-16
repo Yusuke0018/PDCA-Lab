@@ -9938,7 +9938,7 @@
                         <span style="font-size: 18px;">${categoryInfo.icon}</span>
                         <span style="font-weight: 600; font-size: 15px; color: var(--text-primary);">${categoryInfo.name}</span>
                         <span style="font-size: 12px; color: var(--text-secondary); margin-left: 6px; background: ${categoryInfo.color}20; padding: 2px 8px; border-radius: 999px;">${habits.length}個</span>
-                        <span id="unach-${toggleKey}" style="display: inline-block; margin-left: 6px; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; font-weight: 600;">未達成 ${unachievedCount}個</span>
+                        ${unachievedCount > 0 ? `<span id="unach-${toggleKey}" style="display: inline-block; margin-left: 6px; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; font-weight: 600;">未達成 ${unachievedCount}個</span>` : ''}
                         <span style="margin-left: auto; font-size: 16px; transition: transform 0.3s;" id="toggle-${toggleKey}">${isOpen ? '▼' : '▶'}</span>
                     `;
                     
@@ -9968,8 +9968,15 @@
                             // 閉じても開いても最新件数を再計算して表示
                             try {
                                 const count = habits.filter(h => !(h.achievements && h.achievements[getActivityDateKey()])).length;
-                                if (unachBadge) { unachBadge.textContent = `未達成 ${count}個`; unachBadge.style.display = 'inline-block'; }
-                            } catch (e) { if (unachBadge) unachBadge.style.display = 'inline-block'; }
+                                if (unachBadge) {
+                                    if (count > 0) {
+                                        unachBadge.textContent = `未達成 ${count}個`;
+                                        unachBadge.style.display = 'inline-block';
+                                    } else {
+                                        unachBadge.style.display = 'none';
+                                    }
+                                }
+                            } catch (e) { if (unachBadge) unachBadge.style.display = 'none'; }
                         } else {
                             content.style.maxHeight = '2000px';
                             toggle.textContent = '▼';
@@ -9977,8 +9984,15 @@
                             // 閉じても開いても最新件数を再計算して表示
                             try {
                                 const count = habits.filter(h => !(h.achievements && h.achievements[getActivityDateKey()])).length;
-                                if (unachBadge) { unachBadge.textContent = `未達成 ${count}個`; unachBadge.style.display = 'inline-block'; }
-                            } catch (e) { if (unachBadge) unachBadge.style.display = 'inline-block'; }
+                                if (unachBadge) {
+                                    if (count > 0) {
+                                        unachBadge.textContent = `未達成 ${count}個`;
+                                        unachBadge.style.display = 'inline-block';
+                                    } else {
+                                        unachBadge.style.display = 'none';
+                                    }
+                                }
+                            } catch (e) { if (unachBadge) unachBadge.style.display = 'none'; }
                         }
                         
                         localStorage.setItem('categoryToggleStates', JSON.stringify(toggleStates));
