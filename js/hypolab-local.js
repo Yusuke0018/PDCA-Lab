@@ -437,7 +437,6 @@
             // 特殊系イベント
             { id: 'perfect_challenge', name: '💯 パーフェクトチャレンジ', description: '全習慣達成で+10ptボーナス', effect: 'perfect_bonus', value: 10 },
             { id: 'streak_party', name: '🔥 ストリークパーティ', description: '連続3日以上の習慣に+3pt', effect: 'streak_bonus', minDays: 3, bonus: 3 },
-            { id: 'comeback_bonus', name: '🎉 カムバックボーナス', description: '3日ぶりの達成で×1.5', effect: 'comeback', days: 3, multiplier: 1.5 },
             
             // ギャンブル系イベント
             { id: 'dice_roll', name: '🎲 サイコロチャレンジ', description: '達成毎に1〜3ptランダム', effect: 'random_points', min: 1, max: 3 },
@@ -450,9 +449,6 @@
             // カード系イベント
             { id: 'card_carnival', name: '🎴 カードカーニバル', description: 'カードドロップ率 1.5倍', effect: 'card_drop', multiplier: 1.5 },
             
-            // 逆転系イベント
-            { id: 'second_chance', name: '🔁 セカンドチャンス', description: '失敗した習慣を1つリセット可能', effect: 'reset_habit', value: 1 },
-            { id: 'time_warp', name: '⏪ タイムワープ', description: '昨日の達成状況を今日にコピー', effect: 'copy_yesterday', value: 1 },
             
             // 週末イベント
             { id: 'weekend_special', name: '🎈 週末スペシャル', description: '週末はポイント1.5倍！', effect: 'points_multiplier', value: 1.5 }
@@ -6676,7 +6672,7 @@
         // カード使用ボタンの更新（有効な報酬カードがある場合のみ）
         function updateCardUseButton() {
             const data = loadData();
-            const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start','second_chance']);
+            const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start']);
             const hasUsable = (data.cards.inventory || []).some(card => {
                 const def = CARD_MASTER[card.cardId];
                 return def && def.type === 'reward' && !card.used && !DISABLED_CARDS.has(card.cardId);
@@ -6697,7 +6693,7 @@
             container.innerHTML = '';
             
             // 使用可能なカードを集計（無効カードは除外）
-            const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start','second_chance','protect_shield']);
+            const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start','protect_shield']);
             const usableCards = {};
             data.cards.inventory.forEach(card => {
                 if (!card.used && CARD_MASTER[card.cardId] && CARD_MASTER[card.cardId].type === 'reward' && !DISABLED_CARDS.has(card.cardId)) {
@@ -6727,8 +6723,6 @@
                         cardDiv.onclick = () => usePerfectBonus();
                     } else if (cardId === 'achievement_booster') {
                         cardDiv.onclick = () => useAchievementBooster();
-                    } else if (cardId === 'second_chance') {
-                        cardDiv.onclick = () => useSecondChance();
                     } else if (cardId === 'event_trigger') {
                         cardDiv.onclick = () => useEventTrigger();
                     } else if (cardId === 'event_combo') {
@@ -10664,7 +10658,7 @@
         // ランダムな報酬カードを取得
         function getRandomRewardCard() {
             const data = loadData();
-            const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start','second_chance']);
+            const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start']);
             const rewardPoolBase = Object.keys(CARD_MASTER).filter(id => 
                 CARD_MASTER[id].type === 'reward' && !DISABLED_CARDS.has(id)
             );
@@ -10786,7 +10780,7 @@
 
             if (achievementRate === 100) {
                 // 報酬カード（全報酬カードから等確率で1枚）
-            const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start','second_chance']);
+            const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start']);
                 const rewardPoolBase = Object.keys(CARD_MASTER).filter(id => CARD_MASTER[id].type === 'reward' && !DISABLED_CARDS.has(id));
                 
                 // 直近10回の報酬カードのみをブロック（ペナルティカードは含めない）
@@ -10842,7 +10836,7 @@
                 }
             } else if (achievementRate >= 80) {
                 // 80-99%: 報酬カードを等確率で1枚
-                const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start','second_chance']);
+                const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start']);
                 const rewardPoolBase = Object.keys(CARD_MASTER).filter(id => CARD_MASTER[id].type === 'reward' && !DISABLED_CARDS.has(id));
                 
                 // 直近10回の報酬カードのみをブロック（ペナルティカードは含めない）
@@ -13631,63 +13625,6 @@
             showCardEffect('達成率ブースター発動！', '最終達成率に+15%のボーナスが付与されます', '#3b82f6');
         }
         
-        // セカンドチャンスを使用
-        function useSecondChance() {
-            closeCardUseMenu();
-            
-            if (!window.currentHypothesis) {
-                showNotification('⚠️ 進行中の習慣がありません', 'error');
-                return;
-            }
-            
-            const startDate = new Date(window.currentHypothesis.startDate);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            startDate.setHours(0, 0, 0, 0);
-            
-            // 経過日数を計算
-            const timeDiff = today.getTime() - startDate.getTime();
-            const daysPassed = Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1);
-            
-            // まだ期間が終わっていない場合は使用不可
-            if (daysPassed < window.currentHypothesis.totalDays) {
-                showNotification('⚠️ セカンドチャンスは習慣終了後に使用できます', 'error');
-                return;
-            }
-            
-            const data = loadData();
-            
-            // カードを消費
-            const cardIndex = data.cards.inventory.findIndex(
-                card => card.cardId === 'second_chance' && !card.used
-            );
-            
-            if (cardIndex === -1) {
-                showNotification('⚠️ セカンドチャンスがありません', 'error');
-                return;
-            }
-            
-            // カードを使用済みにして即座に削除
-            data.cards.inventory.splice(cardIndex, 1);
-            
-            // 期間を3日延長
-            window.currentHypothesis.totalDays += 3;
-            window.currentHypothesis.secondChanceUsed = true;
-            
-            // データを保存
-            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
-            if (index !== -1) {
-                data.currentHypotheses[index] = window.currentHypothesis;
-            }
-            
-            saveData(data);
-            
-            // UIを更新
-            updateCalendar();
-            updateProgress();
-            
-            showCardEffect('セカンドチャンス発動！', '3日分の追加チャンスを獲得しました', '#10b981');
-        }
 
         // 新しいカード効果関数
 

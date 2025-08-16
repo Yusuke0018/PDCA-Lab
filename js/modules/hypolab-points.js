@@ -30,7 +30,7 @@ function calculateLevel(lifetimeEarned) {
     };
 }
 
-function calculatePointsWithBoosts(basePoints, source, category = null) {
+function calculatePointsWithBoosts(basePoints, source, category = null, habitId = null) {
     const data = loadData();
     let finalPoints = basePoints;
     let multiplier = 1.0;
@@ -140,6 +140,22 @@ function calculatePointsWithBoosts(basePoints, source, category = null) {
                 multiplier *= boost.multipliers[index];
                 data.events.momentumIndex++;
                 saveData(data);
+            } else if (boost.effect === 'perfect_bonus' && source === 'habit') {
+                // パーフェクトチャレンジ: 全習慣達成で+10pt
+                const today = dateKeyLocal(new Date());
+                const todayAchievements = data.habits.filter(h => h.achievedDates && h.achievedDates.includes(today));
+                if (todayAchievements.length === data.habits.length && data.habits.length > 0) {
+                    bonus += boost.value || 10;
+                }
+            } else if (boost.effect === 'streak_bonus' && source === 'habit') {
+                // ストリークパーティ: 連続3日以上の習慣に+3pt
+                // habitIdはearnPointsから渡される（引数を追加する必要があります）
+                if (habitId) {
+                    const habit = data.habits.find(h => h.id === habitId);
+                    if (habit && habit.currentStreak >= (boost.minDays || 3)) {
+                        bonus += boost.bonus || 3;
+                    }
+                }
             }
 
             const effect = boost.effect;
@@ -159,7 +175,7 @@ function calculatePointsWithBoosts(basePoints, source, category = null) {
     return finalPoints;
 }
 
-function calculatePointsWithBoostsDetailed(basePoints, source, category = null) {
+function calculatePointsWithBoostsDetailed(basePoints, source, category = null, habitId = null) {
     const data = loadData();
     let multiplier = 1.0;
     let bonus = 0;
@@ -224,6 +240,26 @@ function calculatePointsWithBoostsDetailed(basePoints, source, category = null) 
                     }
                     break;
             }
+            
+            // 文字列形式のeffectも処理
+            if (boost.effect === 'perfect_bonus' && source === 'habit') {
+                // パーフェクトチャレンジ: 全習慣達成で+10pt
+                const today = dateKeyLocal(new Date());
+                const todayAchievements = data.habits.filter(h => h.achievedDates && h.achievedDates.includes(today));
+                if (todayAchievements.length === data.habits.length && data.habits.length > 0) {
+                    bonus += boost.value || 10;
+                    notes.push(`Perfect +${boost.value || 10}`);
+                }
+            } else if (boost.effect === 'streak_bonus' && source === 'habit') {
+                // ストリークパーティ: 連続3日以上の習慣に+3pt
+                if (habitId) {
+                    const habit = data.habits.find(h => h.id === habitId);
+                    if (habit && habit.currentStreak >= (boost.minDays || 3)) {
+                        bonus += boost.bonus || 3;
+                        notes.push(`Streak +${boost.bonus || 3}`);
+                    }
+                }
+            }
         });
     }
 
@@ -233,7 +269,7 @@ function calculatePointsWithBoostsDetailed(basePoints, source, category = null) 
 
 function earnPoints(amount, source, description, multiplier = 1.0, category = null, habitId = null, meta = {}) {
     const data = loadData();
-    const boost = calculatePointsWithBoostsDetailed(amount, source, category);
+    const boost = calculatePointsWithBoostsDetailed(amount, source, category, habitId);
     const finalAmount = Math.round((boost.finalPoints) * multiplier);
 
     const beforePoints = data.pointSystem.currentPoints;
