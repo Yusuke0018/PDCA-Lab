@@ -4660,6 +4660,9 @@
                 if (usedElStats) usedElStats.textContent = count.toLocaleString();
                 if (spentElStats) spentElStats.textContent = `${spent.toLocaleString()}pt`;
             } catch (e) { /* noop */ }
+
+            // ヘッダーのポイント表示も同期
+            try { updatePointDisplay(); } catch (e) {}
         }
 
         function dateKeyToday() { return dateKeyLocal(new Date()); }
@@ -4729,6 +4732,7 @@
             ps.transactions.unshift({ timestamp: new Date().toISOString(), type: 'loan_borrow', amount: n, source: 'loan', description: `前借り +${n}pt` });
             saveData(data);
             updatePointsView();
+            try { updatePointDisplay(); } catch (e) {}
             showNotification(`💳 ${n}ptを前借りしました`, 'success');
         }
         window.openBorrowDialog = openBorrowDialog;
@@ -4749,6 +4753,7 @@
             ps.loan = null;
             saveData(data);
             updatePointsView();
+            try { updatePointDisplay(); } catch (e) {}
             showNotification('💳 前借りを返還しました', 'success');
         }
         window.repayLoan = repayLoan;
