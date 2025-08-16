@@ -10179,11 +10179,27 @@
             overlay.className = 'overlay active';
             const modal = document.createElement('div');
             modal.className = 'skip-modal active';
+            
+            // 週にN回の習慣かチェック
+            const isWeekly = window.currentHypothesis.frequency && window.currentHypothesis.frequency.type === 'weekly';
+            const weeklyCount = isWeekly ? window.currentHypothesis.frequency.count : 3;
+            
             modal.innerHTML = `
                 <div class="modal-header">
                     <h3>🌱 習慣として継続</h3>
                     <p>この習慣を継続しますか？</p>
                 </div>
+                ${isWeekly ? `
+                <div class="form-group" style="margin: 20px 0;">
+                    <label>週の実施回数</label>
+                    <div style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
+                        <span>週に</span>
+                        <input type="number" id="weekly-count" min="1" max="7" value="${weeklyCount}" 
+                               style="width: 50px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); text-align: center;">
+                        <span>回</span>
+                    </div>
+                </div>
+                ` : ''}
                 <div class="form-group" style="margin: 20px 0;">
                     <label>継続期間を選択</label>
                     <div class="duration-selector" style="display: flex; gap: 10px; margin-top: 10px;">
@@ -10301,6 +10317,18 @@
                 const keepRecords = document.getElementById('continue-keep-records').checked;
                 const asHabit = document.getElementById('continue-as-habit').checked;
                 
+                // 週にN回の習慣の場合、回数を更新
+                const isWeekly = window.currentHypothesis.frequency && window.currentHypothesis.frequency.type === 'weekly';
+                if (isWeekly) {
+                    const weeklyCountInput = document.getElementById('weekly-count');
+                    if (weeklyCountInput) {
+                        const newCount = parseInt(weeklyCountInput.value);
+                        if (newCount >= 1 && newCount <= 7) {
+                            data.currentHypotheses[index].frequency.count = newCount;
+                        }
+                    }
+                }
+                
                 // 選択された期間の日数を取得
                 const durationElement = document.querySelector(`[data-continue-duration="${selectedContinueDuration}"] p`);
                 const duration = parseInt(durationElement.dataset.days);
@@ -10377,6 +10405,11 @@
             modal.className = 'skip-modal active';
             modal.style.width = '90%';
             modal.style.maxWidth = '500px';
+            
+            // 週にN回の習慣かチェック
+            const isWeekly = window.currentHypothesis.frequency && window.currentHypothesis.frequency.type === 'weekly';
+            const weeklyCount = isWeekly ? window.currentHypothesis.frequency.count : 3;
+            
             modal.innerHTML = `
                 <div class="modal-header">
                     <h3>✏️ 習慣内容を修正して継続</h3>
@@ -10392,20 +10425,31 @@
                     <textarea id="modify-description" rows="3" 
                               style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border);">${window.currentHypothesis.description}</textarea>
                 </div>
+                ${isWeekly ? `
+                <div class="form-group" style="margin: 20px 0;">
+                    <label>週の実施回数</label>
+                    <div style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
+                        <span>週に</span>
+                        <input type="number" id="modify-weekly-count" min="1" max="7" value="${weeklyCount}" 
+                               style="width: 50px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); text-align: center;">
+                        <span>回</span>
+                    </div>
+                </div>
+                ` : ''}
                 <div class="form-group" style="margin: 20px 0;">
                     <label>継続期間を選択</label>
                     <div class="duration-selector" style="display: flex; gap: 10px; margin-top: 10px;">
                         <div class="duration-option" onclick="selectModifyDuration('short')" data-modify-duration="short" style="flex: 1; padding: 12px; border: 2px solid var(--border); border-radius: 8px; text-align: center; cursor: pointer;">
                             <h4 style="margin: 0; font-size: 14px;">短期間</h4>
-                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary);" id="modify-short-text">3〜7日</p>
+                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary); transition: color 0.3s;" id="modify-short-text">1〜2週間</p>
                         </div>
                         <div class="duration-option selected" onclick="selectModifyDuration('medium')" data-modify-duration="medium" style="flex: 1; padding: 12px; border: 2px solid var(--primary); border-radius: 8px; text-align: center; cursor: pointer; background: rgba(59, 130, 246, 0.1);">
                             <h4 style="margin: 0; font-size: 14px;">中期間</h4>
-                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary);" id="modify-medium-text">8〜14日</p>
+                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary); transition: color 0.3s;" id="modify-medium-text">3〜4週間</p>
                         </div>
                         <div class="duration-option" onclick="selectModifyDuration('long')" data-modify-duration="long" style="flex: 1; padding: 12px; border: 2px solid var(--border); border-radius: 8px; text-align: center; cursor: pointer;">
                             <h4 style="margin: 0; font-size: 14px;">長期間</h4>
-                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary);" id="modify-long-text">15〜30日</p>
+                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary); transition: color 0.3s;" id="modify-long-text">5〜8週間</p>
                         </div>
                     </div>
                 </div>
@@ -10503,6 +10547,18 @@
                 const newTitle = document.getElementById('modify-title').value.trim();
                 const newDescription = document.getElementById('modify-description').value.trim();
                 const keepRecords = document.getElementById('modify-keep-records').checked;
+                
+                // 週にN回の習慣の場合、回数を更新
+                const isWeekly = window.currentHypothesis.frequency && window.currentHypothesis.frequency.type === 'weekly';
+                if (isWeekly) {
+                    const weeklyCountInput = document.getElementById('modify-weekly-count');
+                    if (weeklyCountInput) {
+                        const newCount = parseInt(weeklyCountInput.value);
+                        if (newCount >= 1 && newCount <= 7) {
+                            data.currentHypotheses[index].frequency.count = newCount;
+                        }
+                    }
+                }
                 
                 // 選択された期間の日数を取得
                 const durationElement = document.querySelector(`[data-modify-duration="${selectedModifyDuration}"] p`);
