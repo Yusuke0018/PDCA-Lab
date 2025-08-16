@@ -7743,82 +7743,8 @@
                     }
                 }
                 
-                // コンボボーナスのチェックと減算
-                let comboDeduction = 0;
-                // イベント（パーフェクトデー）減算
-                let eventDeduction = 0;
-                let totalAchievedBefore = 0;
-                let totalAchievedAfter = 0;
-                
-                // 取り消し前の同日達成数をカウント
-                // 注意：現在の習慣の達成状態はまだtrueなので、それも含めてカウント
-                data.currentHypotheses.forEach(h => {
-                    if (h.id === window.currentHypothesis.id) {
-                        // 現在の習慣は取り消し前なのでtrueとしてカウント
-                        if (window.currentHypothesis.achievements[dateKey]) {
-                            totalAchievedBefore++;
-                        }
-                    } else if (h.achievements && h.achievements[dateKey]) {
-                        totalAchievedBefore++;
-                    }
-                });
-                
-                // 取り消し後の同日達成数（この習慣を除く）
-                totalAchievedAfter = totalAchievedBefore - 1;
-                
-                // コンボボーナスの差分を計算
-                // 注意：コンボボーナスは累積ではなく、該当する最高のボーナスのみが付与される
-                let bonusBefore = 0;
-                let bonusAfter = 0;
-                
-                // 全習慣数を取得
-                const totalHabits = data.currentHypotheses.length;
-                
-                // 取り消し前のボーナス
-                if (totalHabits >= 4 && totalAchievedBefore === totalHabits) {
-                    bonusBefore = 5; // 全習慣達成ボーナス
-                } else if (totalAchievedBefore === 3) {
-                    bonusBefore = 3; // 3習慣ボーナス
-                } else if (totalAchievedBefore === 2) {
-                    bonusBefore = 1; // 2習慣ボーナス
-                }
-                
-                // 取り消し後のボーナス
-                if (totalHabits >= 4 && totalAchievedAfter === totalHabits) {
-                    bonusAfter = 5; // 全習慣達成ボーナス（ありえないが念のため）
-                } else if (totalAchievedAfter === 3) {
-                    bonusAfter = 3; // 3習慣ボーナス
-                } else if (totalAchievedAfter === 2) {
-                    bonusAfter = 1; // 2習慣ボーナス
-                }
-                
-                // 差分を計算（失われるボーナス）
-                // 実際に付与されたコンボ合計（当日）
-                const todayKey = dateKey;
-                const comboAwards = (data.meta && data.meta.comboAwards && data.meta.comboAwards[todayKey]) ? data.meta.comboAwards[todayKey] : 0;
-                // 取り消し後に残るべきコンボ（ベース値）
-                const baseAfter = (totalHabits >= 4 && totalAchievedAfter === totalHabits) ? 5 : (totalAchievedAfter === 3 ? 3 : (totalAchievedAfter === 2 ? 1 : 0));
-                // 現在のブースト状況での見込み値
-                const detailed = calculatePointsWithBoostsDetailed(baseAfter, 'combo', null);
-                const expectedAfterCombo = Math.round(detailed.finalPoints);
-                comboDeduction = Math.max(0, comboAwards - expectedAfterCombo);
-
-                // パーフェクトデーが付与済みなら取り消しで減算
-                try {
-                    if (totalHabits > 0 && totalAchievedBefore === totalHabits && totalAchievedAfter < totalHabits) {
-                        const awarded = (data.meta && data.meta.eventAwards && data.meta.eventAwards[todayKey]) ? data.meta.eventAwards[todayKey] : 0;
-                        if (awarded > 0) {
-                            eventDeduction = awarded;
-                            // 二重減算防止のため0にクリア
-                            if (!data.meta) data.meta = {};
-                            if (!data.meta.eventAwards) data.meta.eventAwards = {};
-                            data.meta.eventAwards[todayKey] = 0;
-                        }
-                    }
-                } catch(_) { /* noop */ }
-                
-                // ポイント減算（基本ポイント + コンボ差分）
-                const totalDeduction = baseDeduct + comboDeduction + eventDeduction;
+                // シンプルに基本ポイントのみ減算（コンボボーナスは触らない）
+                const totalDeduction = baseDeduct;
                 data.pointSystem.currentPoints = Math.max(0, data.pointSystem.currentPoints - totalDeduction);
                 // レベル進行も巻き戻す（生涯獲得からも減算）
                 data.pointSystem.lifetimeEarned = Math.max(0, (data.pointSystem.lifetimeEarned || 0) - totalDeduction);
@@ -7832,7 +7758,7 @@
                     type: 'spend',
                     amount: totalDeduction,
                     source: 'habit_cancel',
-                    description: `${window.currentHypothesis.title} 取り消し${comboDeduction > 0 ? ' (コンボボーナス含む)' : ''}`,
+                    description: `${window.currentHypothesis.title} 取り消し`,
                     timestamp: new Date().toISOString(),
                     habitId: window.currentHypothesis.id
                 });
@@ -7856,14 +7782,7 @@
                 if (window.currentHypothesis.pointsByDate) {
                     delete window.currentHypothesis.pointsByDate[dateKey];
                 }
-                let message = `習慣の達成を取り消しました (-${baseDeduct}pt)`;
-                if (comboDeduction > 0) {
-                    message += `\nコンボボーナスも減算 (-${comboDeduction}pt)`;
-                }
-                if (eventDeduction > 0) {
-                    message += `\nパーフェクトデーボーナス減算 (-${eventDeduction}pt)`;
-                }
-                showNotification(message, 'info');
+                showNotification(`習慣の達成を取り消しました (-${baseDeduct}pt)`, 'info');
             }
         }
         
