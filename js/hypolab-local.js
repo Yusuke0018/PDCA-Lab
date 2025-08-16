@@ -5840,7 +5840,7 @@
             document.querySelector(`[data-duration="${duration}"]`).classList.add('selected');
         }
 
-        // 新規作成フォーム: IF-THEN行追加
+        // 新規作成フォーム: IF行のみ追加（THENは廃止）
         function addIfThenRow() {
             const list = document.getElementById('ifthen-list');
             if (!list) return;
@@ -5849,8 +5849,6 @@
             row.style.cssText = 'display:flex; gap:8px; align-items:center;';
             row.innerHTML = `
                 <input type="text" class="if-input" placeholder="もし（例: 朝アラームが鳴ったら）" style="flex:1;" />
-                <span style="color: var(--text-secondary);">→</span>
-                <input type="text" class="then-input" placeholder="なら（例: 1分だけ座る）" style="flex:1;" />
                 <button type="button" class="btn btn-secondary" onclick="this.parentElement.remove()">削除</button>
             `;
             list.appendChild(row);
@@ -5893,9 +5891,8 @@
             const ifThen = [];
             document.querySelectorAll('#ifthen-list .ifthen-row').forEach(row => {
                 const ifv = row.querySelector('.if-input')?.value.trim() || '';
-                const thenv = row.querySelector('.then-input')?.value.trim() || '';
-                if (ifv && thenv) {
-                    ifThen.push({ id: Date.now().toString() + Math.random(), if: ifv, then: thenv });
+                if (ifv) {
+                    ifThen.push({ id: Date.now().toString() + Math.random(), if: ifv, then: '' });
                 }
             });
 
@@ -8414,14 +8411,13 @@
             const list = window.currentHypothesis.ifThen || [];
             panel.style.display = 'block';
             const items = list.map((it, i) => `
-                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px; padding:8px 0; border-bottom:1px solid var(--border);">
-                    <div style="flex:1;">
+                <div style=\"display:flex;align-items:center;justify-content:space-between;gap:12px; padding:8px 0; border-bottom:1px solid var(--border);\">
+                    <div style=\"flex:1;\">
                         <div><strong>もし</strong> ${escapeHTML(it.if)}</div>
-                        <div><strong>なら</strong> ${escapeHTML(it.then)}</div>
                     </div>
                     <div>
-                        <button class="btn btn-secondary" onclick="editIfThen(${i})">編集</button>
-                        <button class="btn btn-secondary" onclick="deleteIfThen(${i})" style="margin-left:6px;">削除</button>
+                        <button class=\"btn btn-secondary\" onclick=\"editIfThen(${i})\">編集</button>
+                        <button class=\"btn btn-secondary\" onclick=\"deleteIfThen(${i})\" style=\"margin-left:6px;\">削除</button>
                     </div>
                 </div>
             `).join('');
@@ -8712,12 +8708,9 @@
             if (!item) return;
             const iff = prompt('もし（トリガー）を修正', item.if);
             if (iff == null) return;
-            const thenv = prompt('なら（行動）を修正', item.then);
-            if (thenv == null) return;
             const ifv = (iff||'').trim();
-            const tv = (thenv||'').trim();
-            if (!ifv || !tv) return;
-            window.currentHypothesis.ifThen[index] = { ...item, if: ifv, then: tv };
+            if (!ifv) return;
+            window.currentHypothesis.ifThen[index] = { ...item, if: ifv, then: '' };
             const data = loadData();
             const idx = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
             if (idx !== -1) data.currentHypotheses[idx] = window.currentHypothesis;
