@@ -11995,49 +11995,6 @@
             }
         }
         
-        // イベント定義（シンプルで面白い仕掛け）
-        const EVENT_DEFINITIONS = [
-            // ポイント系イベント（バランス調整済み）
-            { id: 'bonus_points', name: '🎆 ボーナスポイント', description: '今日の全達成が1.3倍', effect: 'points_multiplier', value: 1.3 },
-            { id: 'point_rain', name: '💰 ポイントレイン', description: '最初の3回達成で+3ptボーナス', effect: 'achievement_bonus', value: 3 },
-            { id: 'golden_day', name: '✨ ゴールデンデー', description: '全ポイント+2の固定ボーナス', effect: 'flat_bonus', value: 2 },
-            
-            // 時間系イベント
-            { id: 'early_bird_special', name: '🌅 早起き特典', description: '朝6-9時の達成で×1.2', effect: 'time_bonus', hours: [6,7,8,9], multiplier: 1.2 },
-            { id: 'night_owl_boost', name: '🦉 夜型ボーナス', description: '20-23時の達成で×1.2', effect: 'time_bonus', hours: [20,21,22,23], multiplier: 1.2 },
-            { id: 'lucky_hour', name: '⏰ ラッキーアワー', description: '11時と17時の達成で+3pt', effect: 'lucky_time', hours: [11,17], bonus: 3 },
-            
-            // カテゴリ系イベント
-            { id: 'study_day', name: '📚 勉強デー', description: '勉強カテゴリ×1.5', effect: 'category_boost', category: 'study', multiplier: 1.5 },
-            { id: 'exercise_festival', name: '💪 運動祭り', description: '運動カテゴリ×1.5', effect: 'category_boost', category: 'exercise', multiplier: 1.5 },
-            { id: 'health_campaign', name: '🍎 健康キャンペーン', description: '健康カテゴリ×1.5', effect: 'category_boost', category: 'health', multiplier: 1.5 },
-            { id: 'work_power', name: '💼 仕事パワー', description: '仕事カテゴリ×1.5', effect: 'category_boost', category: 'work', multiplier: 1.5 },
-            { id: 'hobby_time', name: '🎨 趣味タイム', description: '趣味カテゴリ×1.5', effect: 'category_boost', category: 'hobby', multiplier: 1.5 },
-            
-            // 特殊系イベント
-            { id: 'perfect_challenge', name: '💯 パーフェクトチャレンジ', description: '全習慣達成で+10ptボーナス', effect: 'perfect_bonus', value: 10 },
-            { id: 'streak_party', name: '🔥 ストリークパーティ', description: '連続3日以上の習慣に+3pt', effect: 'streak_bonus', minDays: 3, bonus: 3 },
-            { id: 'comeback_bonus', name: '🎉 カムバックボーナス', description: '3日ぶりの達成で×1.5', effect: 'comeback', days: 3, multiplier: 1.5 },
-            
-            // ギャンブル系イベント
-            { id: 'dice_roll', name: '🎲 サイコロチャレンジ', description: '達成毎に1〜3ptランダム', effect: 'random_points', min: 1, max: 3 },
-            { id: 'coin_flip', name: '🪙 コインフリップ', description: '50%で×1.5、50%で×0.8', effect: 'coin_flip', win: 1.5, lose: 0.8 },
-            
-            // 連鎖系イベント
-            { id: 'chain_reaction', name: '⛓️ チェインリアクション', description: '達成する度に+1pt累積（最大+5）', effect: 'chain', maxBonus: 5 },
-            { id: 'momentum_builder', name: '🚀 モメンタムビルダー', description: '連続達成で倍率上昇（1→1.1→1.2→1.3）', effect: 'momentum', multipliers: [1, 1.1, 1.2, 1.3] },
-            
-            // カード系イベント
-            { id: 'card_carnival', name: '🎴 カードカーニバル', description: 'インベントリのカード1枚を指定したカードに変化', effect: 'card_transform' },
-            
-            // 逆転系イベント
-            { id: 'second_chance', name: '🔁 セカンドチャンス', description: '失敗した習慣を1つリセット可能', effect: 'reset_habit', value: 1 },
-            { id: 'time_warp', name: '⏪ タイムワープ', description: '昨日の達成状況を今日にコピー', effect: 'copy_yesterday', value: 1 },
-            
-            // 週末イベント
-            { id: 'weekend_special', name: '🎈 週末スペシャル', description: '週末はポイント1.5倍！', effect: 'points_multiplier', value: 1.5 }
-        ];
-        
         
         // 特別報酬を獲得（スマホ限定、1日1回）
         function getSpecialReward() {
@@ -13923,13 +13880,8 @@
             // カードを使用済みにして即座に削除  
             data.cards.inventory.splice(idx, 1);
             const dayKey = dateKeyLocal(new Date());
-<<<<<<< HEAD
             if (!data.cards.activeEffects) data.cards.activeEffects = [];
             data.cards.activeEffects.push({ cardId:'mystery_box', type:'mystery_reward', dayKey, claimed:false, options:['points15','event_trigger','point_gem'] });
-=======
-                if (!data.cards.activeEffects) data.cards.activeEffects = [];
-                data.cards.activeEffects.push({ cardId:'mystery_box', type:'mystery_reward', dayKey, claimed:false, options:['points15','event_trigger','point_gem'] });
->>>>>>> f88a768 (feat: 連続達成ボーナスを2日間×2に変更・カードカーニバルをカード変化に変更・ラッキーセブン=イベント発生率×2・デブリーフ削除・未達成0の非表示・プロテクトシールド削除)
             saveData(data);
             showCardEffect('🎁 ミステリーボックス！','今日の最初の達成でサプライズ','\#f59e0b');
             updateCardUseButton();
