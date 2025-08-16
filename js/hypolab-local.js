@@ -5735,8 +5735,7 @@
             // フォームをリセット
             document.getElementById('hypothesis-title').value = '';
             document.getElementById('hypothesis-description').value = '';
-            const benefitEl = document.getElementById('hypothesis-benefit');
-            if (benefitEl) benefitEl.value = '';
+            // 1行宣言UIは廃止
             // 入力にフォーカス
             const titleInput = document.getElementById('hypothesis-title');
             if (titleInput) {
@@ -5875,7 +5874,6 @@
             const title = document.getElementById('hypothesis-title').value.trim();
             const description = document.getElementById('hypothesis-description').value.trim();
             const category = document.getElementById('hypothesis-category').value;
-            const benefit = (document.getElementById('hypothesis-benefit')?.value || '').trim();
 
             if (!title || !description) {
                 alert('タイトルと詳細を入力してください');
@@ -5889,10 +5887,7 @@
                 alert('詳細は1000文字以内で入力してください');
                 return;
             }
-            if (!benefit) {
-                alert('朝の1行宣言（期待する変化）を入力してください');
-                return;
-            }
+            // 1行宣言は廃止したため入力不要
             
             // IF-THEN収集
             const ifThen = [];
@@ -5938,7 +5933,7 @@
                 resetRisk: window.resetRiskActive || false,
                 achievementDecrease: window.achievementDecrease || 0,
                 shortTermOnly: window.shortTermOnly || false,
-                benefit: benefit,
+                // benefit: 廃止
                 ifThen: ifThen,
                 frequency: frequencyData  // 頻度設定を追加
             };
