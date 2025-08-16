@@ -12040,80 +12040,6 @@
         window.closeCardAcquisition = closeCardAcquisition;
         
         
-        // 特別報酬を獲得（スマホ限定、1日1回）
-        function getSpecialReward() {
-            const data = loadData();
-            const today = dateKeyLocal(new Date());
-            
-            // 本日既に取得済みかチェック
-            if (!data.specialRewards) data.specialRewards = {};
-            if (data.specialRewards[today]) {
-                showNotification('📅 今日の特別報酬は既に獲得済みです', 'info');
-                return;
-            }
-            
-            // 報酬カードの候補（レアカードを含む）
-            const rewardCandidates = [
-                'event_trigger', 'point_gem', 'rainbow_boost', 'mission_master',
-                'streak_bonus', 'lucky_seven', 'conversion_magic', 'fate_dice',
-                'combo_chain', 'sparkle_streak', 'category_festival', 'happy_hour', 
-                'mystery_box', 'event_combo'
-            ];
-            
-            // ランダムに1枚選択
-            const selectedCard = rewardCandidates[Math.floor(Math.random() * rewardCandidates.length)];
-            
-            // カードを追加
-            if (!data.cards) data.cards = { inventory: [], pendingPenalties: [], activeEffects: [] };
-            data.cards.inventory.push({
-                cardId: selectedCard,
-                acquiredDate: new Date().toISOString(),
-                used: false
-            });
-            
-            // 取得済みフラグを立てる
-            data.specialRewards[today] = true;
-            
-            
-            saveData(data);
-            
-            // カード獲得演出を表示
-            window.showCardAcquisition([selectedCard], () => {
-                updateCardUseButton();
-                updateSpecialRewardButton();
-                showNotification('🎁 特別報酬を獲得しました！', 'success');
-            });
-        }
-        
-        // 特別報酬ボタンの表示状態を更新
-        function updateSpecialRewardButton() {
-            const data = loadData();
-            const today = dateKeyLocal(new Date());
-            const section = document.getElementById('special-reward-section');
-            const button = document.getElementById('special-reward-btn');
-            
-            if (!section) return;
-            
-            // スマホのみ表示
-            if (!isMobileDevice || !isMobileDevice()) {
-                section.style.display = 'none';
-                return;
-            }
-            
-            // 本日既に取得済みか確認
-            if (data.specialRewards && data.specialRewards[today]) {
-                button.disabled = true;
-                button.textContent = '✅ 本日は取得済み';
-                button.style.background = 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)';
-            } else {
-                button.disabled = false;
-                button.textContent = '🎁 報酬を受け取る';
-                button.style.background = 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)';
-            }
-            
-            section.style.display = 'block';
-        }
-
         // カードカーニバル: 所持カード1枚を別カードへ変化させる
         function openCardCarnivalModal() {
             const data = loadData();
@@ -13899,43 +13825,6 @@
             updateCardUseButton();
         }
 
-        // 一時的なカード取得関数（デバッグ用）
-        window.tempGetCards = function() {
-            const data = loadData();
-            const cards = [];
-            
-            // ランダムに3枚の報酬カードを選択
-            const rewardCards = Object.keys(CARD_MASTER).filter(id => 
-                CARD_MASTER[id].type === 'reward'
-            );
-            
-            for (let i = 0; i < 3; i++) {
-                if (rewardCards.length > 0) {
-                    const randomIndex = Math.floor(Math.random() * rewardCards.length);
-                    const cardId = rewardCards[randomIndex];
-                    cards.push(cardId);
-                    
-                    // インベントリに追加
-                    data.cards.inventory.push({
-                        cardId: cardId,
-                        acquiredDate: new Date().toISOString(),
-                        used: false
-                    });
-                    
-                    // ドロップ履歴に追加
-                    if (!data.cards.dropHistory) data.cards.dropHistory = [];
-                    data.cards.dropHistory.unshift(cardId);
-                }
-            }
-            
-            saveData(data);
-            
-            // カード獲得演出
-            window.showCardAcquisition(cards, () => {
-                showNotification('🎁 テスト用カードを3枚獲得しました！', 'success');
-            });
-        };
-        
         // ジャーナルブースト: 今日のジャーナルポイント×2
         function useJournalBoostToday() {
             closeCardUseMenu();
