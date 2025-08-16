@@ -10669,10 +10669,11 @@
             if (!frequency || frequency.type === 'daily') {
                 // 7回達成のチェック（7日経過ではなく、7回達成でカード取得）
                 const achievedCount = Object.keys(hypothesis.achievements || {}).length;
-                const sevenAchievementMilestones = Math.floor(achievedCount / 7);
+                const currentMilestone = Math.floor(achievedCount / 7);
+                const lastMilestone = hypothesis.cardAcquisitionHistory.sevenDays.length;
                 
-                // まだ取得していない7回達成があるか確認
-                if (sevenAchievementMilestones > hypothesis.cardAcquisitionHistory.sevenDays.length) {
+                // 新しいマイルストーンに到達したか確認（7, 14, 21, 28...回）
+                if (currentMilestone > lastMilestone && achievedCount >= 7) {
                     // 新しい7回達成 - カード取得
                     const cardId = getRandomRewardCard();
                     if (cardId) {
@@ -10680,7 +10681,7 @@
                         hypothesis.cardAcquisitionHistory.sevenDays.push({
                             date: new Date().toISOString(),
                             cardId: cardId,
-                            milestone: sevenAchievementMilestones,
+                            milestone: currentMilestone,
                             achievedCount: achievedCount
                         });
                         
@@ -14939,7 +14940,7 @@
                 globalContainer.id = 'global-active-effects';
                 globalContainer.style.cssText = `
                     position: fixed;
-                    top: 60px;
+                    bottom: 80px;
                     left: 50%;
                     transform: translateX(-50%);
                     background: var(--surface);
