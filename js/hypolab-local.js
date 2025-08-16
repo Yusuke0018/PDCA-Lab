@@ -5834,24 +5834,7 @@
                 pointDisplay.style.display = 'flex';
             }
 
-            // 前回デブリーフのミニバナー
-            const data = loadData();
-            const home = document.getElementById('home-view');
-            let banner = document.getElementById('last-debrief-banner');
-            if (!banner) {
-                banner = document.createElement('div');
-                banner.id = 'last-debrief-banner';
-                banner.style.cssText = 'margin:12px 0;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text-secondary);';
-                home.insertBefore(banner, home.firstChild);
-            }
-            if (data.meta && data.meta.lastDebrief) {
-                const d = data.meta.lastDebrief;
-                const dt = new Date(d.at).toLocaleDateString('ja-JP');
-                banner.innerHTML = `📝 前回の気づき（${dt} / 満足度${d.score}/5）: <span style=\"color:var(--text-primary)\">${(d.note||'').replace(/</g,'&lt;')}</span>`;
-                banner.style.display = 'block';
-            } else {
-                banner.style.display = 'none';
-            }
+            // デブリーフバナーを削除（機能を無効化）
             
             // ホーム画面のすべてのトグルを確実に閉じる
             setTimeout(() => {
@@ -9692,48 +9675,7 @@
             } catch (_) {}
         }
 
-        // デブリーフ（満足度/一言）モーダル
-        function showDebriefModal(onDone) {
-            const overlay = document.createElement('div');
-            overlay.className = 'overlay active';
-            const modal = document.createElement('div');
-            modal.className = 'skip-modal active';
-            modal.innerHTML = `
-                <div class="modal-header">
-                    <h3>📝 振り返り（30秒）</h3>
-                    <p>今回の検証を5段階で評価し、一言メモを残しましょう</p>
-                </div>
-                <div class="form-group" style="margin:12px 0;">
-                    <label>満足度（1-5）</label>
-                    <input id="debrief-score" type="number" min="1" max="5" value="4" style="width:80px;" />
-                </div>
-                <div class="form-group" style="margin:12px 0;">
-                    <label>一言メモ</label>
-                    <input id="debrief-note" type="text" placeholder="例: 朝イチがやりやすかった" />
-                </div>
-                <div class="modal-footer">
-                    <button class="button secondary" onclick="this.closest('.overlay').remove()">スキップ</button>
-                    <button id="debrief-save" class="button primary">保存して続行</button>
-                </div>
-            `;
-            overlay.appendChild(modal);
-            document.body.appendChild(overlay);
-            document.getElementById('debrief-save').onclick = () => {
-                const score = Math.min(5, Math.max(1, parseInt(document.getElementById('debrief-score').value || '3', 10)));
-                const note = (document.getElementById('debrief-note').value || '').slice(0, 140);
-                const data = loadData();
-                const idx = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
-                const payload = { score, note, at: new Date().toISOString() };
-                if (idx !== -1) {
-                    data.currentHypotheses[idx].debrief = payload;
-                }
-                if (!data.meta) data.meta = {};
-                data.meta.lastDebrief = payload;
-                saveData(data);
-                overlay.remove();
-                onDone && onDone();
-            };
-        }
+        // デブリーフ機能を削除（振り返りモーダルを無効化）
 
         // ==== デバッグ機能 ====
         function openDebugMenu() {
