@@ -14149,6 +14149,7 @@
         
         // デイリーイベントをチェック
         function checkDailyEvents() {
+            console.log('checkDailyEvents called');
             const data = loadData();
             const today = dateKeyLocal(new Date());
             
@@ -14162,12 +14163,14 @@
             
             // 今日既にチェック済みならスキップ
             if (data.events.lastEventCheck === today) {
+                console.log('Event already checked today');
                 updateEventDisplay();
                 return;
             }
             
             // 新しい日のイベントを取得
             const dailyEvent = getDailyEvent();
+            console.log('Daily event:', dailyEvent);
             
             if (dailyEvent) {
                 data.events.activeBoosts = [dailyEvent];
