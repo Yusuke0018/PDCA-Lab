@@ -348,7 +348,7 @@
                 id: 'power_nap',
                 type: 'reward',
                 name: 'パワーナップ',
-                description: '次の習慣達成で+5pt',
+                description: '次の習慣達成で+10pt',
                 icon: '😴',
                 rarity: 'common',
                 color: '#06b6d4'
@@ -13819,7 +13819,7 @@
             updateCardUseButton();
         }
 
-        // パワーナップ: 次の習慣達成で+5pt
+        // パワーナップ: 次の習慣達成で+10pt
         function usePowerNap() {
             closeCardUseMenu();
             const data = loadData();
@@ -13830,11 +13830,11 @@
             data.cards.activeEffects.push({ 
                 cardId:'power_nap', 
                 type:'next_habit_bonus', 
-                value:5, 
+                value:10, 
                 used:false
             });
             saveData(data);
-            showCardEffect('😴 パワーナップ！','次の習慣達成で+5pt','\#06b6d4');
+            showCardEffect('😴 パワーナップ！','次の習慣達成で+10pt','\#06b6d4');
             updateCardUseButton();
         }
 
@@ -14671,7 +14671,7 @@
                         b.name === '🌅 朝活ボーナス' || 
                         b.name === '🌙 夜型ボーナス' ||
                         (b.effect && (b.effect.type === 'morning_boost' || b.effect.type === 'night_boost')) ||
-                        (b.eventId === 'weekend_special' && b.value !== 1.2)  // 1.2倍以外の古い週末スペシャル
+                        (b.eventId === 'weekend_special' && b.value !== 1.5)  // 1.5倍以外の古い週末スペシャル
                     );
                     
                     if (hasOldEvent) {

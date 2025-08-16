@@ -44,15 +44,15 @@ function checkDailyEvents() {
     );
     
     // 古いイベントがある場合は強制的にクリア
-    // または週末スペシャルの倍率が1.2以外の場合もクリア
+    // または週末スペシャルの倍率が1.5以外の場合もクリア
     const hasOldWeekendValue = data.events.activeBoosts.some(b => 
-        b.eventId === 'weekend_special' && b.value !== 1.2
+        b.eventId === 'weekend_special' && b.value !== 1.5
     );
     
     // 週末スペシャルの値が間違っている場合、または古い表記がある場合はクリア
     const hasWrongDescription = data.events.activeBoosts.some(b =>
         b.eventId === 'weekend_special' && 
-        (b.description.includes('1.5') || b.description.includes('2'))
+        (b.description.includes('1.2') || b.description.includes('2'))
     );
     
     if (hasOldBoost || hasOldWeekendValue || hasWrongDescription) {
@@ -69,12 +69,12 @@ function checkDailyEvents() {
     const todayEvent = getDailyEvent();
     
     if (todayEvent) {
-        // 週末スペシャルの場合は値を1.2倍に強制修正
+        // 週末スペシャルの場合は値を1.5倍に強制修正
         let eventValue = todayEvent.value;
         let eventDescription = todayEvent.description;
         if (todayEvent.id === 'weekend_special') {
-            eventValue = 1.2;
-            eventDescription = '週末はポイント1.2倍！';
+            eventValue = 1.5;
+            eventDescription = '週末はポイント1.5倍！';
         }
         
         // イベントを記録
@@ -325,18 +325,18 @@ function updateEventDisplay() {
         // 1) 値・説明の正規化（週末スペシャル）
         boosts = boosts.map(b => {
             if (b && b.eventId === 'weekend_special') {
-                b.value = 1.2;
-                b.description = '週末はポイント1.2倍！';
+                b.value = 1.5;
+                b.description = '週末はポイント1.5倍！';
             }
             return b;
         });
 
-        // 2) 明らかに古い表記（1.5など）を含む週末スペシャルを除外
+        // 2) 明らかに古い表記（1.2など）を含む週末スペシャルを除外
         boosts = boosts.filter(b => {
             if (!b) return false;
             if (b.eventId === 'weekend_special') {
                 const desc = String(b.description || '');
-                if (desc.includes('1.5') || desc.includes('×1.5')) return false;
+                if (desc.includes('1.2') || desc.includes('×1.2')) return false;
             }
             return true;
         });
