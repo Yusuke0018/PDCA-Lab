@@ -223,8 +223,9 @@ function calculatePointsWithBoostsDetailed(basePoints, source, category = null, 
         if (comboChain && source === 'combo') { multiplier *= (comboChain.value || 2.0); notes.push(`Combo ×${comboChain.value || 2.0}`); }
         const catFest = data.cards.activeEffects.find(e => e.type === 'category_theme_boost' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
         if (catFest && category && catFest.target === category) { multiplier *= (catFest.multiplier || 1.5); notes.push(`Festival(${category}) ×${catFest.multiplier || 1.5}`); }
-        const hh = data.cards.activeEffects.find(e => e.type === 'time_window_bonus' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
-        if (hh) { bonus += (hh.value || 10); notes.push(`HappyHour +${hh.value || 10}`); }
+        // ハッピーアワーは point_multiplier として処理されるので、ここでは削除
+        // const hh = data.cards.activeEffects.find(e => e.type === 'time_window_bonus' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
+        // if (hh) { bonus += (hh.value || 10); notes.push(`HappyHour +${hh.value || 10}`); }
         const todayKey = dateKeyLocal(new Date());
         const spark = data.cards.activeEffects.find(e => e.type === 'streak_spark' && e.dayKey === todayKey && (e.count || 0) < (e.bonuses ? e.bonuses.length : 0));
         if (spark && source === 'habit') {

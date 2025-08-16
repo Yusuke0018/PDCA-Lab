@@ -8070,9 +8070,10 @@
                 if (catFest) {
                     addBadge(`🎪 ${catFest.target}×${catFest.multiplier || 1.5}`, 'background: rgba(139,92,246,0.2); color:#8b5cf6; padding:4px 12px; border-radius:16px; font-size:12px; border:1px solid #8b5cf6;');
                 }
-                if (ae.find(e => e.type === 'time_window_bonus')) {
-                    addBadge('⏰ ハッピーアワー +10', 'background: rgba(6,182,212,0.2); color:#06b6d4; padding:4px 12px; border-radius:16px; font-size:12px; border:1px solid #06b6d4;');
-                }
+                // ハッピーアワーは point_multiplier として表示されるので削除
+                // if (ae.find(e => e.type === 'time_window_bonus')) {
+                //     addBadge('⏰ ハッピーアワー +10', 'background: rgba(6,182,212,0.2); color:#06b6d4; padding:4px 12px; border-radius:16px; font-size:12px; border:1px solid #06b6d4;');
+                // }
                 if (ae.find(e => e.type === 'streak_multiplier_boost')) {
                     addBadge('🔥 ストリーク倍率×2', 'background: rgba(249,115,22,0.2); color:#f97316; padding:4px 12px; border-radius:16px; font-size:12px; border:1px solid #f97316;');
                 }
@@ -13348,9 +13349,9 @@
                 // カテゴリーフェス（対象カテゴリだけ）
                 const catFest = data.cards.activeEffects.find(e => e.type === 'category_theme_boost' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
                 if (catFest && category && catFest.target === category) { multiplier *= (catFest.multiplier || 1.5); notes.push(`Festival(${category}) ×${catFest.multiplier || 1.5}`); }
-                // ハッピーアワー（指定時間帯に+10）
-                const hh = data.cards.activeEffects.find(e => e.type === 'time_window_bonus' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
-                if (hh) { bonus += (hh.value || 10); notes.push(`HappyHour +${hh.value || 10}`); }
+                // ハッピーアワーは point_multiplier として処理されるので、ここでは削除
+                // const hh = data.cards.activeEffects.find(e => e.type === 'time_window_bonus' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
+                // if (hh) { bonus += (hh.value || 10); notes.push(`HappyHour +${hh.value || 10}`); }
                 // チャレンジ倍率（カード由来）
                 const isCh = (source === 'daily_challenge' || source === 'weekly_challenge' || source === 'challenge');
                 const chMul = data.cards.activeEffects.find(e => e.type === 'challenge_multiplier' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
@@ -15113,8 +15114,8 @@
                 }
             }
             
-            // グローバルなアクティブ効果表示も更新（画面上部に常時表示）
-            updateGlobalActiveEffectsDisplay(activeEffects);
+            // グローバルなアクティブ効果表示は無効化
+            // updateGlobalActiveEffectsDisplay(activeEffects);
         }
         
         // 画面上部に常時表示するアクティブ効果
