@@ -9655,8 +9655,10 @@
                 if (shouldGetCompletionCards) {
                     const acquiredCards = getCardsBasedOnAchievement(finalRate, hypothesis);
                     if (acquiredCards.length > 0) {
+                        // カードを追加して最新のdataを取得
+                        let updatedData = data;
                         acquiredCards.forEach(cardId => {
-                            addCardToInventory(cardId);
+                            updatedData = addCardToInventory(cardId);
                         });
                         
                         // 完了時のカード獲得フラグを設定
@@ -9664,13 +9666,13 @@
                         window.currentHypothesis.cardAcquisitionHistory.completion = true;
                         
                         // 現在の習慣を更新（カード獲得履歴を保存）
-                        const index = data.currentHypotheses.findIndex(h => h.id === hypothesis.id);
+                        const index = updatedData.currentHypotheses.findIndex(h => h.id === hypothesis.id);
                         if (index !== -1) {
-                            data.currentHypotheses[index].cardAcquisitionHistory = hypothesis.cardAcquisitionHistory;
-                            data.currentHypotheses[index].finalAchievementRate = finalRate;
+                            updatedData.currentHypotheses[index].cardAcquisitionHistory = hypothesis.cardAcquisitionHistory;
+                            updatedData.currentHypotheses[index].finalAchievementRate = finalRate;
                         }
                         
-                        saveData(data);
+                        saveData(updatedData);
                         
                         // カード獲得演出を表示
                         window.showCardAcquisition(acquiredCards, () => {
@@ -10542,7 +10544,7 @@
 
         // 習慣達成時のカード取得チェック
         function checkCardAcquisitionOnAchievement(dateKey) {
-            const data = loadData();
+            let data = loadData();
             const hypothesis = window.currentHypothesis;
             
             if (!hypothesis || !hypothesis.id) {
@@ -10571,7 +10573,7 @@
                     // 新しい7回達成 - カード取得
                     const cardId = getRandomRewardCard();
                     if (cardId) {
-                        addCardToInventory(cardId);
+                        data = addCardToInventory(cardId); // 更新されたdataを取得
                         hypothesis.cardAcquisitionHistory.sevenDays.push({
                             date: new Date().toISOString(),
                             cardId: cardId,
@@ -10616,7 +10618,7 @@
                     // 週間目標達成 - カード取得
                     const cardId = getRandomRewardCard();
                     if (cardId) {
-                        addCardToInventory(cardId);
+                        data = addCardToInventory(cardId); // 更新されたdataを取得
                         hypothesis.cardAcquisitionHistory.weeklyComplete.push(weekKey);
                         
                         // カード獲得演出
@@ -10728,7 +10730,8 @@
                 });
             }
             
-            saveData(data);
+            // saveData(data); // 呼び出し元で保存するため削除
+            return data; // 更新されたdataを返す
         }
 
         // 達成率に基づいてカードを取得
