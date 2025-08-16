@@ -10189,15 +10189,15 @@
                     <div class="duration-selector" style="display: flex; gap: 10px; margin-top: 10px;">
                         <div class="duration-option" onclick="selectContinueDuration('short')" data-continue-duration="short" style="flex: 1; padding: 12px; border: 2px solid var(--border); border-radius: 8px; text-align: center; cursor: pointer;">
                             <h4 style="margin: 0; font-size: 14px;">短期間</h4>
-                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary);" id="continue-short-text">3〜7日</p>
+                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary); transition: color 0.3s;" id="continue-short-text">1〜2週間</p>
                         </div>
                         <div class="duration-option selected" onclick="selectContinueDuration('medium')" data-continue-duration="medium" style="flex: 1; padding: 12px; border: 2px solid var(--primary); border-radius: 8px; text-align: center; cursor: pointer; background: rgba(59, 130, 246, 0.1);">
                             <h4 style="margin: 0; font-size: 14px;">中期間</h4>
-                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary);" id="continue-medium-text">8〜14日</p>
+                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary); transition: color 0.3s;" id="continue-medium-text">3〜4週間</p>
                         </div>
                         <div class="duration-option" onclick="selectContinueDuration('long')" data-continue-duration="long" style="flex: 1; padding: 12px; border: 2px solid var(--border); border-radius: 8px; text-align: center; cursor: pointer;">
                             <h4 style="margin: 0; font-size: 14px;">長期間</h4>
-                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary);" id="continue-long-text">15〜30日</p>
+                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary); transition: color 0.3s;" id="continue-long-text">5〜8週間</p>
                         </div>
                     </div>
                 </div>
@@ -10249,20 +10249,47 @@
         
         function shuffleContinueDurations() {
             const durations = {
-                short: { min: 3, max: 7 },
-                medium: { min: 8, max: 14 },
-                long: { min: 15, max: 30 }
+                short: { min: 1, max: 2 },
+                medium: { min: 3, max: 4 },
+                long: { min: 5, max: 8 }
             };
             
-            Object.keys(durations).forEach(key => {
-                const range = durations[key];
-                const days = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
-                const textElement = document.getElementById(`continue-${key}-text`);
-                if (textElement) {
-                    textElement.textContent = `${days}日`;
-                    textElement.dataset.days = days;
+            // アニメーション用のインターバル
+            let shuffleCount = 0;
+            const maxShuffles = 15;
+            
+            const shuffleInterval = setInterval(() => {
+                Object.keys(durations).forEach(key => {
+                    const range = durations[key];
+                    const weeks = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+                    const textElement = document.getElementById(`continue-${key}-text`);
+                    if (textElement) {
+                        textElement.textContent = `${weeks}週間`;
+                        textElement.dataset.weeks = weeks;
+                        textElement.dataset.days = weeks * 7; // 週を日数に変換して保存
+                    }
+                });
+                
+                shuffleCount++;
+                if (shuffleCount >= maxShuffles) {
+                    clearInterval(shuffleInterval);
+                    // 最終的な値を設定
+                    Object.keys(durations).forEach(key => {
+                        const range = durations[key];
+                        const weeks = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+                        const textElement = document.getElementById(`continue-${key}-text`);
+                        if (textElement) {
+                            textElement.textContent = `${weeks}週間`;
+                            textElement.dataset.weeks = weeks;
+                            textElement.dataset.days = weeks * 7;
+                            textElement.style.color = 'var(--primary)';
+                            setTimeout(() => {
+                                textElement.style.color = 'var(--text-secondary)';
+                            }, 500);
+                        }
+                    });
                 }
-            });
+            }, 100);
         }
         
         // 継続を確定
@@ -10424,20 +10451,47 @@
         
         function shuffleModifyDurations() {
             const durations = {
-                short: { min: 3, max: 7 },
-                medium: { min: 8, max: 14 },
-                long: { min: 15, max: 30 }
+                short: { min: 1, max: 2 },
+                medium: { min: 3, max: 4 },
+                long: { min: 5, max: 8 }
             };
             
-            Object.keys(durations).forEach(key => {
-                const range = durations[key];
-                const days = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
-                const textElement = document.getElementById(`modify-${key}-text`);
-                if (textElement) {
-                    textElement.textContent = `${days}日`;
-                    textElement.dataset.days = days;
+            // アニメーション用のインターバル
+            let shuffleCount = 0;
+            const maxShuffles = 15;
+            
+            const shuffleInterval = setInterval(() => {
+                Object.keys(durations).forEach(key => {
+                    const range = durations[key];
+                    const weeks = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+                    const textElement = document.getElementById(`modify-${key}-text`);
+                    if (textElement) {
+                        textElement.textContent = `${weeks}週間`;
+                        textElement.dataset.weeks = weeks;
+                        textElement.dataset.days = weeks * 7; // 週を日数に変換して保存
+                    }
+                });
+                
+                shuffleCount++;
+                if (shuffleCount >= maxShuffles) {
+                    clearInterval(shuffleInterval);
+                    // 最終的な値を設定
+                    Object.keys(durations).forEach(key => {
+                        const range = durations[key];
+                        const weeks = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+                        const textElement = document.getElementById(`modify-${key}-text`);
+                        if (textElement) {
+                            textElement.textContent = `${weeks}週間`;
+                            textElement.dataset.weeks = weeks;
+                            textElement.dataset.days = weeks * 7;
+                            textElement.style.color = 'var(--primary)';
+                            setTimeout(() => {
+                                textElement.style.color = 'var(--text-secondary)';
+                            }, 500);
+                        }
+                    });
                 }
-            });
+            }, 100);
         }
         
         // 修正して継続を確定
