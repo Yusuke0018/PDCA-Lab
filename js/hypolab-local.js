@@ -446,8 +446,6 @@
             { id: 'chain_reaction', name: '⛓️ チェインリアクション', description: '達成する度に+1pt累積（最大+5）', effect: 'chain', maxBonus: 5 },
             { id: 'momentum_builder', name: '🚀 モメンタムビルダー', description: '連続達成で倍率上昇（1→1.1→1.2→1.3）', effect: 'momentum', multipliers: [1, 1.1, 1.2, 1.3] },
             
-            // カード系イベント
-            { id: 'card_carnival', name: '🎴 カードカーニバル', description: 'カードドロップ率 1.5倍', effect: 'card_drop', multiplier: 1.5 },
             
             
             // 週末イベント
@@ -12118,83 +12116,6 @@
         window.closeCardAcquisition = closeCardAcquisition;
         
         
-        // カードカーニバル: 所持カード1枚を別カードへ変化させる
-        function openCardCarnivalModal() {
-            const data = loadData();
-            // 今日のイベントに card_carnival があるか確認
-            const todayStr = new Date().toISOString().split('T')[0];
-            const hasEvent = !!(data.events && Array.isArray(data.events.activeBoosts) && data.events.activeBoosts.some(b => b && b.eventId === 'card_carnival' && b.date === todayStr));
-            if (!hasEvent) {
-                showNotification('⚠️ 本日はカードカーニバルが有効ではありません', 'error');
-                return;
-            }
-            const inventory = (data.cards && Array.isArray(data.cards.inventory)) ? data.cards.inventory.filter(c => !c.used) : [];
-            if (inventory.length === 0) {
-                showNotification('🎴 変化できるカードがありません', 'info');
-                return;
-            }
-            const DISABLED = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start']);
-            const allTargets = Object.keys(CARD_MASTER).filter(id => !DISABLED.has(id));
-            
-            const overlay = document.createElement('div');
-            overlay.className = 'overlay active';
-            const modal = document.createElement('div');
-            modal.className = 'skip-modal active';
-            modal.style.maxWidth = '520px';
-            modal.innerHTML = `
-                <div class="modal-header">
-                    <h3>🎴 カードカーニバル</h3>
-                    <p>手持ちのカード1枚を選び、変化後のカードを指定します</p>
-                </div>
-                <div class="form-group">
-                    <label>変化させるカード</label>
-                    <select id="cc-source" style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border);">
-                        ${inventory.map((c, idx) => {
-                            const def = CARD_MASTER[c.cardId];
-                            const label = def ? `${def.icon || '🎴'} ${def.name}` : c.cardId;
-                            return `<option value="${idx}">${label}</option>`;
-                        }).join('')}
-                    </select>
-                </div>
-                <div class="form-group" style="margin-top:12px;">
-                    <label>変化後のカード</label>
-                    <select id="cc-target" style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border);">
-                        ${allTargets.map(id => {
-                            const def = CARD_MASTER[id];
-                            const label = def ? `${def.icon || '🎴'} ${def.name}` : id;
-                            return `<option value="${id}">${label}</option>`;
-                        }).join('')}
-                    </select>
-                </div>
-                <div class="modal-footer" style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px;">
-                    <button class="button secondary" onclick="this.closest('.overlay').remove()">キャンセル</button>
-                    <button class="button primary" id="cc-exec">変化させる</button>
-                </div>
-            `;
-            overlay.appendChild(modal);
-            document.body.appendChild(overlay);
-            
-            document.getElementById('cc-exec').onclick = () => {
-                try {
-                    const srcIndex = parseInt(document.getElementById('cc-source').value, 10);
-                    const targetId = String(document.getElementById('cc-target').value);
-                    const d = loadData();
-                    if (!d.cards || !Array.isArray(d.cards.inventory) || !d.cards.inventory[srcIndex]) {
-                        showNotification('❌ 変化に失敗しました', 'error');
-                        return;
-                    }
-                    d.cards.inventory[srcIndex].cardId = targetId;
-                    saveData(d);
-                    showCardEffect('✨ カード変化！', `${CARD_MASTER[inventory[srcIndex].cardId]?.name || inventory[srcIndex].cardId} → ${CARD_MASTER[targetId]?.name || targetId}`, '#8b5cf6');
-                    overlay.remove();
-                    if (typeof updateCardUseButton === 'function') updateCardUseButton();
-                } catch(e) {
-                    console.error(e);
-                    showNotification('❌ 変化に失敗しました', 'error');
-                }
-            };
-        }
-        window.openCardCarnivalModal = openCardCarnivalModal;
 
         // スワイプ機能
         let touchStartX = 0;

@@ -363,10 +363,6 @@ function updateEventDisplay() {
                     <div style="font-size: 10px; margin-top: 8px; color: #f59e0b;">
                         期間: 本日中
                     </div>
-                    ${boost.eventId === 'card_carnival' ? `
-                    <div style="margin-top:8px;">
-                        <button class="btn btn-secondary" onclick="window.openCardCarnivalModal && window.openCardCarnivalModal()" style="padding:6px 10px; font-size:12px;">✨ カード変化を実行</button>
-                    </div>` : ''}
                 </div>
             `).join('')}
         `;
