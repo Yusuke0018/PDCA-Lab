@@ -6206,7 +6206,7 @@
             document.querySelectorAll('input[name="frequency"]').forEach(radio => {
                 radio.checked = radio.value === 'daily';
             });
-            document.getElementById('weekly-count').disabled = true;
+            // 週にN回のボタンは常に有効
             document.getElementById('weekdays-selector').style.display = 'none';
             document.querySelectorAll('input[name="weekday"]').forEach(cb => {
                 cb.checked = false;
@@ -6268,6 +6268,26 @@
                 opt.classList.remove('selected');
             });
             document.querySelector(`[data-duration="${duration}"]`).classList.add('selected');
+        }
+        
+        // 週にN回の値をランダムに変更
+        function shuffleWeeklyCount() {
+            const btn = document.getElementById('weekly-count-btn');
+            if (btn) {
+                const count = Math.floor(Math.random() * 6) + 2; // 2〜7回
+                btn.textContent = count;
+                btn.dataset.count = count;
+            }
+        }
+        
+        // 編集モーダル用の週にN回シャッフル
+        function shuffleEditWeeklyCount() {
+            const btn = document.getElementById('edit-weekly-count-btn');
+            if (btn) {
+                const count = Math.floor(Math.random() * 6) + 2; // 2〜7回
+                btn.textContent = count;
+                btn.dataset.count = count;
+            }
         }
 
         // 新規作成フォーム: IF行のみ追加（THENは廃止）
@@ -6331,7 +6351,8 @@
             let frequencyData = { type: frequencyType };
             
             if (frequencyType === 'weekly') {
-                frequencyData.count = parseInt(document.getElementById('weekly-count').value);
+                const btn = document.getElementById('weekly-count-btn');
+                frequencyData.count = btn ? parseInt(btn.dataset.count) : 3;
             } else if (frequencyType === 'weekdays') {
                 const selectedDays = [];
                 document.querySelectorAll('input[name="weekday"]:checked').forEach(cb => {
@@ -8522,7 +8543,12 @@
                                 <div style="font-weight: 600;">📅 週N回実施</div>
                                 <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">週に指定回数だけ実施します</div>
                                 <div id="weekly-count-container" style="margin-top: 8px; display: ${currentFreq.type === 'weekly' ? 'block' : 'none'};">
-                                    <label style="font-size: 12px;">週に<input type="number" id="weekly-count" min="1" max="7" value="${currentFreq.count || 3}" style="width: 50px; margin: 0 4px; padding: 4px; border-radius: 4px; border: 1px solid var(--border);"/>回</label>
+                                    <label style="font-size: 12px;">週に
+                                        <button type="button" id="edit-weekly-count-btn" onclick="shuffleEditWeeklyCount();"
+                                                style="padding: 4px 12px; margin: 0 4px; border: 1px solid var(--primary); 
+                                                       border-radius: 6px; background: var(--surface); color: var(--primary); 
+                                                       font-weight: bold; cursor: pointer;" data-count="${currentFreq.count || 3}">${currentFreq.count || 3}</button>
+                                        回</label>
                                 </div>
                             </div>
                         </label>
@@ -8599,7 +8625,8 @@
                 let newFrequency = { type: selectedType };
                 
                 if (selectedType === 'weekly') {
-                    const count = parseInt(document.getElementById('weekly-count').value);
+                    const btn = document.getElementById('edit-weekly-count-btn');
+                    const count = btn ? parseInt(btn.dataset.count) : 3;
                     if (count < 1 || count > 7) {
                         showNotification('週の回数は1〜7の間で指定してください', 'error');
                         return;
@@ -10184,15 +10211,21 @@
                     <p>この習慣を継続しますか？</p>
                 </div>
                 <div class="form-group" style="margin: 20px 0;">
-                    <label>継続期間</label>
-                    <select id="continue-duration" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
-                        <option value="30">30日間</option>
-                        <option value="60">60日間</option>
-                        <option value="90" selected>90日間（黄金の習慣まで）</option>
-                        <option value="180">180日間（半年）</option>
-                        <option value="365">365日間（1年）</option>
-                        <option value="unlimited">無期限</option>
-                    </select>
+                    <label>継続期間を選択</label>
+                    <div class="duration-selector" style="display: flex; gap: 10px; margin-top: 10px;">
+                        <div class="duration-option" onclick="selectContinueDuration('short')" data-continue-duration="short" style="flex: 1; padding: 12px; border: 2px solid var(--border); border-radius: 8px; text-align: center; cursor: pointer;">
+                            <h4 style="margin: 0; font-size: 14px;">短期間</h4>
+                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary);" id="continue-short-text">3〜7日</p>
+                        </div>
+                        <div class="duration-option selected" onclick="selectContinueDuration('medium')" data-continue-duration="medium" style="flex: 1; padding: 12px; border: 2px solid var(--primary); border-radius: 8px; text-align: center; cursor: pointer; background: rgba(59, 130, 246, 0.1);">
+                            <h4 style="margin: 0; font-size: 14px;">中期間</h4>
+                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary);" id="continue-medium-text">8〜14日</p>
+                        </div>
+                        <div class="duration-option" onclick="selectContinueDuration('long')" data-continue-duration="long" style="flex: 1; padding: 12px; border: 2px solid var(--border); border-radius: 8px; text-align: center; cursor: pointer;">
+                            <h4 style="margin: 0; font-size: 14px;">長期間</h4>
+                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary);" id="continue-long-text">15〜30日</p>
+                        </div>
+                    </div>
                 </div>
                 <div class="form-group" style="margin: 20px 0;">
                     <label>
@@ -10219,6 +10252,43 @@
             `;
             overlay.appendChild(modal);
             document.body.appendChild(overlay);
+            
+            // 期間をランダムに設定
+            shuffleContinueDurations();
+        }
+        
+        // 継続時の期間選択
+        let selectedContinueDuration = 'medium';
+        
+        function selectContinueDuration(duration) {
+            selectedContinueDuration = duration;
+            document.querySelectorAll('[data-continue-duration]').forEach(opt => {
+                opt.classList.remove('selected');
+                opt.style.border = '2px solid var(--border)';
+                opt.style.background = 'transparent';
+            });
+            const selected = document.querySelector(`[data-continue-duration="${duration}"]`);
+            selected.classList.add('selected');
+            selected.style.border = '2px solid var(--primary)';
+            selected.style.background = 'rgba(59, 130, 246, 0.1)';
+        }
+        
+        function shuffleContinueDurations() {
+            const durations = {
+                short: { min: 3, max: 7 },
+                medium: { min: 8, max: 14 },
+                long: { min: 15, max: 30 }
+            };
+            
+            Object.keys(durations).forEach(key => {
+                const range = durations[key];
+                const days = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+                const textElement = document.getElementById(`continue-${key}-text`);
+                if (textElement) {
+                    textElement.textContent = `${days}日`;
+                    textElement.dataset.days = days;
+                }
+            });
         }
         
         // 継続を確定
@@ -10227,30 +10297,26 @@
             const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
             
             if (index !== -1) {
-                const durationSelect = document.getElementById('continue-duration');
                 const keepRecords = document.getElementById('continue-keep-records').checked;
                 const asHabit = document.getElementById('continue-as-habit').checked;
-                const duration = durationSelect.value;
+                
+                // 選択された期間の日数を取得
+                const durationElement = document.querySelector(`[data-continue-duration="${selectedContinueDuration}"] p`);
+                const duration = parseInt(durationElement.dataset.days);
                 
                 // 期間を設定
-                if (duration === 'unlimited') {
-                    // 無期限の場合は大きな数値を設定（10年）
-                    data.currentHypotheses[index].totalDays = 3650;
-                    data.currentHypotheses[index].isUnlimited = true;
+                const additionalDays = duration;
+                if (keepRecords) {
+                    // 記録を引き継ぐ場合は現在の期間に追加
+                    data.currentHypotheses[index].totalDays += additionalDays;
                 } else {
-                    const additionalDays = parseInt(duration);
-                    if (keepRecords) {
-                        // 記録を引き継ぐ場合は現在の期間に追加
-                        data.currentHypotheses[index].totalDays += additionalDays;
-                    } else {
-                        // 記録をリセットする場合
-                        data.currentHypotheses[index].totalDays = additionalDays;
-                        data.currentHypotheses[index].achievements = {};
-                        data.currentHypotheses[index].intensity = {};
-                        data.currentHypotheses[index].startDate = new Date().toISOString();
-                        // ステージもリセット
-                        delete data.currentHypotheses[index].currentStage;
-                    }
+                    // 記録をリセットする場合
+                    data.currentHypotheses[index].totalDays = additionalDays;
+                    data.currentHypotheses[index].achievements = {};
+                    data.currentHypotheses[index].intensity = {};
+                    data.currentHypotheses[index].startDate = new Date().toISOString();
+                    // ステージもリセット
+                    delete data.currentHypotheses[index].currentStage;
                 }
                 
                 // 習慣モードフラグを設定
@@ -10326,15 +10392,21 @@
                               style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border);">${window.currentHypothesis.description}</textarea>
                 </div>
                 <div class="form-group" style="margin: 20px 0;">
-                    <label>継続期間</label>
-                    <select id="modify-duration" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
-                        <option value="30">30日間</option>
-                        <option value="60">60日間</option>
-                        <option value="90" selected>90日間（黄金の習慣まで）</option>
-                        <option value="180">180日間（半年）</option>
-                        <option value="365">365日間（1年）</option>
-                        <option value="unlimited">無期限</option>
-                    </select>
+                    <label>継続期間を選択</label>
+                    <div class="duration-selector" style="display: flex; gap: 10px; margin-top: 10px;">
+                        <div class="duration-option" onclick="selectModifyDuration('short')" data-modify-duration="short" style="flex: 1; padding: 12px; border: 2px solid var(--border); border-radius: 8px; text-align: center; cursor: pointer;">
+                            <h4 style="margin: 0; font-size: 14px;">短期間</h4>
+                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary);" id="modify-short-text">3〜7日</p>
+                        </div>
+                        <div class="duration-option selected" onclick="selectModifyDuration('medium')" data-modify-duration="medium" style="flex: 1; padding: 12px; border: 2px solid var(--primary); border-radius: 8px; text-align: center; cursor: pointer; background: rgba(59, 130, 246, 0.1);">
+                            <h4 style="margin: 0; font-size: 14px;">中期間</h4>
+                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary);" id="modify-medium-text">8〜14日</p>
+                        </div>
+                        <div class="duration-option" onclick="selectModifyDuration('long')" data-modify-duration="long" style="flex: 1; padding: 12px; border: 2px solid var(--border); border-radius: 8px; text-align: center; cursor: pointer;">
+                            <h4 style="margin: 0; font-size: 14px;">長期間</h4>
+                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary);" id="modify-long-text">15〜30日</p>
+                        </div>
+                    </div>
                 </div>
                 <div class="form-group" style="margin: 20px 0;">
                     <label>
@@ -10355,6 +10427,43 @@
             `;
             overlay.appendChild(modal);
             document.body.appendChild(overlay);
+            
+            // 期間をランダムに設定
+            shuffleModifyDurations();
+        }
+        
+        // 修正時の期間選択
+        let selectedModifyDuration = 'medium';
+        
+        function selectModifyDuration(duration) {
+            selectedModifyDuration = duration;
+            document.querySelectorAll('[data-modify-duration]').forEach(opt => {
+                opt.classList.remove('selected');
+                opt.style.border = '2px solid var(--border)';
+                opt.style.background = 'transparent';
+            });
+            const selected = document.querySelector(`[data-modify-duration="${duration}"]`);
+            selected.classList.add('selected');
+            selected.style.border = '2px solid var(--primary)';
+            selected.style.background = 'rgba(59, 130, 246, 0.1)';
+        }
+        
+        function shuffleModifyDurations() {
+            const durations = {
+                short: { min: 3, max: 7 },
+                medium: { min: 8, max: 14 },
+                long: { min: 15, max: 30 }
+            };
+            
+            Object.keys(durations).forEach(key => {
+                const range = durations[key];
+                const days = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+                const textElement = document.getElementById(`modify-${key}-text`);
+                if (textElement) {
+                    textElement.textContent = `${days}日`;
+                    textElement.dataset.days = days;
+                }
+            });
         }
         
         // 修正して継続を確定
@@ -10365,8 +10474,11 @@
             if (index !== -1) {
                 const newTitle = document.getElementById('modify-title').value.trim();
                 const newDescription = document.getElementById('modify-description').value.trim();
-                const duration = document.getElementById('modify-duration').value;
                 const keepRecords = document.getElementById('modify-keep-records').checked;
+                
+                // 選択された期間の日数を取得
+                const durationElement = document.querySelector(`[data-modify-duration="${selectedModifyDuration}"] p`);
+                const duration = parseInt(durationElement.dataset.days);
                 
                 if (!newTitle) {
                     alert('習慣名を入力してください');
@@ -10390,22 +10502,17 @@
                 });
                 
                 // 期間を設定
-                if (duration === 'unlimited') {
-                    data.currentHypotheses[index].totalDays = 3650;
-                    data.currentHypotheses[index].isUnlimited = true;
+                const additionalDays = duration;
+                if (keepRecords) {
+                    // 記録を引き継ぐ場合は現在の期間に追加
+                    data.currentHypotheses[index].totalDays += additionalDays;
                 } else {
-                    const additionalDays = parseInt(duration);
-                    if (keepRecords) {
-                        // 記録を引き継ぐ場合は現在の期間に追加
-                        data.currentHypotheses[index].totalDays += additionalDays;
-                    } else {
-                        // 記録をリセットする場合
-                        data.currentHypotheses[index].totalDays = additionalDays;
-                        data.currentHypotheses[index].achievements = {};
-                        data.currentHypotheses[index].intensity = {};
-                        data.currentHypotheses[index].startDate = new Date().toISOString();
-                        delete data.currentHypotheses[index].currentStage;
-                    }
+                    // 記録をリセットする場合
+                    data.currentHypotheses[index].totalDays = additionalDays;
+                    data.currentHypotheses[index].achievements = {};
+                    data.currentHypotheses[index].intensity = {};
+                    data.currentHypotheses[index].startDate = new Date().toISOString();
+                    delete data.currentHypotheses[index].currentStage;
                 }
                 
                 // 習慣モードと継続フラグを設定
