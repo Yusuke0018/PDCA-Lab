@@ -9880,7 +9880,7 @@
                         <span style="font-size: 18px;">${categoryInfo.icon}</span>
                         <span style="font-weight: 600; font-size: 15px; color: var(--text-primary);">${categoryInfo.name}</span>
                         <span style="font-size: 12px; color: var(--text-secondary); margin-left: 6px; background: ${categoryInfo.color}20; padding: 2px 8px; border-radius: 999px;">${habits.length}個</span>
-                        <span id="unach-${toggleKey}" style="display: ${unachievedCount > 0 ? 'inline-block' : 'none'}; margin-left: 6px; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; font-weight: 600;">未達成 ${unachievedCount}個</span>
+                        ${unachievedCount > 0 ? `<span id="unach-${toggleKey}" style="display: inline-block; margin-left: 6px; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; font-weight: 600;">未達成 ${unachievedCount}個</span>` : `<span id="unach-${toggleKey}" style="display: none;"></span>`}
                         <span style="margin-left: auto; font-size: 16px; transition: transform 0.3s;" id="toggle-${toggleKey}">${isOpen ? '▼' : '▶'}</span>
                     `;
                     
