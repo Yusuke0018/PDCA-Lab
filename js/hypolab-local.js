@@ -358,8 +358,42 @@
                 if (v === 'true') return true;
                 if (v === 'false') return false;
             } catch (_) {}
-            return true; // 既定で停止
+            return false; // 既定で有効
         })();
+        
+        // イベント定義
+        const EVENT_DEFINITIONS = [
+            // カテゴリ系イベント
+            { id: 'study_day', name: '📚 勉強デー', description: '勉強カテゴリ×1.5', effect: 'category_boost', category: 'study', multiplier: 1.5 },
+            { id: 'exercise_festival', name: '💪 運動祭り', description: '運動カテゴリ×1.5', effect: 'category_boost', category: 'exercise', multiplier: 1.5 },
+            { id: 'health_campaign', name: '🍎 健康キャンペーン', description: '健康カテゴリ×1.5', effect: 'category_boost', category: 'health', multiplier: 1.5 },
+            { id: 'work_power', name: '💼 仕事パワー', description: '仕事カテゴリ×1.5', effect: 'category_boost', category: 'work', multiplier: 1.5 },
+            { id: 'hobby_time', name: '🎨 趣味タイム', description: '趣味カテゴリ×1.5', effect: 'category_boost', category: 'hobby', multiplier: 1.5 },
+            
+            // 特殊系イベント
+            { id: 'perfect_challenge', name: '💯 パーフェクトチャレンジ', description: '全習慣達成で+10ptボーナス', effect: 'perfect_bonus', value: 10 },
+            { id: 'streak_party', name: '🔥 ストリークパーティ', description: '連続3日以上の習慣に+3pt', effect: 'streak_bonus', minDays: 3, bonus: 3 },
+            { id: 'comeback_bonus', name: '🎉 カムバックボーナス', description: '3日ぶりの達成で×1.5', effect: 'comeback', days: 3, multiplier: 1.5 },
+            
+            // ギャンブル系イベント
+            { id: 'dice_roll', name: '🎲 サイコロチャレンジ', description: '達成毎に1〜3ptランダム', effect: 'random_points', min: 1, max: 3 },
+            { id: 'coin_flip', name: '🪙 コインフリップ', description: '50%で×1.5、50%で×0.8', effect: 'coin_flip', win: 1.5, lose: 0.8 },
+            
+            // 連鎖系イベント
+            { id: 'chain_reaction', name: '⛓️ チェインリアクション', description: '達成する度に+1pt累積（最大+5）', effect: 'chain', maxBonus: 5 },
+            { id: 'momentum_builder', name: '🚀 モメンタムビルダー', description: '連続達成で倍率上昇（1→1.1→1.2→1.3）', effect: 'momentum', multipliers: [1, 1.1, 1.2, 1.3] },
+            
+            // カード系イベント
+            { id: 'card_carnival', name: '🎴 カードカーニバル', description: 'カードドロップ率 1.5倍', effect: 'card_drop', multiplier: 1.5 },
+            
+            // 逆転系イベント
+            { id: 'second_chance', name: '🔁 セカンドチャンス', description: '失敗した習慣を1つリセット可能', effect: 'reset_habit', value: 1 },
+            { id: 'time_warp', name: '⏪ タイムワープ', description: '昨日の達成状況を今日にコピー', effect: 'copy_yesterday', value: 1 },
+            
+            // 週末イベント
+            { id: 'weekend_special', name: '🎈 週末スペシャル', description: '週末はポイント1.2倍！', effect: 'points_multiplier', value: 1.2 }
+        ];
+        
         // 手動切替用ヘルパー
         window.enableEvents = () => { try { localStorage.setItem('hypolab_events_disabled','false'); } catch(_){} location.reload(); };
         window.disableEvents = () => { try { localStorage.setItem('hypolab_events_disabled','true'); } catch(_){} location.reload(); };
@@ -13877,6 +13911,148 @@
         }
 
         // windowオブジェクトに関数を登録
+        // 日替わりイベントを取得（全て等確率）
+        function getDailyEvent() {
+            const data = loadData();
+            const today = dateKeyLocal(new Date());
+            const todayStr = new Date().toISOString().split('T')[0];
+            
+            // 日付から日数を取得（例：2025-01-15 → 15）
+            const dayOfMonth = new Date().getDate();
+            
+            // 7の倍数の日かチェック
+            const isLuckySevenDay = (dayOfMonth % 7 === 0);
+            
+            // 強制イベントチェック（イベントトリガーカードの効果）
+            if (data.events && data.events.forcedEvents && data.events.forcedEvents[todayStr]) {
+                // 強制イベント日は必ずイベント発生
+            } else if (isLuckySevenDay) {
+                // 7の倍数の日は必ずイベント発生
+            } else {
+                // 通常は30%の確率でイベント発生
+                const seed = today.split('-').reduce((a, b) => a + parseInt(b), 0);
+                const random = ((seed * 9301 + 49297) % 233280) / 233280;
+                if (random > 0.3) return null;
+            }
+            
+            // 土日は週末スペシャルを70%の確率で選択
+            const dayOfWeek = new Date().getDay();
+            const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+            
+            if (isWeekend) {
+                // 週末は70%の確率で週末スペシャル
+                const seed = today.split('-').reduce((a, b) => a + parseInt(b), 0);
+                const random = ((seed * 9301 + 49297) % 233280) / 233280;
+                if (random < 0.7) {
+                    // 週末スペシャルを返す
+                    return EVENT_DEFINITIONS.find(e => e.id === 'weekend_special');
+                }
+            }
+            
+            // シード値を使って一貫性のあるランダムイベント選択
+            const eventSeed = today.split('-').join('');
+            const eventIndex = (parseInt(eventSeed) * 7919) % EVENT_DEFINITIONS.length;
+            return EVENT_DEFINITIONS[eventIndex];
+        }
+        
+        // イベント表示の更新
+        function updateEventDisplay() {
+            const data = loadData();
+            const eventContainer = document.getElementById('active-events');
+            
+            if (!eventContainer) return;
+            // 機能停止中は常に非表示
+            if (typeof EVENTS_DISABLED !== 'undefined' && EVENTS_DISABLED) {
+                eventContainer.style.display = 'none';
+                return;
+            }
+            
+            if (!data.events || !data.events.activeBoosts || data.events.activeBoosts.length === 0) {
+                eventContainer.style.display = 'none';
+            } else {
+                // 週末スペシャルのサニタイズと重複排除
+                let boosts = Array.isArray(data.events.activeBoosts) ? data.events.activeBoosts.slice() : [];
+
+                // 1) 値・説明の正規化（週末スペシャル）
+                boosts = boosts.map(b => {
+                    if (b && b.eventId === 'weekend_special') {
+                        b.value = 1.2;
+                        b.description = '週末はポイント1.2倍！';
+                    }
+                    return b;
+                });
+
+                // 2) 明らかに古い表記（1.5など）を含む週末スペシャルを除外
+                boosts = boosts.filter(b => {
+                    if (!b) return false;
+                    if (b.eventId === 'weekend_special') {
+                        const desc = String(b.description || '');
+                        if (desc.includes('1.5') || desc.includes('×1.5')) return false;
+                    }
+                    return true;
+                });
+
+                // 3) eventId ベースで重複排除（最後に現れたものを優先）
+                const dedupMap = new Map();
+                for (const b of boosts) {
+                    const key = b && b.eventId ? `id:${b.eventId}` : `name:${b?.name || ''}|desc:${b?.description || ''}`;
+                    dedupMap.set(key, b);
+                }
+                boosts = Array.from(dedupMap.values());
+
+                // 永続化（今後の読み込みでも正しい状態を維持）
+                data.events.activeBoosts = boosts;
+                saveData(data);
+
+                eventContainer.style.display = 'block';
+                eventContainer.innerHTML = `
+                    <h3 style="margin-bottom: 12px; font-size: 16px;">🎉 今日のイベント</h3>
+                    ${boosts.map(boost => `
+                        <div class="event-card" style="background: rgba(251, 191, 36, 0.15); border-radius: 8px; padding: 12px; margin: 8px 0;">
+                            <div style="font-size: 16px; font-weight: bold;">${boost.name}</div>
+                            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">${boost.description}</div>
+                            <div style="font-size: 10px; margin-top: 8px; color: #f59e0b;">
+                                期間: 本日中
+                            </div>
+                        </div>
+                    `).join('')}
+                `;
+            }
+        }
+        
+        // デイリーイベントをチェック
+        function checkDailyEvents() {
+            const data = loadData();
+            const today = dateKeyLocal(new Date());
+            
+            // イベント初期化
+            if (!data.events) {
+                data.events = {
+                    activeBoosts: [],
+                    lastEventCheck: null
+                };
+            }
+            
+            // 今日既にチェック済みならスキップ
+            if (data.events.lastEventCheck === today) {
+                updateEventDisplay();
+                return;
+            }
+            
+            // 新しい日のイベントを取得
+            const dailyEvent = getDailyEvent();
+            
+            if (dailyEvent) {
+                data.events.activeBoosts = [dailyEvent];
+            } else {
+                data.events.activeBoosts = [];
+            }
+            
+            data.events.lastEventCheck = today;
+            saveData(data);
+            updateEventDisplay();
+        }
+        
         window.initializeCategoryMaster = initializeCategoryMaster;
         window.updateCategoryDropdowns = updateCategoryDropdowns;
         window.editCategoryMaster = editCategoryMaster;
