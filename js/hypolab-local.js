@@ -147,15 +147,7 @@
                 color: '#ef4444'
             },
             // 新しいカード
-            protect_shield: {
-                id: 'protect_shield',
-                type: 'reward',
-                name: 'プロテクトシールド',
-                description: '次の習慣でペナルティカードを無効化する',
-                icon: '🛡️',
-                rarity: 'rare',
-                color: '#10b981'
-            },
+            
             // 旧カード（廃止）：achievement_booster はプールから除外
             chaos_vortex: {
                 id: 'chaos_vortex',
@@ -333,6 +325,61 @@
                 icon: '🎁',
                 rarity: 'rare',
                 color: '#f59e0b'
+            },
+            // 追加: 楽しくて安全な効果系
+            mini_rainbow: {
+                id: 'mini_rainbow',
+                type: 'reward',
+                name: 'ミニレインボー',
+                description: '今日だけ全カテゴリのポイントが×1.2',
+                icon: '🌈',
+                rarity: 'uncommon',
+                color: '#a855f7'
+            },
+            power_nap: {
+                id: 'power_nap',
+                type: 'reward',
+                name: 'パワーナップ',
+                description: '30分間、達成ごとに+5pt',
+                icon: '😴',
+                rarity: 'common',
+                color: '#06b6d4'
+            },
+            combo_surge: {
+                id: 'combo_surge',
+                type: 'reward',
+                name: 'コンボサージ',
+                description: '今日のコンボボーナスが×1.5',
+                icon: '🧨',
+                rarity: 'rare',
+                color: '#f97316'
+            },
+            afternoon_gem: {
+                id: 'afternoon_gem',
+                type: 'reward',
+                name: 'アフタヌーンジェム',
+                description: '今日だけポイントが×1.2',
+                icon: '☕',
+                rarity: 'uncommon',
+                color: '#10b981'
+            },
+            event_ticket: {
+                id: 'event_ticket',
+                type: 'reward',
+                name: 'イベントチケット',
+                description: '今日のイベントにダブルポイントデーを発動',
+                icon: '🎫',
+                rarity: 'rare',
+                color: '#3b82f6'
+            },
+            challenge_boost_today: {
+                id: 'challenge_boost_today',
+                type: 'reward',
+                name: 'チャレンジブースト',
+                description: '今日のチャレンジポイントが×2',
+                icon: '🎯',
+                rarity: 'rare',
+                color: '#22c55e'
             },
             double_or_nothing: {
                 id: 'double_or_nothing',
@@ -6255,7 +6302,7 @@
         // カード使用ボタンの更新（有効な報酬カードがある場合のみ）
         function updateCardUseButton() {
             const data = loadData();
-            const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start','second_chance','protect_shield']);
+            const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start','second_chance']);
             const hasUsable = (data.cards.inventory || []).some(card => {
                 const def = CARD_MASTER[card.cardId];
                 return def && def.type === 'reward' && !card.used && !DISABLED_CARDS.has(card.cardId);
@@ -6304,8 +6351,6 @@
                         cardDiv.onclick = () => useAchievementBoost();
                     } else if (cardId === 'perfect_bonus') {
                         cardDiv.onclick = () => usePerfectBonus();
-                    } else if (cardId === 'protect_shield') {
-                        cardDiv.onclick = () => useProtectShield();
                     } else if (cardId === 'achievement_booster') {
                         cardDiv.onclick = () => useAchievementBooster();
                     } else if (cardId === 'second_chance') {
@@ -6338,6 +6383,18 @@
                         cardDiv.onclick = () => useHappyHour();
                     } else if (cardId === 'mystery_box') {
                         cardDiv.onclick = () => useMysteryBox();
+                    } else if (cardId === 'mini_rainbow') {
+                        cardDiv.onclick = () => useMiniRainbow();
+                    } else if (cardId === 'power_nap') {
+                        cardDiv.onclick = () => usePowerNap();
+                    } else if (cardId === 'combo_surge') {
+                        cardDiv.onclick = () => useComboSurge();
+                    } else if (cardId === 'afternoon_gem') {
+                        cardDiv.onclick = () => useAfternoonGem();
+                    } else if (cardId === 'event_ticket') {
+                        cardDiv.onclick = () => useEventTicket();
+                    } else if (cardId === 'challenge_boost_today') {
+                        cardDiv.onclick = () => useChallengeBoostToday();
                     }
 
                     container.appendChild(cardDiv);
@@ -10162,7 +10219,7 @@
 
             if (achievementRate === 100) {
                 // 報酬カード（全報酬カードから等確率で1枚）
-                const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start','second_chance','protect_shield']);
+            const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start','second_chance']);
                 const rewardPoolBase = Object.keys(CARD_MASTER).filter(id => CARD_MASTER[id].type === 'reward' && !DISABLED_CARDS.has(id));
                 
                 // 直近10回の報酬カードのみをブロック（ペナルティカードは含めない）
@@ -10182,7 +10239,15 @@
                 }
                 
                 if (rewardPool.length > 0) {
-                    const pick = rewardPool[Math.floor(Math.random() * rewardPool.length)];
+                    const pickFromPool = (pool) => {
+                        if (pool.includes('conversion_magic')) {
+                            if (Math.random() < 0.01) return 'conversion_magic';
+                            const ex = pool.filter(id => id !== 'conversion_magic');
+                            if (ex.length > 0) return ex[Math.floor(Math.random() * ex.length)];
+                        }
+                        return pool[Math.floor(Math.random() * pool.length)];
+                    };
+                    const pick = pickFromPool(rewardPool);
                     cards.push(pick);
                 }
                 // パーフェクトボーナスが有効なら追加で1枚（同様に等確率）
@@ -10191,7 +10256,15 @@
                     let extraPool = rewardPool.filter(id => !cards.includes(id));
                     if (extraPool.length === 0) extraPool = rewardPool;
                     if (extraPool.length > 0) {
-                        const extra = extraPool[Math.floor(Math.random() * extraPool.length)];
+                        const pickFromPool = (pool) => {
+                            if (pool.includes('conversion_magic')) {
+                                if (Math.random() < 0.01) return 'conversion_magic';
+                                const ex = pool.filter(id => id !== 'conversion_magic');
+                                if (ex.length > 0) return ex[Math.floor(Math.random() * ex.length)];
+                            }
+                            return pool[Math.floor(Math.random() * pool.length)];
+                        };
+                        const extra = pickFromPool(extraPool);
                         cards.push(extra);
                     }
                     data.cards.activeEffects = (data.cards.activeEffects || []).filter(e => e.cardId !== 'perfect_bonus');
@@ -10202,7 +10275,7 @@
                 }
             } else if (achievementRate >= 80) {
                 // 80-99%: 報酬カードを等確率で1枚
-                const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start','second_chance','protect_shield']);
+                const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start','second_chance']);
                 const rewardPoolBase = Object.keys(CARD_MASTER).filter(id => CARD_MASTER[id].type === 'reward' && !DISABLED_CARDS.has(id));
                 
                 // 直近10回の報酬カードのみをブロック（ペナルティカードは含めない）
@@ -10222,7 +10295,15 @@
                 }
                 
                 if (rewardPool.length > 0) {
-                    const pick = rewardPool[Math.floor(Math.random() * rewardPool.length)];
+                    const pickFromPool = (pool) => {
+                        if (pool.includes('conversion_magic')) {
+                            if (Math.random() < 0.01) return 'conversion_magic';
+                            const ex = pool.filter(id => id !== 'conversion_magic');
+                            if (ex.length > 0) return ex[Math.floor(Math.random() * ex.length)];
+                        }
+                        return pool[Math.floor(Math.random() * pool.length)];
+                    };
+                    const pick = pickFromPool(rewardPool);
                     cards.push(pick);
                 }
             } else if (achievementRate < 60) {
@@ -12416,7 +12497,21 @@
 
             // チャレンジ系（daily/weekly）はブースト適用なし
             const isChallenge = (source === 'daily_challenge' || source === 'weekly_challenge' || source === 'challenge');
+            let allowChallengeBoost = false;
             if (isChallenge) {
+                try {
+                    // カードのチャレンジ倍率が有効なら適用を許可
+                    if (data.cards && data.cards.activeEffects) {
+                        const nowIso = new Date();
+                        allowChallengeBoost = data.cards.activeEffects.some(e => e.type === 'challenge_multiplier' && new Date(e.startDate) <= nowIso && new Date(e.endDate) >= nowIso);
+                    }
+                    // イベント側にチャレンジ倍率があっても許可
+                    if (!allowChallengeBoost && data.events && data.events.activeBoosts) {
+                        allowChallengeBoost = data.events.activeBoosts.some(b => b.effect && b.effect.type === 'challenge_multiplier');
+                    }
+                } catch(_) {}
+            }
+            if (isChallenge && !allowChallengeBoost) {
                 return { finalPoints: basePoints, multiplierTotal: 1.0, bonusTotal: 0, notes };
             }
             
@@ -12437,6 +12532,10 @@
                 // ハッピーアワー（指定時間帯に+10）
                 const hh = data.cards.activeEffects.find(e => e.type === 'time_window_bonus' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
                 if (hh) { bonus += (hh.value || 10); notes.push(`HappyHour +${hh.value || 10}`); }
+                // チャレンジ倍率（カード由来）
+                const isCh = (source === 'daily_challenge' || source === 'weekly_challenge' || source === 'challenge');
+                const chMul = data.cards.activeEffects.find(e => e.type === 'challenge_multiplier' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
+                if (isCh && chMul) { multiplier *= (chMul.value || 2.0); notes.push(`Challenge ×${chMul.value || 2.0}`); }
                 // スパークルストリーク（今日の最初の3回の達成だけボーナス）
                 const todayKey = dateKeyLocal(new Date());
                 const spark = data.cards.activeEffects.find(e => e.type === 'streak_spark' && e.dayKey === todayKey && (e.count || 0) < (e.bonuses ? e.bonuses.length : 0));
@@ -12868,38 +12967,10 @@
             showCardEffect('混乱の渦発動！', `${shuffledDates.length}日分の達成/未達成が入れ替わりました`, '#dc2626');
         }
         
-        // プロテクトシールドを使用
+        // プロテクトシールド（廃止）
         function useProtectShield() {
             closeCardUseMenu();
-            
-            const data = loadData();
-            
-            // カードを消費
-            const cardIndex = data.cards.inventory.findIndex(
-                card => card.cardId === 'protect_shield' && !card.used
-            );
-            
-            if (cardIndex === -1) {
-                showNotification('⚠️ プロテクトシールドがありません', 'error');
-                return;
-            }
-            
-            // カードを使用済みにして即座に削除
-            data.cards.inventory.splice(cardIndex, 1);
-            
-            // アクティブエフェクトに追加
-            if (!data.cards.activeEffects) {
-                data.cards.activeEffects = [];
-            }
-            
-            data.cards.activeEffects.push({
-                cardId: 'protect_shield',
-                activatedDate: new Date().toISOString()
-            });
-            
-            saveData(data);
-            
-            showNotification('🛡️ プロテクトシールドが有効になりました！\n次の習慣でペナルティカードを無効化します', 'success');
+            showNotification('🛡️ プロテクトシールドは廃止されました', 'error');
         }
         
         // 達成率ブースターを使用
@@ -13078,10 +13149,17 @@
             const data = loadData();
             const idx = data.cards.inventory.findIndex(c => c.cardId === 'category_festival' && !c.used);
             if (idx === -1) { showNotification('⚠️ カテゴリーフェスがありません', 'error'); return; }
-            // カテゴリ選択（簡易UI）
+            // カテゴリ選択（ホーム画面のカテゴリを優先して参照）
+            const filterEl = document.getElementById('category-filter');
+            const selected = filterEl ? (filterEl.value || 'all') : (localStorage.getItem('selectedCategory') || 'all');
+            const categoryMaster = initializeCategoryMaster();
+            const validKeys = Object.keys(categoryMaster);
+            let target = (selected && selected !== 'all' && validKeys.includes(selected)) ? selected : null;
+            // 必要なら簡易UIで選択
             const options = ['study','exercise','health','work','hobby','other'];
             const label = prompt('対象カテゴリを入力 (study/exercise/health/work/hobby/other):','exercise');
-            const target = options.includes((label||'').trim()) ? (label||'').trim() : null;
+            const targetInput = options.includes((label||'').trim()) ? (label||'').trim() : null;
+            if (!target && targetInput) target = targetInput;
             if (!target) { showNotification('⚠️ 無効なカテゴリです', 'error'); return; }
             // カードを使用済みにして即座に削除  
             data.cards.inventory.splice(idx, 1);
@@ -13110,6 +13188,112 @@
             updateCardUseButton();
         }
 
+        // ミニレインボー: 今日だけ全カテゴリ×1.2
+        function useMiniRainbow() {
+            closeCardUseMenu();
+            const data = loadData();
+            const idx = data.cards.inventory.findIndex(c => c.cardId === 'mini_rainbow' && !c.used);
+            if (idx === -1) { showNotification('⚠️ ミニレインボーがありません', 'error'); return; }
+            data.cards.inventory.splice(idx, 1);
+            const start = new Date();
+            const end = new Date(); end.setHours(23,59,59,999);
+            if (!data.cards.activeEffects) data.cards.activeEffects = [];
+            data.cards.activeEffects.push({ cardId:'mini_rainbow', type:'all_category_boost', multiplier:1.2, startDate:start.toISOString(), endDate:end.toISOString() });
+            saveData(data);
+            showCardEffect('🌈 ミニレインボー！','全カテゴリ×1.2','\#a855f7');
+            updateCardUseButton();
+        }
+
+        // パワーナップ: 30分間 +5pt
+        function usePowerNap() {
+            closeCardUseMenu();
+            const data = loadData();
+            const idx = data.cards.inventory.findIndex(c => c.cardId === 'power_nap' && !c.used);
+            if (idx === -1) { showNotification('⚠️ パワーナップがありません', 'error'); return; }
+            data.cards.inventory.splice(idx, 1);
+            const start = new Date();
+            const end = new Date(start.getTime() + 30 * 60 * 1000);
+            if (!data.cards.activeEffects) data.cards.activeEffects = [];
+            data.cards.activeEffects.push({ cardId:'power_nap', type:'time_window_bonus', value:5, startDate:start.toISOString(), endDate:end.toISOString() });
+            saveData(data);
+            showCardEffect('😴 パワーナップ！','30分間 +5pt','\#06b6d4');
+            updateCardUseButton();
+        }
+
+        // コンボサージ: 今日のコンボ×1.5
+        function useComboSurge() {
+            closeCardUseMenu();
+            const data = loadData();
+            const idx = data.cards.inventory.findIndex(c => c.cardId === 'combo_surge' && !c.used);
+            if (idx === -1) { showNotification('⚠️ コンボサージがありません', 'error'); return; }
+            data.cards.inventory.splice(idx, 1);
+            const start = new Date();
+            const end = new Date(); end.setHours(23,59,59,999);
+            if (!data.cards.activeEffects) data.cards.activeEffects = [];
+            data.cards.activeEffects.push({ cardId:'combo_surge', type:'combo_multiplier', value:1.5, startDate:start.toISOString(), endDate:end.toISOString() });
+            saveData(data);
+            showCardEffect('🧨 コンボサージ！','コンボが×1.5','\#f97316');
+            updateCardUseButton();
+        }
+
+        // アフタヌーンジェム: 今日だけポイント×1.2
+        function useAfternoonGem() {
+            closeCardUseMenu();
+            const data = loadData();
+            const idx = data.cards.inventory.findIndex(c => c.cardId === 'afternoon_gem' && !c.used);
+            if (idx === -1) { showNotification('⚠️ アフタヌーンジェムがありません', 'error'); return; }
+            data.cards.inventory.splice(idx, 1);
+            const start = new Date();
+            const end = new Date(); end.setHours(23,59,59,999);
+            if (!data.cards.activeEffects) data.cards.activeEffects = [];
+            data.cards.activeEffects.push({ cardId:'afternoon_gem', type:'point_multiplier', multiplier:1.2, startDate:start.toISOString(), endDate:end.toISOString() });
+            saveData(data);
+            showCardEffect('☕ アフタヌーンジェム！','今日のポイント×1.2','\#10b981');
+            updateCardUseButton();
+        }
+
+        // イベントチケット: ダブルポイントデーを今日に発動
+        function useEventTicket() {
+            closeCardUseMenu();
+            const data = loadData();
+            const idx = data.cards.inventory.findIndex(c => c.cardId === 'event_ticket' && !c.used);
+            if (idx === -1) { showNotification('⚠️ イベントチケットがありません', 'error'); return; }
+            data.cards.inventory.splice(idx, 1);
+            if (!data.events) data.events = { activeBoosts: [], lastEventCheck:new Date().toISOString(), milestoneNotifications:{}, eventHistory: [] };
+            const start = new Date();
+            const end = new Date(); end.setHours(23,59,59,999);
+            data.events.activeBoosts.push({
+                id: 'double_points_manual',
+                name: '💰 ダブルポイントデー',
+                description: '今日だけ全てのポイントが2倍！',
+                effect: { type: 'global_multiplier', value: 2.0 },
+                rarity: 'legendary',
+                duration: 'today',
+                startDate: start.toISOString(),
+                endDate: end.toISOString()
+            });
+            saveData(data);
+            showCardEffect('🎫 イベント発動！','ダブルポイントデー (×2)','\#3b82f6');
+            try { updateEventDisplay(); } catch(_) {}
+            updateCardUseButton();
+        }
+
+        // チャレンジブースト: 今日のチャレンジポイント×2
+        function useChallengeBoostToday() {
+            closeCardUseMenu();
+            const data = loadData();
+            const idx = data.cards.inventory.findIndex(c => c.cardId === 'challenge_boost_today' && !c.used);
+            if (idx === -1) { showNotification('⚠️ チャレンジブーストがありません', 'error'); return; }
+            data.cards.inventory.splice(idx, 1);
+            const start = new Date();
+            const end = new Date(); end.setHours(23,59,59,999);
+            if (!data.cards.activeEffects) data.cards.activeEffects = [];
+            data.cards.activeEffects.push({ cardId:'challenge_boost_today', type:'challenge_multiplier', value:2.0, startDate:start.toISOString(), endDate:end.toISOString() });
+            saveData(data);
+            showCardEffect('🎯 チャレンジブースト！','今日のチャレンジ×2','\#22c55e');
+            updateCardUseButton();
+        }
+
         // ミステリーボックス: 今日の最初の達成でサプライズ
         function useMysteryBox() {
             closeCardUseMenu();
@@ -13120,7 +13304,7 @@
             data.cards.inventory.splice(idx, 1);
             const dayKey = dateKeyLocal(new Date());
             if (!data.cards.activeEffects) data.cards.activeEffects = [];
-            data.cards.activeEffects.push({ cardId:'mystery_box', type:'mystery_reward', dayKey, claimed:false, options:['points15','event_trigger','protect_shield'] });
+            data.cards.activeEffects.push({ cardId:'mystery_box', type:'mystery_reward', dayKey, claimed:false, options:['points15','event_trigger'] });
             saveData(data);
             showCardEffect('🎁 ミステリーボックス！','今日の最初の達成でサプライズ','\#f59e0b');
             updateCardUseButton();
