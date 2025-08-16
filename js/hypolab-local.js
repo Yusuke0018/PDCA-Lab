@@ -668,9 +668,15 @@
                     dailyEffortUsed: 0,
                     dailyEffortLastReset: new Date().toDateString(),
                     customRewards: [],
-                    transactions: []
+                    transactions: [],
+                    // 前借り（ローン）機能
+                    loan: null, // { principal:number, borrowedAt: ISO string }
+                    lastBorrowDate: null
                 };
             }
+            // 既存ユーザーのための前借りフィールド補完
+            if (parsed.pointSystem && parsed.pointSystem.loan === undefined) parsed.pointSystem.loan = null;
+            if (parsed.pointSystem && parsed.pointSystem.lastBorrowDate === undefined) parsed.pointSystem.lastBorrowDate = null;
             // チャレンジシステムがない場合は初期化
             if (!parsed.challenges) {
                 parsed.challenges = {
@@ -4635,7 +4641,101 @@
             if (pointsLevelName) {
                 pointsLevelName.textContent = levelInfo.name;
             }
+
+            // 前借りセクションの更新
+            updateLoanSection();
         }
+
+        function dateKeyToday() { return dateKeyLocal(new Date()); }
+
+        function calcLoanOwed(loan) {
+            if (!loan) return 0;
+            const start = new Date(loan.borrowedAt);
+            const today = new Date();
+            start.setHours(0,0,0,0); today.setHours(0,0,0,0);
+            const days = Math.max(0, Math.floor((today - start) / (1000*60*60*24)));
+            const owed = Math.ceil(loan.principal * Math.pow(1.1, days));
+            return { owed, days };
+        }
+
+        function updateLoanSection() {
+            const data = loadData();
+            const ps = data.pointSystem;
+            const el = document.getElementById('loan-section');
+            if (!el) return;
+            const todayKey = dateKeyToday();
+            const hasLoan = !!ps.loan;
+            const eligibleToday = (!hasLoan) && (ps.lastBorrowDate !== todayKey);
+            if (!hasLoan) {
+                el.innerHTML = `
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+                        <div>
+                            <div style="font-weight:700;">💳 前借り（1日1回/1〜20pt）</div>
+                            <div style="font-size:12px; color: var(--text-secondary);">未返還がある間は新規に借りられません</div>
+                        </div>
+                        <button class="btn" ${eligibleToday ? '' : 'disabled'} onclick="openBorrowDialog()" style="min-width:120px;">前借りする</button>
+                    </div>
+                    ${!eligibleToday ? `<div style=\"margin-top:8px; color: var(--text-secondary); font-size: 12px;\">本日の前借りは利用済みです</div>` : ''}
+                `;
+            } else {
+                const { owed, days } = calcLoanOwed(ps.loan);
+                const dateText = new Date(ps.loan.borrowedAt).toLocaleDateString('ja-JP');
+                el.innerHTML = `
+                    <div style="display:grid; gap:8px;">
+                        <div style="display:flex; align-items:center; justify-content:space-between;">
+                            <div style="font-weight:700;">💳 前借り残高</div>
+                            <div style="font-size:12px; color: var(--text-secondary);">借入日: ${dateText} (${days}日経過)</div>
+                        </div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; background: var(--surface-light); border: 1px solid var(--border); border-radius: 8px; padding: 10px;">
+                            <div><span style="font-size:22px; font-weight:800; color:#f97316;">${owed}</span> pt</div>
+                            <button class="btn" onclick="repayLoan()">返還する</button>
+                        </div>
+                        <div style="font-size:11px; color: var(--text-secondary);">返還額は1日ごとに1.1倍ずつ増加します</div>
+                    </div>
+                `;
+            }
+        }
+
+        function openBorrowDialog() {
+            const data = loadData();
+            const ps = data.pointSystem;
+            if (ps.loan) { showNotification('未返還の前借りがあります', 'error'); return; }
+            const todayKey = dateKeyToday();
+            if (ps.lastBorrowDate === todayKey) { showNotification('今日は既に前借りを利用しています', 'error'); return; }
+            const v = prompt('前借りするポイント数（1〜20）');
+            if (v == null) return;
+            const n = parseInt(v, 10);
+            if (!Number.isFinite(n) || n < 1 || n > 20) { showNotification('1〜20の数値を入力してください', 'error'); return; }
+            // 付与（借入はEarnには含めない）
+            ps.currentPoints += n;
+            ps.loan = { principal: n, borrowedAt: new Date().toISOString() };
+            ps.lastBorrowDate = todayKey;
+            ps.transactions.unshift({ timestamp: new Date().toISOString(), type: 'loan_borrow', amount: n, source: 'loan', description: `前借り +${n}pt` });
+            saveData(data);
+            updatePointsView();
+            showNotification(`💳 ${n}ptを前借りしました`, 'success');
+        }
+        window.openBorrowDialog = openBorrowDialog;
+
+        function repayLoan() {
+            const data = loadData();
+            const ps = data.pointSystem;
+            if (!ps.loan) { showNotification('前借りはありません', 'error'); return; }
+            const { owed } = calcLoanOwed(ps.loan);
+            if (ps.currentPoints < owed) {
+                showNotification(`ポイントが不足しています（必要: ${owed}pt）`, 'error');
+                return;
+            }
+            if (!confirm(`前借り ${owed}pt を返還しますか？`)) return;
+            ps.currentPoints -= owed;
+            ps.lifetimeSpent = (ps.lifetimeSpent || 0) + owed;
+            ps.transactions.unshift({ timestamp: new Date().toISOString(), type: 'loan_repay', amount: owed, source: 'loan', description: `前借り返還 -${owed}pt` });
+            ps.loan = null;
+            saveData(data);
+            updatePointsView();
+            showNotification('💳 前借りを返還しました', 'success');
+        }
+        window.repayLoan = repayLoan;
         
         // 報酬タブを表示
         function showRewardsTab() {
