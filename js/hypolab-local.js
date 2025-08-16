@@ -11440,6 +11440,7 @@
         }
         
         // イベント定義（シンプルで面白い仕掛け）
+        /* 重複定義をコメントアウト - 365行目の定義を使用
         const EVENT_DEFINITIONS = [
             // ポイント系イベント（バランス調整済み）
             { id: 'bonus_points', name: '🎆 ボーナスポイント', description: '今日の全達成が1.3倍', effect: 'points_multiplier', value: 1.3 },
@@ -11527,8 +11528,8 @@
             });
         }
         
-        // 日替わりイベントを取得（全て等確率）
-        function getDailyEvent() {
+        // getDailyEvent関数は14041行目で定義済み（重複削除）
+        /* function getDailyEvent() {
             const data = loadData();
             const today = dateKeyLocal(new Date());
             const todayStr = new Date().toISOString().split('T')[0];
@@ -11569,7 +11570,7 @@
             const eventSeed = today.split('-').join('');
             const eventIndex = (parseInt(eventSeed) * 7919) % EVENT_DEFINITIONS.length;
             return EVENT_DEFINITIONS[eventIndex];
-        }
+        } */
         
         // 特別報酬ボタンの表示状態を更新
         function updateSpecialRewardButton() {
