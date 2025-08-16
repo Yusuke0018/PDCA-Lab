@@ -11481,7 +11481,7 @@
             
             // 週末イベント
             { id: 'weekend_special', name: '🎈 週末スペシャル', description: '週末はポイント1.2倍！', effect: 'points_multiplier', value: 1.2 }
-        ];
+        ]; */
         
         // 特別報酬を獲得（スマホ限定、1日1回）
         function getSpecialReward() {
