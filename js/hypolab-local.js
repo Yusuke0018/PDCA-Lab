@@ -7557,9 +7557,9 @@
             
             // データを保存
             const saveData2 = loadData();
-            const index = saveData2.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
-            if (index !== -1) {
-                saveData2.currentHypotheses[index] = window.currentHypothesis;
+            const index2 = saveData2.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (index2 !== -1) {
+                saveData2.currentHypotheses[index2] = window.currentHypothesis;
                 saveData(saveData2);
             }
             
