@@ -381,6 +381,15 @@
                 rarity: 'rare',
                 color: '#22c55e'
             },
+            journal_boost_today: {
+                id: 'journal_boost_today',
+                type: 'reward',
+                name: 'ジャーナルブースト',
+                description: '今日のジャーナルポイントが×2',
+                icon: '📝',
+                rarity: 'uncommon',
+                color: '#94a3b8'
+            },
             double_or_nothing: {
                 id: 'double_or_nothing',
                 type: 'penalty',
@@ -6395,6 +6404,8 @@
                         cardDiv.onclick = () => useEventTicket();
                     } else if (cardId === 'challenge_boost_today') {
                         cardDiv.onclick = () => useChallengeBoostToday();
+                    } else if (cardId === 'journal_boost_today') {
+                        cardDiv.onclick = () => useJournalBoostToday();
                     }
 
                     container.appendChild(cardDiv);
@@ -12358,7 +12369,16 @@
             // カード効果のチェック
             if (data.cards && data.cards.activeEffects) {
                 const now = new Date();
-                
+                // ジャーナルブースト（カード由来）
+                if (source === 'journal') {
+                    const jmul = data.cards.activeEffects.find(effect => 
+                        effect.type === 'journal_multiplier' && new Date(effect.startDate) <= now && new Date(effect.endDate) >= now
+                    );
+                    if (jmul) {
+                        multiplier *= (jmul.value || 2.0);
+                    }
+                }
+
                 // ポイントジェム効果
                 const pointGem = data.cards.activeEffects.find(effect => 
                     effect.type === 'point_multiplier' && 
@@ -12536,6 +12556,10 @@
                 const isCh = (source === 'daily_challenge' || source === 'weekly_challenge' || source === 'challenge');
                 const chMul = data.cards.activeEffects.find(e => e.type === 'challenge_multiplier' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
                 if (isCh && chMul) { multiplier *= (chMul.value || 2.0); notes.push(`Challenge ×${chMul.value || 2.0}`); }
+                // ジャーナルブースト（ジャーナルのみ倍率）
+                const isJournal = (source === 'journal');
+                const journalMul = data.cards.activeEffects.find(e => e.type === 'journal_multiplier' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
+                if (isJournal && journalMul) { multiplier *= (journalMul.value || 2.0); notes.push(`Journal ×${journalMul.value || 2.0}`); }
                 // スパークルストリーク（今日の最初の3回の達成だけボーナス）
                 const todayKey = dateKeyLocal(new Date());
                 const spark = data.cards.activeEffects.find(e => e.type === 'streak_spark' && e.dayKey === todayKey && (e.count || 0) < (e.bonuses ? e.bonuses.length : 0));
@@ -13291,6 +13315,22 @@
             data.cards.activeEffects.push({ cardId:'challenge_boost_today', type:'challenge_multiplier', value:2.0, startDate:start.toISOString(), endDate:end.toISOString() });
             saveData(data);
             showCardEffect('🎯 チャレンジブースト！','今日のチャレンジ×2','\#22c55e');
+            updateCardUseButton();
+        }
+
+        // ジャーナルブースト: 今日のジャーナルポイント×2
+        function useJournalBoostToday() {
+            closeCardUseMenu();
+            const data = loadData();
+            const idx = data.cards.inventory.findIndex(c => c.cardId === 'journal_boost_today' && !c.used);
+            if (idx === -1) { showNotification('⚠️ ジャーナルブーストがありません', 'error'); return; }
+            data.cards.inventory.splice(idx, 1);
+            const start = new Date();
+            const end = new Date(); end.setHours(23,59,59,999);
+            if (!data.cards.activeEffects) data.cards.activeEffects = [];
+            data.cards.activeEffects.push({ cardId:'journal_boost_today', type:'journal_multiplier', value:2.0, startDate:start.toISOString(), endDate:end.toISOString() });
+            saveData(data);
+            showCardEffect('📝 ジャーナルブースト！','今日のジャーナル×2','\\#94a3b8');
             updateCardUseButton();
         }
 
