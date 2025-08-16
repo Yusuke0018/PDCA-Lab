@@ -9942,12 +9942,15 @@
                     const categoryHeader = document.createElement('div');
                     const toggleKey = `${frequencyKey}-${categoryKey}`;
                     const isOpen = toggleStates[toggleKey] !== false;
+                    // 今日未達成の件数
+                    const unachievedCount = habits.filter(h => !(h.achievements && h.achievements[todayKey])).length;
                     
                     categoryHeader.style.cssText = `display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: linear-gradient(135deg, ${categoryInfo.color}10, ${categoryInfo.color}05); border-radius: 10px; border-left: 3px solid ${categoryInfo.color}; cursor: pointer; user-select: none; transition: all 0.2s;`;
                     categoryHeader.innerHTML = `
                         <span style="font-size: 18px;">${categoryInfo.icon}</span>
                         <span style="font-weight: 600; font-size: 15px; color: var(--text-primary);">${categoryInfo.name}</span>
                         <span style="font-size: 12px; color: var(--text-secondary); margin-left: 6px; background: ${categoryInfo.color}20; padding: 2px 8px; border-radius: 999px;">${habits.length}個</span>
+                        <span id="unach-${toggleKey}" style="display: ${isOpen ? 'none' : 'inline-block'}; margin-left: 6px; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; font-weight: 600;">未達成 ${unachievedCount}個</span>
                         <span style="margin-left: auto; font-size: 16px; transition: transform 0.3s;" id="toggle-${toggleKey}">${isOpen ? '▼' : '▶'}</span>
                     `;
                     
@@ -9967,16 +9970,24 @@
                     categoryHeader.onclick = () => {
                         const content = document.getElementById(`content-${toggleKey}`);
                         const toggle = document.getElementById(`toggle-${toggleKey}`);
+                        const unachBadge = document.getElementById(`unach-${toggleKey}`);
                         const isCurrentlyOpen = content.style.maxHeight !== '0px';
                         
                         if (isCurrentlyOpen) {
                             content.style.maxHeight = '0';
                             toggle.textContent = '▶';
                             toggleStates[toggleKey] = false;
+                            // 閉じたら未達成件数を表示（再計算）
+                            try {
+                                const count = habits.filter(h => !(h.achievements && h.achievements[getActivityDateKey()])).length;
+                                if (unachBadge) { unachBadge.textContent = `未達成 ${count}個`; unachBadge.style.display = 'inline-block'; }
+                            } catch (e) { if (unachBadge) unachBadge.style.display = 'inline-block'; }
                         } else {
                             content.style.maxHeight = '2000px';
                             toggle.textContent = '▼';
                             toggleStates[toggleKey] = true;
+                            // 開いたらバッジを隠す
+                            if (unachBadge) unachBadge.style.display = 'none';
                         }
                         
                         localStorage.setItem('categoryToggleStates', JSON.stringify(toggleStates));
