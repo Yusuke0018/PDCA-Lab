@@ -2,16 +2,16 @@
 // Exposes functions on window for backward compatibility.
 
 const LEVEL_THRESHOLDS = [
-    { level: 1, name: '初心者', min: 0, max: 75 },
-    { level: 2, name: '見習い', min: 76, max: 225 },
-    { level: 3, name: '習慣家', min: 226, max: 450 },
-    { level: 4, name: '実践者', min: 451, max: 750 },
-    { level: 5, name: '達人', min: 751, max: 1125 },
-    { level: 6, name: 'マスター', min: 1126, max: 1650 },
-    { level: 7, name: 'グランドマスター', min: 1651, max: 2250 },
-    { level: 8, name: 'レジェンド', min: 2251, max: 3000 },
-    { level: 9, name: '神', min: 3001, max: 3900 },
-    { level: 10, name: '超越者', min: 3901, max: Infinity }
+    { level: 1, name: '初心者', min: 0, max: 150 },
+    { level: 2, name: '見習い', min: 151, max: 450 },
+    { level: 3, name: '習慣家', min: 451, max: 900 },
+    { level: 4, name: '実践者', min: 901, max: 1500 },
+    { level: 5, name: '達人', min: 1501, max: 2250 },
+    { level: 6, name: 'マスター', min: 2251, max: 3300 },
+    { level: 7, name: 'グランドマスター', min: 3301, max: 4500 },
+    { level: 8, name: 'レジェンド', min: 4501, max: 6000 },
+    { level: 9, name: '神', min: 6001, max: 7800 },
+    { level: 10, name: '超越者', min: 7801, max: Infinity }
 ];
 
 function calculateLevel(lifetimeEarned) {
@@ -20,13 +20,13 @@ function calculateLevel(lifetimeEarned) {
             return threshold;
         }
     }
-    const extraPoints = lifetimeEarned - 2601;
-    const extraLevels = Math.floor(extraPoints / 700);
+    const extraPoints = lifetimeEarned - 7801;
+    const extraLevels = Math.floor(extraPoints / 1400);
     return {
         level: 10 + extraLevels,
         name: '超越者',
-        min: 2601 + (extraLevels * 700),
-        max: 2601 + ((extraLevels + 1) * 700)
+        min: 7801 + (extraLevels * 1400),
+        max: 7801 + ((extraLevels + 1) * 1400)
     };
 }
 

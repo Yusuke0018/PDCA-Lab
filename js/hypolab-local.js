@@ -3691,6 +3691,55 @@
             updateEffortBonusArea();
         }
         
+        // 努力ボーナスの完了を取り消し
+        function undoEffortBonusPlan(planId) {
+            const data = loadData();
+            const today = dateKeyLocal(new Date());
+            
+            if (!data.effortBonusPlans || !data.effortBonusPlans[today]) return;
+            
+            const plan = data.effortBonusPlans[today].find(p => p.id === planId);
+            if (!plan || !plan.completed) return;
+            
+            // 完了状態を取り消し
+            plan.completed = false;
+            delete plan.completedAt;
+            
+            // ポイントを減算
+            data.pointSystem.currentPoints -= plan.points;
+            data.pointSystem.lifetimeEarned -= plan.points;
+            data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
+            
+            // 使用回数を減らす
+            data.pointSystem.dailyEffortUsed = Math.max(0, (data.pointSystem.dailyEffortUsed || 0) - 1);
+            
+            // レベル更新
+            const newLevel = calculateLevel(data.pointSystem.lifetimeEarned);
+            data.pointSystem.currentLevel = newLevel.level;
+            
+            // トランザクション記録
+            data.pointSystem.transactions.unshift({
+                timestamp: new Date().toISOString(),
+                type: 'undo',
+                amount: -plan.points,
+                source: 'effort_bonus',
+                description: `努力ボーナス取り消し: ${plan.type}`
+            });
+            
+            if (data.pointSystem.transactions.length > 100) {
+                data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100);
+            }
+            
+            saveData(data);
+            
+            // 表示を更新
+            updateEffortBonusArea();
+            updatePointDisplay();
+            updateStatistics();
+            
+            showNotification(`努力ボーナス取り消し: -${plan.points}pt`, 'warning');
+        }
+        
         // テーマ切り替え関数
         function toggleTheme() {
             const root = document.documentElement;
@@ -3807,6 +3856,50 @@
                             }
                         };
                         buttonsDiv.appendChild(deleteBtn);
+                    } else {
+                        // 完了済みの場合、長押しで取り消し可能なインジケーター
+                        const completedDiv = document.createElement('div');
+                        completedDiv.style.cssText = 'padding: 4px 8px; font-size: 12px; color: #10b981; user-select: none;';
+                        completedDiv.textContent = '✅ 完了';
+                        
+                        // 長押しで取り消し
+                        let longPressTimer;
+                        completedDiv.addEventListener('touchstart', (e) => {
+                            longPressTimer = setTimeout(() => {
+                                if (confirm('この努力ボーナスの完了を取り消しますか？')) {
+                                    undoEffortBonusPlan(plan.id);
+                                }
+                            }, 800); // 0.8秒の長押し
+                            e.preventDefault();
+                        });
+                        
+                        completedDiv.addEventListener('touchend', () => {
+                            clearTimeout(longPressTimer);
+                        });
+                        
+                        completedDiv.addEventListener('touchcancel', () => {
+                            clearTimeout(longPressTimer);
+                        });
+                        
+                        // デスクトップ用の長押し
+                        completedDiv.addEventListener('mousedown', (e) => {
+                            longPressTimer = setTimeout(() => {
+                                if (confirm('この努力ボーナスの完了を取り消しますか？')) {
+                                    undoEffortBonusPlan(plan.id);
+                                }
+                            }, 800);
+                            e.preventDefault();
+                        });
+                        
+                        completedDiv.addEventListener('mouseup', () => {
+                            clearTimeout(longPressTimer);
+                        });
+                        
+                        completedDiv.addEventListener('mouseleave', () => {
+                            clearTimeout(longPressTimer);
+                        });
+                        
+                        buttonsDiv.appendChild(completedDiv);
                     }
                     
                     planDiv.appendChild(buttonsDiv);
