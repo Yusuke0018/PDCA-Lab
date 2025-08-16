@@ -11213,23 +11213,30 @@
                 });
             }
             
-            // 平均ポイントを計算してソート
-            const ranking = Object.values(habitPoints)
+            // 平均ポイントを計算
+            const allRankable = Object.values(habitPoints)
                 .map(h => {
                     h.averagePoints = h.achievementCount > 0 ? 
                         Math.round(h.totalPoints / h.achievementCount * 10) / 10 : 0;
                     return h;
-                })
+                });
+            // 総ポイントランキング（上位5件）
+            const rankingTotal = allRankable
                 .filter(h => h.totalPoints > 0)
                 .sort((a, b) => b.totalPoints - a.totalPoints)
+                .slice(0, 5);
+            // 回数ランキング（上位5件）
+            const rankingCount = allRankable
+                .filter(h => h.achievementCount > 0)
+                .sort((a, b) => b.achievementCount - a.achievementCount || b.totalPoints - a.totalPoints)
                 .slice(0, 5);
             
             const rankDiv = document.getElementById('ranking-list');
             if (rankDiv){
-                if (ranking.length === 0) {
+                if (rankingTotal.length === 0 && rankingCount.length === 0) {
                     rankDiv.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 20px;">まだポイント獲得履歴がありません</div>';
                 } else {
-                    rankDiv.innerHTML = ranking.map((r,idx)=>{
+                    const renderItem = (r, idx, mode) => {
                         // この習慣の最近のポイント履歴を取得（最新3件）
                         const recentPoints = r.recentHistory.slice(0, 3);
                         let historyHtml = '';
@@ -11248,13 +11255,17 @@
                                 </div>
                             `;
                         }
-                        
-                        return `
-                        <div class="ranking-item" style="padding:8px;border:1px solid var(--border);border-radius:10px;background: ${
+                        const rankBg = (
                             idx === 0 ? 'linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1))' :
                             idx === 1 ? 'linear-gradient(135deg, rgba(192, 192, 192, 0.1), rgba(128, 128, 128, 0.1))' :
                             idx === 2 ? 'linear-gradient(135deg, rgba(205, 127, 50, 0.1), rgba(165, 87, 10, 0.1))' :
                             'rgba(0,0,0,0.1)'
+                        );
+                        const rightValue = mode === 'total' ? `${r.totalPoints}pt` : `${r.achievementCount}回`;
+                        const rightColor = mode === 'total' ? '#fbbf24' : '#10b981';
+                        return `
+                        <div class="ranking-item" style="padding:8px;border:1px solid var(--border);border-radius:10px;background: ${
+                            rankBg
                         };">
                             <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;">
                                 <div style="display: flex; align-items: center; gap: 8px;">
@@ -11268,12 +11279,22 @@
                                     </div>
                                 </div>
                                 <div style="text-align: right;">
-                                    <div style="font-size: 16px; font-weight: bold; color: #fbbf24;">${r.totalPoints}pt</div>
+                                    <div style="font-size: 16px; font-weight: bold; color: ${rightColor};">${rightValue}</div>
                                 </div>
                             </div>
                             ${historyHtml}
                         </div>
-                    `}).join('');
+                    `;
+                    };
+                    const totalHtml = rankingTotal.length ? (`
+                        <h4 style="margin:8px 0; font-size:14px;">🏆 総ポイントランキング</h4>
+                        <div style="display:grid; gap:8px;">${rankingTotal.map((r,idx)=>renderItem(r,idx,'total')).join('')}</div>
+                    `) : '';
+                    const countHtml = rankingCount.length ? (`
+                        <h4 style="margin:12px 0 8px; font-size:14px;">🔢 回数ランキング</h4>
+                        <div style="display:grid; gap:8px;">${rankingCount.map((r,idx)=>renderItem(r,idx,'count')).join('')}</div>
+                    `) : '';
+                    rankDiv.innerHTML = totalHtml + countHtml;
                 }
             }
         }
