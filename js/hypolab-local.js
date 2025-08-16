@@ -4654,6 +4654,11 @@
                 const spentEl = document.getElementById('reward-spent-total');
                 if (usedEl) usedEl.textContent = count.toLocaleString();
                 if (spentEl) spentEl.textContent = `${spent.toLocaleString()}pt`;
+                // 詳細統計側にも反映（存在すれば）
+                const usedElStats = document.getElementById('reward-used-count-stats');
+                const spentElStats = document.getElementById('reward-spent-total-stats');
+                if (usedElStats) usedElStats.textContent = count.toLocaleString();
+                if (spentElStats) spentElStats.textContent = `${spent.toLocaleString()}pt`;
             } catch (e) { /* noop */ }
         }
 
@@ -5105,6 +5110,8 @@
             
             // 人気報酬ランキング
             updatePopularRewards(rewards);
+            // 消費ポイントTOP5
+            updateTopSpentRewards(rewards);
             
             // カテゴリー別統計
             updateCategoryStatistics(rewards);
@@ -5118,7 +5125,7 @@
             // 最近使用した報酬
             updateRecentUsedRewards(transactions.filter(t => t.type === 'spend'));
         }
-        
+
         // 人気報酬ランキングを更新
         function updatePopularRewards(rewards) {
             const el = document.getElementById('popular-rewards');
@@ -5163,6 +5170,55 @@
                             <div style="font-size: 18px; font-weight: bold; color: #ef4444;">
                                 ${reward.cost * (reward.timesUsed || 0)}pt
                             </div>
+                            <div style="font-size: 10px; color: var(--text-secondary);">総消費</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 消費ポイントTOP5を更新（総消費額でソート）
+        function updateTopSpentRewards(rewards) {
+            const el = document.getElementById('top-spent-rewards');
+            if (!el) return;
+            const candidates = rewards
+                .filter(r => !r.isArchived && (r.timesUsed || 0) > 0)
+                .map(r => ({
+                    id: r.id,
+                    name: r.name,
+                    emoji: r.emoji || '🎁',
+                    cost: r.cost || 0,
+                    timesUsed: r.timesUsed || 0,
+                    totalSpent: (r.timesUsed || 0) * (r.cost || 0)
+                }))
+                .sort((a, b) => b.totalSpent - a.totalSpent)
+                .slice(0, 5);
+            if (candidates.length === 0) {
+                el.innerHTML = '<div style="color: var(--text-secondary); text-align: center;">まだ使用された報酬がありません</div>';
+                return;
+            }
+            el.innerHTML = candidates.map((r, idx) => {
+                const rank = idx + 1;
+                const rankEmoji = rank === 1 ? '💎' : rank === 2 ? '💠' : rank === 3 ? '🔶' : `${rank}.`;
+                return `
+                    <div style="
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        padding: 12px;
+                        background: ${rank === 1 ? 'linear-gradient(135deg, rgba(34,197,94,0.08), rgba(16,185,129,0.08))' : 'rgba(0,0,0,0.2)'};
+                        border-radius: 8px;
+                        ${rank === 1 ? 'border: 1px solid rgba(16,185,129,0.3);' : ''}
+                    ">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span style="font-size: 20px;">${rankEmoji}</span>
+                            <div>
+                                <div style="font-weight: bold;">${r.emoji} ${escapeHTML(r.name)}</div>
+                                <div style="font-size: 12px; color: var(--text-secondary);">${r.cost}pt • ${r.timesUsed}回使用</div>
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 18px; font-weight: bold; color: #ef4444;">${r.totalSpent}pt</div>
                             <div style="font-size: 10px; color: var(--text-secondary);">総消費</div>
                         </div>
                     </div>

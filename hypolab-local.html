@@ -725,7 +725,7 @@
                 </div>
                 
                 <!-- 詳細統計ボタン -->
-                <button onclick="window.toggleRewardStatistics()" style="
+                <button id="toggle-reward-stats-btn" onclick="window.toggleRewardStatistics()" style="
                     width: 100%;
                     padding: 12px;
                     background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1));
@@ -743,12 +743,33 @@
                 
                 <!-- 詳細統計パネル -->
                 <div id="reward-statistics-panel" style="display: none; margin-bottom: 16px;">
+                    <!-- 概要サマリ（重複表示） -->
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px;">
+                        <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 12px;">
+                            <div id="reward-used-count-stats" style="font-size: 20px; font-weight: bold; color: #10b981;">0</div>
+                            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">報酬使用回数</div>
+                        </div>
+                        <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 12px;">
+                            <div id="reward-spent-total-stats" style="font-size: 20px; font-weight: bold; color: #ef4444;">0pt</div>
+                            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">報酬の総消費ポイント</div>
+                        </div>
+                    </div>
                     <!-- 人気報酬ランキング -->
                     <div style="background: var(--surface); padding: 16px; border-radius: 12px; margin-bottom: 12px;">
                         <h4 style="margin-bottom: 12px; font-size: 16px; cursor: pointer; user-select: none;" onclick="toggleStatSection('popular-rewards')">
                             <span id="popular-rewards-arrow">▼</span> 🏆 人気報酬TOP5
                         </h4>
                         <div id="popular-rewards" style="display: grid; gap: 8px;">
+                            <!-- 動的に生成 -->
+                        </div>
+                    </div>
+
+                    <!-- 消費ポイントTOP5 -->
+                    <div style="background: var(--surface); padding: 16px; border-radius: 12px; margin-bottom: 12px;">
+                        <h4 style="margin-bottom: 12px; font-size: 16px; cursor: pointer; user-select: none;" onclick="toggleStatSection('top-spent-rewards')">
+                            <span id="top-spent-rewards-arrow">▼</span> 💸 消費ポイントTOP5
+                        </h4>
+                        <div id="top-spent-rewards" style="display: grid; gap: 8px;">
                             <!-- 動的に生成 -->
                         </div>
                     </div>
