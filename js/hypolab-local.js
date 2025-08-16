@@ -8063,6 +8063,17 @@
                 const ae = data.cards.activeEffects;
                 const todayKey = dateKeyLocal(new Date());
                 const addBadge = (text, style) => { hasActiveEffects = true; const el = document.createElement('div'); el.style.cssText = style; el.textContent = text; activeEffectsList.appendChild(el); };
+                // ポイント倍率効果（ハッピーアワー、ポイントジェム、アフタヌーンジェム）
+                const pointMultiplier = ae.find(e => e.type === 'point_multiplier' && new Date(e.startDate) <= new Date() && new Date(e.endDate) >= new Date());
+                if (pointMultiplier) {
+                    const cardName = pointMultiplier.cardId === 'happy_hour' ? 'ハッピーアワー' : 
+                                   pointMultiplier.cardId === 'afternoon_gem' ? 'アフタヌーンジェム' : 
+                                   'ポイントジェム';
+                    const icon = pointMultiplier.cardId === 'happy_hour' ? '⏰' : 
+                               pointMultiplier.cardId === 'afternoon_gem' ? '☕' : 
+                               '💎';
+                    addBadge(`${icon} ${cardName} ×${pointMultiplier.multiplier}`, 'background: rgba(6,182,212,0.2); color:#06b6d4; padding:4px 12px; border-radius:16px; font-size:12px; border:1px solid #06b6d4;');
+                }
                 if (ae.find(e => e.type === 'combo_multiplier')) {
                     addBadge('🧩 コンボ×2', 'background: rgba(34,197,94,0.2); color:#22c55e; padding:4px 12px; border-radius:16px; font-size:12px; border:1px solid #22c55e;');
                 }
