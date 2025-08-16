@@ -13894,6 +13894,43 @@
             updateCardUseButton();
         }
 
+        // 一時的なカード取得関数（デバッグ用）
+        window.tempGetCards = function() {
+            const data = loadData();
+            const cards = [];
+            
+            // ランダムに3枚の報酬カードを選択
+            const rewardCards = Object.keys(CARD_MASTER).filter(id => 
+                CARD_MASTER[id].type === 'reward'
+            );
+            
+            for (let i = 0; i < 3; i++) {
+                if (rewardCards.length > 0) {
+                    const randomIndex = Math.floor(Math.random() * rewardCards.length);
+                    const cardId = rewardCards[randomIndex];
+                    cards.push(cardId);
+                    
+                    // インベントリに追加
+                    data.cards.inventory.push({
+                        cardId: cardId,
+                        acquiredDate: new Date().toISOString(),
+                        used: false
+                    });
+                    
+                    // ドロップ履歴に追加
+                    if (!data.cards.dropHistory) data.cards.dropHistory = [];
+                    data.cards.dropHistory.unshift(cardId);
+                }
+            }
+            
+            saveData(data);
+            
+            // カード獲得演出
+            showCardAcquisition(cards, () => {
+                showNotification('🎁 テスト用カードを3枚獲得しました！', 'success');
+            });
+        };
+        
         // ジャーナルブースト: 今日のジャーナルポイント×2
         function useJournalBoostToday() {
             closeCardUseMenu();
