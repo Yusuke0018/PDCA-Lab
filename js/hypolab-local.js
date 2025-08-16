@@ -14658,42 +14658,9 @@
         }
         
         // デイリーイベントをチェック
-        function checkDailyEvents() {
-            const data = loadData();
-            const today = dateKeyLocal(new Date());
-            
-            // イベント初期化
-            if (!data.events) {
-                data.events = {
-                    activeBoosts: [],
-                    lastEventCheck: null
-                };
-            }
-            
-            // 今日既にチェック済みならスキップ
-            if (data.events.lastEventCheck === today) {
-                updateEventDisplay();
-                return;
-            }
-            
-            // 新しい日のイベントを取得
-            const dailyEvent = getDailyEvent();
-            
-            if (dailyEvent) {
-                data.events.activeBoosts = [dailyEvent];
-            } else {
-                data.events.activeBoosts = [];
-            }
-            
-            data.events.lastEventCheck = today;
-            saveData(data);
-            updateEventDisplay();
-        }
-        
-        // イベント関連関数をwindowオブジェクトに登録
+        // イベント関連関数をwindowオブジェクトに登録（checkDailyEventsはイベントモジュールで定義済み）
         window.getDailyEvent = getDailyEvent;
         window.updateEventDisplay = updateEventDisplay;
-        window.checkDailyEvents = checkDailyEvents;
         
         // カテゴリ関連関数をwindowオブジェクトに登録
         window.initializeCategoryMaster = initializeCategoryMaster;
