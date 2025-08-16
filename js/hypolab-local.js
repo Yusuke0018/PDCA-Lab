@@ -6457,6 +6457,7 @@
                                     endDate: sealEnd.toISOString()
                                 });
                                 saveData(data);
+                                updateActiveEffectsDisplay();
                                 break;
                             case 'mission_overload':
                                 // ミッション追加（ランダムに2つ追加）
@@ -6474,6 +6475,7 @@
                                     endDate: slowEnd.toISOString()
                                 });
                                 saveData(data);
+                                updateActiveEffectsDisplay();
                                 break;
                         }
                     }
@@ -13557,6 +13559,7 @@
             saveData(data);
             showCardEffect('🧩 コンボチェーン発動！','今日のコンボは×2','\#22c55e');
             updateCardUseButton();
+            updateActiveEffectsDisplay();
         }
 
         // スパークルストリーク: 今日の最初の3回 達成に+3/+5/+8
@@ -13575,6 +13578,7 @@
             saveData(data);
             showCardEffect('🎆 スパークルストリーク！','今日の最初の3回の達成で追加ボーナス','\#f97316');
             updateCardUseButton();
+            updateActiveEffectsDisplay();
         }
 
         // カテゴリーフェス: 指定カテゴリ×1.5（今日）
@@ -13655,6 +13659,7 @@
             saveData(data);
             showCardEffect('😴 パワーナップ！','次の習慣達成で+10pt','\#06b6d4');
             updateCardUseButton();
+            updateActiveEffectsDisplay();
         }
 
         // コンボサージ: 今日のコンボ×1.5
@@ -13671,6 +13676,7 @@
             saveData(data);
             showCardEffect('🧨 コンボサージ！','コンボが×1.5','\#f97316');
             updateCardUseButton();
+            updateActiveEffectsDisplay();
         }
 
         // アフタヌーンジェム: 今日だけポイント×1.2
@@ -13687,6 +13693,7 @@
             saveData(data);
             showCardEffect('☕ アフタヌーンジェム！','今日のポイント×1.5','\#10b981');
             updateCardUseButton();
+            updateActiveEffectsDisplay();
         }
         
         // パワーブースト: 習慣達成時に+5pt
@@ -13703,6 +13710,7 @@
             saveData(data);
             showCardEffect('💪 パワーブースト！','習慣達成時に+5pt','#dc2626');
             updateCardUseButton();
+            updateActiveEffectsDisplay();
         }
 
         // イベントチケット: ダブルポイントデーを今日に発動
@@ -13921,6 +13929,7 @@
             saveData(data);
             showNotification('🌈 今日はすべてのカテゴリーでポイント2倍！', 'success');
             updateCardUseButton();
+            updateActiveEffectsDisplay();
         }
 
         // クイックスタート
@@ -13987,6 +13996,7 @@
             saveData(data);
             showNotification('🔥 7日間、連続達成ボーナスの倍率が2倍！', 'success');
             updateCardUseButton();
+            updateActiveEffectsDisplay();
         }
 
         // ラッキーセブン（仕様変更：イベント発生率×2 を7日間）
@@ -14023,6 +14033,7 @@
             saveData(data);
             showNotification('🎰 7日間イベント発生率が2倍になりました！', 'success');
             updateCardUseButton();
+            updateActiveEffectsDisplay();
         }
 
         // 変換の魔法
@@ -14502,6 +14513,8 @@
             // イベントチェック
             checkDailyEvents();
             
+            // アクティブなカード効果を表示
+            updateActiveEffectsDisplay();
             
             // 履歴初期化（ホームを現在の状態として記録）
             try {
@@ -14662,11 +14675,241 @@
         window.getDailyEvent = getDailyEvent;
         window.updateEventDisplay = updateEventDisplay;
         
+        // アクティブなカード効果を包括的に表示する関数
+        function updateActiveEffectsDisplay() {
+            const data = loadData();
+            const now = new Date();
+            const activeEffects = [];
+            
+            if (data.cards && data.cards.activeEffects) {
+                data.cards.activeEffects.forEach(effect => {
+                    // 有効期限チェック
+                    if (effect.startDate && effect.endDate) {
+                        const start = new Date(effect.startDate);
+                        const end = new Date(effect.endDate);
+                        if (now < start || now > end) return;
+                    }
+                    
+                    // カード情報を取得
+                    let cardInfo = null;
+                    if (effect.cardId && CARD_MASTER[effect.cardId]) {
+                        cardInfo = CARD_MASTER[effect.cardId];
+                    }
+                    
+                    // 効果タイプごとの表示
+                    let displayText = '';
+                    let displayIcon = '';
+                    let displayColor = '#6b7280';
+                    
+                    switch(effect.type) {
+                        case 'point_multiplier':
+                            displayText = `ポイント×${effect.multiplier || 1.5}`;
+                            displayIcon = cardInfo ? cardInfo.icon : '💎';
+                            displayColor = cardInfo ? cardInfo.color : '#06b6d4';
+                            break;
+                        case 'all_category_boost':
+                            displayText = `全カテゴリ×${effect.multiplier || 1.2}`;
+                            displayIcon = cardInfo ? cardInfo.icon : '🌈';
+                            displayColor = cardInfo ? cardInfo.color : '#8b5cf6';
+                            break;
+                        case 'combo_multiplier':
+                            displayText = `コンボ×${effect.value || 2.0}`;
+                            displayIcon = cardInfo ? cardInfo.icon : '🧩';
+                            displayColor = cardInfo ? cardInfo.color : '#22c55e';
+                            break;
+                        case 'category_theme_boost':
+                            displayText = `${effect.target}×${effect.multiplier || 1.5}`;
+                            displayIcon = cardInfo ? cardInfo.icon : '🎪';
+                            displayColor = cardInfo ? cardInfo.color : '#8b5cf6';
+                            break;
+                        case 'challenge_multiplier':
+                            displayText = `チャレンジ×${effect.value || 2.0}`;
+                            displayIcon = cardInfo ? cardInfo.icon : '🎯';
+                            displayColor = cardInfo ? cardInfo.color : '#22c55e';
+                            break;
+                        case 'journal_multiplier':
+                            displayText = `ジャーナル×${effect.value || 2.0}`;
+                            displayIcon = cardInfo ? cardInfo.icon : '📝';
+                            displayColor = cardInfo ? cardInfo.color : '#94a3b8';
+                            break;
+                        case 'power_boost':
+                            displayText = '習慣達成+5pt';
+                            displayIcon = cardInfo ? cardInfo.icon : '⚡';
+                            displayColor = cardInfo ? cardInfo.color : '#f59e0b';
+                            break;
+                        case 'next_habit_bonus':
+                            if (!effect.used) {
+                                displayText = `次の習慣+${effect.value || 10}pt`;
+                                displayIcon = cardInfo ? cardInfo.icon : '💤';
+                                displayColor = cardInfo ? cardInfo.color : '#7c3aed';
+                            }
+                            break;
+                        case 'streak_spark':
+                            const left = Math.max(0, (effect.bonuses ? effect.bonuses.length : 0) - (effect.count || 0));
+                            if (left > 0) {
+                                displayText = `スパークル残${left}回`;
+                                displayIcon = cardInfo ? cardInfo.icon : '🎆';
+                                displayColor = cardInfo ? cardInfo.color : '#f97316';
+                            }
+                            break;
+                        case 'mystery_reward':
+                            if (!effect.claimed) {
+                                displayText = 'ミステリー待機中';
+                                displayIcon = cardInfo ? cardInfo.icon : '🎁';
+                                displayColor = cardInfo ? cardInfo.color : '#f59e0b';
+                            }
+                            break;
+                        case 'achievement_booster':
+                            displayText = '達成ブースター+15%';
+                            displayIcon = cardInfo ? cardInfo.icon : '🚀';
+                            displayColor = cardInfo ? cardInfo.color : '#10b981';
+                            break;
+                        case 'event_seal':
+                            displayText = 'イベント封印中';
+                            displayIcon = cardInfo ? cardInfo.icon : '🌑';
+                            displayColor = cardInfo ? cardInfo.color : '#64748b';
+                            break;
+                        case 'slowdown':
+                            displayText = 'スローダウン×0.5';
+                            displayIcon = cardInfo ? cardInfo.icon : '🕸️';
+                            displayColor = cardInfo ? cardInfo.color : '#7c2d12';
+                            break;
+                        case 'lucky_seven':
+                            displayText = 'ラッキーセブン';
+                            displayIcon = cardInfo ? cardInfo.icon : '7️⃣';
+                            displayColor = cardInfo ? cardInfo.color : '#f59e0b';
+                            break;
+                    }
+                    
+                    if (displayText) {
+                        // 残り時間を計算
+                        let remainingTime = '';
+                        if (effect.endDate) {
+                            const end = new Date(effect.endDate);
+                            const diff = end - now;
+                            if (diff > 0) {
+                                const hours = Math.floor(diff / (1000 * 60 * 60));
+                                const days = Math.floor(hours / 24);
+                                if (days > 0) {
+                                    remainingTime = ` (残${days}日)`;
+                                } else if (hours > 0) {
+                                    remainingTime = ` (残${hours}時間)`;
+                                } else {
+                                    const minutes = Math.floor(diff / (1000 * 60));
+                                    remainingTime = ` (残${minutes}分)`;
+                                }
+                            }
+                        }
+                        
+                        activeEffects.push({
+                            icon: displayIcon,
+                            text: displayText + remainingTime,
+                            color: displayColor,
+                            cardName: cardInfo ? cardInfo.name : ''
+                        });
+                    }
+                });
+            }
+            
+            // 表示を更新
+            const container = document.getElementById('active-effects-display');
+            const list = document.getElementById('active-effects-list');
+            
+            if (container && list) {
+                list.innerHTML = '';
+                
+                if (activeEffects.length > 0) {
+                    activeEffects.forEach(effect => {
+                        const badge = document.createElement('div');
+                        badge.style.cssText = `
+                            background: ${effect.color}20;
+                            color: ${effect.color};
+                            padding: 4px 12px;
+                            border-radius: 16px;
+                            font-size: 12px;
+                            border: 1px solid ${effect.color};
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 4px;
+                        `;
+                        badge.innerHTML = `<span>${effect.icon}</span><span>${effect.text}</span>`;
+                        if (effect.cardName) {
+                            badge.title = effect.cardName;
+                        }
+                        list.appendChild(badge);
+                    });
+                    container.style.display = 'block';
+                } else {
+                    container.style.display = 'none';
+                }
+            }
+            
+            // グローバルなアクティブ効果表示も更新（画面上部に常時表示）
+            updateGlobalActiveEffectsDisplay(activeEffects);
+        }
+        
+        // 画面上部に常時表示するアクティブ効果
+        function updateGlobalActiveEffectsDisplay(activeEffects) {
+            let globalContainer = document.getElementById('global-active-effects');
+            
+            if (!globalContainer && activeEffects.length > 0) {
+                // コンテナがなければ作成
+                globalContainer = document.createElement('div');
+                globalContainer.id = 'global-active-effects';
+                globalContainer.style.cssText = `
+                    position: fixed;
+                    top: 60px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    background: var(--surface);
+                    padding: 8px 12px;
+                    border-radius: 20px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                    z-index: 100;
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 6px;
+                    max-width: 90%;
+                    justify-content: center;
+                `;
+                document.body.appendChild(globalContainer);
+            }
+            
+            if (globalContainer) {
+                if (activeEffects.length > 0) {
+                    globalContainer.innerHTML = '';
+                    activeEffects.forEach(effect => {
+                        const badge = document.createElement('div');
+                        badge.style.cssText = `
+                            background: ${effect.color}15;
+                            color: ${effect.color};
+                            padding: 2px 8px;
+                            border-radius: 12px;
+                            font-size: 11px;
+                            border: 1px solid ${effect.color}40;
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 3px;
+                        `;
+                        badge.innerHTML = `<span style="font-size: 13px;">${effect.icon}</span><span>${effect.text}</span>`;
+                        if (effect.cardName) {
+                            badge.title = effect.cardName;
+                        }
+                        globalContainer.appendChild(badge);
+                    });
+                    globalContainer.style.display = 'flex';
+                } else {
+                    globalContainer.style.display = 'none';
+                }
+            }
+        }
+
         // カテゴリ関連関数をwindowオブジェクトに登録
         window.initializeCategoryMaster = initializeCategoryMaster;
         window.updateCategoryDropdowns = updateCategoryDropdowns;
         window.editCategoryMaster = editCategoryMaster;
         window.addNewCategory = addNewCategory;
+        window.updateActiveEffectsDisplay = updateActiveEffectsDisplay;
         
         // 累計ポイントを再計算する関数
         function recalculateLifetimePoints() {
