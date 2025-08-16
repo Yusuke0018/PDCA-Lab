@@ -14084,19 +14084,31 @@
         
         // イベント表示の更新
         function updateEventDisplay() {
+            console.log('updateEventDisplay called');
             const data = loadData();
             const eventContainer = document.getElementById('active-events');
             
-            if (!eventContainer) return;
+            console.log('Event container:', eventContainer);
+            console.log('EVENTS_DISABLED:', typeof EVENTS_DISABLED !== 'undefined' ? EVENTS_DISABLED : 'undefined');
+            
+            if (!eventContainer) {
+                console.log('Event container not found');
+                return;
+            }
             // 機能停止中は常に非表示
             if (typeof EVENTS_DISABLED !== 'undefined' && EVENTS_DISABLED) {
+                console.log('Events are disabled');
                 eventContainer.style.display = 'none';
                 return;
             }
             
+            console.log('Event data:', data.events);
+            
             if (!data.events || !data.events.activeBoosts || data.events.activeBoosts.length === 0) {
+                console.log('No active events');
                 eventContainer.style.display = 'none';
             } else {
+                console.log('Active events:', data.events.activeBoosts);
                 // 週末スペシャルのサニタイズと重複排除
                 let boosts = Array.isArray(data.events.activeBoosts) ? data.events.activeBoosts.slice() : [];
 
@@ -14161,8 +14173,11 @@
                 };
             }
             
-            // 今日既にチェック済みならスキップ
-            if (data.events.lastEventCheck === today) {
+            // デバッグ用：強制的にイベントを再チェック（後で削除）
+            const forceRecheck = true;
+            
+            // 今日既にチェック済みならスキップ（デバッグ時は強制実行）
+            if (!forceRecheck && data.events.lastEventCheck === today) {
                 console.log('Event already checked today');
                 updateEventDisplay();
                 return;
