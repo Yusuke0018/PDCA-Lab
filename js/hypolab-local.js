@@ -9950,7 +9950,7 @@
                         <span style="font-size: 18px;">${categoryInfo.icon}</span>
                         <span style="font-weight: 600; font-size: 15px; color: var(--text-primary);">${categoryInfo.name}</span>
                         <span style="font-size: 12px; color: var(--text-secondary); margin-left: 6px; background: ${categoryInfo.color}20; padding: 2px 8px; border-radius: 999px;">${habits.length}個</span>
-                        <span id="unach-${toggleKey}" style="display: ${isOpen ? 'none' : 'inline-block'}; margin-left: 6px; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; font-weight: 600;">未達成 ${unachievedCount}個</span>
+                        <span id="unach-${toggleKey}" style="display: inline-block; margin-left: 6px; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; font-weight: 600;">未達成 ${unachievedCount}個</span>
                         <span style="margin-left: auto; font-size: 16px; transition: transform 0.3s;" id="toggle-${toggleKey}">${isOpen ? '▼' : '▶'}</span>
                     `;
                     
@@ -9977,7 +9977,7 @@
                             content.style.maxHeight = '0';
                             toggle.textContent = '▶';
                             toggleStates[toggleKey] = false;
-                            // 閉じたら未達成件数を表示（再計算）
+                            // 閉じても開いても最新件数を再計算して表示
                             try {
                                 const count = habits.filter(h => !(h.achievements && h.achievements[getActivityDateKey()])).length;
                                 if (unachBadge) { unachBadge.textContent = `未達成 ${count}個`; unachBadge.style.display = 'inline-block'; }
@@ -9986,8 +9986,11 @@
                             content.style.maxHeight = '2000px';
                             toggle.textContent = '▼';
                             toggleStates[toggleKey] = true;
-                            // 開いたらバッジを隠す
-                            if (unachBadge) unachBadge.style.display = 'none';
+                            // 閉じても開いても最新件数を再計算して表示
+                            try {
+                                const count = habits.filter(h => !(h.achievements && h.achievements[getActivityDateKey()])).length;
+                                if (unachBadge) { unachBadge.textContent = `未達成 ${count}個`; unachBadge.style.display = 'inline-block'; }
+                            } catch (e) { if (unachBadge) unachBadge.style.display = 'inline-block'; }
                         }
                         
                         localStorage.setItem('categoryToggleStates', JSON.stringify(toggleStates));
