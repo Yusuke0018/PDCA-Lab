@@ -13492,82 +13492,28 @@
             try {
                 const data = loadData();
                 
-                // エクスポート用のデータ構造
+                // エクスポート用のデータ構造（完全なデータを保存）
                 const exportData = {
-                    version: '1.0.0',
+                    version: '3.0.0',
                     exportDate: new Date().toISOString(),
                     appVersion: 'PDCA-Lab v3.3.0',
-                    data: {
-                        // 習慣データ
-                        currentHypotheses: data.currentHypotheses || [],
-                        completedHypotheses: data.completedHypotheses || [],
-                        
-                        // ポイントシステム
-                        pointSystem: data.pointSystem || {
-                            currentPoints: 0,
-                            lifetimeEarned: 0,
-                            lifetimeSpent: 0,
-                            currentLevel: 1,
-                            levelProgress: 0,
-                            transactions: [],
-                            customRewards: [],
-                            dailyEffortUsed: 0,
-                            dailyEffortLastReset: null
-                        },
-                        
-                        // チャレンジ
-                        challenges: data.challenges || {
-                            daily: {},
-                            weekly: {},
-                            customChallenges: [],
-                            completedToday: [],
-                            completedThisWeek: [],
-                            history: [],
-                            streak: 0,
-                            lastStreakDate: null
-                        },
-                        
-                        // カード
-                        cards: data.cards || {
-                            inventory: [],
-                            activeEffects: [],
-                            pendingPenalties: []
-                        },
-                        
-                        // イベント
-                        events: data.events || {
-                            activeBoosts: [],
-                            lastEventDate: null,
-                            milestoneRewards: {}
-                        },
-                        
-                        // バッジ
-                        badges: data.badges || {
-                            earned: []
-                        },
-                        
-                        // デイリージャーナル
-                        dailyJournal: data.dailyJournal || {
-                            entries: {},
-                            stats: {
-                                currentStreak: 0,
-                                longestStreak: 0,
-                                totalEntries: 0,
-                                lastEntry: null
-                            },
-                            settings: {
-                                morningReminderTime: "06:00",
-                                eveningReminderTime: "21:00",
-                                remindersEnabled: true
-                            }
-                        },
-                        
-                        // UI設定
-                        uiSettings: data.uiSettings || {
-                            categoryOpenStates: {},
-                            lastOpenedView: 'home'
-                        }
-                    }
+                    // LocalStorageの全データをそのまま保存
+                    // 含まれるデータ:
+                    // - currentHypotheses: 現在の習慣リスト
+                    // - completedHypotheses: 完了した習慣リスト
+                    // - pointSystem: ポイントシステム（現在ポイント、レベル、取引履歴等）
+                    // - challenges: チャレンジデータ（デイリー、ウィークリー、カスタム等）
+                    // - cards: カードシステム（インベントリ、アクティブ効果、ペナルティ等）
+                    // - events: イベントシステム（アクティブブースト、強制イベント等）
+                    // - badges: 獲得バッジ
+                    // - dailyJournal: ジャーナルデータ（エントリー、睡眠記録、統計等）
+                    // - meta: メタデータ（デバッグフラグ、最終デブリーフ等）
+                    // - effortBonusPlans: 努力ボーナスプラン
+                    // - specialRewards: 特別報酬の取得履歴
+                    // - categoryMaster: カテゴリ管理データ
+                    // - stageNotifications: ステージ通知履歴
+                    // - その他すべてのカスタムフィールド
+                    data: data  // 全データを完全にエクスポート
                 };
                 
                 // JSONファイルとしてダウンロード
@@ -13607,8 +13553,21 @@
                     
                     console.log('インポートデータ確認:', importedData);
                     
+                    // 最新形式（v3.0.0）のチェック - 完全なデータ
+                    if (importedData.version === '3.0.0' && importedData.data) {
+                        dataToImport = importedData.data;
+                        exportDate = importedData.exportDate || 'Unknown';
+                        console.log('v3.0.0形式でインポート（完全データ）');
+                    }
+                    // 新形式（v1.0.0）のチェック
+                    else if (importedData.version === '1.0.0' && importedData.data) {
+                        // v1.0.0形式のデータもそのまま利用可能
+                        dataToImport = importedData.data;
+                        exportDate = importedData.exportDate || 'Unknown';
+                        console.log('v1.0.0形式でインポート');
+                    }
                     // 新形式（v2.0）のチェック
-                    if (importedData.version === '2.0' && importedData.data) {
+                    else if (importedData.version === '2.0' && importedData.data) {
                         dataToImport = importedData.data;
                         exportDate = importedData.exportDate || 'Unknown';
                         console.log('v2.0形式でインポート');
