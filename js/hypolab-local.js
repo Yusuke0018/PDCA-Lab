@@ -157,15 +157,6 @@
             },
             // 新しいカード（プロテクトシールドは削除）
             // 旧カード（廃止）：achievement_booster はプールから除外
-            chaos_vortex: {
-                id: 'chaos_vortex',
-                type: 'penalty',
-                name: '混乱の渦',
-                description: '達成/未達成がランダムで3日分入れ替わる',
-                icon: '🌀',
-                rarity: 'rare',
-                color: '#dc2626'
-            },
             // 旧カード（廃止）：second_chance はプールから除外
             // 新規追加カード - 報酬カード
             event_trigger: {
@@ -199,7 +190,7 @@
                 id: 'mission_master',
                 type: 'reward',
                 name: 'ミッションマスター',
-                description: '今日のミッションが自動達成される',
+                description: '今日のミッションが2つ追加される',
                 icon: '🎯',
                 rarity: 'legendary',
                 color: '#f59e0b'
@@ -320,7 +311,7 @@
                 id: 'happy_hour',
                 type: 'reward',
                 name: 'ハッピーアワー',
-                description: '指定1時間の達成は+10pt',
+                description: '1時間ポイント1.5倍',
                 icon: '⏰',
                 rarity: 'common',
                 color: '#06b6d4'
@@ -13344,10 +13335,6 @@
                     showCardEffect('達成率減少発動！', '最終達成率から10%減少します', '#ef4444');
                     break;
                     
-                case 'chaos_vortex':
-                    // 混乱の渦を発動
-                    applyChaosVortex();
-                    break;
                     
                 case 'double_or_nothing':
                     // ダブルオアナッシングを設定
@@ -13464,41 +13451,6 @@
             updatePenaltyIndicators();
             
             showNotification('🗑️ 全てのカードと効果をクリアしました', 'info');
-        }
-        
-        // 混乱の渦を適用
-        function applyChaosVortex() {
-            if (!window.currentHypothesis) return;
-            
-            const startDate = new Date(window.currentHypothesis.startDate);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            startDate.setHours(0, 0, 0, 0);
-            
-            // 現在までの日付リストを作成
-            const dates = [];
-            const currentDate = new Date(startDate);
-            while (currentDate <= today && dates.length < window.currentHypothesis.totalDays) {
-                dates.push(dateKeyLocal(currentDate));
-                currentDate.setDate(currentDate.getDate() + 1);
-            }
-            
-            // ランダムに3日を選択
-            const shuffledDates = [...dates].sort(() => Math.random() - 0.5).slice(0, 3);
-            
-            // 選択された日の達成状態を反転
-            shuffledDates.forEach(dateKey => {
-                if (window.currentHypothesis.achievements[dateKey]) {
-                    delete window.currentHypothesis.achievements[dateKey];
-                } else {
-                    window.currentHypothesis.achievements[dateKey] = true;
-                }
-            });
-            
-            updateCalendar();
-            updateProgress();
-            
-            showCardEffect('混乱の渦発動！', `${shuffledDates.length}日分の達成/未達成が入れ替わりました`, '#dc2626');
         }
         
         // プロテクトシールドは削除
@@ -13655,9 +13607,9 @@
             const start = new Date();
             const end = new Date(start.getTime() + 60 * 60 * 1000);
             if (!data.cards.activeEffects) data.cards.activeEffects = [];
-            data.cards.activeEffects.push({ cardId:'happy_hour', type:'time_window_bonus', value:10, startDate:start.toISOString(), endDate:end.toISOString() });
+            data.cards.activeEffects.push({ cardId:'happy_hour', type:'point_multiplier', multiplier:1.5, startDate:start.toISOString(), endDate:end.toISOString() });
             saveData(data);
-            showCardEffect('⏰ ハッピーアワー！','60分間 +10pt','\#06b6d4');
+            showCardEffect('⏰ ハッピーアワー！','1時間ポイント1.5倍','\#06b6d4');
             updateCardUseButton();
         }
 
