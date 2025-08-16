@@ -9698,6 +9698,10 @@
                 const targetDays = getTargetDaysForHypothesis(hypothesis);
                 let finalRate = targetDays > 0 ? Math.round((achievedDays / targetDays) * 100) : 0;
                 
+                // 7回未満の達成では完了時カード獲得をスキップ
+                const shouldGetCompletionCards = achievedDays >= 7;
+                console.log('Completion check:', { achievedDays, shouldGetCompletionCards });
+                
                 // 達成ブースターが有効かチェック
                 let hasAchievementBooster = false;
                 if (data.cards && data.cards.activeEffects) {
@@ -9729,33 +9733,55 @@
                 
                 hypothesis.finalAchievementRate = finalRate;
                 
-                // 完了時のカード獲得処理
-                const acquiredCards = getCardsBasedOnAchievement(finalRate, hypothesis);
-                if (acquiredCards.length > 0) {
-                    acquiredCards.forEach(cardId => {
-                        addCardToInventory(cardId);
-                    });
-                    
-                    // 完了時のカード獲得フラグを設定
-                    hypothesis.cardAcquisitionHistory.completion = true;
-                    window.currentHypothesis.cardAcquisitionHistory.completion = true;
-                    
-                    // 現在の習慣を更新（カード獲得履歴を保存）
-                    const index = data.currentHypotheses.findIndex(h => h.id === hypothesis.id);
-                    if (index !== -1) {
-                        data.currentHypotheses[index].cardAcquisitionHistory = hypothesis.cardAcquisitionHistory;
-                        data.currentHypotheses[index].finalAchievementRate = finalRate;
-                    }
-                    
-                    saveData(data);
-                    
-                    // カード獲得演出を表示
-                    window.showCardAcquisition(acquiredCards, () => {
-                        // カード獲得演出後にデブリーフ→完了オプション
+                // 完了時のカード獲得処理（7回以上達成時のみ）
+                if (shouldGetCompletionCards) {
+                    const acquiredCards = getCardsBasedOnAchievement(finalRate, hypothesis);
+                    if (acquiredCards.length > 0) {
+                        acquiredCards.forEach(cardId => {
+                            addCardToInventory(cardId);
+                        });
+                        
+                        // 完了時のカード獲得フラグを設定
+                        hypothesis.cardAcquisitionHistory.completion = true;
+                        window.currentHypothesis.cardAcquisitionHistory.completion = true;
+                        
+                        // 現在の習慣を更新（カード獲得履歴を保存）
+                        const index = data.currentHypotheses.findIndex(h => h.id === hypothesis.id);
+                        if (index !== -1) {
+                            data.currentHypotheses[index].cardAcquisitionHistory = hypothesis.cardAcquisitionHistory;
+                            data.currentHypotheses[index].finalAchievementRate = finalRate;
+                        }
+                        
+                        saveData(data);
+                        
+                        // カード獲得演出を表示
+                        window.showCardAcquisition(acquiredCards, () => {
+                            // カード獲得演出後にデブリーフ→完了オプション
+                            requestDebriefThenShowOptions();
+                        });
+                    } else {
+                        // カードなしでもフラグは設定
+                        hypothesis.cardAcquisitionHistory.completion = true;
+                        window.currentHypothesis.cardAcquisitionHistory.completion = true;
+                        
+                        // 現在の習慣を更新
+                        const index = data.currentHypotheses.findIndex(h => h.id === hypothesis.id);
+                        if (index !== -1) {
+                            data.currentHypotheses[index].cardAcquisitionHistory = hypothesis.cardAcquisitionHistory;
+                            data.currentHypotheses[index].finalAchievementRate = finalRate;
+                        }
+                        
+                        saveData(data);
+                        
+                        // カードなしの場合もデブリーフ→完了オプション
                         requestDebriefThenShowOptions();
-                    });
+                    }
                 } else {
-                    // カードなしでもフラグは設定
+                    // 7回未満の達成の場合はカード獲得なしで完了オプションを表示
+                    console.log('Skipping card acquisition (less than 7 achievements)');
+                    showNotification('⚠️ 7回以上の達成で報酬カードを獲得できます', 'info');
+                    
+                    // フラグは設定（ただしカードは獲得していない）
                     hypothesis.cardAcquisitionHistory.completion = true;
                     window.currentHypothesis.cardAcquisitionHistory.completion = true;
                     
@@ -9768,7 +9794,7 @@
                     
                     saveData(data);
                     
-                    // カードなしの場合もデブリーフ→完了オプション
+                    // 完了オプションを表示
                     requestDebriefThenShowOptions();
                 }
             } else {
