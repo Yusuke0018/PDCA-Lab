@@ -7464,6 +7464,9 @@
             dayCell.classList.remove('not-achieved');
             dayCell.classList.add('achieved');
             
+            // カード取得チェック（達成時）
+            checkCardAcquisitionOnAchievement(dateKey);
+            
             // ポイント獲得処理
             // 強度に応じてポイントを設定（0.8→1pt、1.0→2pt、1.2→3pt）
             let actualPoints = 2; // デフォルトは基本の2pt
@@ -7588,6 +7591,8 @@
             if (!window.currentHypothesis.achievements[dateKey]) {
                 // 達成状態にする前に強度選択モーダルを表示
                 showIntensitySelectionModal(dateKey, dayCell);
+                // カード取得チェック（達成時）
+                checkCardAcquisitionOnAchievement(dateKey);
             } else {
                 // 達成を取り消す（ポイントを減算する）
                 delete window.currentHypothesis.achievements[dateKey];
@@ -9559,8 +9564,17 @@
             // カード獲得処理を先に実行
             const data = loadData();
             const hypothesis = window.currentHypothesis;
+            
+            // カード取得履歴の初期化（古いバージョンとの互換性）
+            if (!hypothesis.cardAcquisitionHistory) {
+                hypothesis.cardAcquisitionHistory = {
+                    sevenDays: [],
+                    weeklyComplete: [],
+                    completion: false
+                };
+            }
 
-            if (!hypothesis.cardsAcquired) {
+            if (!hypothesis.cardAcquisitionHistory.completion) {
                 // 最終的な達成率を計算（頻度に基づく目標日数を分母にする）
                 const achievedDays = Object.keys(hypothesis.achievements || {}).length;
                 const targetDays = getTargetDaysForHypothesis(hypothesis);
@@ -9597,43 +9611,21 @@
                 
                 hypothesis.finalAchievementRate = finalRate;
                 
-                // カード獲得処理
+                // 完了時のカード獲得処理
                 const acquiredCards = getCardsBasedOnAchievement(finalRate, hypothesis);
                 if (acquiredCards.length > 0) {
                     acquiredCards.forEach(cardId => {
-                        const card = CARD_MASTER[cardId];
-                        if (card) {
-                            if (card.type === 'reward') {
-                                data.cards.inventory.push({
-                                    cardId: cardId,
-                                    acquiredDate: new Date().toISOString(),
-                                    used: false
-                                });
-                                // ドロップ履歴（直近10重複防止用）
-                                if (!data.cards.dropHistory) data.cards.dropHistory = [];
-                                // 先頭に追加（最新が先頭）
-                                data.cards.dropHistory.unshift(cardId);
-                                // 上限を適度に制限
-                                if (data.cards.dropHistory.length > 100) {
-                                    data.cards.dropHistory = data.cards.dropHistory.slice(0, 100);
-                                }
-                            } else if (card.type === 'penalty') {
-                                data.cards.pendingPenalties.push({
-                                    cardId: cardId,
-                                    acquiredDate: new Date().toISOString()
-                                });
-                            }
-                        }
+                        addCardToInventory(cardId);
                     });
                     
-                    // カード獲得フラグを設定
-                    hypothesis.cardsAcquired = true;
-                    window.currentHypothesis.cardsAcquired = true;
+                    // 完了時のカード獲得フラグを設定
+                    hypothesis.cardAcquisitionHistory.completion = true;
+                    window.currentHypothesis.cardAcquisitionHistory.completion = true;
                     
-                    // 現在の習慣を更新（カード獲得フラグを保存）
+                    // 現在の習慣を更新（カード獲得履歴を保存）
                     const index = data.currentHypotheses.findIndex(h => h.id === hypothesis.id);
                     if (index !== -1) {
-                        data.currentHypotheses[index].cardsAcquired = true;
+                        data.currentHypotheses[index].cardAcquisitionHistory = hypothesis.cardAcquisitionHistory;
                         data.currentHypotheses[index].finalAchievementRate = finalRate;
                     }
                     
@@ -9646,13 +9638,13 @@
                     });
                 } else {
                     // カードなしでもフラグは設定
-                    hypothesis.cardsAcquired = true;
-                    window.currentHypothesis.cardsAcquired = true;
+                    hypothesis.cardAcquisitionHistory.completion = true;
+                    window.currentHypothesis.cardAcquisitionHistory.completion = true;
                     
                     // 現在の習慣を更新
                     const index = data.currentHypotheses.findIndex(h => h.id === hypothesis.id);
                     if (index !== -1) {
-                        data.currentHypotheses[index].cardsAcquired = true;
+                        data.currentHypotheses[index].cardAcquisitionHistory = hypothesis.cardAcquisitionHistory;
                         data.currentHypotheses[index].finalAchievementRate = finalRate;
                     }
                     
@@ -9662,7 +9654,7 @@
                     requestDebriefThenShowOptions();
                 }
             } else {
-                // すでにカードを獲得している場合はそのまま完了オプションを表示
+                // すでに完了時のカードを獲得している場合はそのまま完了オプションを表示
                 requestDebriefThenShowOptions();
             }
         }
@@ -10181,8 +10173,12 @@
                 data.currentHypotheses[index].continuedAt = new Date().toISOString();
                 data.currentHypotheses[index].isContinuation = true;
                 
-                // カード獲得フラグをリセット（新しい期間でカードを獲得できるように）
-                delete data.currentHypotheses[index].cardsAcquired;
+                // カード獲得履歴をリセット（新しい期間でカードを獲得できるように）
+                data.currentHypotheses[index].cardAcquisitionHistory = {
+                    sevenDays: [],
+                    weeklyComplete: [],
+                    completion: false
+                };
                 delete data.currentHypotheses[index].finalAchievementRate;
                 
                 saveData(data);
@@ -10332,8 +10328,12 @@
                 data.currentHypotheses[index].modifiedAt = new Date().toISOString();
                 data.currentHypotheses[index].isContinuation = true;
                 
-                // カード獲得フラグをリセット
-                delete data.currentHypotheses[index].cardsAcquired;
+                // カード獲得履歴をリセット
+                data.currentHypotheses[index].cardAcquisitionHistory = {
+                    sevenDays: [],
+                    weeklyComplete: [],
+                    completion: false
+                };
                 delete data.currentHypotheses[index].finalAchievementRate;
                 
                 saveData(data);
@@ -10438,6 +10438,185 @@
                     showHomeView();
                 }
             }
+        }
+
+        // 習慣達成時のカード取得チェック
+        function checkCardAcquisitionOnAchievement(dateKey) {
+            const data = loadData();
+            const hypothesis = window.currentHypothesis;
+            
+            if (!hypothesis || !hypothesis.id) return;
+            
+            // カード取得履歴の初期化
+            if (!hypothesis.cardAcquisitionHistory) {
+                hypothesis.cardAcquisitionHistory = {
+                    sevenDays: [], // 7日達成時のカード取得履歴
+                    weeklyComplete: [], // 週間達成時のカード取得履歴
+                    completion: false // 習慣完了時のカード取得済みフラグ
+                };
+            }
+            
+            const frequency = hypothesis.frequency;
+            
+            // 毎日の習慣の場合
+            if (!frequency || frequency.type === 'daily') {
+                // 7日分達成のチェック
+                const achievedCount = Object.keys(hypothesis.achievements || {}).length;
+                const sevenDayMilestones = Math.floor(achievedCount / 7);
+                
+                // まだ取得していない7日達成があるか確認
+                if (sevenDayMilestones > hypothesis.cardAcquisitionHistory.sevenDays.length) {
+                    // 新しい7日達成 - カード取得
+                    const cardId = getRandomRewardCard();
+                    if (cardId) {
+                        addCardToInventory(cardId);
+                        hypothesis.cardAcquisitionHistory.sevenDays.push({
+                            date: new Date().toISOString(),
+                            cardId: cardId,
+                            milestone: sevenDayMilestones
+                        });
+                        
+                        // カード獲得演出
+                        showCardAcquisition([cardId], () => {
+                            showNotification('🎉 7日達成！報酬カードを獲得しました！', 'success');
+                        });
+                    }
+                }
+            }
+            
+            // 週間N回の習慣の場合
+            if (frequency && frequency.type === 'weekly') {
+                // 現在の週番号を取得
+                const [year, month, day] = dateKey.split('-').map(Number);
+                const date = new Date(year, month - 1, day);
+                const weekNum = getWeekNumberForCard(date, hypothesis.startDate);
+                
+                // この週の達成状況を確認
+                let weekAchieved = 0;
+                const weekStart = getWeekStartDate(date, hypothesis.startDate);
+                
+                for (let i = 0; i < 7; i++) {
+                    const checkDate = new Date(weekStart);
+                    checkDate.setDate(weekStart.getDate() + i);
+                    const checkKey = dateKeyLocal(checkDate);
+                    if (hypothesis.achievements && hypothesis.achievements[checkKey]) {
+                        weekAchieved++;
+                    }
+                }
+                
+                // 週の目標達成チェック
+                const weeklyTarget = frequency.count || 3;
+                const weekKey = `week_${weekNum}`;
+                
+                if (weekAchieved >= weeklyTarget && 
+                    !hypothesis.cardAcquisitionHistory.weeklyComplete.includes(weekKey)) {
+                    // 週間目標達成 - カード取得
+                    const cardId = getRandomRewardCard();
+                    if (cardId) {
+                        addCardToInventory(cardId);
+                        hypothesis.cardAcquisitionHistory.weeklyComplete.push(weekKey);
+                        
+                        // カード獲得演出
+                        showCardAcquisition([cardId], () => {
+                            showNotification(`🎉 第${weekNum}週の目標達成！報酬カードを獲得しました！`, 'success');
+                        });
+                    }
+                }
+            }
+            
+            // データを保存
+            const index = data.currentHypotheses.findIndex(h => h.id === hypothesis.id);
+            if (index !== -1) {
+                data.currentHypotheses[index] = hypothesis;
+                saveData(data);
+            }
+        }
+        
+        // 週番号を取得（カード取得用）
+        function getWeekNumberForCard(date, startDateStr) {
+            const d = new Date(date);
+            d.setHours(0, 0, 0, 0);
+            const start = new Date(startDateStr);
+            start.setHours(0, 0, 0, 0);
+            const days = Math.floor((d - start) / (24 * 60 * 60 * 1000));
+            return Math.floor(days / 7) + 1;
+        }
+        
+        // 週の開始日を取得
+        function getWeekStartDate(date, startDateStr) {
+            const weekNum = getWeekNumberForCard(date, startDateStr);
+            const start = new Date(startDateStr);
+            start.setHours(0, 0, 0, 0);
+            start.setDate(start.getDate() + (weekNum - 1) * 7);
+            return start;
+        }
+        
+        // ランダムな報酬カードを取得
+        function getRandomRewardCard() {
+            const data = loadData();
+            const DISABLED_CARDS = new Set(['skip_ticket','achievement_boost','achievement_booster','quick_start','second_chance']);
+            const rewardPoolBase = Object.keys(CARD_MASTER).filter(id => 
+                CARD_MASTER[id].type === 'reward' && !DISABLED_CARDS.has(id)
+            );
+            
+            // 直近10回の報酬カードをブロック
+            const history = (data.cards && Array.isArray(data.cards.dropHistory)) ? data.cards.dropHistory : [];
+            const recentRewards = history.filter(cardId => {
+                const card = CARD_MASTER[cardId];
+                return card && card.type === 'reward';
+            }).slice(0, 10);
+            const blocked = new Set(recentRewards);
+            
+            let rewardPool = rewardPoolBase.filter(id => !blocked.has(id));
+            if (rewardPool.length === 0) {
+                const oldestBlocked = recentRewards[recentRewards.length - 1];
+                rewardPool = rewardPoolBase.filter(id => id !== oldestBlocked);
+                if (rewardPool.length === 0) rewardPool = rewardPoolBase;
+            }
+            
+            if (rewardPool.length > 0) {
+                // conversion_magicの特別処理
+                if (rewardPool.includes('conversion_magic')) {
+                    if (Math.random() < 0.01) return 'conversion_magic';
+                    const ex = rewardPool.filter(id => id !== 'conversion_magic');
+                    if (ex.length > 0) return ex[Math.floor(Math.random() * ex.length)];
+                }
+                return rewardPool[Math.floor(Math.random() * rewardPool.length)];
+            }
+            
+            return null;
+        }
+        
+        // カードをインベントリに追加
+        function addCardToInventory(cardId) {
+            if (!cardId) return;
+            
+            const data = loadData();
+            const card = CARD_MASTER[cardId];
+            
+            if (!card) return;
+            
+            if (card.type === 'reward') {
+                data.cards.inventory.push({
+                    cardId: cardId,
+                    acquiredDate: new Date().toISOString(),
+                    used: false
+                });
+                
+                // ドロップ履歴に追加
+                if (!data.cards.dropHistory) data.cards.dropHistory = [];
+                data.cards.dropHistory.unshift(cardId);
+                if (data.cards.dropHistory.length > 100) {
+                    data.cards.dropHistory = data.cards.dropHistory.slice(0, 100);
+                }
+            } else if (card.type === 'penalty') {
+                data.cards.pendingPenalties.push({
+                    cardId: cardId,
+                    acquiredDate: new Date().toISOString()
+                });
+            }
+            
+            saveData(data);
         }
 
         // 達成率に基づいてカードを取得
