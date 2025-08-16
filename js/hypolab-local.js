@@ -14898,6 +14898,43 @@
         window.editCategoryMaster = editCategoryMaster;
         window.addNewCategory = addNewCategory;
         
+        // 累計ポイントを再計算する関数
+        function recalculateLifetimePoints() {
+            const data = loadData();
+            let totalEarned = 0;
+            
+            // トランザクション履歴から集計
+            if (data.pointSystem && data.pointSystem.transactions) {
+                data.pointSystem.transactions.forEach(transaction => {
+                    if (transaction.type === 'earn') {
+                        totalEarned += (transaction.finalAmount || transaction.amount || 0);
+                    }
+                });
+            }
+            
+            // 累計ポイントを更新
+            data.pointSystem.lifetimeEarned = totalEarned;
+            data.pointSystem.levelProgress = totalEarned;
+            
+            // レベルを再計算
+            const newLevel = calculateLevel(totalEarned);
+            data.pointSystem.currentLevel = newLevel.level;
+            
+            saveData(data);
+            
+            // 表示を更新
+            updatePointDisplay();
+            if (typeof updateStatistics === 'function') {
+                updateStatistics();
+            }
+            
+            showNotification(`累計ポイントを再計算しました: ${totalEarned}pt`, 'success');
+            return totalEarned;
+        }
+        
+        // グローバルに公開
+        window.recalculateLifetimePoints = recalculateLifetimePoints;
+
         // モバイルのズーム抑止（ダブルタップ/ピンチ）
         (function preventZoom() {
             let lastTouchEnd = 0;
