@@ -90,27 +90,9 @@
         </div>
     </nav>
 
-    <!-- FAB: クイックアクション -->
+    <!-- FAB: ホームへ戻る -->
     <div class="fab-container" id="fab">
-        <div class="fab-menu">
-            <div class="fab-item" id="fab-action-habit">
-                <div class="fab-badge">新しい習慣</div>
-                <button class="fab-btn" onclick="showNewHypothesisView()">➕</button>
-            </div>
-            <div class="fab-item" id="fab-action-journal">
-                <div class="fab-badge">今日のジャーナル</div>
-                <button class="fab-btn" onclick="openJournalModal()">📝</button>
-            </div>
-            <div class="fab-item" id="fab-action-reward">
-                <div class="fab-badge">報酬</div>
-                <button class="fab-btn" onclick="(function(){ showPointsView(); setTimeout(showRewardsTab, 50); })()">💎</button>
-            </div>
-            <div class="fab-item" id="fab-action-reward-use">
-                <div class="fab-badge">報酬を使う</div>
-                <button class="fab-btn" onclick="openRewardsUseFlow()">🎁</button>
-            </div>
-        </div>
-        <button class="fab-main" id="fab-main" aria-label="Quick actions" onclick="toggleFab()">＋</button>
+        <button class="fab-main" id="fab-main" aria-label="Go Home" onclick="showHomeView()" title="ホームに戻る">＋</button>
     </div>
 
     <!-- Edge Nubs: 左右の小さな突起（ページ移動） -->
