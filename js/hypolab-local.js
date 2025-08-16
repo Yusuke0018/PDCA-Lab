@@ -6206,7 +6206,7 @@
             document.querySelectorAll('input[name="frequency"]').forEach(radio => {
                 radio.checked = radio.value === 'daily';
             });
-            // 週にN回のボタンは常に有効
+            document.getElementById('weekly-count').disabled = true;
             document.getElementById('weekdays-selector').style.display = 'none';
             document.querySelectorAll('input[name="weekday"]').forEach(cb => {
                 cb.checked = false;
@@ -6270,25 +6270,6 @@
             document.querySelector(`[data-duration="${duration}"]`).classList.add('selected');
         }
         
-        // 週にN回の値をランダムに変更
-        function shuffleWeeklyCount() {
-            const btn = document.getElementById('weekly-count-btn');
-            if (btn) {
-                const count = Math.floor(Math.random() * 6) + 2; // 2〜7回
-                btn.textContent = count;
-                btn.dataset.count = count;
-            }
-        }
-        
-        // 編集モーダル用の週にN回シャッフル
-        function shuffleEditWeeklyCount() {
-            const btn = document.getElementById('edit-weekly-count-btn');
-            if (btn) {
-                const count = Math.floor(Math.random() * 6) + 2; // 2〜7回
-                btn.textContent = count;
-                btn.dataset.count = count;
-            }
-        }
 
         // 新規作成フォーム: IF行のみ追加（THENは廃止）
         function addIfThenRow() {
@@ -6351,8 +6332,7 @@
             let frequencyData = { type: frequencyType };
             
             if (frequencyType === 'weekly') {
-                const btn = document.getElementById('weekly-count-btn');
-                frequencyData.count = btn ? parseInt(btn.dataset.count) : 3;
+                frequencyData.count = parseInt(document.getElementById('weekly-count').value);
             } else if (frequencyType === 'weekdays') {
                 const selectedDays = [];
                 document.querySelectorAll('input[name="weekday"]:checked').forEach(cb => {
@@ -8543,12 +8523,7 @@
                                 <div style="font-weight: 600;">📅 週N回実施</div>
                                 <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">週に指定回数だけ実施します</div>
                                 <div id="weekly-count-container" style="margin-top: 8px; display: ${currentFreq.type === 'weekly' ? 'block' : 'none'};">
-                                    <label style="font-size: 12px;">週に
-                                        <button type="button" id="edit-weekly-count-btn" onclick="shuffleEditWeeklyCount();"
-                                                style="padding: 4px 12px; margin: 0 4px; border: 1px solid var(--primary); 
-                                                       border-radius: 6px; background: var(--surface); color: var(--primary); 
-                                                       font-weight: bold; cursor: pointer;" data-count="${currentFreq.count || 3}">${currentFreq.count || 3}</button>
-                                        回</label>
+                                    <label style="font-size: 12px;">週に<input type="number" id="weekly-count" min="1" max="7" value="${currentFreq.count || 3}" style="width: 50px; margin: 0 4px; padding: 4px; border-radius: 4px; border: 1px solid var(--border);"/>回</label>
                                 </div>
                             </div>
                         </label>
@@ -8625,8 +8600,7 @@
                 let newFrequency = { type: selectedType };
                 
                 if (selectedType === 'weekly') {
-                    const btn = document.getElementById('edit-weekly-count-btn');
-                    const count = btn ? parseInt(btn.dataset.count) : 3;
+                    const count = parseInt(document.getElementById('weekly-count').value);
                     if (count < 1 || count > 7) {
                         showNotification('週の回数は1〜7の間で指定してください', 'error');
                         return;
