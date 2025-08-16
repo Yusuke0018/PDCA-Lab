@@ -14528,6 +14528,150 @@
             
             // 開始日の初期設定
             setStartDate('today');
+            
+            // 一時的な修正ボタンを追加
+            addTemporaryFixButtons();
+        }
+        
+        // 一時的な修正ボタンを追加する関数
+        function addTemporaryFixButtons() {
+            // 既存のボタンがあれば削除
+            const existingContainer = document.getElementById('temp-fix-buttons');
+            if (existingContainer) {
+                existingContainer.remove();
+            }
+            
+            // ボタンコンテナを作成
+            const container = document.createElement('div');
+            container.id = 'temp-fix-buttons';
+            container.style.cssText = `
+                position: fixed;
+                bottom: 100px;
+                right: 20px;
+                z-index: 10000;
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                background: rgba(15, 23, 42, 0.95);
+                padding: 15px;
+                border-radius: 12px;
+                border: 2px solid #dc2626;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            `;
+            
+            // 累計ポイント修正ボタン
+            const fixPointsBtn = document.createElement('button');
+            fixPointsBtn.textContent = '🔧 累計ポイント+81';
+            fixPointsBtn.style.cssText = `
+                padding: 10px 15px;
+                background: #dc2626;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: bold;
+                cursor: pointer;
+            `;
+            fixPointsBtn.onclick = () => {
+                const data = loadData();
+                data.pointSystem.lifetimeEarned += 81;
+                data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
+                
+                // レベル再計算
+                const newLevel = calculateLevel(data.pointSystem.lifetimeEarned);
+                data.pointSystem.currentLevel = newLevel.level;
+                
+                saveData(data);
+                updatePointDisplay();
+                showNotification('✅ 累計ポイントに81を追加しました', 'success');
+                
+                // ボタンコンテナを削除
+                container.remove();
+            };
+            
+            // イベントトリガーカード取得ボタン
+            const getEventCardBtn = document.createElement('button');
+            getEventCardBtn.textContent = '🎯 イベントトリガー取得';
+            getEventCardBtn.style.cssText = `
+                padding: 10px 15px;
+                background: #f59e0b;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: bold;
+                cursor: pointer;
+            `;
+            getEventCardBtn.onclick = () => {
+                const data = loadData();
+                if (!data.cards) {
+                    data.cards = { inventory: [], activeEffects: [], dropHistory: [] };
+                }
+                if (!data.cards.inventory) {
+                    data.cards.inventory = [];
+                }
+                
+                // イベントトリガーカードを追加
+                data.cards.inventory.push({
+                    cardId: 'event_trigger',
+                    acquiredDate: new Date().toISOString(),
+                    used: false
+                });
+                
+                // ドロップ履歴に追加
+                if (!data.cards.dropHistory) data.cards.dropHistory = [];
+                data.cards.dropHistory.unshift('event_trigger');
+                if (data.cards.dropHistory.length > 100) {
+                    data.cards.dropHistory = data.cards.dropHistory.slice(0, 100);
+                }
+                
+                saveData(data);
+                showNotification('🎯 イベントトリガーカードを取得しました！', 'success');
+                
+                // カード使用ボタンを更新
+                if (typeof updateCardUseButton === 'function') {
+                    updateCardUseButton();
+                }
+                
+                // ボタンコンテナを削除
+                container.remove();
+            };
+            
+            // 閉じるボタン
+            const closeBtn = document.createElement('button');
+            closeBtn.textContent = '❌ 閉じる';
+            closeBtn.style.cssText = `
+                padding: 10px 15px;
+                background: #64748b;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 14px;
+                cursor: pointer;
+                margin-top: 10px;
+            `;
+            closeBtn.onclick = () => {
+                container.remove();
+            };
+            
+            // 説明テキスト
+            const info = document.createElement('div');
+            info.style.cssText = `
+                color: #f87171;
+                font-size: 12px;
+                text-align: center;
+                margin-bottom: 10px;
+            `;
+            info.textContent = '⚠️ 一時的な修正用';
+            
+            // ボタンをコンテナに追加
+            container.appendChild(info);
+            container.appendChild(fixPointsBtn);
+            container.appendChild(getEventCardBtn);
+            container.appendChild(closeBtn);
+            
+            // ボディに追加
+            document.body.appendChild(container);
         }
 
         // 物理戻るボタン（popstate）でホームへ戻す
