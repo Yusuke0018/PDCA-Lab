@@ -348,7 +348,7 @@
                 id: 'power_nap',
                 type: 'reward',
                 name: 'パワーナップ',
-                description: '30分間、達成ごとに+5pt',
+                description: '次の習慣達成で+5pt',
                 icon: '😴',
                 rarity: 'common',
                 color: '#06b6d4'
@@ -13860,19 +13860,22 @@
             updateCardUseButton();
         }
 
-        // パワーナップ: 30分間 +5pt
+        // パワーナップ: 次の習慣達成で+5pt
         function usePowerNap() {
             closeCardUseMenu();
             const data = loadData();
             const idx = data.cards.inventory.findIndex(c => c.cardId === 'power_nap' && !c.used);
             if (idx === -1) { showNotification('⚠️ パワーナップがありません', 'error'); return; }
             data.cards.inventory.splice(idx, 1);
-            const start = new Date();
-            const end = new Date(start.getTime() + 30 * 60 * 1000);
             if (!data.cards.activeEffects) data.cards.activeEffects = [];
-            data.cards.activeEffects.push({ cardId:'power_nap', type:'time_window_bonus', value:5, startDate:start.toISOString(), endDate:end.toISOString() });
+            data.cards.activeEffects.push({ 
+                cardId:'power_nap', 
+                type:'next_habit_bonus', 
+                value:5, 
+                used:false
+            });
             saveData(data);
-            showCardEffect('😴 パワーナップ！','30分間 +5pt','\#06b6d4');
+            showCardEffect('😴 パワーナップ！','次の習慣達成で+5pt','\#06b6d4');
             updateCardUseButton();
         }
 

@@ -77,6 +77,22 @@ function calculatePointsWithBoosts(basePoints, source, category = null) {
             new Date(effect.endDate) >= now
         );
         if (powerBoost && source === 'habit') { bonus += 5; }
+        
+        // パワーナップ: 次の習慣達成で+5pt（1回だけ）
+        const powerNap = data.cards.activeEffects.find(effect => 
+            effect.type === 'next_habit_bonus' && 
+            effect.cardId === 'power_nap' && 
+            !effect.used
+        );
+        if (powerNap && source === 'habit') { 
+            bonus += powerNap.value;
+            powerNap.used = true;
+            // 使用済みのパワーナップを削除
+            data.cards.activeEffects = data.cards.activeEffects.filter(e => 
+                !(e.type === 'next_habit_bonus' && e.cardId === 'power_nap' && e.used)
+            );
+            saveData(data);
+        }
     }
 
     if (!(typeof EVENTS_DISABLED !== 'undefined' && EVENTS_DISABLED) && data.events && data.events.activeBoosts) {
@@ -181,6 +197,16 @@ function calculatePointsWithBoostsDetailed(basePoints, source, category = null) 
         // パワーブースト: 習慣達成時のみ+5pt
         const powerBoost = data.cards.activeEffects.find(e => e.type === 'power_boost' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
         if (powerBoost && source === 'habit') { bonus += 5; notes.push('PowerBoost +5'); }
+        // パワーナップ: 次の習慣達成で+5pt（1回だけ）
+        const powerNap = data.cards.activeEffects.find(e => e.type === 'next_habit_bonus' && e.cardId === 'power_nap' && !e.used);
+        if (powerNap && source === 'habit') { 
+            bonus += powerNap.value; 
+            notes.push('PowerNap +5'); 
+            powerNap.used = true;
+            // 使用済みのパワーナップを削除
+            data.cards.activeEffects = data.cards.activeEffects.filter(e => !(e.type === 'next_habit_bonus' && e.cardId === 'power_nap' && e.used));
+            saveData(data);
+        }
     }
 
     if (!(typeof EVENTS_DISABLED !== 'undefined' && EVENTS_DISABLED) && data.events && data.events.activeBoosts) {
