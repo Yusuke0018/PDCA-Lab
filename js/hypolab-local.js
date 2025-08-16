@@ -9632,7 +9632,7 @@
                     saveData(data);
                     
                     // カード獲得演出を表示
-                    showCardAcquisition(acquiredCards, () => {
+                    window.showCardAcquisition(acquiredCards, () => {
                         // カード獲得演出後にデブリーフ→完了オプション
                         requestDebriefThenShowOptions();
                     });
@@ -10451,7 +10451,7 @@
                         
                         // カード獲得演出
                         setTimeout(() => {
-                            showCardAcquisition(cards, () => {
+                            window.showCardAcquisition(cards, () => {
                                 const achievementText = hypothesis.finalAchievementRate === 100 ? 
                                     '完璧な達成！' : 
                                     `達成率 ${hypothesis.finalAchievementRate}%`;
@@ -10499,25 +10499,26 @@
             
             // 毎日の習慣の場合
             if (!frequency || frequency.type === 'daily') {
-                // 7日分達成のチェック
+                // 7回達成のチェック（7日経過ではなく、7回達成でカード取得）
                 const achievedCount = Object.keys(hypothesis.achievements || {}).length;
-                const sevenDayMilestones = Math.floor(achievedCount / 7);
+                const sevenAchievementMilestones = Math.floor(achievedCount / 7);
                 
-                // まだ取得していない7日達成があるか確認
-                if (sevenDayMilestones > hypothesis.cardAcquisitionHistory.sevenDays.length) {
-                    // 新しい7日達成 - カード取得
+                // まだ取得していない7回達成があるか確認
+                if (sevenAchievementMilestones > hypothesis.cardAcquisitionHistory.sevenDays.length) {
+                    // 新しい7回達成 - カード取得
                     const cardId = getRandomRewardCard();
                     if (cardId) {
                         addCardToInventory(cardId);
                         hypothesis.cardAcquisitionHistory.sevenDays.push({
                             date: new Date().toISOString(),
                             cardId: cardId,
-                            milestone: sevenDayMilestones
+                            milestone: sevenAchievementMilestones,
+                            achievedCount: achievedCount
                         });
                         
                         // カード獲得演出
-                        showCardAcquisition([cardId], () => {
-                            showNotification('🎉 7日達成！報酬カードを獲得しました！', 'success');
+                        window.showCardAcquisition([cardId], () => {
+                            showNotification('🎉 7回達成！報酬カードを獲得しました！', 'success');
                         });
                     }
                 }
@@ -10556,7 +10557,7 @@
                         hypothesis.cardAcquisitionHistory.weeklyComplete.push(weekKey);
                         
                         // カード獲得演出
-                        showCardAcquisition([cardId], () => {
+                        window.showCardAcquisition([cardId], () => {
                             showNotification(`🎉 第${weekNum}週の目標達成！報酬カードを獲得しました！`, 'success');
                         });
                     }
@@ -12034,6 +12035,10 @@
             }
         }
         
+        // グローバルに公開
+        window.showCardAcquisition = showCardAcquisition;
+        window.closeCardAcquisition = closeCardAcquisition;
+        
         
         // 特別報酬を獲得（スマホ限定、1日1回）
         function getSpecialReward() {
@@ -12073,7 +12078,7 @@
             saveData(data);
             
             // カード獲得演出を表示
-            showCardAcquisition([selectedCard], () => {
+            window.showCardAcquisition([selectedCard], () => {
                 updateCardUseButton();
                 updateSpecialRewardButton();
                 showNotification('🎁 特別報酬を獲得しました！', 'success');
@@ -13926,7 +13931,7 @@
             saveData(data);
             
             // カード獲得演出
-            showCardAcquisition(cards, () => {
+            window.showCardAcquisition(cards, () => {
                 showNotification('🎁 テスト用カードを3枚獲得しました！', 'success');
             });
         };
