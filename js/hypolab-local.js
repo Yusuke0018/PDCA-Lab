@@ -92,6 +92,15 @@
         // カードマスターデータ
         const CARD_MASTER = {
             // 旧カード（廃止）：skip_ticket, achievement_boost などはプールから除外
+            power_boost: {
+                id: 'power_boost',
+                type: 'reward',
+                name: 'パワーブースト',
+                description: '習慣達成時に+5ptボーナス（今日中）',
+                icon: '💪',
+                rarity: 'rare',
+                color: '#dc2626'
+            },
             perfect_bonus: {
                 id: 'perfect_bonus',
                 type: 'reward',
@@ -2570,9 +2579,8 @@
                         multiplier = Math.max(multiplier, 2.0);
                     } else if (effect.cardId === 'triple_points') {
                         multiplier = Math.max(multiplier, 3.0);
-                    } else if (effect.cardId === 'power_boost') {
-                        multiplier = Math.max(multiplier, 1.5);
                     }
+                    // power_boostは固定ボーナスなので倍率には含めない
                 });
             }
             
@@ -13804,6 +13812,22 @@
             data.cards.activeEffects.push({ cardId:'afternoon_gem', type:'point_multiplier', multiplier:1.2, startDate:start.toISOString(), endDate:end.toISOString() });
             saveData(data);
             showCardEffect('☕ アフタヌーンジェム！','今日のポイント×1.2','\#10b981');
+            updateCardUseButton();
+        }
+        
+        // パワーブースト: 習慣達成時に+5pt
+        function usePowerBoost() {
+            closeCardUseMenu();
+            const data = loadData();
+            const idx = data.cards.inventory.findIndex(c => c.cardId === 'power_boost' && !c.used);
+            if (idx === -1) { showNotification('⚠️ パワーブーストがありません', 'error'); return; }
+            data.cards.inventory.splice(idx, 1);
+            const start = new Date();
+            const end = new Date(); end.setHours(23,59,59,999);
+            if (!data.cards.activeEffects) data.cards.activeEffects = [];
+            data.cards.activeEffects.push({ cardId:'power_boost', type:'power_boost', startDate:start.toISOString(), endDate:end.toISOString() });
+            saveData(data);
+            showCardEffect('💪 パワーブースト！','習慣達成時に+5pt','#dc2626');
             updateCardUseButton();
         }
 

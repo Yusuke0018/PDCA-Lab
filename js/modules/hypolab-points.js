@@ -69,6 +69,14 @@ function calculatePointsWithBoosts(basePoints, source, category = null) {
             new Date(effect.endDate) >= now
         );
         if (reverseCurse && source === 'habit') { return 0; }
+        
+        // パワーブースト: 習慣達成時のみ+5pt
+        const powerBoost = data.cards.activeEffects.find(effect => 
+            effect.type === 'power_boost' && 
+            new Date(effect.startDate) <= now && 
+            new Date(effect.endDate) >= now
+        );
+        if (powerBoost && source === 'habit') { bonus += 5; }
     }
 
     if (!(typeof EVENTS_DISABLED !== 'undefined' && EVENTS_DISABLED) && data.events && data.events.activeBoosts) {
@@ -170,6 +178,9 @@ function calculatePointsWithBoostsDetailed(basePoints, source, category = null) 
         if (slow) { multiplier *= 0.5; notes.push('Slowdown ×0.5'); }
         const reverse = data.cards.activeEffects.find(e => e.type === 'reverse_curse' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
         if (reverse && source === 'habit') { return { finalPoints: 0, multiplierTotal: 0, bonusTotal: 0, notes: ['ReverseCurse'] }; }
+        // パワーブースト: 習慣達成時のみ+5pt
+        const powerBoost = data.cards.activeEffects.find(e => e.type === 'power_boost' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
+        if (powerBoost && source === 'habit') { bonus += 5; notes.push('PowerBoost +5'); }
     }
 
     if (!(typeof EVENTS_DISABLED !== 'undefined' && EVENTS_DISABLED) && data.events && data.events.activeBoosts) {
