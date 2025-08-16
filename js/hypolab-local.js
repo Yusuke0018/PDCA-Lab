@@ -745,8 +745,8 @@
             const hasMorning = todayEntry.morning && todayEntry.morning.timestamp;
             const hasEvening = todayEntry.evening && todayEntry.evening.timestamp;
             
-            const morningTime = hasMorning ? new Date(todayEntry.morning.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '';
-            const eveningTime = hasEvening ? new Date(todayEntry.evening.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '';
+            // 時刻表示を削除し、睡眠時間を表示
+            const sleepHours = todayEntry.morning?.sleepHours ? `😴 ${todayEntry.morning.sleepHours}時間` : '';
             
             // 過去のジャーナルを取得（最大5日分）
             const pastJournals = [];
@@ -772,7 +772,7 @@
                             <span style="font-size: 14px;">🌅 朝のジャーナル</span>
                             ${hasMorning 
                                 ? `<div style="display: flex; align-items: center; gap: 8px;">
-                                    <span style="color: #10b981; font-size: 12px;">✅ ${morningTime}</span>
+                                    <span style="color: #10b981; font-size: 12px;">✅ ${sleepHours}</span>
                                     <span class="expand-icon" style="font-size: 12px; transition: transform 0.3s;">▼</span>
                                   </div>`
                                 : `<span style="color: #f59e0b; font-size: 12px;">⏳ まだ記録していません</span>`
@@ -798,7 +798,7 @@
                             <span style="font-size: 14px;">🌙 夜のジャーナル</span>
                             ${hasEvening 
                                 ? `<div style="display: flex; align-items: center; gap: 8px;">
-                                    <span style="color: #10b981; font-size: 12px;">✅ ${eveningTime}</span>
+                                    <span style="color: #10b981; font-size: 12px;">✅</span>
                                     <span class="expand-icon" style="font-size: 12px; transition: transform 0.3s;">▼</span>
                                   </div>`
                                 : `<span style="color: #f59e0b; font-size: 12px;">⏳ まだ記録していません</span>`
@@ -912,15 +912,14 @@
                 `;
                 
                 if (entry.morning) {
-                    const morningTime = new Date(entry.morning.timestamp).toLocaleTimeString('ja-JP', { 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
-                    });
+                    const sleepInfo = entry.morning.sleepHours 
+                        ? `😴 睡眠${entry.morning.sleepHours}時間` 
+                        : '';
                     historyHTML += `
                         <div class="history-journal-item" style="padding: 12px; border-bottom: 1px solid var(--border);">
                             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
                                 <span style="font-size: 14px; font-weight: 600;">🌅 朝のジャーナル</span>
-                                <span style="font-size: 11px; color: var(--text-secondary);">${morningTime}</span>
+                                <span style="font-size: 11px; color: var(--text-secondary);">${sleepInfo}</span>
                             </div>
                             <div style="font-size: 12px; color: var(--text-secondary); display: flex; gap: 12px; margin-bottom: 6px;">
                                 <span>体調: ${['😫', '😟', '😐', '🙂', '😊'][entry.morning.condition - 1]} ${entry.morning.condition}/5</span>
@@ -935,15 +934,10 @@
                 }
                 
                 if (entry.evening) {
-                    const eveningTime = new Date(entry.evening.timestamp).toLocaleTimeString('ja-JP', { 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
-                    });
                     historyHTML += `
                         <div class="history-journal-item" style="padding: 12px;">
                             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
                                 <span style="font-size: 14px; font-weight: 600;">🌙 夜のジャーナル</span>
-                                <span style="font-size: 11px; color: var(--text-secondary);">${eveningTime}</span>
                             </div>
                             <div style="margin-bottom: 8px;">
                                 <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">うまくいったこと:</div>
@@ -1031,6 +1025,27 @@
                                 </button>
                             `).join('')}
                         </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 12px; font-weight: 600;">睡眠時間</label>
+                        <div style="display: flex; gap: 12px; align-items: center;">
+                            <div style="flex: 1;">
+                                <label style="display: block; margin-bottom: 4px; font-size: 12px; color: var(--text-secondary);">昨夜の就寝時刻</label>
+                                <input type="time" id="bedtime-input" 
+                                    value="${todayEntry.morning?.bedtime || ''}" 
+                                    style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 8px; 
+                                    background: var(--surface); color: var(--text-primary);">
+                            </div>
+                            <div style="flex: 1;">
+                                <label style="display: block; margin-bottom: 4px; font-size: 12px; color: var(--text-secondary);">今朝の起床時刻</label>
+                                <input type="time" id="wakeup-input" 
+                                    value="${todayEntry.morning?.wakeup || ''}" 
+                                    style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 8px; 
+                                    background: var(--surface); color: var(--text-primary);">
+                            </div>
+                        </div>
+                        <div id="sleep-duration" style="margin-top: 8px; font-size: 14px; color: var(--text-secondary);"></div>
                     </div>
                     
                     <div class="form-group" style="margin-bottom: 20px;">
@@ -1151,6 +1166,46 @@
                         }
                     });
                     
+                    // 睡眠時間の計算
+                    const bedtimeInput = document.getElementById('bedtime-input');
+                    const wakeupInput = document.getElementById('wakeup-input');
+                    const sleepDuration = document.getElementById('sleep-duration');
+                    
+                    const calculateSleepHours = () => {
+                        if (bedtimeInput.value && wakeupInput.value) {
+                            const bedtime = new Date(`2000-01-01 ${bedtimeInput.value}`);
+                            let wakeup = new Date(`2000-01-01 ${wakeupInput.value}`);
+                            
+                            // 起床時刻が就寝時刻より早い場合は翌日として計算
+                            if (wakeup <= bedtime) {
+                                wakeup = new Date(`2000-01-02 ${wakeupInput.value}`);
+                            }
+                            
+                            const diff = wakeup - bedtime;
+                            const hours = Math.floor(diff / (1000 * 60 * 60));
+                            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                            
+                            const hoursStr = hours + (minutes / 60);
+                            const displayStr = minutes > 0 ? `${hours}時間${minutes}分` : `${hours}時間`;
+                            
+                            sleepDuration.innerHTML = `😴 睡眠時間: <strong>${displayStr}</strong>`;
+                            if (hoursStr < 6) {
+                                sleepDuration.innerHTML += ` <span style="color: #ef4444;">⚠️ 睡眠不足です</span>`;
+                            } else if (hoursStr >= 7 && hoursStr <= 9) {
+                                sleepDuration.innerHTML += ` <span style="color: #10b981;">✅ 理想的です</span>`;
+                            }
+                            
+                            return hoursStr.toFixed(1);
+                        } else {
+                            sleepDuration.innerHTML = '';
+                            return null;
+                        }
+                    };
+                    
+                    bedtimeInput.oninput = calculateSleepHours;
+                    wakeupInput.oninput = calculateSleepHours;
+                    calculateSleepHours();
+                    
                     // 文字数カウント
                     const priorityInput = document.getElementById('priority-input');
                     const priorityCount = document.getElementById('priority-count');
@@ -1186,6 +1241,20 @@
             const conditionBtn = document.querySelector('#condition-selector .mood-btn[data-selected="true"]');
             const moodBtn = document.querySelector('#mood-selector .mood-btn[data-selected="true"]');
             const priority = document.getElementById('priority-input').value.trim();
+            const bedtime = document.getElementById('bedtime-input').value;
+            const wakeup = document.getElementById('wakeup-input').value;
+            
+            // 睡眠時間を計算
+            let sleepHours = null;
+            if (bedtime && wakeup) {
+                const bedtimeDate = new Date(`2000-01-01 ${bedtime}`);
+                let wakeupDate = new Date(`2000-01-01 ${wakeup}`);
+                if (wakeupDate <= bedtimeDate) {
+                    wakeupDate = new Date(`2000-01-02 ${wakeup}`);
+                }
+                const diff = wakeupDate - bedtimeDate;
+                sleepHours = (diff / (1000 * 60 * 60)).toFixed(1);
+            }
             
             if (!conditionBtn || !moodBtn || !priority) {
                 showNotification('すべての項目を入力してください', 'error');
@@ -1205,6 +1274,9 @@
                 condition: parseInt(conditionBtn.dataset.value),
                 mood: parseInt(moodBtn.dataset.value),
                 priority: priority,
+                bedtime: bedtime,
+                wakeup: wakeup,
+                sleepHours: sleepHours,
                 timestamp: new Date().toISOString(),
                 pointsEarned: isFirstTime ? 1 : 0
             };
@@ -1322,12 +1394,35 @@
             const eveningEntries = entryDates.filter(date => entries[date].evening).length;
             const completeEntries = entryDates.filter(date => entries[date].morning && entries[date].evening).length;
             
-            // 最近7日間の体調・気分を計算
+            // 最近7日間の体調・気分・睡眠を計算
             const last7Days = entryDates.slice(-7);
             let avgCondition = 0;
             let avgMood = 0;
+            let avgSleep = 0;
             let conditionCount = 0;
             let moodCount = 0;
+            let sleepCount = 0;
+            
+            // 全期間の睡眠統計
+            let totalSleep = 0;
+            let totalSleepCount = 0;
+            let bestSleep = { hours: 0, date: '' };
+            let worstSleep = { hours: 24, date: '' };
+            
+            entryDates.forEach(date => {
+                if (entries[date].morning && entries[date].morning.sleepHours) {
+                    const hours = parseFloat(entries[date].morning.sleepHours);
+                    totalSleep += hours;
+                    totalSleepCount++;
+                    
+                    if (hours > bestSleep.hours) {
+                        bestSleep = { hours, date };
+                    }
+                    if (hours < worstSleep.hours) {
+                        worstSleep = { hours, date };
+                    }
+                }
+            });
             
             last7Days.forEach(date => {
                 if (entries[date].morning) {
@@ -1339,11 +1434,17 @@
                         avgMood += entries[date].morning.mood;
                         moodCount++;
                     }
+                    if (entries[date].morning.sleepHours) {
+                        avgSleep += parseFloat(entries[date].morning.sleepHours);
+                        sleepCount++;
+                    }
                 }
             });
             
             if (conditionCount > 0) avgCondition = (avgCondition / conditionCount).toFixed(1);
             if (moodCount > 0) avgMood = (avgMood / moodCount).toFixed(1);
+            if (sleepCount > 0) avgSleep = (avgSleep / sleepCount).toFixed(1);
+            const totalAvgSleep = totalSleepCount > 0 ? (totalSleep / totalSleepCount).toFixed(1) : null;
             
             // よくできたことTOP3を抽出
             const successWords = {};
@@ -1475,6 +1576,31 @@
                     <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
                         <div style="font-size: 24px; font-weight: bold; color: #f59e0b;">${avgMood || '-'}</div>
                         <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">平均気分 (7日)</div>
+                    </div>
+                </div>
+                
+                <!-- 睡眠統計 -->
+                <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                    <h4 style="font-size: 14px; margin-bottom: 12px; color: var(--text-primary);">😴 睡眠統計</h4>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+                        <div style="text-align: center; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px;">
+                            <div style="font-size: 20px; font-weight: bold; color: #8b5cf6;">${avgSleep || '-'}時間</div>
+                            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">平均睡眠 (7日)</div>
+                        </div>
+                        <div style="text-align: center; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px;">
+                            <div style="font-size: 20px; font-weight: bold; color: #6366f1;">${totalAvgSleep || '-'}時間</div>
+                            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">平均睡眠 (全期間)</div>
+                        </div>
+                        ${bestSleep.date ? `
+                        <div style="text-align: center; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px;">
+                            <div style="font-size: 16px; font-weight: bold; color: #10b981;">${bestSleep.hours}時間</div>
+                            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">最長 (${bestSleep.date.slice(5)})</div>
+                        </div>
+                        <div style="text-align: center; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px;">
+                            <div style="font-size: 16px; font-weight: bold; color: #ef4444;">${worstSleep.hours}時間</div>
+                            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">最短 (${worstSleep.date.slice(5)})</div>
+                        </div>
+                        ` : ''}
                     </div>
                 </div>
                 
@@ -14053,6 +14179,12 @@
             updateEventDisplay();
         }
         
+        // イベント関連関数をwindowオブジェクトに登録
+        window.getDailyEvent = getDailyEvent;
+        window.updateEventDisplay = updateEventDisplay;
+        window.checkDailyEvents = checkDailyEvents;
+        
+        // カテゴリ関連関数をwindowオブジェクトに登録
         window.initializeCategoryMaster = initializeCategoryMaster;
         window.updateCategoryDropdowns = updateCategoryDropdowns;
         window.editCategoryMaster = editCategoryMaster;
