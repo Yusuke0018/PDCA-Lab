@@ -1617,42 +1617,42 @@
             
             container.innerHTML = `
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px;">
-                    <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                    <div style="text-align: center; background: var(--surface-light); border: 1px solid var(--border); padding: 12px; border-radius: 8px;">
                         <div style="font-size: 24px; font-weight: bold; color: #a855f7;">${data.dailyJournal.stats.currentStreak}</div>
                         <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">現在のストリーク</div>
                     </div>
-                    <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                    <div style="text-align: center; background: var(--surface-light); border: 1px solid var(--border); padding: 12px; border-radius: 8px;">
                         <div style="font-size: 24px; font-weight: bold; color: #3b82f6;">${completeEntries}</div>
                         <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">完全記録日数</div>
                     </div>
-                    <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                    <div style="text-align: center; background: var(--surface-light); border: 1px solid var(--border); padding: 12px; border-radius: 8px;">
                         <div style="font-size: 24px; font-weight: bold; color: #10b981;">${avgCondition || '-'}</div>
                         <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">平均体調 (7日)</div>
                     </div>
-                    <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                    <div style="text-align: center; background: var(--surface-light); border: 1px solid var(--border); padding: 12px; border-radius: 8px;">
                         <div style="font-size: 24px; font-weight: bold; color: #f59e0b;">${avgMood || '-'}</div>
                         <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">平均気分 (7日)</div>
                     </div>
                 </div>
                 
                 <!-- 睡眠統計 -->
-                <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                <div style="background: var(--surface-light); border: 1px solid var(--border); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
                     <h4 style="font-size: 14px; margin-bottom: 12px; color: var(--text-primary);">😴 睡眠統計</h4>
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
-                        <div style="text-align: center; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px;">
+                        <div style="text-align: center; background: var(--surface); border: 1px solid var(--border); padding: 8px; border-radius: 6px;">
                             <div style="font-size: 20px; font-weight: bold; color: #8b5cf6;">${avgSleep || '-'}時間</div>
                             <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">平均睡眠 (7日)</div>
                         </div>
-                        <div style="text-align: center; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px;">
+                        <div style="text-align: center; background: var(--surface); border: 1px solid var(--border); padding: 8px; border-radius: 6px;">
                             <div style="font-size: 20px; font-weight: bold; color: #6366f1;">${totalAvgSleep || '-'}時間</div>
                             <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">平均睡眠 (全期間)</div>
                         </div>
                         ${bestSleep.date ? `
-                        <div style="text-align: center; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px;">
+                        <div style="text-align: center; background: var(--surface); border: 1px solid var(--border); padding: 8px; border-radius: 6px;">
                             <div style="font-size: 16px; font-weight: bold; color: #10b981;">${bestSleep.hours}時間</div>
                             <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">最長 (${bestSleep.date.slice(5)})</div>
                         </div>
-                        <div style="text-align: center; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px;">
+                        <div style="text-align: center; background: var(--surface); border: 1px solid var(--border); padding: 8px; border-radius: 6px;">
                             <div style="font-size: 16px; font-weight: bold; color: #ef4444;">${worstSleep.hours}時間</div>
                             <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">最短 (${worstSleep.date.slice(5)})</div>
                         </div>
@@ -1663,7 +1663,7 @@
                 ${
                     // 感情推移グラフ
                     last30Days.some(d => d.hasData) ? `
-                    <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                    <div style="background: var(--surface-light); border: 1px solid var(--border); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
                         <h4 style="font-size: 14px; margin-bottom: 12px; color: var(--text-primary);">📈 感情推移（30日間）</h4>
                         <div style="position: relative; height: 120px; border-left: 2px solid var(--border); border-bottom: 2px solid var(--border);">
                             <div style="position: absolute; left: -20px; top: 0; font-size: 10px; color: var(--text-secondary);">5</div>
@@ -1794,27 +1794,19 @@
                 ${
                     // 月別記録率と感情推移
                     totalEntries > 0 ? `
-                    <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; margin-top: 16px;">
+                    <div style="background: var(--surface-light); border: 1px solid var(--border); padding: 16px; border-radius: 8px; margin-top: 16px;">
                         <h4 style="font-size: 14px; margin-bottom: 12px; color: var(--text-primary);">📅 月別記録状況</h4>
                         ${generateMonthlyStats(entries)}
                     </div>
                 ` : ''
                 }
                 
-                ${
-                    // 時間帯別記録パターン
-                    totalEntries > 0 ? `
-                    <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; margin-top: 16px;">
-                        <h4 style="font-size: 14px; margin-bottom: 12px; color: var(--text-primary);">⏰ 記録時間帯分析</h4>
-                        ${generateTimePatternAnalysis(entries)}
-                    </div>
-                ` : ''
-                }
+                
                 
                 ${
                     // 感情と習慣達成率の相関
                     totalEntries > 0 && data.currentHypotheses && data.currentHypotheses.length > 0 ? `
-                    <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; margin-top: 16px;">
+                    <div style="background: var(--surface-light); border: 1px solid var(--border); padding: 16px; border-radius: 8px; margin-top: 16px;">
                         <h4 style="font-size: 14px; margin-bottom: 12px; color: var(--text-primary);">🔗 感情と習慣の相関</h4>
                         ${generateEmotionHabitCorrelation(entries, data.currentHypotheses)}
                     </div>
