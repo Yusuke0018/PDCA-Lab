@@ -204,16 +204,6 @@
                 rarity: 'legendary',
                 color: '#a855f7'
             },
-            // 旧カード（廃止）：quick_start はプールから除外
-            streak_bonus: {
-                id: 'streak_bonus',
-                type: 'reward',
-                name: '連続達成ボーナス',
-                description: '2日間、連続達成ボーナスの倍率が2倍',
-                icon: '🔥',
-                rarity: 'rare',
-                color: '#f97316'
-            },
             lucky_seven: {
                 id: 'lucky_seven',
                 type: 'reward',
@@ -250,15 +240,6 @@
                 icon: '🕸️',
                 rarity: 'common',
                 color: '#7c2d12'
-            },
-            reverse_curse: {
-                id: 'reverse_curse',
-                type: 'penalty',
-                name: '逆転の呪い',
-                description: '3日間、達成と未達成の効果が反転',
-                icon: '🎭',
-                rarity: 'legendary',
-                color: '#581c87'
             },
             // 新規追加カード - 特殊カード
             conversion_magic: {
@@ -2506,6 +2487,64 @@
                         `}
                     </div>
                 `;
+                
+                // ミッションマスターによる追加ミッション表示
+                const today = new Date().toISOString().split('T')[0];
+                if (data.challenges.extraMissions && data.challenges.extraMissions[today]) {
+                    const extraCount = data.challenges.extraMissions[today].count || 2;
+                    
+                    // 追加ミッション用のミッションリストを生成（メインとは異なるミッション）
+                    if (!data.challenges.extraDaily) data.challenges.extraDaily = [];
+                    
+                    while (data.challenges.extraDaily.length < extraCount) {
+                        const availableExtras = allDailyChallenges.filter(c => 
+                            c.id !== daily.id && 
+                            !data.challenges.extraDaily.some(e => e.id === c.id)
+                        );
+                        if (availableExtras.length > 0) {
+                            const randomExtra = availableExtras[Math.floor(Math.random() * availableExtras.length)];
+                            data.challenges.extraDaily.push(randomExtra);
+                        } else {
+                            break;
+                        }
+                    }
+                    
+                    // 追加ミッション表示
+                    data.challenges.extraDaily.slice(0, extraCount).forEach((extraMission, index) => {
+                        const isExtraCompleted = data.challenges.completedToday.includes(`extra_${extraMission.id}`);
+                        dailyContainer.innerHTML += `
+                            <div style="margin-top: 12px; padding: 12px; background: rgba(245, 158, 11, 0.1); border-radius: 8px; border-left: 4px solid #f59e0b;">
+                                <div style="display: flex; align-items: center; justify-content: space-between;">
+                                    <div style="display: flex; align-items: center; gap: 12px;">
+                                        <span style="font-size: 20px;">${extraMission.icon}</span>
+                                        <div>
+                                            <div style="font-size: 12px; color: #f59e0b; font-weight: bold;">🎯 追加ミッション</div>
+                                            <div style="font-weight: bold; ${isExtraCompleted ? 'text-decoration: line-through; color: var(--text-secondary);' : ''}">${extraMission.name}</div>
+                                            <div style="font-size: 12px; color: var(--text-secondary);">
+                                                報酬: ${extraMission.points}pt
+                                            </div>
+                                        </div>
+                                    </div>
+                                    ${!isExtraCompleted ? `
+                                        <button class="btn btn-primary" 
+                                            onclick="completeChallenge('daily', 'extra_${extraMission.id}')" 
+                                            style="padding: 8px 16px; font-size: 14px; background: linear-gradient(135deg, #f59e0b, #d97706); border: none; color: white; font-weight: 600;">
+                                            完了にする
+                                        </button>
+                                    ` : `
+                                        <button class="btn btn-secondary" 
+                                            onclick="completeChallenge('daily', 'extra_${extraMission.id}')" 
+                                            style="padding: 8px 16px; font-size: 14px; background: #ef4444; border: none; color: white; font-weight: 600;">
+                                            ↩️ 取り消す
+                                        </button>
+                                    `}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    saveData(data);
+                }
             }
             
             // ウィークリーチャレンジプールを作成（既定 + カスタム）
@@ -2609,10 +2648,19 @@
             const today = new Date().toDateString();
             
             if (type === 'daily') {
+                // 追加ミッション（extra_プレフィックス）の処理
+                let isExtraMission = challengeId.startsWith('extra_');
+                let actualChallengeId = isExtraMission ? challengeId.substring(6) : challengeId;
+                
                 // 既定のチャレンジまたはカスタムチャレンジから検索
-                let challenge = DAILY_CHALLENGES.find(c => c.id === challengeId);
+                let challenge = DAILY_CHALLENGES.find(c => c.id === actualChallengeId);
                 if (!challenge && data.challenges.customChallenges) {
-                    challenge = data.challenges.customChallenges.find(c => c.id === challengeId && c.type === 'daily');
+                    challenge = data.challenges.customChallenges.find(c => c.id === actualChallengeId && c.type === 'daily');
+                }
+                
+                // 追加ミッションの場合は、extraDaily配列からも検索
+                if (!challenge && isExtraMission && data.challenges.extraDaily) {
+                    challenge = data.challenges.extraDaily.find(c => c.id === actualChallengeId);
                 }
                 
                 if (challenge) {
@@ -2632,7 +2680,8 @@
                         type: 'daily',
                         points: challenge.points,
                         completedAt: new Date().toISOString(),
-                        isCustom: challengeId.startsWith('custom_')
+                        isCustom: actualChallengeId.startsWith('custom_'),
+                        isExtra: isExtraMission
                     });
                     
                     // ストリークを更新
@@ -2663,10 +2712,11 @@
                     const earnedPoints = Math.floor(challenge.points * boostMultiplier);
                     earnPoints(earnedPoints, 'daily_challenge', `デイリーチャレンジ: ${challenge.name}`);
                     
+                    const missionType = isExtraMission ? '追加ミッション' : 'デイリーチャレンジ';
                     if (boostMultiplier > 1) {
-                        showNotification(`🎉 デイリーチャレンジ完了！ +${earnedPoints}pt (ブースト${boostMultiplier}x)`, 'success');
+                        showNotification(`🎉 ${missionType}完了！ +${earnedPoints}pt (ブースト${boostMultiplier}x)`, 'success');
                     } else {
-                        showNotification(`🎉 デイリーチャレンジ完了！ +${earnedPoints}pt`, 'success');
+                        showNotification(`🎉 ${missionType}完了！ +${earnedPoints}pt`, 'success');
                     }
                 }
             } else if (type === 'weekly') {
@@ -6422,19 +6472,6 @@
                                     type: 'slowdown',
                                     startDate: slowStart.toISOString(),
                                     endDate: slowEnd.toISOString()
-                                });
-                                saveData(data);
-                                break;
-                            case 'reverse_curse':
-                                // 逆転の呪い効果を3日間適用
-                                const curseStart = new Date();
-                                const curseEnd = new Date();
-                                curseEnd.setDate(curseEnd.getDate() + 3);
-                                if (!data.cards.activeEffects) data.cards.activeEffects = [];
-                                data.cards.activeEffects.push({
-                                    type: 'reverse_curse',
-                                    startDate: curseStart.toISOString(),
-                                    endDate: curseEnd.toISOString()
                                 });
                                 saveData(data);
                                 break;
@@ -12910,16 +12947,6 @@
                     multiplier *= 0.5;
                 }
                 
-                // 逆転の呪い効果
-                const reverseCurse = data.cards.activeEffects.find(effect => 
-                    effect.type === 'reverse_curse' && 
-                    new Date(effect.startDate) <= now && 
-                    new Date(effect.endDate) >= now
-                );
-                if (reverseCurse && source === 'habit') {
-                    // 達成で0ポイント、未達成で通常ポイント（呼び出し元で処理）
-                    return 0;
-                }
             }
             
             // イベントブースト効果（機能停止中は無効）
@@ -13075,9 +13102,6 @@
                 // スローダウン
                 const slow = data.cards.activeEffects.find(e => e.type === 'slowdown' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
                 if (slow) { multiplier *= 0.5; notes.push('Slowdown ×0.5'); }
-                // 逆転の呪い（習慣達成は0ptに）
-                const reverse = data.cards.activeEffects.find(e => e.type === 'reverse_curse' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
-                if (reverse && source === 'habit') { return { finalPoints: 0, multiplierTotal: 0, bonusTotal: 0, notes: ['ReverseCurse'] }; }
             }
             
             // イベント効果（機能停止中は無効）
@@ -13387,21 +13411,6 @@
                     showCardEffect('スローダウン発動！', '3日間獲得ポイントが0.5倍になります', '#7c2d12');
                     break;
                     
-                case 'reverse_curse':
-                    // 逆転の呪い効果を3日間適用
-                    const curseData = loadData();
-                    const curseStart = new Date();
-                    const curseEnd = new Date();
-                    curseEnd.setDate(curseEnd.getDate() + 3);
-                    if (!curseData.cards.activeEffects) curseData.cards.activeEffects = [];
-                    curseData.cards.activeEffects.push({
-                        type: 'reverse_curse',
-                        startDate: curseStart.toISOString(),
-                        endDate: curseEnd.toISOString()
-                    });
-                    saveData(curseData);
-                    showCardEffect('逆転の呪い発動！', '3日間、達成と未達成の効果が反転します', '#581c87');
-                    break;
             }
             
             // データを保存（double_or_nothing以外）
@@ -13674,9 +13683,9 @@
             const start = new Date();
             const end = new Date(); end.setHours(23,59,59,999);
             if (!data.cards.activeEffects) data.cards.activeEffects = [];
-            data.cards.activeEffects.push({ cardId:'afternoon_gem', type:'point_multiplier', multiplier:1.2, startDate:start.toISOString(), endDate:end.toISOString() });
+            data.cards.activeEffects.push({ cardId:'afternoon_gem', type:'point_multiplier', multiplier:1.5, startDate:start.toISOString(), endDate:end.toISOString() });
             saveData(data);
-            showCardEffect('☕ アフタヌーンジェム！','今日のポイント×1.2','\#10b981');
+            showCardEffect('☕ アフタヌーンジェム！','今日のポイント×1.5','\#10b981');
             updateCardUseButton();
         }
         
@@ -13820,7 +13829,7 @@
             data.cards.inventory[cardIndex].used = true;
             data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
             
-            // 明日1日限定でポイント1.2倍効果を付与
+            // 明日1日限定でポイント1.5倍効果を付与
             if (!data.cards.activeEffects) data.cards.activeEffects = [];
             
             // 明日の開始時刻（0時）と終了時刻（23時59分）を設定
@@ -13834,13 +13843,13 @@
             data.cards.activeEffects.push({
                 cardId: 'point_gem',
                 type: 'point_multiplier',
-                multiplier: 1.2,
+                multiplier: 1.5,
                 startDate: tomorrow.toISOString(),
                 endDate: endDate.toISOString()
             });
             
             saveData(data);
-            showNotification('💎 明日1日限定でポイントが1.2倍になります！', 'success');
+            showNotification('💎 明日1日限定でポイントが1.5倍になります！', 'success');
             updateCardUseButton();
         }
 
@@ -13867,29 +13876,13 @@
             if (!data.challenges.daily) data.challenges.daily = {};
             if (!data.challenges.missions) data.challenges.missions = {};
             
-            // デイリーミッションをすべて達成扱いにする
-            const dailyMissions = ['3habits', '5achievements_C', 'continuous_3days', 'morning_achievement', 
-                                   'effort_bonus_5pt', 'all_categories', 'perfect_1habit', 'weekend_10habits',
-                                   'weekday_consistency', 'evening_achievement', 'total_20pt', 'any_challenge'];
-            
-            dailyMissions.forEach(missionId => {
-                if (!data.challenges.missions[missionId]) {
-                    data.challenges.missions[missionId] = {};
-                }
-                data.challenges.missions[missionId][today] = true;
-            });
+            // 今日だけ追加ミッションフラグを設定
+            if (!data.challenges.extraMissions) data.challenges.extraMissions = {};
+            data.challenges.extraMissions[today] = { count: 2, used: true };
             
             saveData(data);
 
-            // 目に見える効果: 今日のデイリーチャレンジも完了扱いにする
-            try {
-                const daily = (data.challenges && data.challenges.daily) ? data.challenges.daily : null;
-                if (daily && !data.challenges.completedToday.includes(daily.id)) {
-                    completeChallenge('daily', daily.id);
-                }
-            } catch (e) { /* noop */ }
-
-            showNotification('🎯 今日のミッションがすべて達成されました！', 'success');
+            showCardEffect('🎯 ミッションマスター！', '今日のミッションが2つ追加されます', '#f59e0b');
             updateCardUseButton();
             updateChallenges();
         }

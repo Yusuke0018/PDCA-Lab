@@ -38,6 +38,18 @@ function calculatePointsWithBoosts(basePoints, source, category = null, habitId 
 
     const isChallenge = (source === 'daily_challenge' || source === 'weekly_challenge' || source === 'challenge');
     if (isChallenge) {
+        // Apply challenge_multiplier to challenge sources only
+        if (data.cards && data.cards.activeEffects) {
+            const now = new Date();
+            const challengeBoost = data.cards.activeEffects.find(effect => 
+                effect.type === 'challenge_multiplier' && 
+                new Date(effect.startDate) <= now && 
+                new Date(effect.endDate) >= now
+            );
+            if (challengeBoost) {
+                return Math.round(basePoints * challengeBoost.value);
+            }
+        }
         return basePoints;
     }
     if (data.cards && data.cards.activeEffects) {
@@ -167,6 +179,12 @@ function calculatePointsWithBoosts(basePoints, source, category = null, habitId 
                     case 'category_multiplier':
                         if (category === effect.target) { multiplier *= effect.value; }
                         break;
+                    case 'challenge_multiplier':
+                        if (source === 'challenge') { multiplier *= effect.value; }
+                        break;
+                    case 'journal_multiplier':
+                        if (source === 'journal') { multiplier *= effect.value; }
+                        break;
                 }
             }
         });
@@ -184,6 +202,16 @@ function calculatePointsWithBoostsDetailed(basePoints, source, category = null, 
 
     const isChallenge = (source === 'daily_challenge' || source === 'weekly_challenge' || source === 'challenge');
     if (isChallenge) {
+        // Apply challenge_multiplier to challenge sources only
+        if (data.cards && data.cards.activeEffects) {
+            const challengeBoost = data.cards.activeEffects.find(e => e.type === 'challenge_multiplier' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
+            if (challengeBoost) {
+                multiplier = challengeBoost.value;
+                notes.push(`Challenge ×${challengeBoost.value}`);
+                const finalPoints = Math.round(basePoints * multiplier);
+                return { finalPoints, multiplierTotal: multiplier, bonusTotal: 0, notes };
+            }
+        }
         return { finalPoints: basePoints, multiplierTotal: 1.0, bonusTotal: 0, notes };
     }
     if (data.cards && data.cards.activeEffects) {
@@ -233,6 +261,7 @@ function calculatePointsWithBoostsDetailed(basePoints, source, category = null, 
                 case 'category_multiplier': if (category === eff.target) { multiplier *= eff.value; notes.push(`${eff.target} ×${eff.value}`); } break;
                 case 'category_bonus': if (category === eff.target) { bonus += eff.value; notes.push(`${eff.target} +${eff.value}`); } break;
                 case 'challenge_multiplier': if (source === 'challenge') { multiplier *= eff.value; notes.push(`Challenge ×${eff.value}`); } break;
+                case 'journal_multiplier': if (source === 'journal') { multiplier *= eff.value; notes.push(`Journal ×${eff.value}`); } break;
                 case 'time_bonus':
                     const hour = new Date().getHours();
                     if ((boost.duration === 'morning' && hour >= 6 && hour <= 9) || (boost.duration === 'night' && hour >= 20 && hour <= 23)) {
