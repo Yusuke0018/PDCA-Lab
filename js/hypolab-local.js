@@ -10599,10 +10599,12 @@
 
         // 習慣達成時のカード取得チェック
         function checkCardAcquisitionOnAchievement(dateKey) {
+            console.log('checkCardAcquisitionOnAchievement called:', dateKey);
             const data = loadData();
             const hypothesis = window.currentHypothesis;
             
             if (!hypothesis || !hypothesis.id) {
+                console.log('No hypothesis or hypothesis.id');
                 return;
             }
             
@@ -10623,10 +10625,18 @@
                 const achievedCount = Object.keys(hypothesis.achievements || {}).length;
                 const sevenAchievementMilestones = Math.floor(achievedCount / 7);
                 
+                console.log('Daily habit check:', {
+                    achievedCount,
+                    sevenAchievementMilestones,
+                    existingMilestones: hypothesis.cardAcquisitionHistory.sevenDays.length
+                });
+                
                 // まだ取得していない7回達成があるか確認
                 if (sevenAchievementMilestones > hypothesis.cardAcquisitionHistory.sevenDays.length) {
+                    console.log('New milestone reached, getting card...');
                     // 新しい7回達成 - カード取得
                     const cardId = getRandomRewardCard();
+                    console.log('Random card ID:', cardId);
                     if (cardId) {
                         addCardToInventory(cardId);
                         hypothesis.cardAcquisitionHistory.sevenDays.push({
@@ -10636,10 +10646,13 @@
                             achievedCount: achievedCount
                         });
                         
+                        console.log('Showing card acquisition modal...');
                         // カード獲得演出
                         window.showCardAcquisition([cardId], () => {
                             showNotification('🎉 7回達成！報酬カードを獲得しました！', 'success');
                         });
+                    } else {
+                        console.log('No card ID returned from getRandomRewardCard');
                     }
                 }
             }
@@ -10754,12 +10767,21 @@
         
         // カードをインベントリに追加
         function addCardToInventory(cardId) {
-            if (!cardId) return;
+            console.log('addCardToInventory called:', cardId);
+            if (!cardId) {
+                console.log('No cardId provided');
+                return;
+            }
             
             const data = loadData();
             const card = CARD_MASTER[cardId];
             
-            if (!card) return;
+            if (!card) {
+                console.log('Card not found in CARD_MASTER:', cardId);
+                return;
+            }
+            
+            console.log('Adding card to inventory:', card);
             
             if (card.type === 'reward') {
                 data.cards.inventory.push({
@@ -12127,12 +12149,23 @@
 
         // カード獲得表示
         function showCardAcquisition(cardIds, callback) {
+            console.log('showCardAcquisition called:', cardIds);
             const modal = document.getElementById('card-acquisition-modal');
             const container = document.getElementById('acquired-cards-container');
+            
+            if (!modal) {
+                console.error('card-acquisition-modal not found');
+                return;
+            }
+            if (!container) {
+                console.error('acquired-cards-container not found');
+                return;
+            }
             
             container.innerHTML = '';
             cardIds.forEach((cardId, index) => {
                 const card = CARD_MASTER[cardId];
+                console.log('Processing card:', cardId, card);
                 if (card) {
                     const cardDiv = document.createElement('div');
                     cardDiv.className = `card-item ${card.type} card-reveal`;
@@ -12146,6 +12179,7 @@
                 }
             });
             
+            console.log('Setting modal display to flex');
             modal.style.display = 'flex';
             
             window.cardAcquisitionCallback = callback;
