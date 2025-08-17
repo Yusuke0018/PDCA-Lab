@@ -15095,6 +15095,7 @@
         
         // イベントリセット関数（一時的なデバッグ用）
         function resetEvents() {
+            console.log('resetEvents called');
             const data = loadData();
             data.events = {
                 activeBoosts: [],
@@ -15105,8 +15106,10 @@
                 forcedEvents: {}
             };
             saveData(data);
+            console.log('Events reset, calling checkDailyEvents');
             checkDailyEvents();
-            showNotification('イベントをリセットしました', 'success');
+            alert('イベントをリセットしました。ページをリロードしてください。');
+            location.reload();
         }
         window.resetEvents = resetEvents;
         
