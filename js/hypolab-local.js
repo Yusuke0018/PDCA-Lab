@@ -3177,30 +3177,6 @@
             };
         }
 
-        // 一時的なランダムカード追加機能
-        window.addTemporaryCard = function() {
-            // カードプール
-            const cardPool = [
-                'point_gem', 'shield_card', 'challenge_card', 'recovery_card',
-                'boost_card', 'perfect_bonus', 'combo_master', 'double_point',
-                'effort_multiplier', 'protection_charm', 'time_extend'
-            ];
-            
-            // ランダムに1枚選択
-            const cardId = cardPool[Math.floor(Math.random() * cardPool.length)];
-            
-            // カードを追加（addCardToInventoryは更新されたdataを返す）
-            const updatedData = addCardToInventory(cardId);
-            if (updatedData) {
-                saveData(updatedData);
-            }
-            
-            // カード獲得演出
-            window.showCardAcquisition([cardId], () => {
-                showNotification('🎁 補填カードを1枚獲得！', 'success');
-            });
-        };
-        
         // ポイント獲得処理（habitIdパラメータを追加）
         function earnPoints(amount, source, description, multiplier = 1.0, category = null, habitId = null, meta = {}) {
             console.log('earnPoints呼び出し:', {amount, source, description, habitId});
