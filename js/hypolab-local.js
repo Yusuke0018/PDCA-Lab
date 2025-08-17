@@ -3160,19 +3160,20 @@
 
         // 現在のレベルを計算（モジュール存在時は再定義しない）
         window.calculateLevel = window.calculateLevel || function(lifetimeEarned) {
+            const thresholds = window.LEVEL_THRESHOLDS || [];
             for (const threshold of thresholds) {
                 if (lifetimeEarned <= threshold.max) {
                     return threshold;
                 }
             }
             // レベル10以上の計算
-            const extraPoints = lifetimeEarned - 2601;
+            const extraPoints = lifetimeEarned - 3901;
             const extraLevels = Math.floor(extraPoints / 700);
             return {
                 level: 10 + extraLevels,
                 name: '超越者',
-                min: 2601 + (extraLevels * 700),
-                max: 2601 + ((extraLevels + 1) * 700)
+                min: 3901 + (extraLevels * 700),
+                max: 3901 + ((extraLevels + 1) * 700)
             };
         }
 
