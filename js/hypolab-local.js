@@ -6010,7 +6010,7 @@
             
             saveData(data);
             window.currentHypothesis = hyp;
-            showProgressView(hyp.id);
+            window.showProgressView(hyp.id);
         }
 
         // ペナルティインジケーターを更新
@@ -6599,7 +6599,7 @@
             data.currentHypotheses.push(currentHypothesis);
             saveData(data);
             
-            showProgressView(currentHypothesis.id);
+            window.showProgressView(currentHypothesis.id);
         }
 
         // 進捗画面を表示
@@ -8689,7 +8689,7 @@
                 showNotification('頻度タイプを変更しました', 'success');
                 
                 // 進捗画面を再表示
-                showProgressView(window.currentHypothesis.id);
+                window.showProgressView(window.currentHypothesis.id);
             };
         }
         
@@ -10167,7 +10167,7 @@
                 const item = document.createElement('div');
                 item.className = 'hypothesis-item';
                 item.style.position = 'relative'; // 完のハンコ用にposition:relativeを追加
-                item.onclick = () => showProgressView(hypothesis.id);
+                item.onclick = () => window.showProgressView(hypothesis.id);
                 
                 // 長押し/右クリックで削除
                 attachLongPressToDelete(item, hypothesis.id);
