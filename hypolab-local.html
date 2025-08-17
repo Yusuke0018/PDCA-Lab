@@ -103,12 +103,6 @@
     <div class="container">
         <!-- ホーム画面 -->
         <div id="home-view">
-            <!-- 一時的なイベント切り替えボタン（デバッグ用） -->
-            <div style="margin-bottom: 16px; padding: 12px; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px;">
-                <button onclick="(function(){try{const d=JSON.parse(localStorage.getItem('hypolab_data')||'{}');if(!d.events)d.events={};d.events.activeBoosts=[];d.events.lastEventCheck=null;localStorage.setItem('hypolab_data',JSON.stringify(d));location.reload()}catch(e){alert('エラー:'+e.message)}})()" style="width: 100%; padding: 10px; background: #3b82f6; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
-                    🔄 イベント切り替え（デバッグ用）
-                </button>
-            </div>
             
             <!-- イベント通知セクション -->
             <div id="active-events" class="card" style="margin-bottom: 16px; background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1)); border: 1px solid rgba(251, 191, 36, 0.3); display: none;">

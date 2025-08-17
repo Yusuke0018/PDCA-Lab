@@ -64,7 +64,8 @@ function checkDailyEvents() {
     // 強制的に今日の日付と比較してリセット
     const needsReset = !data.events.lastEventCheck || data.events.lastEventCheck !== today;
     
-    if (!needsReset) return;
+    // デバッグ: lastEventCheckがnullの場合も強制リセット
+    if (!needsReset && data.events.lastEventCheck !== null) return;
     
     // イベントを完全にリセット
     data.events.lastEventCheck = today;
