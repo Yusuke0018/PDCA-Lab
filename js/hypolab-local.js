@@ -3189,8 +3189,11 @@
             // ランダムに1枚選択
             const cardId = cardPool[Math.floor(Math.random() * cardPool.length)];
             
-            // カードを追加
-            addCardToInventory(cardId);
+            // カードを追加（addCardToInventoryは更新されたdataを返す）
+            const updatedData = addCardToInventory(cardId);
+            if (updatedData) {
+                saveData(updatedData);
+            }
             
             // カード獲得演出
             window.showCardAcquisition([cardId], () => {
@@ -4081,7 +4084,10 @@
             // レベルアップ時にカードを1枚獲得
             const cardId = getRandomCardForLevelUp();
             if (cardId) {
-                addCardToInventory(cardId);
+                const updatedData = addCardToInventory(cardId);
+                if (updatedData) {
+                    saveData(updatedData);
+                }
                 setTimeout(() => {
                     window.showCardAcquisition([cardId], () => {
                         showNotification('🎁 レベルアップボーナス！カードを1枚獲得！', 'success');
