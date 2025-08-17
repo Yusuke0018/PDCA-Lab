@@ -3177,6 +3177,28 @@
             };
         }
 
+        // 一時的な30ポイント追加機能
+        window.addTemporaryPoints = function() {
+            const data = loadData();
+            data.pointSystem.currentPoints += 30;
+            data.pointSystem.lifetimeEarned += 30;
+            data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
+            
+            // トランザクション記録
+            data.pointSystem.transactions.unshift({
+                timestamp: new Date().toISOString(),
+                type: 'earn',
+                amount: 30,
+                source: 'temporary',
+                description: '一時的な補填ポイント',
+                finalAmount: 30
+            });
+            
+            saveData(data);
+            updatePointDisplay();
+            showNotification('30ポイントを追加しました', 'success');
+        };
+        
         // ポイント獲得処理（habitIdパラメータを追加）
         function earnPoints(amount, source, description, multiplier = 1.0, category = null, habitId = null, meta = {}) {
             console.log('earnPoints呼び出し:', {amount, source, description, habitId});
