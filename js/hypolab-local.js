@@ -14984,7 +14984,7 @@
         }
 
         // windowオブジェクトに関数を登録
-        // 日替わりイベントを取得（全て等確率）
+        // 日替わりイベントを取得（毎日ランダムに変更）
         function getDailyEvent() {
             const data = loadData();
             const today = dateKeyLocal(new Date());
@@ -15002,10 +15002,8 @@
             } else if (isLuckySevenDay) {
                 // 7の倍数の日は必ずイベント発生
             } else {
-                // 通常は30%の確率でイベント発生
-                const seed = today.split('-').reduce((a, b) => a + parseInt(b), 0);
-                const random = ((seed * 9301 + 49297) % 233280) / 233280;
-                if (random > 0.3) return null;
+                // 通常は30%の確率でイベント発生（真のランダム）
+                if (Math.random() > 0.3) return null;
             }
             
             // 土日は週末スペシャルを70%の確率で選択
@@ -15013,18 +15011,15 @@
             const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
             
             if (isWeekend) {
-                // 週末は70%の確率で週末スペシャル
-                const seed = today.split('-').reduce((a, b) => a + parseInt(b), 0);
-                const random = ((seed * 9301 + 49297) % 233280) / 233280;
-                if (random < 0.7) {
+                // 週末は70%の確率で週末スペシャル（真のランダム）
+                if (Math.random() < 0.7) {
                     // 週末スペシャルを返す
                     return EVENT_DEFINITIONS.find(e => e.id === 'weekend_special');
                 }
             }
             
-            // シード値を使って一貫性のあるランダムイベント選択
-            const eventSeed = today.split('-').join('');
-            const eventIndex = (parseInt(eventSeed) * 7919) % EVENT_DEFINITIONS.length;
+            // 完全ランダムにイベントを選択（毎日異なるイベント）
+            const eventIndex = Math.floor(Math.random() * EVENT_DEFINITIONS.length);
             return EVENT_DEFINITIONS[eventIndex];
         }
         
