@@ -6603,7 +6603,7 @@
         }
 
         // 進捗画面を表示
-        function showProgressView(hypothesisId) {
+        window.showProgressView = function(hypothesisId) {
             resetScrollToTop();
             // モバイルの戻るボタン対策: 進捗ビューに入るタイミングで履歴を積む
             try {
@@ -10123,7 +10123,7 @@
                                 <span>📅 ${daysPassed}日目/${hypothesis.totalDays}日</span>
                                 <span>✨ 達成率 ${achievementRate}%</span>
                             </div>
-                            <button class="btn btn-primary" style="width: 100%; padding: 10px; font-size: 14px;" onclick="event.stopPropagation(); showProgressView('${hypothesis.id}');">
+                            <button class="btn btn-primary" style="width: 100%; padding: 10px; font-size: 14px;" onclick="event.stopPropagation(); window.showProgressView('${hypothesis.id}');">
                                 📊 詳細を見る
                             </button>
                         `;
