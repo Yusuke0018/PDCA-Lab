@@ -4055,6 +4055,30 @@
             // 軽量な祝祭演出＋短い通知
             try { showLevelUpCelebration(oldLevel, newLevel); } catch(e) {}
             showNotification(`Lv.${oldLevel} → Lv.${newLevel.level}｜${newLevel.name}`, 'success', 6);
+            
+            // レベルアップ時にカードを1枚獲得
+            const cardId = getRandomCardForLevelUp();
+            if (cardId) {
+                addCardToInventory(cardId);
+                setTimeout(() => {
+                    window.showCardAcquisition([cardId], () => {
+                        showNotification('🎁 レベルアップボーナス！カードを1枚獲得！', 'success');
+                    });
+                }, 1500);
+            }
+        }
+        
+        // レベルアップ時のランダムカード取得
+        function getRandomCardForLevelUp() {
+            // レベルアップ報酬用のカードプール
+            const cardPool = [
+                'point_gem', 'shield_card', 'challenge_card', 'recovery_card',
+                'boost_card', 'perfect_bonus', 'combo_master', 'double_point',
+                'effort_multiplier', 'protection_charm', 'time_extend'
+            ];
+            
+            // ランダムに1枚選択
+            return cardPool[Math.floor(Math.random() * cardPool.length)];
         }
 
         // ポイント獲得アニメーション
