@@ -3242,7 +3242,20 @@
             
             // レベルアップ通知
             if (newLevel.level > oldLevel) {
-                showLevelUpNotification(oldLevel, newLevel);
+                if (window.showLevelUpNotification) {
+                    window.showLevelUpNotification(oldLevel, newLevel);
+                } else {
+                    // フォールバック
+                    showNotification(`Lv.${oldLevel} → Lv.${newLevel.level}｜${newLevel.name}`, 'success', 6);
+                    const cardId = getRandomCardForLevelUp();
+                    if (cardId) {
+                        const updatedData = addCardToInventory(cardId);
+                        if (updatedData) {
+                            saveData(updatedData);
+                        }
+                        showNotification('🎁 レベルアップボーナス！カードを1枚獲得！', 'success');
+                    }
+                }
             }
             
             // ポイント獲得アニメーション
@@ -3718,7 +3731,20 @@
             
             // レベルアップ通知
             if (newLevel.level > oldLevel) {
-                showLevelUpNotification(oldLevel, newLevel);
+                if (window.showLevelUpNotification) {
+                    window.showLevelUpNotification(oldLevel, newLevel);
+                } else {
+                    // フォールバック
+                    showNotification(`Lv.${oldLevel} → Lv.${newLevel.level}｜${newLevel.name}`, 'success', 6);
+                    const cardId = getRandomCardForLevelUp();
+                    if (cardId) {
+                        const updatedData = addCardToInventory(cardId);
+                        if (updatedData) {
+                            saveData(updatedData);
+                        }
+                        showNotification('🎁 レベルアップボーナス！カードを1枚獲得！', 'success');
+                    }
+                }
             }
         }
         
@@ -4061,7 +4087,7 @@
         }
 
         // レベルアップ通知
-        function showLevelUpNotification(oldLevel, newLevel) {
+        window.showLevelUpNotification = function(oldLevel, newLevel) {
             // 軽量な祝祭演出＋短い通知
             try { showLevelUpCelebration(oldLevel, newLevel); } catch(e) {}
             showNotification(`Lv.${oldLevel} → Lv.${newLevel.level}｜${newLevel.name}`, 'success', 6);
@@ -4074,9 +4100,13 @@
                     saveData(updatedData);
                 }
                 setTimeout(() => {
-                    window.showCardAcquisition([cardId], () => {
+                    if (window.showCardAcquisition) {
+                        window.showCardAcquisition([cardId], () => {
+                            showNotification('🎁 レベルアップボーナス！カードを1枚獲得！', 'success');
+                        });
+                    } else {
                         showNotification('🎁 レベルアップボーナス！カードを1枚獲得！', 'success');
-                    });
+                    }
                 }, 1500);
             }
         }
@@ -14196,14 +14226,15 @@
             data.cards.inventory[cardIndex].used = true;
             data.cards.inventory[cardIndex].usedDate = new Date().toISOString();
             
-            // 3日間連続でイベントを確定
+            // 3日間連続でイベントを100%発生させる
             if (!data.events) data.events = {};
             if (!data.events.forcedEvents) data.events.forcedEvents = {};
             
-            for (let i = 1; i <= 3; i++) {
+            // 今日から3日間（今日、明日、明後日）
+            for (let i = 0; i < 3; i++) {
                 const date = new Date();
                 date.setDate(date.getDate() + i);
-                const dateStr = date.toISOString().split('T')[0];
+                const dateStr = dateKeyLocal(date); // ローカル日付形式を使用
                 data.events.forcedEvents[dateStr] = true;
             }
             
