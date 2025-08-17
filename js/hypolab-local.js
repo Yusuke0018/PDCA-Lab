@@ -10029,25 +10029,30 @@
                     
                     categorySection.appendChild(categoryHeader);
                     
-                    // 習慣リスト（シンプルな構造）
+                    // 習慣リスト（展開機能付き）
                     habits.forEach((hypothesis, index) => {
+                        // 習慣コンテナ（タイトル＋詳細）
+                        const habitContainer = document.createElement('div');
+                        habitContainer.style.cssText = `
+                            margin-top: 8px;
+                            margin-left: 20px;
+                        `;
+                        
+                        // 習慣タイトル
                         const habitItem = document.createElement('div');
                         const isAchievedToday = hypothesis.achievements && hypothesis.achievements[todayKey];
                         
-                        // シンプルなスタイル、マージンで確実に分離
                         habitItem.style.cssText = `
                             display: flex;
                             align-items: center;
                             gap: 8px;
                             padding: 10px 14px;
-                            margin-top: 8px;
-                            margin-left: 20px;
-                            margin-bottom: 0;
                             background: var(--surface-light);
                             border-radius: 8px;
                             border: 1px solid var(--border);
                             cursor: pointer;
                             min-height: 44px;
+                            transition: all 0.2s;
                         `;
                         
                         // 達成マーク
@@ -10066,17 +10071,89 @@
                             freqText = days;
                         }
                         
+                        // 矢印
+                        const arrow = document.createElement('span');
+                        arrow.id = `arrow-${hypothesis.id}`;
+                        arrow.style.cssText = 'color: var(--text-secondary); font-size: 16px; transition: transform 0.3s;';
+                        arrow.textContent = '▶';
+                        
                         habitItem.innerHTML = `
                             <span style="${markStyle}">${checkMark}</span>
                             <span style="flex: 1; font-size: 14px; color: var(--text-primary);">${escapeHTML(hypothesis.title)}</span>
                             ${freqText ? `<span style="font-size: 11px; padding: 2px 6px; background: rgba(59, 130, 246, 0.1); color: #3b82f6; border-radius: 999px;">${freqText}</span>` : ''}
-                            <span style="color: var(--text-secondary); font-size: 16px;">›</span>
+                        `;
+                        habitItem.appendChild(arrow);
+                        
+                        // 詳細エリア（初期は非表示）
+                        const detailArea = document.createElement('div');
+                        detailArea.id = `detail-${hypothesis.id}`;
+                        detailArea.style.cssText = `
+                            max-height: 0;
+                            overflow: hidden;
+                            transition: max-height 0.3s ease-out;
                         `;
                         
-                        // クリックで詳細画面へ
-                        habitItem.onclick = () => showProgressView(hypothesis.id);
+                        const detailContent = document.createElement('div');
+                        detailContent.style.cssText = `
+                            padding: 12px 14px;
+                            margin-top: 8px;
+                            background: rgba(248, 250, 252, 0.8);
+                            border-radius: 8px;
+                            border: 1px solid var(--border);
+                        `;
                         
-                        categorySection.appendChild(habitItem);
+                        // 詳細情報の計算
+                        const startDate = new Date(hypothesis.startDate);
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        startDate.setHours(0, 0, 0, 0);
+                        const daysPassed = Math.max(1, Math.floor((today - startDate) / (1000 * 60 * 60 * 24)) + 1);
+                        
+                        // 達成率計算
+                        let achievedDays = 0;
+                        if (hypothesis.achievements) {
+                            achievedDays = Object.keys(hypothesis.achievements).length;
+                        }
+                        const achievementRate = Math.floor((achievedDays / hypothesis.totalDays) * 100);
+                        
+                        detailContent.innerHTML = `
+                            <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 10px; line-height: 1.5;">
+                                ${escapeHTML(hypothesis.description)}
+                            </div>
+                            <div style="display: flex; gap: 12px; font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
+                                <span>📅 ${daysPassed}日目/${hypothesis.totalDays}日</span>
+                                <span>✨ 達成率 ${achievementRate}%</span>
+                            </div>
+                            <button class="btn btn-primary" style="width: 100%; padding: 10px; font-size: 14px;" onclick="event.stopPropagation(); showProgressView('${hypothesis.id}');">
+                                📊 詳細を見る
+                            </button>
+                        `;
+                        
+                        detailArea.appendChild(detailContent);
+                        
+                        // タップで展開/折りたたみ
+                        let isExpanded = false;
+                        habitItem.onclick = (e) => {
+                            e.stopPropagation();
+                            const detail = document.getElementById(`detail-${hypothesis.id}`);
+                            const arrowEl = document.getElementById(`arrow-${hypothesis.id}`);
+                            
+                            if (isExpanded) {
+                                detail.style.maxHeight = '0';
+                                arrowEl.style.transform = 'rotate(0deg)';
+                                habitItem.style.borderRadius = '8px';
+                                isExpanded = false;
+                            } else {
+                                detail.style.maxHeight = '300px';
+                                arrowEl.style.transform = 'rotate(90deg)';
+                                habitItem.style.borderRadius = '8px 8px 0 0';
+                                isExpanded = true;
+                            }
+                        };
+                        
+                        habitContainer.appendChild(habitItem);
+                        habitContainer.appendChild(detailArea);
+                        categorySection.appendChild(habitContainer);
                     });
                     
                     categoriesContainer.appendChild(categorySection);
