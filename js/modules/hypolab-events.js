@@ -60,9 +60,13 @@ function checkDailyEvents() {
         data.events.lastEventCheck = null; // リセット
     }
     
-    // 日付が変わったら必ず新しいイベントを生成（日付チェックのみ、イベント有無は確認しない）
-    if (data.events.lastEventCheck === today) return;
+    // 日付が変わったら必ず新しいイベントを生成
+    // 強制的に今日の日付と比較してリセット
+    const needsReset = !data.events.lastEventCheck || data.events.lastEventCheck !== today;
     
+    if (!needsReset) return;
+    
+    // イベントを完全にリセット
     data.events.lastEventCheck = today;
     data.events.activeBoosts = [];
     

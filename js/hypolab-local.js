@@ -15093,25 +15093,6 @@
         window.getDailyEvent = getDailyEvent;
         window.updateEventDisplay = updateEventDisplay;
         
-        // イベントリセット関数（一時的なデバッグ用）
-        function resetEvents() {
-            console.log('resetEvents called');
-            const data = loadData();
-            data.events = {
-                activeBoosts: [],
-                lastEventCheck: null,
-                milestoneNotifications: {},
-                eventHistory: [],
-                boostEnabled: true,
-                forcedEvents: {}
-            };
-            saveData(data);
-            console.log('Events reset, calling checkDailyEvents');
-            checkDailyEvents();
-            alert('イベントをリセットしました。ページをリロードしてください。');
-            location.reload();
-        }
-        window.resetEvents = resetEvents;
         
         // アクティブなカード効果を包括的に表示する関数
         function updateActiveEffectsDisplay() {
