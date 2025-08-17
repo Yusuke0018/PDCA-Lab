@@ -10123,7 +10123,7 @@
                                 <span>📅 ${daysPassed}日目/${hypothesis.totalDays}日</span>
                                 <span>✨ 達成率 ${achievementRate}%</span>
                             </div>
-                            <button class="btn btn-primary" style="width: 100%; padding: 10px; font-size: 14px;" onclick="event.stopPropagation(); window.showProgressView('${hypothesis.id}');">
+                            <button class="btn btn-primary" style="width: 100%; padding: 10px; font-size: 14px;" onclick="event.stopPropagation(); window.showProgressView(${hypothesis.id});">
                                 📊 詳細を見る
                             </button>
                         `;
