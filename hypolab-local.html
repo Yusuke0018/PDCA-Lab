@@ -25,9 +25,9 @@
             </div>
             <!-- テーマ切り替えボタンとポイント表示 -->
             <div style="display: flex; align-items: center; gap: 12px;">
-                <!-- 一時的な30ポイント追加ボタン -->
-                <button onclick="addTemporaryPoints()" style="
-                    background: #ef4444;
+                <!-- 一時的なカード追加ボタン -->
+                <button onclick="addTemporaryCard()" style="
+                    background: #10b981;
                     color: white;
                     border: none;
                     padding: 8px 12px;
@@ -35,7 +35,7 @@
                     cursor: pointer;
                     font-size: 14px;
                     font-weight: bold;
-                ">+30pt</button>
+                ">+1カード</button>
                 <!-- テーマ切り替えボタン -->
                 <button id="theme-toggle" onclick="toggleTheme()" style="
                     background: var(--surface-light);
@@ -1023,6 +1023,6 @@
     <script src="js/modules/hypolab-storage.js?v=20250816-20"></script>
     <script src="js/modules/hypolab-points.js?v=20250816-20"></script>
     <script src="js/modules/hypolab-events.js?v=20250816-20"></script>
-    <script src="js/hypolab-local.js?v=20250117-05"></script>
+    <script src="js/hypolab-local.js?v=20250117-06"></script>
 </body>
 </html>

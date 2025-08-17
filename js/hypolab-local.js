@@ -3177,26 +3177,25 @@
             };
         }
 
-        // 一時的な30ポイント追加機能
-        window.addTemporaryPoints = function() {
-            const data = loadData();
-            data.pointSystem.currentPoints += 30;
-            data.pointSystem.lifetimeEarned += 30;
-            data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
+        // 一時的なランダムカード追加機能
+        window.addTemporaryCard = function() {
+            // カードプール
+            const cardPool = [
+                'point_gem', 'shield_card', 'challenge_card', 'recovery_card',
+                'boost_card', 'perfect_bonus', 'combo_master', 'double_point',
+                'effort_multiplier', 'protection_charm', 'time_extend'
+            ];
             
-            // トランザクション記録
-            data.pointSystem.transactions.unshift({
-                timestamp: new Date().toISOString(),
-                type: 'earn',
-                amount: 30,
-                source: 'temporary',
-                description: '一時的な補填ポイント',
-                finalAmount: 30
+            // ランダムに1枚選択
+            const cardId = cardPool[Math.floor(Math.random() * cardPool.length)];
+            
+            // カードを追加
+            addCardToInventory(cardId);
+            
+            // カード獲得演出
+            window.showCardAcquisition([cardId], () => {
+                showNotification('🎁 補填カードを1枚獲得！', 'success');
             });
-            
-            saveData(data);
-            updatePointDisplay();
-            showNotification('30ポイントを追加しました', 'success');
         };
         
         // ポイント獲得処理（habitIdパラメータを追加）
