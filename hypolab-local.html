@@ -104,12 +104,9 @@
         <!-- ホーム画面 -->
         <div id="home-view">
             <!-- 一時的なイベントリセットボタン（デバッグ用） -->
-            <div style="margin-bottom: 16px; padding: 12px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px;">
-                <button onclick="if(window.resetEvents){window.resetEvents()}else{alert('resetEvents関数が見つかりません');console.log(window)}" style="width: 100%; padding: 10px; background: #ef4444; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
-                    🔄 イベントをリセット（デバッグ用）
-                </button>
-                <button onclick="localStorage.removeItem('hypolab_data');location.reload()" style="width: 100%; margin-top: 8px; padding: 10px; background: #dc2626; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
-                    💣 全データ削除（危険）
+            <div style="margin-bottom: 16px; padding: 12px; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px;">
+                <button onclick="const d=JSON.parse(localStorage.getItem('hypolab_data')||'{}');d.events={activeBoosts:[],lastEventCheck:null,milestoneNotifications:{},eventHistory:[],boostEnabled:true,forcedEvents:{}};localStorage.setItem('hypolab_data',JSON.stringify(d));location.reload()" style="width: 100%; padding: 10px; background: #3b82f6; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+                    🔄 イベントのみリセット（デバッグ用）
                 </button>
             </div>
             
