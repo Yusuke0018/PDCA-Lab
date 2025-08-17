@@ -10030,77 +10030,145 @@
                     const itemsWrapper = document.createElement('div');
                     itemsWrapper.style.cssText = 'padding: 8px 0 8px 12px;';
                     
-                    // 習慣ごとに題名のみをシンプルに表示
+                    // 習慣ごとに題名と展開可能な詳細を表示
                     habits.forEach(hypothesis => {
                         const habitContainer = document.createElement('div');
-                        habitContainer.style.cssText = 'margin-bottom: 6px;';
+                        habitContainer.style.cssText = 'margin-bottom: 8px;';
                         
-                        // 習慣題名（クリックで詳細画面へ）
+                        // 習慣題名（タップで詳細を展開）
                         const habitTitle = document.createElement('div');
+                        const habitKey = `habit-${hypothesis.id}`;
                         const isAchievedToday = hypothesis.achievements && hypothesis.achievements[todayKey];
                         
+                        // スマホ向けのタップしやすいスタイル
                         habitTitle.style.cssText = `
                             display: flex;
                             align-items: center;
                             gap: 8px;
-                            padding: 10px 12px;
+                            padding: 12px 14px;
                             background: var(--surface-light);
-                            border-radius: 8px;
+                            border-radius: 10px;
                             cursor: pointer;
                             user-select: none;
                             transition: all 0.2s;
                             border: 1px solid var(--border);
+                            min-height: 48px;
                         `;
                         
-                        habitTitle.onmouseover = () => {
+                        // タッチフィードバック
+                        habitTitle.addEventListener('touchstart', () => {
                             habitTitle.style.background = 'var(--surface)';
-                            habitTitle.style.transform = 'translateX(2px)';
-                        };
-                        habitTitle.onmouseout = () => {
+                            habitTitle.style.transform = 'scale(0.98)';
+                        });
+                        habitTitle.addEventListener('touchend', () => {
                             habitTitle.style.background = 'var(--surface-light)';
-                            habitTitle.style.transform = 'translateX(0)';
-                        };
-                        
-                        // 達成マーク（完了時のみ表示）
-                        const achievementMark = isAchievedToday 
-                            ? '<span style="font-size: 16px; color: #10b981;">✓</span>'
-                            : '';
-                        
-                        // 頻度表示
-                        let frequencyBadge = '';
-                        if (hypothesis.frequency && hypothesis.frequency.type === 'weekly') {
-                            frequencyBadge = `<span style="padding: 2px 6px; background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 999px; font-size: 10px; font-weight: 600;">週${hypothesis.frequency.count || 3}回</span>`;
-                        } else if (hypothesis.frequency && hypothesis.frequency.type === 'weekdays') {
-                            const weekdayNames = ['日', '月', '火', '水', '木', '金', '土'];
-                            const days = (hypothesis.frequency.weekdays || []).map(d => weekdayNames[d]).join('・');
-                            frequencyBadge = `<span style="padding: 2px 6px; background: rgba(139, 92, 246, 0.15); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 999px; font-size: 10px; font-weight: 600;">${days}</span>`;
-                        }
-                        
-                        // 達成マークがある場合はスペースを確保、ない場合は最小幅を設定
-                        const markContainer = achievementMark 
-                            ? achievementMark 
-                            : '<span style="display: inline-block; width: 16px;"></span>';
-                        
-                        habitTitle.innerHTML = `
-                            ${markContainer}
-                            <span style="flex: 1; font-weight: 500; font-size: 14px; color: var(--text-primary);">${escapeHTML(hypothesis.title)}</span>
-                            ${frequencyBadge}
-                            <span style="font-size: 14px; color: var(--text-secondary);">›</span>
-                        `;
-                        
-                        // クリックで詳細画面へ遷移
-                        habitTitle.onclick = () => {
-                            showProgressView(hypothesis.id);
-                        };
-                        
-                        // 長押し/右クリックで削除
-                        attachLongPressToDelete(habitTitle, hypothesis.id);
-                        habitTitle.addEventListener('contextmenu', (e) => {
-                            e.preventDefault();
-                            confirmDeleteHypothesis(hypothesis.id);
+                            habitTitle.style.transform = 'scale(1)';
                         });
                         
+                        // 達成マーク（完了時のみチェック表示）
+                        const achievementMark = isAchievedToday 
+                            ? '<span style="font-size: 20px; color: #10b981; min-width: 24px;">✓</span>'
+                            : '<span style="min-width: 24px; display: inline-block;"></span>';
+                        
+                        // 頻度表示（スマホ向けにサイズ調整）
+                        let frequencyBadge = '';
+                        if (hypothesis.frequency && hypothesis.frequency.type === 'weekly') {
+                            frequencyBadge = `<span style="padding: 3px 8px; background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap;">週${hypothesis.frequency.count || 3}</span>`;
+                        } else if (hypothesis.frequency && hypothesis.frequency.type === 'weekdays') {
+                            const weekdayNames = ['日', '月', '火', '水', '木', '金', '土'];
+                            const days = (hypothesis.frequency.weekdays || []).map(d => weekdayNames[d]).join('');
+                            frequencyBadge = `<span style="padding: 3px 8px; background: rgba(139, 92, 246, 0.15); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap;">${days}</span>`;
+                        }
+                        
+                        habitTitle.innerHTML = `
+                            ${achievementMark}
+                            <span style="flex: 1; font-weight: 500; font-size: 15px; color: var(--text-primary); line-height: 1.4;">${escapeHTML(hypothesis.title)}</span>
+                            ${frequencyBadge}
+                            <span style="font-size: 16px; color: var(--text-secondary); transition: transform 0.3s;" id="habit-toggle-${hypothesis.id}">▶</span>
+                        `;
+                        
+                        // 習慣詳細（デフォルトは非表示）
+                        const habitDetail = document.createElement('div');
+                        habitDetail.style.cssText = `
+                            overflow: hidden;
+                            max-height: 0;
+                            transition: max-height 0.3s ease-out;
+                            margin-left: 32px;
+                            margin-right: 8px;
+                        `;
+                        habitDetail.id = `habit-detail-${hypothesis.id}`;
+                        
+                        // 詳細コンテンツをシンプルに
+                        const detailContent = document.createElement('div');
+                        detailContent.style.cssText = `
+                            padding: 12px;
+                            margin-top: 8px;
+                            background: var(--surface);
+                            border-radius: 8px;
+                            border-left: 3px solid var(--primary);
+                        `;
+                        
+                        // 習慣の詳細情報
+                        const startDate = new Date(hypothesis.startDate);
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        startDate.setHours(0, 0, 0, 0);
+                        const timeDiff = today.getTime() - startDate.getTime();
+                        const daysPassed = Math.min(
+                            Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1),
+                            hypothesis.totalDays
+                        );
+                        
+                        // 達成率計算
+                        const intensity = hypothesis.intensity || {};
+                        let weightedAchieved = 0;
+                        for (let i = 0; i < hypothesis.totalDays; i++) {
+                            const d = new Date(startDate);
+                            d.setDate(startDate.getDate() + i);
+                            const key = dateKeyLocal(d);
+                            if (hypothesis.achievements && hypothesis.achievements[key]) {
+                                const mult = Number(intensity[key] ?? 1.0);
+                                weightedAchieved += mult;
+                            }
+                        }
+                        const displayRate = Math.min(100, Math.floor((weightedAchieved / hypothesis.totalDays) * 100));
+                        
+                        detailContent.innerHTML = `
+                            <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">
+                                ${escapeHTML(hypothesis.description)}
+                            </div>
+                            <div style="display: flex; gap: 16px; font-size: 12px; color: var(--text-secondary);">
+                                <span>📅 ${daysPassed}日目/${hypothesis.totalDays}日</span>
+                                <span>✨ 達成率 ${displayRate}%</span>
+                            </div>
+                            <button class="btn btn-primary" style="width: 100%; margin-top: 12px; padding: 10px; font-size: 14px;" onclick="event.stopPropagation(); showProgressView('${hypothesis.id}');">
+                                📊 詳細を見る
+                            </button>
+                        `;
+                        
+                        habitDetail.appendChild(detailContent);
+                        
+                        // タイトルをタップで詳細を展開/折りたたみ
+                        let isExpanded = false;
+                        habitTitle.onclick = (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const detail = document.getElementById(`habit-detail-${hypothesis.id}`);
+                            const toggle = document.getElementById(`habit-toggle-${hypothesis.id}`);
+                            
+                            if (isExpanded) {
+                                detail.style.maxHeight = '0';
+                                toggle.style.transform = 'rotate(0deg)';
+                                isExpanded = false;
+                            } else {
+                                detail.style.maxHeight = '500px';
+                                toggle.style.transform = 'rotate(90deg)';
+                                isExpanded = true;
+                            }
+                        };
+                        
                         habitContainer.appendChild(habitTitle);
+                        habitContainer.appendChild(habitDetail);
                         itemsWrapper.appendChild(habitContainer);
                     });
                     
