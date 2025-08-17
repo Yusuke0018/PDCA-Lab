@@ -618,8 +618,17 @@
             if (!parsed.cards) {
                 parsed.cards = {
                     inventory: [],
-                    pendingPenalties: []
+                    pendingPenalties: [],
+                    activeEffects: [],
+                    dropHistory: []
                 };
+            }
+            // 既存のcardsオブジェクトに必要なプロパティを追加
+            if (parsed.cards && !parsed.cards.activeEffects) {
+                parsed.cards.activeEffects = [];
+            }
+            if (parsed.cards && !parsed.cards.dropHistory) {
+                parsed.cards.dropHistory = [];
             }
             if (!parsed.completedHypotheses) {
                 parsed.completedHypotheses = [];
