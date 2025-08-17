@@ -10030,14 +10030,13 @@
                     const itemsWrapper = document.createElement('div');
                     itemsWrapper.style.cssText = 'padding: 8px 0 8px 12px;';
                     
-                    // 習慣ごとに題名と詳細を分けて表示
+                    // 習慣ごとに題名のみをシンプルに表示
                     habits.forEach(hypothesis => {
                         const habitContainer = document.createElement('div');
-                        habitContainer.style.cssText = 'margin-bottom: 8px;';
+                        habitContainer.style.cssText = 'margin-bottom: 6px;';
                         
-                        // 習慣題名（クリックで詳細を展開）
+                        // 習慣題名（クリックで詳細画面へ）
                         const habitTitle = document.createElement('div');
-                        const habitKey = `habit-${hypothesis.id}`;
                         const isAchievedToday = hypothesis.achievements && hypothesis.achievements[todayKey];
                         
                         habitTitle.style.cssText = `
@@ -10055,15 +10054,17 @@
                         
                         habitTitle.onmouseover = () => {
                             habitTitle.style.background = 'var(--surface)';
+                            habitTitle.style.transform = 'translateX(2px)';
                         };
                         habitTitle.onmouseout = () => {
                             habitTitle.style.background = 'var(--surface-light)';
+                            habitTitle.style.transform = 'translateX(0)';
                         };
                         
-                        // 達成/未達成マーク
+                        // 達成マーク（完了時のみ表示）
                         const achievementMark = isAchievedToday 
-                            ? '<span style="font-size: 18px; color: #10b981;">✅</span>'
-                            : '<span style="font-size: 18px; color: #ef4444;">❌</span>';
+                            ? '<span style="font-size: 16px; color: #10b981;">✓</span>'
+                            : '';
                         
                         // 頻度表示
                         let frequencyBadge = '';
@@ -10075,52 +10076,31 @@
                             frequencyBadge = `<span style="padding: 2px 6px; background: rgba(139, 92, 246, 0.15); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 999px; font-size: 10px; font-weight: 600;">${days}</span>`;
                         }
                         
+                        // 達成マークがある場合はスペースを確保、ない場合は最小幅を設定
+                        const markContainer = achievementMark 
+                            ? achievementMark 
+                            : '<span style="display: inline-block; width: 16px;"></span>';
+                        
                         habitTitle.innerHTML = `
-                            ${achievementMark}
+                            ${markContainer}
                             <span style="flex: 1; font-weight: 500; font-size: 14px; color: var(--text-primary);">${escapeHTML(hypothesis.title)}</span>
                             ${frequencyBadge}
-                            <span style="font-size: 14px; color: var(--text-secondary); transition: transform 0.3s;" id="habit-toggle-${hypothesis.id}">▶</span>
+                            <span style="font-size: 14px; color: var(--text-secondary);">›</span>
                         `;
                         
-                        // 習慣詳細（デフォルトは非表示）
-                        const habitDetail = document.createElement('div');
-                        habitDetail.style.cssText = `overflow: hidden; max-height: 0; transition: max-height 0.3s ease-out;`;
-                        habitDetail.id = `habit-detail-${hypothesis.id}`;
-                        
-                        const detailContent = createHypothesisItem(hypothesis, todayKey);
-                        detailContent.style.marginTop = '8px';
-                        detailContent.onclick = null; // 詳細表示の場合はクリックイベントを無効化
-                        
-                        // 詳細表示内に進捗表示ボタンを追加
-                        const viewProgressBtn = document.createElement('button');
-                        viewProgressBtn.className = 'btn btn-primary';
-                        viewProgressBtn.style.cssText = 'width: 100%; margin-top: 8px; padding: 8px; font-size: 13px;';
-                        viewProgressBtn.textContent = '📊 詳細を見る';
-                        viewProgressBtn.onclick = (e) => {
-                            e.stopPropagation();
+                        // クリックで詳細画面へ遷移
+                        habitTitle.onclick = () => {
                             showProgressView(hypothesis.id);
                         };
-                        detailContent.appendChild(viewProgressBtn);
                         
-                        habitDetail.appendChild(detailContent);
-                        
-                        // 題名クリックで詳細を展開/折りたたみ
-                        habitTitle.onclick = () => {
-                            const detail = document.getElementById(`habit-detail-${hypothesis.id}`);
-                            const toggle = document.getElementById(`habit-toggle-${hypothesis.id}`);
-                            const isOpen = detail.style.maxHeight !== '0px';
-                            
-                            if (isOpen) {
-                                detail.style.maxHeight = '0';
-                                toggle.textContent = '▶';
-                            } else {
-                                detail.style.maxHeight = '1000px';
-                                toggle.textContent = '▼';
-                            }
-                        };
+                        // 長押し/右クリックで削除
+                        attachLongPressToDelete(habitTitle, hypothesis.id);
+                        habitTitle.addEventListener('contextmenu', (e) => {
+                            e.preventDefault();
+                            confirmDeleteHypothesis(hypothesis.id);
+                        });
                         
                         habitContainer.appendChild(habitTitle);
-                        habitContainer.appendChild(habitDetail);
                         itemsWrapper.appendChild(habitContainer);
                     });
                     
