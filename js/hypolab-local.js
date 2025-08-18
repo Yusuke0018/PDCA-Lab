@@ -15180,49 +15180,10 @@
             updateEventDisplay();
         }
         
-        // デバッグ用：次のイベントに切り替える関数
-        function toggleActiveEvent() {
-            const data = loadData();
-            if (!data.events) data.events = {};
-            
-            // 現在のイベントのインデックスを取得
-            let currentIndex = -1;
-            if (data.events.activeBoosts && data.events.activeBoosts.length > 0) {
-                const currentId = data.events.activeBoosts[0].id;
-                currentIndex = EVENT_DEFINITIONS.findIndex(e => e.id === currentId);
-            }
-            
-            // 次のイベントを選択（循環）
-            const nextIndex = (currentIndex + 1) % EVENT_DEFINITIONS.length;
-            const nextEvent = EVENT_DEFINITIONS[nextIndex];
-            
-            // 週末スペシャルの場合は曜日を警告表示
-            const dayOfWeek = new Date().getDay();
-            const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
-            if (nextEvent.id === 'weekend_special' && !isWeekend) {
-                console.warn('⚠️ デバッグモード: 週末以外に週末スペシャルを設定しています');
-            }
-            
-            // イベントを更新
-            data.events.activeBoosts = [nextEvent];
-            data.events.lastEventCheck = dateKeyLocal(new Date());
-            saveData(data);
-            
-            // 表示を更新
-            updateEventDisplay();
-            const debugNote = (nextEvent.id === 'weekend_special' && !isWeekend) 
-                ? ' (デバッグ: 週末以外)' 
-                : '';
-            showNotification(`🎲 イベントを「${nextEvent.name}」に切り替えました${debugNote}`, 'success');
-            
-            console.log('イベント切り替え:', nextEvent, isWeekend ? '(週末)' : '(平日)');
-        }
-        
         // イベント関連関数をwindowオブジェクトに登録
         window.checkDailyEvents = checkDailyEvents;
         window.getDailyEvent = getDailyEvent;
         window.updateEventDisplay = updateEventDisplay;
-        window.toggleActiveEvent = toggleActiveEvent;
         
         
         // アクティブなカード効果を包括的に表示する関数
