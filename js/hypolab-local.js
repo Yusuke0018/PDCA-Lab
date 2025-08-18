@@ -13667,16 +13667,8 @@
             const debugButton = document.getElementById('debug-button');
             const debugPanel = document.getElementById('debug-panel');
             const debugToggle = document.getElementById('debug-toggle');
-            
-            // スマホ/タブレットではデバッグUIを表示しない
-            if (isMobileDevice()) {
-                if (debugButton) debugButton.style.display = 'none';
-                if (debugPanel) debugPanel.style.display = 'none';
-                if (debugToggle) debugToggle.style.display = 'none';
-                return;
-            }
 
-            // PCでのみデバッグボタンを表示
+            // 端末種別に関わらずデバッグボタンを表示（モバイルでも表示）
             if (debugButton) {
                 debugButton.style.display = 'block';
             }
@@ -13702,11 +13694,6 @@
         
         // デバッグモードのトグル
         function toggleDebugMode() {
-            // モバイルでは無効
-            if (isMobileDevice()) {
-                showNotification('⚠️ デバッグ機能はPCのみ利用できます', 'error');
-                return;
-            }
             const currentMode = localStorage.getItem('debugMode') === 'true';
             const newMode = !currentMode;
             localStorage.setItem('debugMode', newMode.toString());
