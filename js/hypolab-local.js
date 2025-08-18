@@ -13726,6 +13726,35 @@
             }
         }
 
+        // デバッグボタンが存在しなければ動的に生成し、常に表示されるようにする
+        function ensureDebugButton() {
+            let btn = document.getElementById('debug-button');
+            if (!btn) {
+                btn = document.createElement('button');
+                btn.id = 'debug-button';
+                btn.textContent = '🛠️ Debug';
+                btn.onclick = () => { try { openDebugMenu(); } catch (_) {} };
+                document.body.appendChild(btn);
+            }
+            // 常に最前面で見えるようスタイルを適用
+            Object.assign(btn.style, {
+                position: 'fixed',
+                right: '16px',
+                bottom: '88px',
+                zIndex: '3000',
+                border: 'none',
+                borderRadius: '999px',
+                padding: '10px 14px',
+                background: '#0ea5e9',
+                color: 'white',
+                fontWeight: '700',
+                boxShadow: '0 6px 16px rgba(0,0,0,0.25)',
+                cursor: 'pointer',
+                opacity: '0.9',
+                display: 'block'
+            });
+        }
+
         // デバッグ：カードを追加
         function debugAddCard(cardId) {
             if (isMobileDevice && isMobileDevice()) { showNotification('⚠️ デバッグ機能はPCのみ利用できます', 'error'); return; }
@@ -14878,11 +14907,15 @@
             document.addEventListener('DOMContentLoaded', () => {
                 initializeApp();
                 initTouchHandlers();
+                try { checkDebugMode(); } catch (_) {}
+                try { ensureDebugButton(); } catch (_) {}
             });
         } else {
             // すでにDOMが読み込まれている場合
             initializeApp();
             initTouchHandlers();
+            try { checkDebugMode(); } catch (_) {}
+            try { ensureDebugButton(); } catch (_) {}
         }
 
         // 日付切替を監視し、切替時にイベントを更新
