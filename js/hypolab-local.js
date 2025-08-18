@@ -9942,6 +9942,7 @@
                     <button class="button primary" onclick="markAllDaysAchieved()">✅ 現在の習慣を全日達成にする</button>
                     <button class="button secondary" onclick="toggleAlwaysComplete()">${isAlwaysComplete ? '🟢 いつでも完了: ON（クリックでOFF）' : '⚪ いつでも完了: OFF（クリックでON）'}</button>
                     <button class="button" onclick="debugRecheckTodayEvents()">🔄 今日のイベントを再判定</button>
+                    <button class="button" onclick="clearExpiredCardEffects()">🧹 期限切れカード効果をクリア</button>
                 </div>
                 <div class="modal-footer">
                     <button class="button" onclick="this.closest('.overlay').remove()">閉じる</button>
@@ -10004,6 +10005,51 @@
                 showNotification('❌ 再判定に失敗しました', 'error');
             }
         }
+        
+        // デバッグ：期限切れカード効果をクリア
+        function clearExpiredCardEffects() {
+            try {
+                const data = loadData();
+                if (!data.cards || !data.cards.activeEffects) {
+                    showNotification('⚠️ アクティブ効果がありません', 'info');
+                    return;
+                }
+                
+                const now = new Date();
+                const before = data.cards.activeEffects.length;
+                
+                // 期限切れ効果を削除
+                data.cards.activeEffects = data.cards.activeEffects.filter(effect => {
+                    if (effect.endDate) {
+                        const endDate = new Date(effect.endDate);
+                        if (endDate < now) {
+                            console.log(`期限切れ効果を削除: ${effect.cardId}, 期限: ${endDate.toLocaleString()}`);
+                            return false;
+                        }
+                    }
+                    return true;
+                });
+                
+                const after = data.cards.activeEffects.length;
+                const removed = before - after;
+                
+                saveData(data);
+                
+                // アクティブ効果表示を更新
+                if (typeof updateActiveEffectsDisplay === 'function') {
+                    updateActiveEffectsDisplay();
+                }
+                
+                showNotification(`🧹 ${removed}個の期限切れ効果をクリアしました`, 'success');
+                console.log(`期限切れ効果をクリア: ${before}個 → ${after}個`);
+            } catch (e) {
+                console.error('期限切れ効果クリアエラー:', e);
+                showNotification('❌ クリアに失敗しました', 'error');
+            }
+        }
+        
+        // windowオブジェクトに登録（コンソールから呼び出し可能）
+        window.clearExpiredCardEffects = clearExpiredCardEffects;
 
         // 現在の習慣リストを更新
         function updateCurrentHypothesisList() {
