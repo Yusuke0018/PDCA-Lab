@@ -1,7 +1,7 @@
 // Storage helpers extracted from hypolab-local.js (behavior unchanged)
 // Exposes STORAGE_KEY, loadData, saveData on window for backward compatibility.
 
-const STORAGE_KEY = 'hypolab_local_data';
+const STORAGE_KEY = 'habitlab_local_data';
 
 // データの読み込み
 function loadData() {

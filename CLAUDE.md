@@ -1,4 +1,4 @@
-# Claude Code Instructions for PDCA-Lab Project
+# Claude Code Instructions for HabitLab Project
 
 ## 重要な指示
 
@@ -22,7 +22,7 @@ HTMLファイルの動作確認時、`open`コマンドでローカルファイ�
 
 ## プロジェクト概要
 
-PDCA-Lab（HypoLab）は習慣追跡のためのシングルファイルPWAアプリケーションです。
+HabitLabは習慣追跡のためのシングルファイルPWAアプリケーションです。
 
 ### 主な機能
 - 習慣の作成と追跡
@@ -33,7 +33,7 @@ PDCA-Lab（HypoLab）は習慣追跡のためのシングルファイルPWAア�
 - データのエクスポート/インポート
 
 ### 技術スタック
-- 単一HTMLファイル（hypolab-local.html）
+- 単一HTMLファイル（habitlab-local.html）
 - LocalStorageによるデータ永続化
 - PWA対応
 - レスポンシブデザイン
