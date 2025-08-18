@@ -320,10 +320,28 @@
                 id: 'power_nap',
                 type: 'reward',
                 name: 'パワーナップ',
-                description: '次の習慣達成で+10pt',
+                description: '使用すると即座に10pt獲得',
                 icon: '😴',
                 rarity: 'common',
                 color: '#06b6d4'
+            },
+            shuffle_challenge: {
+                id: 'shuffle_challenge',
+                type: 'special',
+                name: 'チャレンジシャッフル',
+                description: '今日のチャレンジをランダムに変更',
+                icon: '🎯',
+                rarity: 'uncommon',
+                color: '#8b5cf6'
+            },
+            event_shuffle: {
+                id: 'event_shuffle',
+                type: 'special',
+                name: 'イベントシャッフル',
+                description: '今日のイベントをランダムに変更',
+                icon: '🎲',
+                rarity: 'uncommon',
+                color: '#f59e0b'
             },
             combo_surge: {
                 id: 'combo_surge',
@@ -4117,7 +4135,8 @@
             const cardPool = [
                 'point_gem', 'shield_card', 'challenge_card', 'recovery_card',
                 'boost_card', 'perfect_bonus', 'combo_master', 'double_point',
-                'effort_multiplier', 'protection_charm', 'time_extend'
+                'effort_multiplier', 'protection_charm', 'time_extend',
+                'power_nap', 'shuffle_challenge', 'event_shuffle'
             ];
             
             // ランダムに1枚選択
@@ -6851,6 +6870,10 @@
                         cardDiv.onclick = () => useMiniRainbow();
                     } else if (cardId === 'power_nap') {
                         cardDiv.onclick = () => usePowerNap();
+                    } else if (cardId === 'shuffle_challenge') {
+                        cardDiv.onclick = () => useShuffleChallenge();
+                    } else if (cardId === 'event_shuffle') {
+                        cardDiv.onclick = () => useEventShuffle();
                     } else if (cardId === 'combo_surge') {
                         cardDiv.onclick = () => useComboSurge();
                     } else if (cardId === 'afternoon_gem') {
@@ -14099,24 +14122,108 @@
             updateCardUseButton();
         }
 
-        // パワーナップ: 次の習慣達成で+10pt
+        // パワーナップ: 即座に10pt獲得
         function usePowerNap() {
             closeCardUseMenu();
             const data = loadData();
             const idx = data.cards.inventory.findIndex(c => c.cardId === 'power_nap' && !c.used);
             if (idx === -1) { showNotification('⚠️ パワーナップがありません', 'error'); return; }
             data.cards.inventory.splice(idx, 1);
-            if (!data.cards.activeEffects) data.cards.activeEffects = [];
-            data.cards.activeEffects.push({ 
-                cardId:'power_nap', 
-                type:'next_habit_bonus', 
-                value:10, 
-                used:false
-            });
+            
+            // 即座に10ポイント獲得
+            data.points.total += 10;
+            data.points.lifetime += 10;
+            
+            // カード使用を記録
+            if (!data.cards.dailyUsage) data.cards.dailyUsage = {};
+            const today = dateKeyLocal(new Date());
+            if (!data.cards.dailyUsage[today]) data.cards.dailyUsage[today] = [];
+            data.cards.dailyUsage[today].push({ cardId: 'power_nap', time: new Date().toISOString() });
+            
             saveData(data);
-            showCardEffect('😴 パワーナップ！','次の習慣達成で+10pt','\#06b6d4');
+            showCardEffect('😴 パワーナップ！','10pt獲得！','\#06b6d4');
+            updatePointDisplay();
             updateCardUseButton();
-            updateActiveEffectsDisplay();
+        }
+        
+        // チャレンジシャッフル: 今日のチャレンジを変更
+        function useShuffleChallenge() {
+            closeCardUseMenu();
+            const data = loadData();
+            const idx = data.cards.inventory.findIndex(c => c.cardId === 'shuffle_challenge' && !c.used);
+            if (idx === -1) { showNotification('⚠️ チャレンジシャッフルがありません', 'error'); return; }
+            data.cards.inventory.splice(idx, 1);
+            
+            // 今日のチャレンジをリセット
+            const today = dateKeyLocal(new Date());
+            
+            // デフォルトのチャレンジプール
+            const DAILY_CHALLENGES = [
+                { name: '朝活チャレンジ', description: '朝8時までに1つ習慣を達成', points: 5 },
+                { name: 'コンボマスター', description: '3つ連続で習慣を達成', points: 7 },
+                { name: 'カテゴリ制覇', description: '異なる3カテゴリの習慣を達成', points: 8 },
+                { name: 'スピードラン', description: '1時間以内に3つ習慣を達成', points: 10 },
+                { name: 'パーフェクトデー', description: '今日の習慣を全て達成', points: 15 }
+            ];
+            
+            // カスタムチャレンジがあれば追加
+            const customChallenges = data.challenges.customChallenges || [];
+            const allChallenges = [...DAILY_CHALLENGES, ...customChallenges];
+            
+            // ランダムに新しいチャレンジを選択
+            data.challenges.dailyChallenge = allChallenges[Math.floor(Math.random() * allChallenges.length)];
+            data.challenges.lastDailyReset = today;
+            
+            saveData(data);
+            showCardEffect('🎯 チャレンジシャッフル！','新しいチャレンジに変更！','\#8b5cf6');
+            
+            // ホーム画面のチャレンジ表示を更新
+            const dailyContainer = document.getElementById('daily-challenge-container');
+            if (dailyContainer && data.challenges.dailyChallenge) {
+                const challenge = data.challenges.dailyChallenge;
+                dailyContainer.innerHTML = `
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: var(--surface-light); border-radius: 8px;">
+                        <div>
+                            <div style="font-weight: 600; margin-bottom: 4px;">${challenge.name}</div>
+                            <div style="font-size: 12px; color: var(--text-secondary);">${challenge.description}</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 18px; font-weight: bold; color: #8b5cf6;">+${challenge.points}pt</div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            updateCardUseButton();
+        }
+        
+        // イベントシャッフル: 今日のイベントを変更
+        function useEventShuffle() {
+            closeCardUseMenu();
+            const data = loadData();
+            const idx = data.cards.inventory.findIndex(c => c.cardId === 'event_shuffle' && !c.used);
+            if (idx === -1) { showNotification('⚠️ イベントシャッフルがありません', 'error'); return; }
+            data.cards.inventory.splice(idx, 1);
+            
+            // イベントを強制的に再選択
+            const events = EVENT_DEFINITIONS.filter(e => {
+                // 週末スペシャルは週末のみ
+                if (e.id === 'weekend_special') {
+                    const day = new Date().getDay();
+                    return day === 0 || day === 6;
+                }
+                return true;
+            });
+            
+            const newEvent = events[Math.floor(Math.random() * events.length)];
+            data.events = data.events || {};
+            data.events.activeBoosts = [newEvent];
+            data.events.lastEventCheck = dateKeyLocal(new Date());
+            
+            saveData(data);
+            showCardEffect('🎲 イベントシャッフル！',`「${newEvent.name}」に変更！`,'\#f59e0b');
+            updateEventDisplay();
+            updateCardUseButton();
         }
 
         // コンボサージ: 今日のコンボ×1.5
