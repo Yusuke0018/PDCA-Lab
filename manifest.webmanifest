@@ -1,8 +1,8 @@
 {
-  "name": "HabitLab",
-  "short_name": "HabitLab",
+  "name": "HypoLab",
+  "short_name": "HypoLab",
   "description": "仮説を楽しく検証する習慣化ツール",
-  "start_url": "habitlab-local.html",
+  "start_url": "hypolab-local.html",
   "scope": "./",
   "display": "standalone",
   "background_color": "#0f172a",
@@ -31,13 +31,13 @@
     {
       "name": "新規仮説",
       "short_name": "新規",
-      "url": "habitlab-local.html#new",
+      "url": "hypolab-local.html#new",
       "icons": [{ "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
     },
     {
       "name": "進捗",
       "short_name": "進捗",
-      "url": "habitlab-local.html#progress",
+      "url": "hypolab-local.html#progress",
       "icons": [{ "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
     }
   ]

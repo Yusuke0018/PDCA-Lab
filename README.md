@@ -1,14 +1,14 @@
-# HabitLab
+# PDCA-Lab / HypoLab
 
 習慣化×ゲーミフィケーションのPWAアプリです。ローカルストレージのみで動作し、ネッ
 ト接続なしで日々の習慣・ジャーナル・ポイント・カード・イベント・チャレンジ・統計
 までを一括管理します。
 
-このREADMEは実装（`habitlab-local.html` と `js/habitlab-local.js`）に基づく最新仕
+このREADMEは実装（`hypolab-local.html` と `js/hypolab-local.js`）に基づく最新仕
 様を網羅的にまとめたものです。
 
 ## 概要（実運用の前提）
-- データはすべてブラウザの`localStorage`（キー: `habitlab_local_data`）に保存しま
+- データはすべてブラウザの`localStorage`（キー: `hypolab_local_data`）に保存しま
 す。
 - PWA対応（`manifest.webmanifest` + `sw.js`）。オフラインで動作します。
 - 日付キーはローカル日付ベースで、深夜2時までは「前日扱い」です（夜更かしガード
@@ -20,7 +20,7 @@ b_events_disabled = 'true'`で無効化できます（`enableEvents()/disableEve
 ルパあり）。
 
 ## 使い方（最短）
-1) `index.html` もしくは `habitlab-local.html` をブラウザで開きます（PWAとしてイ
+1) `index.html` もしくは `hypolab-local.html` をブラウザで開きます（PWAとしてイ
 ンストール可）。
 2) ホーム → 「➕ 新規習慣立案」から習慣を作成します。
 3) カレンダーで日をタップして達成を記録（強度選択: 軽め/基本/高強度）。
@@ -163,7 +163,7 @@ _category_boost`/`combo_multiplier`/`journal_multiplier`/`challenge_multiplier`/
 ## 技術メモ
 - 単一HTML+vanilla JS/CSS の構成（ビルド不要）。
 - `sw.js`で基本キャッシュ。`manifest.webmanifest`でPWA化。
-- 主要ファイル: `habitlab-local.html` / `css/habitlab-local.css` / `js/habitlab-loc
+- 主要ファイル: `hypolab-local.html` / `css/hypolab-local.css` / `js/hypolab-loc
 al.js`。
 
 ## よくある質問（仕様のポイント）
@@ -183,21 +183,21 @@ al.js`。
 ## 📁 ファイル構成
 
 ```
-HabitLab/
-├── index.html                 # リダイレクトページ（habitlab-local.htmlへ）
-├── habitlab-local.html          # メインアプリケーション（単一HTMLファイル）
+PDCA-Lab/
+├── index.html                 # リダイレクトページ（hypolab-local.htmlへ）
+├── hypolab-local.html          # メインアプリケーション（単一HTMLファイル）
 ├── manifest.webmanifest        # PWA設定ファイル
 ├── sw.js                       # Service Worker（オフライン対応）
 ├── .nojekyll                   # GitHub Pages用設定
 ├── css/
-│   └── habitlab-local.css       # スタイルシート
+│   └── hypolab-local.css       # スタイルシート
 ├── js/
-│   ├── habitlab-local.js        # メインのJavaScript（14,000行以上）
+│   ├── hypolab-local.js        # メインのJavaScript（14,000行以上）
 │   └── modules/
-│       ├── habitlab-utils.js   # ユーティリティ関数
-│       ├── habitlab-storage.js # データ保存・読み込み
-│       ├── habitlab-points.js  # ポイントシステム
-│       └── habitlab-events.js  # イベントシステム
+│       ├── hypolab-utils.js   # ユーティリティ関数
+│       ├── hypolab-storage.js # データ保存・読み込み
+│       ├── hypolab-points.js  # ポイントシステム
+│       └── hypolab-events.js  # イベントシステム
 ├── icons/
 │   └── icon.svg                # アプリアイコン
 ├── archive/                    # バックアップファイル
@@ -214,7 +214,7 @@ HabitLab/
 
 ### データ構造（localStorage）
 
-#### メインデータ（`habitlab_local_data`）
+#### メインデータ（`hypolab_local_data`）
 ```javascript
 {
   "currentHypotheses": [         // 現在進行中の習慣
@@ -301,7 +301,7 @@ HabitLab/
 }
 ```
 
-### 主要関数一覧（js/habitlab-local.js）
+### 主要関数一覧（js/hypolab-local.js）
 
 #### データ管理
 - **`loadData()`** (行602): localStorageからデータを読み込み
@@ -395,41 +395,41 @@ HabitLab/
   - 強度選択モーダルに「未達成として記録」ボタンを追加
   - 未達成選択時に-5ptのペナルティを適用
   - カレンダーで未達成日を赤色表示（クリックで取り消し可能、+5pt返却）
-  - 関連ファイル: `js/habitlab-local.js`（行7658-7709, 7358-7364, 7882-7927）
+  - 関連ファイル: `js/hypolab-local.js`（行7658-7709, 7358-7364, 7882-7927）
 
 - **週N回習慣の未達成ペナルティ**
   - 週N回設定の習慣で目標回数に達しなかった場合、不足分×5ptのペナルティ
   - 週が終了したタイミングで自動計算・適用
   - 重複適用防止機能付き
-  - 関連ファイル: `js/habitlab-local.js`（行7453-7502）
+  - 関連ファイル: `js/hypolab-local.js`（行7453-7502）
 
 ## 📦 モジュールファイル詳細
 
-### js/modules/habitlab-utils.js
+### js/modules/hypolab-utils.js
 **共通ユーティリティ関数モジュール**
 - **`escapeHTML(str)`**: HTMLエスケープ処理
 - **`dateKeyLocal(date)`**: 日付をYYYY-MM-DD形式のキーに変換
 - **`getTargetDaysForHypothesis(hypothesis)`**: 習慣の目標日数を頻度設定に基づいて計算
 
-### js/modules/habitlab-storage.js
+### js/modules/hypolab-storage.js
 **データ永続化モジュール**
-- **`STORAGE_KEY`**: LocalStorageのキー名（'habitlab_local_data'）
+- **`STORAGE_KEY`**: LocalStorageのキー名（'hypolab_local_data'）
 - **`loadData()`**: LocalStorageからデータを読み込み、必要に応じて初期化
 - **`saveData(data)`**: データをLocalStorageに保存
 
-### js/modules/habitlab-points.js
+### js/modules/hypolab-points.js
 **ポイントシステムモジュール**
 - **`LEVEL_THRESHOLDS`**: レベル定義配列（レベル1〜10以上）
 - **`calculateLevel(lifetimeEarned)`**: 累計獲得ポイントからレベルを計算
 - **`calculatePointsWithBoosts(basePoints, source, category, habitId)`**: ブースト効果を適用したポイント計算
 
-### js/modules/habitlab-events.js
+### js/modules/hypolab-events.js
 **イベントシステムモジュール**
 - **`checkDailyEvents()`**: デイリーイベントのチェックと生成
 - **`applyEventBoost(eventId, value)`**: イベントブーストの適用
 - **`clearOldEvents()`**: 期限切れイベントのクリーンアップ
 
-**注意**: これらのモジュールは`habitlab-local.js`から抽出されたもので、互換性のためwindowオブジェクトに関数を登録しています。
+**注意**: これらのモジュールは`hypolab-local.js`から抽出されたもので、互換性のためwindowオブジェクトに関数を登録しています。
 
 ## 🔧 開発者向けガイドライン
 
@@ -543,7 +543,7 @@ URLに`?debug=true`を追加すると詳細なログが表示されます
 
 ## 🤝 貢献
 
-バグ報告や機能要望は[GitHubリポジトリ](https://github.com/yourusername/HabitLab)のIssuesへお願いします。
+バグ報告や機能要望は[GitHubリポジトリ](https://github.com/yourusername/PDCA-Lab)のIssuesへお願いします。
 
 ## 📄 ライセンス
 
@@ -551,4 +551,4 @@ MIT License
 
 ---
 
-Made with ❤️ by HabitLab Team
+Made with ❤️ by PDCA-Lab Team

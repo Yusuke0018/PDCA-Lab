@@ -6,7 +6,7 @@
         }
 
         // ローカルストレージのキー（モジュール存在時は再定義しない）
-        window.STORAGE_KEY = window.STORAGE_KEY || 'habitlab_local_data';
+        window.STORAGE_KEY = window.STORAGE_KEY || 'hypolab_local_data';
 
         // 現在の習慣
         let currentHypothesis = null;
@@ -408,7 +408,7 @@
                 if (q === 'off' || q === 'disable') return true;
             } catch (_) {}
             try {
-                const v = localStorage.getItem('habitlab_events_disabled');
+                const v = localStorage.getItem('hypolab_events_disabled');
                 if (v === 'true') return true;
                 if (v === 'false') return false;
             } catch (_) {}
@@ -443,8 +443,8 @@
         ];
         
         // 手動切替用ヘルパー
-        window.enableEvents = () => { try { localStorage.setItem('habitlab_events_disabled','false'); } catch(_){} location.reload(); };
-        window.disableEvents = () => { try { localStorage.setItem('habitlab_events_disabled','true'); } catch(_){} location.reload(); };
+        window.enableEvents = () => { try { localStorage.setItem('hypolab_events_disabled','false'); } catch(_){} location.reload(); };
+        window.disableEvents = () => { try { localStorage.setItem('hypolab_events_disabled','true'); } catch(_){} location.reload(); };
 
         // 期間中イベント定義
         const HABIT_EVENTS = {
@@ -14952,7 +14952,7 @@
                 const exportData = {
                     version: '3.0.0',
                     exportDate: new Date().toISOString(),
-                    appVersion: 'HabitLab v3.3.0',
+                    appVersion: 'PDCA-Lab v3.3.0',
                     // LocalStorageの全データをそのまま保存
                     // 含まれるデータ:
                     // - currentHypotheses: 現在の習慣リスト
@@ -15058,7 +15058,7 @@
                     }
                     else {
                         console.error('認識できないデータ形式:', importedData);
-                        throw new Error('サポートされていないファイル形式です。\n\nHabitLabからエクスポートしたファイルを選択してください。');
+                        throw new Error('サポートされていないファイル形式です。\n\nPDCA-Labからエクスポートしたファイルを選択してください。');
                     }
                     
                     // データの必須プロパティを確認・補完

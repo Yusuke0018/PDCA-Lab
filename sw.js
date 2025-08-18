@@ -1,22 +1,22 @@
 // GitHub Pagesなどサブパス配信でも動くようにベースパス対応
 const VERSION = 'v9';
-const CACHE_NAME = `habitlab-cache-${VERSION}`;
+const CACHE_NAME = `hypolab-cache-${VERSION}`;
 
-// ベースURL（例: https://example.com/HabitLab/）
+// ベースURL（例: https://example.com/PDCA-Lab/）
 const BASE_URL = new URL(self.registration.scope);
 
 // キャッシュしたいコアアセット（相対パスで定義）
 const CORE_ASSETS = [
   // HTML
-  'habitlab-local.html',
+  'hypolab-local.html',
   // CSS
-  'css/habitlab-local.css',
+  'css/hypolab-local.css',
   // JS (main + modules)
-  'js/habitlab-local.js',
-  'js/modules/habitlab-utils.js',
-  'js/modules/habitlab-storage.js',
-  'js/modules/habitlab-events.js',
-  'js/modules/habitlab-points.js',
+  'js/hypolab-local.js',
+  'js/modules/hypolab-utils.js',
+  'js/modules/hypolab-storage.js',
+  'js/modules/hypolab-events.js',
+  'js/modules/hypolab-points.js',
   // Manifest & icons
   'manifest.webmanifest',
   'icons/icon.svg'
@@ -59,7 +59,7 @@ self.addEventListener('fetch', (event) => {
   // ナビゲーションはネット優先 + オフラインフォールバック
   if (req.mode === 'navigate' && sameOrigin) {
     event.respondWith(
-      fetch(req).catch(() => caches.match(toAbs('habitlab-local.html')))
+      fetch(req).catch(() => caches.match(toAbs('hypolab-local.html')))
     );
     return;
   }
