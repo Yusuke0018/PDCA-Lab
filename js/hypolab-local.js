@@ -15150,9 +15150,69 @@
         }
         
         // デイリーイベントをチェック
-        // イベント関連関数をwindowオブジェクトに登録（checkDailyEventsはイベントモジュールで定義済み）
+        // デイリーイベントをチェックする関数
+        function checkDailyEvents() {
+            if (EVENTS_DISABLED) {
+                console.log('イベント機能が無効化されています');
+                return;
+            }
+            
+            const data = loadData();
+            const today = dateKeyLocal(new Date());
+            
+            // 最後のチェック日時と比較
+            if (data.events?.lastEventCheck === today) {
+                console.log('本日のイベントはチェック済みです');
+                return;
+            }
+            
+            // イベントを取得して保存
+            const event = getDailyEvent();
+            if (event) {
+                data.events = data.events || {};
+                data.events.lastEventCheck = today;
+                data.events.activeBoosts = [event];
+                saveData(data);
+                console.log('本日のイベント:', event.name);
+            }
+            
+            // 表示を更新
+            updateEventDisplay();
+        }
+        
+        // デバッグ用：次のイベントに切り替える関数
+        function toggleActiveEvent() {
+            const data = loadData();
+            if (!data.events) data.events = {};
+            
+            // 現在のイベントのインデックスを取得
+            let currentIndex = -1;
+            if (data.events.activeBoosts && data.events.activeBoosts.length > 0) {
+                const currentId = data.events.activeBoosts[0].id;
+                currentIndex = EVENT_DEFINITIONS.findIndex(e => e.id === currentId);
+            }
+            
+            // 次のイベントを選択（循環）
+            const nextIndex = (currentIndex + 1) % EVENT_DEFINITIONS.length;
+            const nextEvent = EVENT_DEFINITIONS[nextIndex];
+            
+            // イベントを更新
+            data.events.activeBoosts = [nextEvent];
+            data.events.lastEventCheck = dateKeyLocal(new Date());
+            saveData(data);
+            
+            // 表示を更新
+            updateEventDisplay();
+            showNotification(`🎲 イベントを「${nextEvent.name}」に切り替えました`, 'success');
+            
+            console.log('イベント切り替え:', nextEvent);
+        }
+        
+        // イベント関連関数をwindowオブジェクトに登録
+        window.checkDailyEvents = checkDailyEvents;
         window.getDailyEvent = getDailyEvent;
         window.updateEventDisplay = updateEventDisplay;
+        window.toggleActiveEvent = toggleActiveEvent;
         
         
         // アクティブなカード効果を包括的に表示する関数

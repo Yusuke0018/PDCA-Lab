@@ -105,8 +105,23 @@
         <div id="home-view">
             
             <!-- イベント通知セクション -->
-            <div id="active-events" class="card" style="margin-bottom: 16px; background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1)); border: 1px solid rgba(251, 191, 36, 0.3); display: none;">
+            <div id="active-events" class="card" style="margin-bottom: 16px; background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1)); border: 1px solid rgba(251, 191, 36, 0.3); display: none; position: relative;">
                 <!-- 動的に生成 -->
+                <!-- デバッグ用イベント切り替えボタン -->
+                <button onclick="toggleActiveEvent()" style="
+                    position: absolute;
+                    top: 8px;
+                    right: 8px;
+                    background: rgba(255, 255, 255, 0.9);
+                    border: 1px solid rgba(251, 191, 36, 0.5);
+                    border-radius: 6px;
+                    padding: 4px 8px;
+                    font-size: 12px;
+                    cursor: pointer;
+                    z-index: 10;
+                " title="デバッグ: イベントを切り替え">
+                    🔄
+                </button>
             </div>
             
             <!-- デイリージャーナルセクション -->
