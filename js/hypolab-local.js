@@ -10048,7 +10048,11 @@
             }
         }
         
-        // windowオブジェクトに登録（コンソールから呼び出し可能）
+        // デバッグ関数をwindowオブジェクトに登録（HTMLから呼び出し可能）
+        window.openDebugMenu = openDebugMenu;
+        window.markAllDaysAchieved = markAllDaysAchieved;
+        window.toggleAlwaysComplete = toggleAlwaysComplete;
+        window.debugRecheckTodayEvents = debugRecheckTodayEvents;
         window.clearExpiredCardEffects = clearExpiredCardEffects;
 
         // 現在の習慣リストを更新
