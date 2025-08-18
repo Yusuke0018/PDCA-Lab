@@ -755,6 +755,23 @@
                 parsed.challenges.completedThisWeek = [];
                 parsed.challenges.lastWeeklyReset = weekStart.toISOString();
             }
+            
+            // 期限切れのカード効果をクリーンアップ
+            if (parsed.cards && parsed.cards.activeEffects) {
+                const now = new Date();
+                parsed.cards.activeEffects = parsed.cards.activeEffects.filter(effect => {
+                    // endDateが存在する場合、期限をチェック
+                    if (effect.endDate) {
+                        const endDate = new Date(effect.endDate);
+                        if (endDate < now) {
+                            console.log(`期限切れ効果を削除: ${effect.cardId}`);
+                            return false; // 期限切れなので削除
+                        }
+                    }
+                    return true; // 期限内または無期限なので保持
+                });
+            }
+            
             return parsed;
         }
 
@@ -15045,20 +15062,46 @@
             // テーマを初期化
             initializeTheme();
 
-            // 削除カードのクリーンアップ（プロテクトシールドを排除）
+            // 削除カードのクリーンアップと期限切れ効果の削除
             try {
                 const data = loadData();
                 if (data && data.cards) {
+                    let needsSave = false;
+                    
+                    // プロテクトシールドを削除
                     if (Array.isArray(data.cards.inventory)) {
+                        const oldLength = data.cards.inventory.length;
                         data.cards.inventory = data.cards.inventory.filter(c => c.cardId !== 'protect_shield');
+                        if (oldLength !== data.cards.inventory.length) needsSave = true;
                     }
                     if (Array.isArray(data.cards.pendingPenalties)) {
+                        const oldLength = data.cards.pendingPenalties.length;
                         data.cards.pendingPenalties = data.cards.pendingPenalties.filter(c => c.cardId !== 'protect_shield');
+                        if (oldLength !== data.cards.pendingPenalties.length) needsSave = true;
                     }
                     if (Array.isArray(data.cards.activeEffects)) {
-                        data.cards.activeEffects = data.cards.activeEffects.filter(e => e.cardId !== 'protect_shield');
+                        const oldLength = data.cards.activeEffects.length;
+                        const now = new Date();
+                        data.cards.activeEffects = data.cards.activeEffects.filter(e => {
+                            // プロテクトシールドを削除
+                            if (e.cardId === 'protect_shield') return false;
+                            // 期限切れ効果を削除
+                            if (e.endDate) {
+                                const endDate = new Date(e.endDate);
+                                if (endDate < now) {
+                                    console.log(`初期化時に期限切れ効果を削除: ${e.cardId}`);
+                                    return false;
+                                }
+                            }
+                            return true;
+                        });
+                        if (oldLength !== data.cards.activeEffects.length) needsSave = true;
                     }
-                    saveData(data);
+                    
+                    if (needsSave) {
+                        saveData(data);
+                        console.log('期限切れカード効果をクリーンアップしました');
+                    }
                 }
             } catch (_) { /* noop */ }
             
