@@ -15196,6 +15196,13 @@
             const nextIndex = (currentIndex + 1) % EVENT_DEFINITIONS.length;
             const nextEvent = EVENT_DEFINITIONS[nextIndex];
             
+            // 週末スペシャルの場合は曜日を警告表示
+            const dayOfWeek = new Date().getDay();
+            const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+            if (nextEvent.id === 'weekend_special' && !isWeekend) {
+                console.warn('⚠️ デバッグモード: 週末以外に週末スペシャルを設定しています');
+            }
+            
             // イベントを更新
             data.events.activeBoosts = [nextEvent];
             data.events.lastEventCheck = dateKeyLocal(new Date());
@@ -15203,9 +15210,12 @@
             
             // 表示を更新
             updateEventDisplay();
-            showNotification(`🎲 イベントを「${nextEvent.name}」に切り替えました`, 'success');
+            const debugNote = (nextEvent.id === 'weekend_special' && !isWeekend) 
+                ? ' (デバッグ: 週末以外)' 
+                : '';
+            showNotification(`🎲 イベントを「${nextEvent.name}」に切り替えました${debugNote}`, 'success');
             
-            console.log('イベント切り替え:', nextEvent);
+            console.log('イベント切り替え:', nextEvent, isWeekend ? '(週末)' : '(平日)');
         }
         
         // イベント関連関数をwindowオブジェクトに登録
