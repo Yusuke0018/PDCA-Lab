@@ -15014,15 +15014,11 @@
             document.addEventListener('DOMContentLoaded', () => {
                 initializeApp();
                 initTouchHandlers();
-                try { checkDebugMode(); } catch (_) {}
-                try { ensureDebugButton(); } catch (_) {}
             });
         } else {
             // すでにDOMが読み込まれている場合
             initializeApp();
             initTouchHandlers();
-            try { checkDebugMode(); } catch (_) {}
-            try { ensureDebugButton(); } catch (_) {}
         }
 
         // 日付切替を監視し、切替時にイベントを更新
@@ -15134,7 +15130,6 @@
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => {
                 setupSwipeListeners();
-                checkDebugMode();
                 
                 // モバイルデバイスの場合のみスワイプインジケーターを表示
                 if ('ontouchstart' in window) {
@@ -15143,7 +15138,6 @@
             });
         } else {
             setupSwipeListeners();
-            checkDebugMode();
             
             // モバイルデバイスの場合のみスワイプインジケーターを表示
             if ('ontouchstart' in window) {
