@@ -7395,6 +7395,13 @@
                     // 週●回で目標達成済みでも追加記録可能なのでバッジ表示を削除
                 } else if (cellDate > today && !window.skipTicketMode) {
                     dayCell.classList.add('future');
+                } else if (window.currentHypothesis.failures && window.currentHypothesis.failures[dateKey]) {
+                    // 未達成として記録された日
+                    dayCell.classList.add('failed');
+                    dayCell.style.background = 'rgba(239, 68, 68, 0.2)';
+                    dayCell.style.border = '2px solid #ef4444';
+                    dayCell.style.cursor = 'pointer';
+                    dayCell.onclick = () => toggleDayStatus(dateKey, dayCell);
                 } else if (window.currentHypothesis.achievements[dateKey]) {
                     dayCell.classList.add('achieved');
                     // 達成済みでもクリック可能にする（取り消しできるように）
@@ -7653,6 +7660,13 @@
                         <div style="font-size: 18px; font-weight: bold;">3pt</div>
                     </button>
                 </div>
+                <div style="margin: 20px 0; border-top: 1px solid var(--border); padding-top: 20px;">
+                    <button id="fail-btn" style="width: 100%; padding: 15px; border-radius: 10px; border: 2px solid #ef4444; background: rgba(239, 68, 68, 0.1); color: #ef4444; cursor: pointer; font-weight: bold;">
+                        <div style="font-size: 20px;">❌</div>
+                        <div style="margin-top: 5px;">未達成として記録</div>
+                        <div style="font-size: 18px; font-weight: bold;">-5pt</div>
+                    </button>
+                </div>
                 <div class="modal-footer">
                     <button class="button secondary" onclick="this.closest('.overlay').remove()">キャンセル</button>
                 </div>
@@ -7670,12 +7684,76 @@
                 };
             });
             
+            // 未達成ボタンのクリック処理
+            const failBtn = modal.querySelector('#fail-btn');
+            if (failBtn) {
+                failBtn.onclick = () => {
+                    applyFailure(dateKey, dayCell);
+                    overlay.remove();
+                };
+            }
+            
             // オーバーレイクリックで閉じる
             overlay.onclick = (e) => {
                 if (e.target === overlay) {
                     overlay.remove();
                 }
             };
+        }
+        
+        // 未達成として記録（-5ポイントのペナルティ）
+        function applyFailure(dateKey, dayCell) {
+            // 未達成フラグを保存
+            if (!window.currentHypothesis.failures) {
+                window.currentHypothesis.failures = {};
+            }
+            window.currentHypothesis.failures[dateKey] = true;
+            
+            // 見た目を更新（特別なスタイルで表示）
+            dayCell.classList.remove('not-achieved');
+            dayCell.classList.remove('achieved');
+            dayCell.classList.add('failed');
+            dayCell.style.background = 'rgba(239, 68, 68, 0.2)';
+            dayCell.style.border = '2px solid #ef4444';
+            
+            // -5ポイントのペナルティを適用
+            const data = loadData();
+            const penaltyAmount = 5;
+            
+            // ポイント減算
+            data.pointSystem.currentPoints = Math.max(0, data.pointSystem.currentPoints - penaltyAmount);
+            
+            // トランザクション記録
+            data.pointSystem.transactions.unshift({
+                timestamp: new Date().toISOString(),
+                type: 'penalty',
+                amount: -penaltyAmount,
+                source: 'failure',
+                description: `${window.currentHypothesis.title} 未達成`,
+                habitId: window.currentHypothesis.id,
+                dateKey: dateKey
+            });
+            
+            // トランザクション履歴を制限
+            if (data.pointSystem.transactions.length > 100) {
+                data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100);
+            }
+            
+            // 習慣データを保存
+            const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (index !== -1) {
+                data.currentHypotheses[index].failures = window.currentHypothesis.failures;
+            }
+            
+            saveData(data);
+            
+            // UI更新
+            updatePointDisplay();
+            updateProgress();
+            updateCalendar();
+            
+            // 通知を表示
+            showNotification(`❌ ${window.currentHypothesis.title} 未達成\n-${penaltyAmount}pt`, 'error', 3);
         }
         
         // 強度を適用して達成状態にする
@@ -7837,10 +7915,57 @@
                 // 達成済みかどうかのみチェック（トグル処理のため）
             }
             
-            if (!window.currentHypothesis.achievements[dateKey]) {
-                // 達成状態にする前に強度選択モーダルを表示
+            if (!window.currentHypothesis.achievements[dateKey] && (!window.currentHypothesis.failures || !window.currentHypothesis.failures[dateKey])) {
+                // 未記録の日 → 強度選択モーダルを表示
                 showIntensitySelectionModal(dateKey, dayCell);
                 // 注：カード取得チェックはapplyAchievementWithIntensity内で行う
+            } else if (window.currentHypothesis.failures && window.currentHypothesis.failures[dateKey]) {
+                // 未達成の日 → 取り消す（ペナルティポイントを返す）
+                delete window.currentHypothesis.failures[dateKey];
+                dayCell.classList.remove('failed');
+                dayCell.classList.add('not-achieved');
+                dayCell.style.background = '';
+                dayCell.style.border = '';
+                
+                // ペナルティポイントを返す（+5ポイント）
+                const data = loadData();
+                const refundAmount = 5;
+                
+                // ポイント加算
+                data.pointSystem.currentPoints += refundAmount;
+                
+                // トランザクション記録
+                data.pointSystem.transactions.unshift({
+                    timestamp: new Date().toISOString(),
+                    type: 'refund',
+                    amount: refundAmount,
+                    source: 'failure_cancel',
+                    description: `${window.currentHypothesis.title} 未達成取り消し`,
+                    habitId: window.currentHypothesis.id,
+                    dateKey: dateKey
+                });
+                
+                // トランザクション履歴を制限
+                if (data.pointSystem.transactions.length > 100) {
+                    data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100);
+                }
+                
+                // 習慣データを保存
+                const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+                if (index !== -1) {
+                    data.currentHypotheses[index].failures = window.currentHypothesis.failures;
+                }
+                
+                saveData(data);
+                
+                // UI更新
+                updatePointDisplay();
+                updateProgress();
+                updateCalendar();
+                
+                // 通知を表示
+                showNotification(`${window.currentHypothesis.title} 未達成を取り消しました\n+${refundAmount}pt`, 'success', 2);
+                
             } else {
                 // 達成を取り消す（ポイントを減算する）
                 delete window.currentHypothesis.achievements[dateKey];
