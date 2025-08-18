@@ -9901,6 +9901,7 @@
                 <div style="display:grid; gap:12px;">
                     <button class="button primary" onclick="markAllDaysAchieved()">✅ 現在の習慣を全日達成にする</button>
                     <button class="button secondary" onclick="toggleAlwaysComplete()">${isAlwaysComplete ? '🟢 いつでも完了: ON（クリックでOFF）' : '⚪ いつでも完了: OFF（クリックでON）'}</button>
+                    <button class="button" onclick="debugRecheckTodayEvents()">🔄 今日のイベントを再判定</button>
                 </div>
                 <div class="modal-footer">
                     <button class="button" onclick="this.closest('.overlay').remove()">閉じる</button>
@@ -9944,6 +9945,24 @@
             openDebugMenu();
             updateProgress();
             showNotification(`いつでも完了: ${data.meta.debugAlwaysComplete ? 'ON' : 'OFF'}`, 'info');
+        }
+
+        // デバッグ：今日のイベントを再判定
+        function debugRecheckTodayEvents() {
+            try {
+                const data = loadData();
+                if (!data.events) data.events = {};
+                data.events.lastEventCheck = null;
+                data.events.activeBoosts = [];
+                saveData(data);
+
+                if (typeof checkDailyEvents === 'function') checkDailyEvents();
+                if (typeof updateEventDisplay === 'function') updateEventDisplay();
+                showNotification('🔄 今日のイベントを再判定しました', 'success');
+            } catch (e) {
+                console.error('デバッグ再判定エラー:', e);
+                showNotification('❌ 再判定に失敗しました', 'error');
+            }
         }
 
         // 現在の習慣リストを更新
@@ -14878,7 +14897,27 @@
             initializeApp();
             initTouchHandlers();
         }
-        
+
+        // 日付切替を監視し、切替時にイベントを更新
+        function startDailyRolloverWatcher() {
+            let lastDay = new Date().toDateString();
+            const checkRollover = () => {
+                try {
+                    const today = new Date().toDateString();
+                    if (today !== lastDay) {
+                        lastDay = today;
+                        try { if (typeof checkDailyEvents === 'function') checkDailyEvents(); } catch (_) {}
+                        try { if (typeof updateEventDisplay === 'function') updateEventDisplay(); } catch (_) {}
+                    }
+                } catch (_) { /* noop */ }
+            };
+            // 1分毎に確認
+            setInterval(checkRollover, 60 * 1000);
+            // 復帰・フォーカス時に即時確認
+            window.addEventListener('visibilitychange', () => { if (!document.hidden) checkRollover(); });
+            window.addEventListener('focus', checkRollover);
+        }
+
         function initializeApp() {
             // テーマを初期化
             initializeTheme();
@@ -14935,6 +14974,8 @@
             
             // イベントチェック
             checkDailyEvents();
+            // 日付切替の自動監視開始
+            startDailyRolloverWatcher();
             
             // アクティブなカード効果を表示
             updateActiveEffectsDisplay();
