@@ -7450,6 +7450,57 @@
                 calendarGrid.appendChild(dayCell);
             }
             
+            // 週N回の習慣で未達成分のペナルティをチェック
+            if (frequency && frequency.type === 'weekly') {
+                // 現在の週番号を取得
+                const currentWeekNum = getWeekNumber(today);
+                
+                // 完了した週についてペナルティを適用
+                weeklyAchievements.forEach((weekData, weekNum) => {
+                    // 現在の週より前の週で、目標回数に達していない場合
+                    if (weekNum < currentWeekNum && weekData.achieved < weekData.required) {
+                        const shortage = weekData.required - weekData.achieved;
+                        const penaltyKey = `week_${window.currentHypothesis.id}_${weekNum}_penalty`;
+                        
+                        // すでにペナルティを適用済みかチェック
+                        const data = loadData();
+                        if (!data.meta) data.meta = {};
+                        if (!data.meta.weeklyPenalties) data.meta.weeklyPenalties = {};
+                        
+                        if (!data.meta.weeklyPenalties[penaltyKey]) {
+                            // ペナルティを適用
+                            const penaltyAmount = shortage * 5;
+                            data.pointSystem.currentPoints = Math.max(0, data.pointSystem.currentPoints - penaltyAmount);
+                            
+                            // トランザクション記録
+                            data.pointSystem.transactions.unshift({
+                                timestamp: new Date().toISOString(),
+                                type: 'penalty',
+                                amount: -penaltyAmount,
+                                source: 'weekly_shortage',
+                                description: `${window.currentHypothesis.title} 第${weekNum}週 未達成分 (${shortage}回不足)`,
+                                habitId: window.currentHypothesis.id,
+                                weekNum: weekNum
+                            });
+                            
+                            // トランザクション履歴を制限
+                            if (data.pointSystem.transactions.length > 100) {
+                                data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100);
+                            }
+                            
+                            // ペナルティ適用済みフラグを保存
+                            data.meta.weeklyPenalties[penaltyKey] = true;
+                            
+                            saveData(data);
+                            updatePointDisplay();
+                            
+                            // 通知を表示
+                            showNotification(`第${weekNum}週の未達成ペナルティ\n${shortage}回不足 -${penaltyAmount}pt`, 'error', 3);
+                        }
+                    }
+                });
+            }
+            
             // 期間情報と頻度情報を更新
             let frequencyInfo = '';
             if (frequency) {
