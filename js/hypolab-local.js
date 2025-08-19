@@ -7815,6 +7815,7 @@
             updatePointDisplay();
             updateProgress();
             updateCalendar();
+            try { updateCurrentHypothesisList(); } catch(_) {}
             
             // 通知を表示
             showNotification(`❌ ${window.currentHypothesis.title} 未達成\n-${penaltyAmount}pt`, 'error', 3);
@@ -7938,6 +7939,7 @@
             
             updateProgress();
             updateCalendar(); // カレンダーを再描画して週の状況を更新
+            try { updateCurrentHypothesisList(); } catch(_) {}
             
             // バッジ獲得チェック
             checkAndAwardBadges();
@@ -10405,7 +10407,8 @@
                         
                         // 習慣タイトル
                         const habitItem = document.createElement('div');
-                        const isAchievedToday = hypothesis.achievements && hypothesis.achievements[todayKey];
+                        const isAchievedToday = !!(hypothesis.achievements && hypothesis.achievements[todayKey]);
+                        const isFailedToday = !!(hypothesis.failures && hypothesis.failures[todayKey]);
                         
                         habitItem.style.cssText = `
                             display: flex;
@@ -10420,10 +10423,12 @@
                             transition: all 0.2s;
                         `;
                         
-                        // 達成マーク（目立つデザイン）
+                        // 達成マーク（目立つデザイン）: ✅/🔴/空 の三値
                         const checkMarkHtml = isAchievedToday 
                             ? '<span style="display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; background: #10b981; border-radius: 50%; flex-shrink: 0;"><span style="color: white; font-size: 16px; font-weight: bold;">✓</span></span>'
-                            : '<span style="display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; background: #e2e8f0; border: 2px solid #cbd5e1; border-radius: 50%; flex-shrink: 0;"></span>';
+                            : (isFailedToday
+                               ? '<span style="display: inline-block; width: 14px; height: 14px; background: #ef4444; border-radius: 50%; box-shadow: 0 0 0 5px rgba(239,68,68,0.15);"></span>'
+                               : '<span style="display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; background: #e2e8f0; border: 2px solid #cbd5e1; border-radius: 50%; flex-shrink: 0;"></span>');
                         
                         // 頻度表示
                         let freqText = '';
