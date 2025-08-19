@@ -439,7 +439,15 @@
             
             
             // 週末イベント
-            { id: 'weekend_special', name: '🎈 週末スペシャル', description: '週末はポイント1.5倍！', effect: 'points_multiplier', value: 1.5 }
+            { id: 'weekend_special', name: '🎈 週末スペシャル', description: '週末はポイント1.5倍！', effect: 'points_multiplier', value: 1.5 },
+            
+            // ネガティブイベント（悪いイベント）
+            { id: 'half_points', name: '💔 ポイント半減デー', description: '今日の獲得ポイントが半分（×0.5）', effect: 'points_multiplier', value: 0.5 },
+            { id: 'expensive_rewards', name: '💸 報酬高騰', description: '報酬の消費ポイントが1.5倍', effect: 'reward_multiplier', value: 1.5 },
+            { id: 'no_combo', name: '🚫 コンボ封印', description: '今日はコンボボーナスが発動しない', effect: 'combo_disable', value: 0 },
+            { id: 'slow_day', name: '🐌 スローデー', description: '基本ポイントが-1（最低1pt）', effect: 'point_reduction', value: -1 },
+            { id: 'hard_mode', name: '⚡ ハードモード', description: '高強度のみポイント獲得可能', effect: 'intensity_restriction', value: 'high' },
+            { id: 'reverse_streak', name: '🔄 ストリーク逆転', description: 'ストリークボーナスが減算される', effect: 'streak_reverse', value: -1 }
         ];
         
         // 手動切替用ヘルパー
@@ -15433,8 +15441,8 @@
             } else if (isLuckySevenDay) {
                 // 7の倍数の日は必ずイベント発生
             } else {
-                // 通常は30%の確率でイベント発生（真のランダム）
-                if (Math.random() > 0.3) return null;
+                // 通常は40%の確率でイベント発生（ネガティブイベント追加により上昇）
+                if (Math.random() > 0.4) return null;
             }
             
             // 土日は週末スペシャルを70%の確率で選択
