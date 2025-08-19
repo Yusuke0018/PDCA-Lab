@@ -1,8 +1,9 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250119-03';
-                navigator.serviceWorker.register(`./sw.js?v=${SW_VERSION_TAG}`)
+                const SW_VERSION_TAG = '20250119-04';
+                const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
+                navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
                         // 即時適用のためのハンドリング
                         if (reg.waiting) {
@@ -26,6 +27,16 @@
                         });
                         // 念のため更新チェック
                         reg.update();
+                        // 旧 sw.js 登録が残っていれば解除
+                        navigator.serviceWorker.getRegistrations().then(list => {
+                            list.forEach(r => {
+                                try {
+                                    if (r.active && r.active.scriptURL && r.active.scriptURL.endsWith('/sw.js')) {
+                                        r.unregister();
+                                    }
+                                } catch(_) {}
+                            });
+                        });
                     })
                     .catch(() => {});
             });
