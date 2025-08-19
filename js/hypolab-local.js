@@ -44,18 +44,34 @@
 
         // 手動更新（モバイルのキャッシュ固着対策・データは消さない）
         window.forceUpdateApp = async function(){
+            const notify = (msg) => { try { showNotification(msg, 'info'); } catch(_) { try { alert(msg); } catch(_) {} } };
+            notify('更新を適用中です…');
+            // 1) 既存SWの登録解除
             try {
                 if ('serviceWorker' in navigator) {
                     const regs = await navigator.serviceWorker.getRegistrations();
-                    await Promise.all(regs.map(r => r.unregister()));
+                    await Promise.all(regs.map(async (r) => {
+                        try { r.active && r.active.postMessage && r.active.postMessage({ type:'SKIP_WAITING' }); } catch(_){}
+                        await r.unregister();
+                    }));
                 }
             } catch(_) {}
+            // 2) Cache Storageの削除（LocalStorageは保持）
             try {
-                const keys = await caches.keys();
-                await Promise.all(keys.map(k => caches.delete(k)));
+                if (window.caches && caches.keys) {
+                    const keys = await caches.keys();
+                    await Promise.all(keys.map(k => caches.delete(k)));
+                }
             } catch(_) {}
-            // 直後の再登録で最新SW/資産を取得
-            location.reload();
+            // 3) 完全リロード（クエリでバイパス）
+            try {
+                const base = location.href.split('#')[0].split('?')[0];
+                const hash = location.hash || '';
+                const url = `${base}?flush=${Date.now()}${hash}`;
+                location.replace(url);
+            } catch(_) {
+                location.reload();
+            }
         };
 
         // ローカルストレージのキー（モジュール存在時は再定義しない）
