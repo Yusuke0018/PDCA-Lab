@@ -1,7 +1,12 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js').catch(() => {});
+                navigator.serviceWorker.register('./sw.js')
+                    .then(registration => {
+                        // 強制的に更新をチェック
+                        registration.update();
+                    })
+                    .catch(() => {});
             });
         }
 
