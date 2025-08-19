@@ -39,6 +39,8 @@ self.addEventListener('install', (event) => {
       await Promise.all(promises);
     })
   );
+  // 新SWを即時適用
+  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
@@ -47,6 +49,8 @@ self.addEventListener('activate', (event) => {
       Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
     )
   );
+  // すべてのクライアントに即時適用
+  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
