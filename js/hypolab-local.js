@@ -1,10 +1,31 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(registration => {
-                        // 強制的に更新をチェック
-                        registration.update();
+                const SW_VERSION_TAG = '20250119-03';
+                navigator.serviceWorker.register(`./sw.js?v=${SW_VERSION_TAG}`)
+                    .then(reg => {
+                        // 即時適用のためのハンドリング
+                        if (reg.waiting) {
+                            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                        }
+                        reg.addEventListener('updatefound', () => {
+                            const nw = reg.installing;
+                            if (!nw) return;
+                            nw.addEventListener('statechange', () => {
+                                if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+                                    reg.waiting && reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                                }
+                            });
+                        });
+                        navigator.serviceWorker.addEventListener('controllerchange', () => {
+                            // 一度だけリロードして最新資産に切替
+                            if (!window.__reloadedForSW) {
+                                window.__reloadedForSW = true;
+                                window.location.reload();
+                            }
+                        });
+                        // 念のため更新チェック
+                        reg.update();
                     })
                     .catch(() => {});
             });

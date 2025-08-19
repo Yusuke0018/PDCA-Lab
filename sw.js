@@ -1,5 +1,5 @@
 // GitHub Pagesなどサブパス配信でも動くようにベースパス対応
-const VERSION = 'v11'; // 2025-01-19-02 更新
+const VERSION = 'v12'; // 2025-01-19-03 更新 (cache-bust)
 const CACHE_NAME = `hypolab-cache-${VERSION}`;
 
 // ベースURL（例: https://example.com/PDCA-Lab/）
@@ -83,4 +83,11 @@ self.addEventListener('fetch', (event) => {
       return cached || fetchAndCache;
     })
   );
+});
+
+// Allow clients to request immediate activation
+self.addEventListener('message', (event) => {
+  if (event && event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
