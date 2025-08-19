@@ -31,6 +31,22 @@
             });
         }
 
+        // 手動更新（モバイルのキャッシュ固着対策・データは消さない）
+        window.forceUpdateApp = async function(){
+            try {
+                if ('serviceWorker' in navigator) {
+                    const regs = await navigator.serviceWorker.getRegistrations();
+                    await Promise.all(regs.map(r => r.unregister()));
+                }
+            } catch(_) {}
+            try {
+                const keys = await caches.keys();
+                await Promise.all(keys.map(k => caches.delete(k)));
+            } catch(_) {}
+            // 直後の再登録で最新SW/資産を取得
+            location.reload();
+        };
+
         // ローカルストレージのキー（モジュール存在時は再定義しない）
         window.STORAGE_KEY = window.STORAGE_KEY || 'hypolab_local_data';
 
