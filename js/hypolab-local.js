@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250120-01';
+                const SW_VERSION_TAG = '20250120-02';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -11810,6 +11810,11 @@
             // ジャーナル統計を更新
             updateJournalStats();
             
+            // 体重グラフを更新
+            if (typeof updateWeightChart === 'function') {
+                updateWeightChart();
+            }
+            
             const data = loadData();
             const totalHypotheses = data.currentHypotheses.length + data.completedHypotheses.length;
             let totalAchievement = 0; // 習慣平均用
@@ -15513,6 +15518,151 @@
             }
         }
 
+        // 体重グラフを更新する関数
+        function updateWeightChart() {
+            const data = loadData();
+            const container = document.getElementById('weight-chart-content');
+            const canvas = document.getElementById('weight-chart-canvas');
+            const summary = document.getElementById('weight-stats-summary');
+            
+            if (!container || !canvas || !data.dailyJournal) return;
+            
+            const entries = data.dailyJournal.entries || {};
+            const weightData = [];
+            
+            // 体重データを収集（日付順）
+            Object.keys(entries).sort().forEach(date => {
+                if (entries[date].morning && entries[date].morning.weight) {
+                    weightData.push({
+                        date: date,
+                        weight: entries[date].morning.weight
+                    });
+                }
+            });
+            
+            if (weightData.length === 0) {
+                summary.innerHTML = `
+                    <div style="grid-column: 1 / -1; text-align: center; color: var(--text-secondary); padding: 20px;">
+                        まだ体重データがありません
+                    </div>
+                `;
+                return;
+            }
+            
+            // 最新30日分のデータに絞る
+            const recentData = weightData.slice(-30);
+            
+            // 統計を計算
+            const weights = recentData.map(d => d.weight);
+            const currentWeight = weights[weights.length - 1];
+            const startWeight = weights[0];
+            const change = currentWeight - startWeight;
+            const maxWeight = Math.max(...weights);
+            const minWeight = Math.min(...weights);
+            const avgWeight = weights.reduce((a, b) => a + b, 0) / weights.length;
+            
+            // グラフを描画
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            // キャンバスをクリア
+            ctx.clearRect(0, 0, width, height);
+            
+            // 背景
+            ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--surface-light').trim() || '#1a1f36';
+            ctx.fillRect(0, 0, width, height);
+            
+            // パディング
+            const padding = { top: 20, right: 20, bottom: 40, left: 50 };
+            const graphWidth = width - padding.left - padding.right;
+            const graphHeight = height - padding.top - padding.bottom;
+            
+            // スケール計算
+            const yMin = minWeight - 1;
+            const yMax = maxWeight + 1;
+            const xStep = graphWidth / (recentData.length - 1 || 1);
+            const yScale = graphHeight / (yMax - yMin);
+            
+            // グリッド線とY軸ラベル
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary').trim() || '#94a3b8';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'right';
+            
+            for (let i = 0; i <= 5; i++) {
+                const y = padding.top + (graphHeight * i / 5);
+                const value = yMax - (yMax - yMin) * i / 5;
+                
+                // グリッド線
+                ctx.beginPath();
+                ctx.moveTo(padding.left, y);
+                ctx.lineTo(width - padding.right, y);
+                ctx.stroke();
+                
+                // Y軸ラベル
+                ctx.fillText(value.toFixed(1) + 'kg', padding.left - 5, y + 3);
+            }
+            
+            // X軸ラベル（日付）
+            ctx.textAlign = 'center';
+            const dateInterval = Math.ceil(recentData.length / 6);
+            recentData.forEach((item, index) => {
+                if (index % dateInterval === 0 || index === recentData.length - 1) {
+                    const x = padding.left + index * xStep;
+                    const [year, month, day] = item.date.split('-');
+                    ctx.fillText(`${month}/${day}`, x, height - padding.bottom + 15);
+                }
+            });
+            
+            // 折れ線グラフを描画
+            ctx.strokeStyle = '#10b981';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            
+            recentData.forEach((item, index) => {
+                const x = padding.left + index * xStep;
+                const y = padding.top + (yMax - item.weight) * yScale;
+                
+                if (index === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            });
+            ctx.stroke();
+            
+            // データポイント
+            ctx.fillStyle = '#10b981';
+            recentData.forEach((item, index) => {
+                const x = padding.left + index * xStep;
+                const y = padding.top + (yMax - item.weight) * yScale;
+                
+                ctx.beginPath();
+                ctx.arc(x, y, 3, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            
+            // サマリー統計を表示
+            summary.innerHTML = `
+                <div style="text-align: center; background: var(--surface-light); padding: 8px; border-radius: 6px;">
+                    <div style="font-size: 18px; font-weight: bold; color: #10b981;">${currentWeight.toFixed(2)}</div>
+                    <div style="font-size: 10px; color: var(--text-secondary);">現在</div>
+                </div>
+                <div style="text-align: center; background: var(--surface-light); padding: 8px; border-radius: 6px;">
+                    <div style="font-size: 18px; font-weight: bold; color: ${change >= 0 ? '#ef4444' : '#3b82f6'};">
+                        ${change >= 0 ? '+' : ''}${change.toFixed(2)}
+                    </div>
+                    <div style="font-size: 10px; color: var(--text-secondary);">変化</div>
+                </div>
+                <div style="text-align: center; background: var(--surface-light); padding: 8px; border-radius: 6px;">
+                    <div style="font-size: 18px; font-weight: bold; color: #f59e0b;">${avgWeight.toFixed(2)}</div>
+                    <div style="font-size: 10px; color: var(--text-secondary);">平均</div>
+                </div>
+            `;
+        }
+        window.updateWeightChart = updateWeightChart;
+        
         // windowオブジェクトに関数を登録
         // 日替わりイベントを取得（毎日ランダムに変更）
         function getDailyEvent() {
