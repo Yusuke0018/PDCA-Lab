@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250820-09';
+                const SW_VERSION_TAG = '20250820-10';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -14066,24 +14066,12 @@
             }
             
             // イベントブースト効果（機能停止中は無効）
-            console.log('[DEBUG] EVENTS_DISABLED:', typeof EVENTS_DISABLED !== 'undefined' ? EVENTS_DISABLED : 'undefined');
-            console.log('[DEBUG] data.events:', data.events);
-            console.log('[DEBUG] data.events?.activeBoosts:', data.events?.activeBoosts);
-            
             if (!(typeof EVENTS_DISABLED !== 'undefined' && EVENTS_DISABLED) && data.events && data.events.activeBoosts) {
                 const currentHour = new Date().getHours();
                 
-                console.log('[DEBUG] activeBoosts:', data.events.activeBoosts);
-                console.log('[DEBUG] activeBoosts length:', data.events.activeBoosts.length);
-                
                 data.events.activeBoosts.forEach(boost => {
-                    console.log('[DEBUG] boost object:', boost);
-                    console.log('[DEBUG] boost.effect:', boost.effect);
-                    console.log('[DEBUG] checking boost.effect === "points_multiplier":', boost.effect === 'points_multiplier');
-                    
                     // 新しいイベントシステムの処理
                     if (boost.effect === 'points_multiplier') {
-                        console.log(`[DEBUG] ポイント倍率イベント適用: ${boost.name}, 倍率: ${boost.value}, 適用前: ${multiplier}, 適用後: ${multiplier * boost.value}`);
                         multiplier *= boost.value;
                     } else if (boost.effect === 'achievement_bonus' && source === 'habit') {
                         // 最初の3回達成のボーナス
@@ -14231,31 +14219,34 @@
             // イベント効果（機能停止中は無効）
             if (!(typeof EVENTS_DISABLED !== 'undefined' && EVENTS_DISABLED) && data.events && data.events.activeBoosts) {
                 data.events.activeBoosts.forEach(boost => {
-                    const eff = boost.effect;
-                    switch (eff.type) {
-                        case 'global_multiplier': multiplier *= eff.value; notes.push(`Global ×${eff.value}`); break;
-                        case 'category_multiplier': if (category === eff.target) { multiplier *= eff.value; notes.push(`${eff.target} ×${eff.value}`); } break;
-                        case 'category_bonus': if (category === eff.target) { bonus += eff.value; notes.push(`${eff.target} +${eff.value}`); } break;
-                        case 'challenge_multiplier': if (source === 'challenge') { multiplier *= eff.value; notes.push(`Challenge ×${eff.value}`); } break;
-                        case 'time_bonus':
-                            const hour = new Date().getHours();
-                            if ((boost.duration === 'morning' && hour >= 6 && hour <= 9) || (boost.duration === 'night' && hour >= 20 && hour <= 23)) {
-                                bonus += eff.value; notes.push(`Time +${eff.value}`);
-                            }
-                            break;
+                    // 新形式（文字列）のイベント処理
+                    if (typeof boost.effect === 'string') {
+                        if (boost.effect === 'points_multiplier' && boost.value) {
+                            multiplier *= boost.value;
+                            notes.push(`${boost.name} ×${boost.value}`);
+                        }
+                    }
+                    // 旧形式（オブジェクト）のイベント処理（互換性のため残す）
+                    else if (typeof boost.effect === 'object') {
+                        const eff = boost.effect;
+                        switch (eff.type) {
+                            case 'global_multiplier': multiplier *= eff.value; notes.push(`Global ×${eff.value}`); break;
+                            case 'category_multiplier': if (category === eff.target) { multiplier *= eff.value; notes.push(`${eff.target} ×${eff.value}`); } break;
+                            case 'category_bonus': if (category === eff.target) { bonus += eff.value; notes.push(`${eff.target} +${eff.value}`); } break;
+                            case 'challenge_multiplier': if (source === 'challenge') { multiplier *= eff.value; notes.push(`Challenge ×${eff.value}`); } break;
+                            case 'time_bonus':
+                                const hour = new Date().getHours();
+                                if ((boost.duration === 'morning' && hour >= 6 && hour <= 9) || (boost.duration === 'night' && hour >= 20 && hour <= 23)) {
+                                    bonus += eff.value; notes.push(`Time +${eff.value}`);
+                                }
+                                break;
+                        }
                     }
                 });
             }
             
             const finalPoints = Math.round(basePoints * multiplier + bonus);
             
-            // デバッグ: ポイント半減デーの確認
-            if (data.events && data.events.activeBoosts) {
-                const halfPointsEvent = data.events.activeBoosts.find(b => b.id === 'half_points');
-                if (halfPointsEvent) {
-                    console.log(`[DEBUG] ポイント半減デー適用結果: basePoints=${basePoints}, multiplier=${multiplier}, bonus=${bonus}, finalPoints=${finalPoints}`);
-                }
-            }
             
             return { finalPoints, multiplierTotal: multiplier, bonusTotal: bonus, notes };
         }
@@ -16033,9 +16024,6 @@
         // イベント表示の更新
         function updateEventDisplay() {
             const data = loadData();
-            console.log('[DEBUG updateEventDisplay] data.events:', data.events);
-            console.log('[DEBUG updateEventDisplay] data.events?.activeBoosts:', data.events?.activeBoosts);
-            
             const eventContainer = document.getElementById('active-events');
             
             if (!eventContainer) return;

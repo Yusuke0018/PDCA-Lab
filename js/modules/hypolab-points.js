@@ -107,22 +107,11 @@ function calculatePointsWithBoosts(basePoints, source, category = null, habitId 
         }
     }
 
-    console.log('[DEBUG-MODULE] EVENTS_DISABLED:', typeof EVENTS_DISABLED !== 'undefined' ? EVENTS_DISABLED : 'undefined');
-    console.log('[DEBUG-MODULE] data.events:', data.events);
-    console.log('[DEBUG-MODULE] data.events?.activeBoosts:', data.events?.activeBoosts);
-    
     if (!(typeof EVENTS_DISABLED !== 'undefined' && EVENTS_DISABLED) && data.events && data.events.activeBoosts) {
         const currentHour = new Date().getHours();
-        console.log('[DEBUG-MODULE] activeBoosts:', data.events.activeBoosts);
-        console.log('[DEBUG-MODULE] activeBoosts length:', data.events.activeBoosts.length);
         
         data.events.activeBoosts.forEach(boost => {
-            console.log('[DEBUG] boost object:', boost);
-            console.log('[DEBUG] boost.effect:', boost.effect);
-            console.log('[DEBUG] checking boost.effect === "points_multiplier":', boost.effect === 'points_multiplier');
-            
             if (boost.effect === 'points_multiplier') {
-                console.log(`[DEBUG] ポイント倍率イベント適用: ${boost.name}, 倍率: ${boost.value}, 適用前: ${multiplier}, 適用後: ${multiplier * boost.value}`);
                 multiplier *= boost.value;
             } else if (boost.effect === 'achievement_bonus' && source === 'habit') {
                 if (!data.events.dailyAchievementCount) data.events.dailyAchievementCount = 0;
@@ -303,15 +292,6 @@ function calculatePointsWithBoostsDetailed(basePoints, source, category = null, 
     }
 
     const finalPoints = Math.round(basePoints * multiplier + bonus);
-    
-    // デバッグ: ポイント半減デーの確認
-    if (data.events && data.events.activeBoosts) {
-        const halfPointsEvent = data.events.activeBoosts.find(b => b.id === 'half_points');
-        if (halfPointsEvent) {
-            console.log(`[DEBUG] ポイント半減デー適用結果: basePoints=${basePoints}, multiplier=${multiplier}, bonus=${bonus}, finalPoints=${finalPoints}`);
-        }
-    }
-    
     return { finalPoints, multiplierTotal: multiplier, bonusTotal: bonus, notes };
 }
 
