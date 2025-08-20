@@ -107,10 +107,14 @@ function calculatePointsWithBoosts(basePoints, source, category = null, habitId 
         }
     }
 
+    console.log('[DEBUG-MODULE] EVENTS_DISABLED:', typeof EVENTS_DISABLED !== 'undefined' ? EVENTS_DISABLED : 'undefined');
+    console.log('[DEBUG-MODULE] data.events:', data.events);
+    console.log('[DEBUG-MODULE] data.events?.activeBoosts:', data.events?.activeBoosts);
+    
     if (!(typeof EVENTS_DISABLED !== 'undefined' && EVENTS_DISABLED) && data.events && data.events.activeBoosts) {
         const currentHour = new Date().getHours();
-        console.log('[DEBUG] activeBoosts:', data.events.activeBoosts);
-        console.log('[DEBUG] activeBoosts length:', data.events.activeBoosts.length);
+        console.log('[DEBUG-MODULE] activeBoosts:', data.events.activeBoosts);
+        console.log('[DEBUG-MODULE] activeBoosts length:', data.events.activeBoosts.length);
         
         data.events.activeBoosts.forEach(boost => {
             console.log('[DEBUG] boost object:', boost);

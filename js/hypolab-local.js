@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250820-08';
+                const SW_VERSION_TAG = '20250820-09';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -14066,6 +14066,10 @@
             }
             
             // イベントブースト効果（機能停止中は無効）
+            console.log('[DEBUG] EVENTS_DISABLED:', typeof EVENTS_DISABLED !== 'undefined' ? EVENTS_DISABLED : 'undefined');
+            console.log('[DEBUG] data.events:', data.events);
+            console.log('[DEBUG] data.events?.activeBoosts:', data.events?.activeBoosts);
+            
             if (!(typeof EVENTS_DISABLED !== 'undefined' && EVENTS_DISABLED) && data.events && data.events.activeBoosts) {
                 const currentHour = new Date().getHours();
                 
@@ -16029,6 +16033,9 @@
         // イベント表示の更新
         function updateEventDisplay() {
             const data = loadData();
+            console.log('[DEBUG updateEventDisplay] data.events:', data.events);
+            console.log('[DEBUG updateEventDisplay] data.events?.activeBoosts:', data.events?.activeBoosts);
+            
             const eventContainer = document.getElementById('active-events');
             
             if (!eventContainer) return;
