@@ -8767,6 +8767,10 @@
                 if (ae.find(e => e.type === 'streak_multiplier_boost')) {
                     addBadge('🔥 ストリーク倍率×2', 'background: rgba(249,115,22,0.2); color:#f97316; padding:4px 12px; border-radius:16px; font-size:12px; border:1px solid #f97316;');
                 }
+                // パワーブースト（パワーナップ由来）
+                if (ae.find(e => e.type === 'power_boost' && new Date(e.startDate) <= new Date() && new Date(e.endDate) >= new Date())) {
+                    addBadge('😴 パワーブースト +5', 'background: rgba(6,182,212,0.2); color:#06b6d4; padding:4px 12px; border-radius:16px; font-size:12px; border:1px solid #06b6d4;');
+                }
                 const spark = ae.find(e => e.type === 'streak_spark' && e.dayKey === todayKey);
                 if (spark) {
                     const left = Math.max(0, (spark.bonuses ? spark.bonuses.length : 0) - (spark.count || 0));
@@ -14769,7 +14773,7 @@
             updateCardUseButton();
         }
 
-        // パワーナップ: 即座に10pt獲得
+        // パワーナップ: 30分間 達成毎+5pt（power_boostとして適用）
         function usePowerNap() {
             closeCardUseMenu();
             const data = loadData();
@@ -14777,16 +14781,15 @@
             if (idx === -1) { showNotification('⚠️ パワーナップがありません', 'error'); return; }
             data.cards.inventory.splice(idx, 1);
 
-            // 即座に10ポイント獲得（ポイントシステムに準拠）
-            if (!data.pointSystem) { data.pointSystem = { currentPoints: 0, lifetimeEarned: 0, levelProgress: 0, currentLevel: 1, transactions: [] }; }
-            const gain = 10;
-            data.pointSystem.currentPoints += gain;
-            data.pointSystem.lifetimeEarned = (data.pointSystem.lifetimeEarned || 0) + gain;
-            data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
-            // トランザクション記録
-            if (!Array.isArray(data.pointSystem.transactions)) data.pointSystem.transactions = [];
-            data.pointSystem.transactions.unshift({
-                type: 'earn', amount: gain, source: 'card', description: 'パワーナップ', timestamp: new Date().toISOString()
+            // 30分間のパワーブースト効果を付与
+            if (!data.cards.activeEffects) data.cards.activeEffects = [];
+            const start = new Date();
+            const end = new Date(start.getTime() + 30 * 60 * 1000);
+            data.cards.activeEffects.push({
+                cardId: 'power_nap',
+                type: 'power_boost',
+                startDate: start.toISOString(),
+                endDate: end.toISOString()
             });
 
             // カード使用を記録
@@ -14796,7 +14799,8 @@
             data.cards.dailyUsage[today].push({ cardId: 'power_nap', time: new Date().toISOString() });
 
             saveData(data);
-            showCardEffect('😴 パワーナップ！','10pt獲得！','\#06b6d4');
+            showCardEffect('😴 パワーナップ！','30分間 達成ごとに+5pt','\#06b6d4');
+            updateActiveEffectsDisplay();
             updatePointDisplay();
             updateCardUseButton();
         }
