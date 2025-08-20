@@ -641,7 +641,6 @@
             { id: 'complete_3_habits', name: '今日3つ以上の習慣を達成', points: 5, icon: '🎯', checkFunction: 'checkComplete3Habits' },
             { id: 'morning_routine', name: '朝の習慣をすべて完了', points: 4, icon: '🌅', checkFunction: 'checkMorningRoutine' },
             { id: 'high_intensity_day', name: '今日すべて高強度(×1.2)で達成', points: 6, icon: '🔥', checkFunction: 'checkHighIntensityDay' },
-            { id: 'perfect_streak', name: '3日連続で全習慣達成', points: 8, icon: '⚡', checkFunction: 'checkPerfectStreak' },
             { id: 'category_master', name: '同じカテゴリーの習慣を3つ達成', points: 4, icon: '📊', checkFunction: 'checkCategoryMaster' },
             { id: 'early_bird', name: '午前中に習慣を2つ以上達成', points: 3, icon: '🐦', checkFunction: 'checkEarlyBird' },
             { id: 'if_then_execute', name: 'IF-THENルールを3回実行', points: 4, icon: '🔄', checkFunction: 'checkIfThenExecute' },
@@ -2563,6 +2562,12 @@
             
             // デイリーチャレンジプールを作成（既定 + カスタム）
             const allDailyChallenges = [...DAILY_CHALLENGES, ...customDailyChallenges];
+
+            // 互換: 削除済みIDが保存されていたら再抽選
+            if (data.challenges.daily && !allDailyChallenges.some(c => c.id === data.challenges.daily.id)) {
+                data.challenges.daily = null;
+            }
+
             
             // デイリーチャレンジ
             const dailyContainer = document.getElementById('daily-challenge-container');
