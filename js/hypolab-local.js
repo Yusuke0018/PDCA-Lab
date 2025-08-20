@@ -8773,8 +8773,7 @@
                 }
                 const spark = ae.find(e => e.type === 'streak_spark' && e.dayKey === todayKey);
                 if (spark) {
-                    const left = Math.max(0, (spark.bonuses ? spark.bonuses.length : 0) - (spark.count || 0));
-                    addBadge(`🎆 スパークル ${left}回残り`, 'background: rgba(249,115,22,0.2); color:#f97316; padding:4px 12px; border-radius:16px; font-size:12px; border:1px solid #f97316;');
+                    addBadge('🎆 スパークル +1', 'background: rgba(249,115,22,0.2); color:#f97316; padding:4px 12px; border-radius:16px; font-size:12px; border:1px solid #f97316;');
                 }
                 if (ae.find(e => e.cardId === 'mystery_box' && e.dayKey === todayKey && !e.claimed)) {
                     addBadge('🎁 ミステリー待機中', 'background: rgba(245,158,11,0.2); color:#f59e0b; padding:4px 12px; border-radius:16px; font-size:12px; border:1px solid #f59e0b;');
@@ -14205,16 +14204,12 @@
                 const isJournal = (source === 'journal');
                 const journalMul = data.cards.activeEffects.find(e => e.type === 'journal_multiplier' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
                 if (isJournal && journalMul) { multiplier *= (journalMul.value || 2.0); notes.push(`Journal ×${journalMul.value || 2.0}`); }
-                // スパークルストリーク（今日の最初の3回の達成だけボーナス）
+                // スパークルストリーク（今日の達成ごとに+1）
                 const todayKey = dateKeyLocal(new Date());
-                const spark = data.cards.activeEffects.find(e => e.type === 'streak_spark' && e.dayKey === todayKey && (e.count || 0) < (e.bonuses ? e.bonuses.length : 0));
+                const spark = data.cards.activeEffects.find(e => e.type === 'streak_spark' && e.dayKey === todayKey && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
                 if (spark && source === 'habit') {
-                    const idx = spark.count || 0;
-                    const add = (spark.bonuses && spark.bonuses[idx]) ? spark.bonuses[idx] : 0;
-                    if (add > 0) { bonus += add; notes.push(`Sparkle +${add}`); }
-                    // カウントを進めて保存
-                    spark.count = idx + 1;
-                    saveData(data);
+                    const add = (typeof spark.perHabit === 'number' ? spark.perHabit : 1);
+                    bonus += add; notes.push(`Sparkle +${add}`);
                 }
                 // スローダウン
                 const slow = data.cards.activeEffects.find(e => e.type === 'slowdown' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
@@ -14693,7 +14688,7 @@
             updateActiveEffectsDisplay();
         }
 
-        // スパークルストリーク: 今日の最初の3回 達成に+3/+5/+8
+        // スパークルストリーク: 今日の習慣達成ごとに+1pt
         function useSparkleStreak() {
             closeCardUseMenu();
             const data = loadData();
@@ -14705,9 +14700,9 @@
             const end = new Date(); end.setHours(23,59,59,999);
             const dayKey = dateKeyLocal(new Date());
             if (!data.cards.activeEffects) data.cards.activeEffects = [];
-            data.cards.activeEffects.push({ cardId:'sparkle_streak', type:'streak_spark', bonuses:[3,5,8], count:0, dayKey, startDate:start.toISOString(), endDate:end.toISOString() });
+            data.cards.activeEffects.push({ cardId:'sparkle_streak', type:'streak_spark', perHabit:1, dayKey, startDate:start.toISOString(), endDate:end.toISOString() });
             saveData(data);
-            showCardEffect('🎆 スパークルストリーク！','今日の最初の3回の達成で追加ボーナス','\#f97316');
+            showCardEffect('🎆 スパークルストリーク！','今日の達成ごとに+1pt','\#f97316');
             updateCardUseButton();
             updateActiveEffectsDisplay();
         }
@@ -14773,7 +14768,7 @@
             updateCardUseButton();
         }
 
-        // パワーナップ: 30分間 達成毎+5pt（power_boostとして適用）
+        // パワーナップ: 使用時に即時+10pt獲得
         function usePowerNap() {
             closeCardUseMenu();
             const data = loadData();
@@ -14781,15 +14776,15 @@
             if (idx === -1) { showNotification('⚠️ パワーナップがありません', 'error'); return; }
             data.cards.inventory.splice(idx, 1);
 
-            // 30分間のパワーブースト効果を付与
-            if (!data.cards.activeEffects) data.cards.activeEffects = [];
-            const start = new Date();
-            const end = new Date(start.getTime() + 30 * 60 * 1000);
-            data.cards.activeEffects.push({
-                cardId: 'power_nap',
-                type: 'power_boost',
-                startDate: start.toISOString(),
-                endDate: end.toISOString()
+            // 即時+10ptをポイントシステムへ加算
+            if (!data.pointSystem) { data.pointSystem = { currentPoints: 0, lifetimeEarned: 0, lifetimeSpent: 0, currentLevel: 1, levelProgress: 0, transactions: [] }; }
+            const gain = 10;
+            data.pointSystem.currentPoints += gain;
+            data.pointSystem.lifetimeEarned = (data.pointSystem.lifetimeEarned || 0) + gain;
+            data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
+            if (!Array.isArray(data.pointSystem.transactions)) data.pointSystem.transactions = [];
+            data.pointSystem.transactions.unshift({
+                type: 'earn', amount: gain, source: 'card', description: 'パワーナップ', timestamp: new Date().toISOString()
             });
 
             // カード使用を記録
@@ -14799,8 +14794,7 @@
             data.cards.dailyUsage[today].push({ cardId: 'power_nap', time: new Date().toISOString() });
 
             saveData(data);
-            showCardEffect('😴 パワーナップ！','30分間 達成ごとに+5pt','\#06b6d4');
-            updateActiveEffectsDisplay();
+            showCardEffect('😴 パワーナップ！','10pt獲得！','\#06b6d4');
             updatePointDisplay();
             updateCardUseButton();
         }

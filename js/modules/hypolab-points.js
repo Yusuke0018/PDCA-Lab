@@ -227,13 +227,10 @@ function calculatePointsWithBoostsDetailed(basePoints, source, category = null, 
         // const hh = data.cards.activeEffects.find(e => e.type === 'time_window_bonus' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
         // if (hh) { bonus += (hh.value || 10); notes.push(`HappyHour +${hh.value || 10}`); }
         const todayKey = dateKeyLocal(new Date());
-        const spark = data.cards.activeEffects.find(e => e.type === 'streak_spark' && e.dayKey === todayKey && (e.count || 0) < (e.bonuses ? e.bonuses.length : 0));
+        const spark = data.cards.activeEffects.find(e => e.type === 'streak_spark' && e.dayKey === todayKey && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
         if (spark && source === 'habit') {
-            const idx = spark.count || 0;
-            const add = (spark.bonuses && spark.bonuses[idx]) ? spark.bonuses[idx] : 0;
-            if (add > 0) { bonus += add; notes.push(`Sparkle +${add}`); }
-            spark.count = idx + 1;
-            saveData(data);
+            const add = (typeof spark.perHabit === 'number' ? spark.perHabit : 1);
+            bonus += add; notes.push(`Sparkle +${add}`);
         }
         const slow = data.cards.activeEffects.find(e => e.type === 'slowdown' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
         if (slow) { multiplier *= 0.5; notes.push('Slowdown ×0.5'); }
