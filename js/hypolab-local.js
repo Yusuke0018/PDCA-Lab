@@ -3664,6 +3664,8 @@
             }
             
             saveData(data);
+            // 効果（例：スパークル残回数）の表示を即時更新
+            try { if (typeof updateActiveEffectsDisplay === 'function') { updateActiveEffectsDisplay(); } } catch(_) {}
             
             // レベルアップ通知
             if (newLevel.level > oldLevel) {

@@ -326,6 +326,8 @@ function earnPoints(amount, source, description, multiplier = 1.0, category = nu
     data.pointSystem.transactions.unshift(transaction);
     if (data.pointSystem.transactions.length > 100) { data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100); }
     saveData(data);
+    // 効果（例：スパークル残回数）の表示を即時更新
+    try { if (typeof updateActiveEffectsDisplay === 'function') { updateActiveEffectsDisplay(); } } catch(_) {}
 
     if (newLevel.level > oldLevel && typeof showLevelUpNotification === 'function') {
         showLevelUpNotification(oldLevel, newLevel);
@@ -377,4 +379,3 @@ window.calculatePointsWithBoostsDetailed = calculatePointsWithBoostsDetailed;
 window.earnPoints = earnPoints;
 window.spendPoints = spendPoints;
 window.addEffortBonus = addEffortBonus;
-
