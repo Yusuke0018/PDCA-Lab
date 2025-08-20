@@ -1,5 +1,5 @@
 // GitHub Pagesなどサブパス配信でも動くようにベースパス対応
-const VERSION = 'v13'; // 2025-01-19-03 更新 (cache-bust)
+const VERSION = 'v14'; // 2025-01-19-03 更新 (cache-bust)
 const CACHE_NAME = `hypolab-cache-${VERSION}`;
 
 // ベースURL（例: https://example.com/PDCA-Lab/）
@@ -45,19 +45,38 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
-  );
+  event.waitUntil((async () => {
+    try { if (self.registration.navigationPreload) { await self.registration.navigationPreload.enable(); } } catch(e) {}
+    const keys = await caches.keys();
+    await Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)));
+  })());
   self.clients.claim();
 });
+
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
-
   const url = new URL(req.url);
+  const sameOrigin = url.origin === BASE_URL.origin;
+  if (!sameOrigin) return; // ignore cross-origin
+
+  event.respondWith((async () => {
+    try {
+      const net = await fetch(req, { cache: 'no-store' });
+      const copy = net.clone();
+      try { const cache = await caches.open(CACHE_NAME); await cache.put(req, copy); } catch(_) {}
+      return net;
+    } catch (e) {
+      // Offline fallback
+      const cached = await caches.match(req);
+      if (cached) return cached;
+      if (req.mode === 'navigate') return caches.match(toAbs('hypolab-local.html'));
+      throw e;
+    }
+  })());
+});
+
   const sameOrigin = url.origin === BASE_URL.origin;
 
   // ナビゲーションはネット優先 + オフラインフォールバック
