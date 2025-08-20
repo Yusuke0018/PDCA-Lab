@@ -1229,7 +1229,7 @@
                     <div class="form-group" style="margin-bottom: 20px;">
                         <label style="display: block; margin-bottom: 12px; font-weight: 600;">体重 (任意)</label>
                         <div style="display: flex; gap: 8px; align-items: center;">
-                            <input type="number" id="weight-input" placeholder="例: 65.5" step="0.1" 
+                            <input type="number" id="weight-input" placeholder="例: 65.52" step="0.01" 
                                 value="${todayEntry.morning?.weight || ''}" 
                                 style="width: 120px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; 
                                 background: var(--surface); color: var(--text-primary);">
