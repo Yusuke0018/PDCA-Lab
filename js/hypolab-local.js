@@ -1,29 +1,9 @@
         // PWA: service worker 登録
-        // 緊急アップデータ（毎回に近い頻度で最新化）
-        (function(){
-            try {
-                var APP_VERSION = '2025-08-20-02';
-                var key = 'app_version_tag';
-                var prev = localStorage.getItem(key);
-                if (prev !== APP_VERSION && typeof caches !== 'undefined' && caches.keys) {
-                    // 旧キャッシュを削除
-                    caches.keys().then(function(keys){ keys.forEach(function(k){ caches.delete(k).catch(function(){}); }); });
-                    // 次回以降ループ防止に先に保存
-                    localStorage.setItem(key, APP_VERSION);
-                }
-            } catch(e) {}
-        })();
-        if ('serviceWorker' in navigator && !/Android/i.test(navigator.userAgent)) {
+        if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                // AndroidはSWを無効化（毎回最新を取得）
-                try {
-                    if (/Android/i.test(navigator.userAgent) && navigator.serviceWorker) {
-                        navigator.serviceWorker.getRegistrations().then(list => { list.forEach(r => r.unregister().catch(()=>{})); });
-                    }
-                } catch(_) {}
-                const SW_VERSION_TAG = '20250119-09';
+                const SW_VERSION_TAG = '20250119-04';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
-                navigator.serviceWorker.register(SW_FILE, { updateViaCache: 'none' })
+                navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
                         // 即時適用のためのハンドリング
                         if (reg.waiting) {
@@ -68,7 +48,7 @@
             notify('更新を適用中です…');
             // 1) 既存SWの登録解除
             try {
-                if ('serviceWorker' in navigator && !/Android/i.test(navigator.userAgent)) {
+                if ('serviceWorker' in navigator) {
                     const regs = await navigator.serviceWorker.getRegistrations();
                     await Promise.all(regs.map(async (r) => {
                         try { r.active && r.active.postMessage && r.active.postMessage({ type:'SKIP_WAITING' }); } catch(_){}
@@ -661,6 +641,7 @@
             { id: 'complete_3_habits', name: '今日3つ以上の習慣を達成', points: 5, icon: '🎯', checkFunction: 'checkComplete3Habits' },
             { id: 'morning_routine', name: '朝の習慣をすべて完了', points: 4, icon: '🌅', checkFunction: 'checkMorningRoutine' },
             { id: 'high_intensity_day', name: '今日すべて高強度(×1.2)で達成', points: 6, icon: '🔥', checkFunction: 'checkHighIntensityDay' },
+            { id: 'perfect_streak', name: '3日連続で全習慣達成', points: 8, icon: '⚡', checkFunction: 'checkPerfectStreak' },
             { id: 'category_master', name: '同じカテゴリーの習慣を3つ達成', points: 4, icon: '📊', checkFunction: 'checkCategoryMaster' },
             { id: 'early_bird', name: '午前中に習慣を2つ以上達成', points: 3, icon: '🐦', checkFunction: 'checkEarlyBird' },
             { id: 'if_then_execute', name: 'IF-THENルールを3回実行', points: 4, icon: '🔄', checkFunction: 'checkIfThenExecute' },
@@ -1244,18 +1225,7 @@
                             `).join('')}
                         </div>
                     </div>
-
-                    <div class="form-group" style="margin-bottom: 16px;">
-                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">体重（任意・小数第1位まで）</label>
-                        <div style="display:flex; gap:8px; align-items:center;">
-                            <input type="number" id="weight-input" inputmode="decimal" step="0.1" min="0" placeholder="例: 67.8"
-                                value="${(todayEntry.morning && (typeof todayEntry.morning.weight === 'number')) ? todayEntry.morning.weight : }"
-                                style="flex:1; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text-primary);">
-                            <span style="color: var(--text-secondary); font-size: 14px;">kg</span>
-                        </div>
-                        <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">未入力でも保存できます</div>
-                    </div>
-
+                    
                     <div class="form-group" style="margin-bottom: 24px;">
                         <label style="display: block; margin-bottom: 12px; font-weight: 600;">今日の最優先事項は？</label>
                         <textarea id="priority-input" placeholder="例: プロジェクトXの企画書を完成させる" 
@@ -1430,7 +1400,6 @@
             const priority = document.getElementById('priority-input').value.trim();
             const bedtime = document.getElementById('bedtime-input').value;
             const wakeup = document.getElementById('wakeup-input').value;
-            const weightRaw = (document.getElementById('weight-input') && document.getElementById('weight-input').value) || '';
             
             // 睡眠時間を計算
             let sleepHours = null;
@@ -2594,12 +2563,6 @@
             
             // デイリーチャレンジプールを作成（既定 + カスタム）
             const allDailyChallenges = [...DAILY_CHALLENGES, ...customDailyChallenges];
-
-            // 互換: 削除済みIDが保存されていたら再抽選
-            if (data.challenges.daily && !allDailyChallenges.some(c => c.id === data.challenges.daily.id)) {
-                data.challenges.daily = null;
-            }
-
             
             // デイリーチャレンジ
             const dailyContainer = document.getElementById('daily-challenge-container');
@@ -13645,12 +13608,6 @@
         
         // 初期化
         window.addEventListener('load', () => {
-                // AndroidはSWを無効化（毎回最新を取得）
-                try {
-                    if (/Android/i.test(navigator.userAgent) && navigator.serviceWorker) {
-                        navigator.serviceWorker.getRegistrations().then(list => { list.forEach(r => r.unregister().catch(()=>{})); });
-                    }
-                } catch(_) {}
             updateHeaderHeightVar();
             // レイアウト安定後にも再測定（フォント/アドレスバー反映）
             setTimeout(updateHeaderHeightVar, 200);
