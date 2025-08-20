@@ -1,0 +1,8 @@
+timestamp: 2025-08-20T07:30:38Z
+branch: main
+before: d664c6f
+after: e9c40a7
+changed:
+ - .codex/logs/20250820-162707_fix-journal-weight.txt
+ - js/hypolab-local.js
+ - sw.v20250119-03.js
