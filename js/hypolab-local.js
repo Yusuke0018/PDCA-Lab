@@ -8316,6 +8316,8 @@
             
             updateProgress();
             updateCalendar(); // カレンダーを再描画して週の状況を更新
+            // カード効果（残回数など）の表示も更新
+            try { updateActiveEffectsDisplay(); } catch(_) {}
             try { updateCurrentHypothesisList(); } catch(_) {}
             
             // バッジ獲得チェック
@@ -14772,17 +14774,25 @@
             const idx = data.cards.inventory.findIndex(c => c.cardId === 'power_nap' && !c.used);
             if (idx === -1) { showNotification('⚠️ パワーナップがありません', 'error'); return; }
             data.cards.inventory.splice(idx, 1);
-            
-            // 即座に10ポイント獲得
-            data.points.total += 10;
-            data.points.lifetime += 10;
-            
+
+            // 即座に10ポイント獲得（ポイントシステムに準拠）
+            if (!data.pointSystem) { data.pointSystem = { currentPoints: 0, lifetimeEarned: 0, levelProgress: 0, currentLevel: 1, transactions: [] }; }
+            const gain = 10;
+            data.pointSystem.currentPoints += gain;
+            data.pointSystem.lifetimeEarned = (data.pointSystem.lifetimeEarned || 0) + gain;
+            data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
+            // トランザクション記録
+            if (!Array.isArray(data.pointSystem.transactions)) data.pointSystem.transactions = [];
+            data.pointSystem.transactions.unshift({
+                type: 'earn', amount: gain, source: 'card', description: 'パワーナップ', timestamp: new Date().toISOString()
+            });
+
             // カード使用を記録
             if (!data.cards.dailyUsage) data.cards.dailyUsage = {};
             const today = dateKeyLocal(new Date());
             if (!data.cards.dailyUsage[today]) data.cards.dailyUsage[today] = [];
             data.cards.dailyUsage[today].push({ cardId: 'power_nap', time: new Date().toISOString() });
-            
+
             saveData(data);
             showCardEffect('😴 パワーナップ！','10pt獲得！','\#06b6d4');
             updatePointDisplay();
