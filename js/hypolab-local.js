@@ -1226,6 +1226,20 @@
                         </div>
                     </div>
                     
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 12px; font-weight: 600;">体重 (任意)</label>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="number" id="weight-input" placeholder="例: 65.5" step="0.1" 
+                                value="${todayEntry.morning?.weight || ''}" 
+                                style="width: 120px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; 
+                                background: var(--surface); color: var(--text-primary);">
+                            <span style="color: var(--text-secondary); font-size: 14px;">kg</span>
+                        </div>
+                        <small style="display: block; margin-top: 4px; color: var(--text-secondary); font-size: 12px;">
+                            ※記録しなくてもジャーナルは完了できます
+                        </small>
+                    </div>
+                    
                     <div class="form-group" style="margin-bottom: 24px;">
                         <label style="display: block; margin-bottom: 12px; font-weight: 600;">今日の最優先事項は？</label>
                         <textarea id="priority-input" placeholder="例: プロジェクトXの企画書を完成させる" 
@@ -1400,6 +1414,7 @@
             const priority = document.getElementById('priority-input').value.trim();
             const bedtime = document.getElementById('bedtime-input').value;
             const wakeup = document.getElementById('wakeup-input').value;
+            const weight = document.getElementById('weight-input').value; // 体重（任意）
             
             // 睡眠時間を計算
             let sleepHours = null;
@@ -1413,8 +1428,9 @@
                 sleepHours = (diff / (1000 * 60 * 60)).toFixed(1);
             }
             
+            // 体重以外の必須項目をチェック（体重は任意）
             if (!conditionBtn || !moodBtn || !priority) {
-                showNotification('すべての項目を入力してください', 'error');
+                showNotification('体重以外のすべての項目を入力してください', 'error');
                 return;
             }
             
@@ -1434,6 +1450,7 @@
                 bedtime: bedtime,
                 wakeup: wakeup,
                 sleepHours: sleepHours,
+                weight: weight ? parseFloat(weight) : null, // 体重を保存（入力があれば）
                 timestamp: new Date().toISOString(),
                 pointsEarned: isFirstTime ? 1 : 0
             };
