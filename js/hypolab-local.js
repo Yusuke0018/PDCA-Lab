@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250120-05';
+                const SW_VERSION_TAG = '20250120-06';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -1072,24 +1072,20 @@
                     const sleepInfo = entry.morning.sleepHours 
                         ? `😴 睡眠${entry.morning.sleepHours}時間` 
                         : '';
-                    
-                    // デバッグ用
-                    console.log('Morning entry data:', entry.morning);
-                    console.log('Weight value:', entry.morning.weight);
+                    const weightInfo = entry.morning.weight !== null && entry.morning.weight !== undefined && entry.morning.weight !== '' 
+                        ? `⚖️ ${entry.morning.weight}kg` 
+                        : '';
                     
                     historyHTML += `
                         <div class="history-journal-item" style="padding: 12px; border-bottom: 1px solid var(--border);">
-                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;">
                                 <span style="font-size: 14px; font-weight: 600;">🌅 朝のジャーナル</span>
-                                <span style="font-size: 11px; color: var(--text-secondary);">${sleepInfo}</span>
+                                ${sleepInfo ? `<span style="font-size: 11px; color: var(--text-secondary);">${sleepInfo}</span>` : ''}
+                                ${weightInfo ? `<span style="font-size: 11px; color: var(--text-secondary);">${weightInfo}</span>` : ''}
                             </div>
-                            <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;">
-                                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-                                    <span>体調: ${['😫', '😟', '😐', '🙂', '😊'][entry.morning.condition - 1]} ${entry.morning.condition}/5</span>
-                                    <span>気分: ${['😔', '😕', '😐', '😌', '😄'][entry.morning.mood - 1]} ${entry.morning.mood}/5</span>
-                                </div>
-                                ${entry.morning.weight !== null && entry.morning.weight !== undefined && entry.morning.weight !== '' ? 
-                                    `<div style="margin-top: 4px;">体重: ${entry.morning.weight}kg</div>` : ''}
+                            <div style="font-size: 12px; color: var(--text-secondary); display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px;">
+                                <span>体調: ${['😫', '😟', '😐', '🙂', '😊'][entry.morning.condition - 1]} ${entry.morning.condition}/5</span>
+                                <span>気分: ${['😔', '😕', '😐', '😌', '😄'][entry.morning.mood - 1]} ${entry.morning.mood}/5</span>
                             </div>
                             <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">最優先事項:</div>
                             <div style="font-size: 13px; background: var(--surface); padding: 8px; border-radius: 6px;">
