@@ -1,5 +1,5 @@
 // GitHub Pagesなどサブパス配信でも動くようにベースパス対応
-const VERSION = 'v14'; // 2025-08-20-02 更新 (cache-bust)
+const VERSION = 'v15'; // 2025-08-20-03 更新 (cache-bust)
 const CACHE_NAME = `hypolab-cache-${VERSION}`;
 
 // ベースURL（例: https://example.com/PDCA-Lab/）

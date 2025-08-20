@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250820-02';
+                const SW_VERSION_TAG = '20250820-03';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -902,8 +902,11 @@
             const hasMorning = todayEntry.morning && todayEntry.morning.timestamp;
             const hasEvening = todayEntry.evening && todayEntry.evening.timestamp;
             
-            // 時刻表示を削除し、睡眠時間を表示
+            // 時刻表示を削除し、睡眠時間を表示（体重も要約に含める）
             const sleepHours = todayEntry.morning?.sleepHours ? `😴 ${todayEntry.morning.sleepHours}時間` : '';
+            const weightSummary = (todayEntry.morning && todayEntry.morning.weight !== null && todayEntry.morning.weight !== undefined && todayEntry.morning.weight !== '')
+                ? `⚖️ ${todayEntry.morning.weight}kg`
+                : '';
             
             // 過去のジャーナルを取得（最大5日分）
             const pastJournals = [];
@@ -929,7 +932,7 @@
                             <span style="font-size: 14px;">🌅 朝のジャーナル</span>
                             ${hasMorning 
                                 ? `<div style="display: flex; align-items: center; gap: 8px;">
-                                    <span style="color: #10b981; font-size: 12px;">✅ ${sleepHours}</span>
+                                    <span style="color: #10b981; font-size: 12px;">✅ ${sleepHours} ${weightSummary}</span>
                                     <span class="expand-icon" style="font-size: 12px; transition: transform 0.3s;">▼</span>
                                   </div>`
                                 : `<span style="color: #f59e0b; font-size: 12px;">⏳ まだ記録していません</span>`
