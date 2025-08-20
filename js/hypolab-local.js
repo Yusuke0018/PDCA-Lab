@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250820-07';
+                const SW_VERSION_TAG = '20250820-08';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -14069,7 +14069,14 @@
             if (!(typeof EVENTS_DISABLED !== 'undefined' && EVENTS_DISABLED) && data.events && data.events.activeBoosts) {
                 const currentHour = new Date().getHours();
                 
+                console.log('[DEBUG] activeBoosts:', data.events.activeBoosts);
+                console.log('[DEBUG] activeBoosts length:', data.events.activeBoosts.length);
+                
                 data.events.activeBoosts.forEach(boost => {
+                    console.log('[DEBUG] boost object:', boost);
+                    console.log('[DEBUG] boost.effect:', boost.effect);
+                    console.log('[DEBUG] checking boost.effect === "points_multiplier":', boost.effect === 'points_multiplier');
+                    
                     // 新しいイベントシステムの処理
                     if (boost.effect === 'points_multiplier') {
                         console.log(`[DEBUG] ポイント倍率イベント適用: ${boost.name}, 倍率: ${boost.value}, 適用前: ${multiplier}, 適用後: ${multiplier * boost.value}`);

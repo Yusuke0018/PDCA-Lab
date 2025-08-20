@@ -109,7 +109,14 @@ function calculatePointsWithBoosts(basePoints, source, category = null, habitId 
 
     if (!(typeof EVENTS_DISABLED !== 'undefined' && EVENTS_DISABLED) && data.events && data.events.activeBoosts) {
         const currentHour = new Date().getHours();
+        console.log('[DEBUG] activeBoosts:', data.events.activeBoosts);
+        console.log('[DEBUG] activeBoosts length:', data.events.activeBoosts.length);
+        
         data.events.activeBoosts.forEach(boost => {
+            console.log('[DEBUG] boost object:', boost);
+            console.log('[DEBUG] boost.effect:', boost.effect);
+            console.log('[DEBUG] checking boost.effect === "points_multiplier":', boost.effect === 'points_multiplier');
+            
             if (boost.effect === 'points_multiplier') {
                 console.log(`[DEBUG] ポイント倍率イベント適用: ${boost.name}, 倍率: ${boost.value}, 適用前: ${multiplier}, 適用後: ${multiplier * boost.value}`);
                 multiplier *= boost.value;
