@@ -43,3 +43,10 @@ PDCA-Lab（HypoLab）は習慣追跡のためのシングルファイルPWAア�
 - 関数はwindowオブジェクトに登録して、onclickハンドラから呼び出し可能にする
 - モバイルUIを優先（タップターゲットは最小44x44px）
 - 変更後は必ずGitHubにプッシュ
+
+### キャッシュクリアについて
+**重要**: JS/CSSファイルを変更した際は、必ず以下のバージョンタグを更新してキャッシュをクリアすること
+- hypolab-local.html内の `css/hypolab-local.css?v=` と `js/hypolab-local.js?v=` のバージョンを更新
+- js/hypolab-local.js内の `SW_VERSION_TAG` も同じバージョンに更新
+- バージョン形式: `YYYYMMDD-NN` (例: 20250120-01)
+- これによりスマホを含むすべてのデバイスで強制的に最新版が読み込まれる
