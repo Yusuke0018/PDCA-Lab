@@ -343,7 +343,7 @@
                 id: 'sparkle_streak',
                 type: 'reward',
                 name: 'スパークルストリーク',
-                description: '今日の最初の3回の達成に追加ボーナス（+3/+5/+8）',
+                description: '当日中は習慣達成ごとに+1pt',
                 icon: '🎆',
                 rarity: 'rare',
                 color: '#f97316'
@@ -16185,9 +16185,9 @@
                             }
                             break;
                         case 'streak_spark':
-                            const left = Math.max(0, (effect.bonuses ? effect.bonuses.length : 0) - (effect.count || 0));
-                            if (left > 0) {
-                                displayText = `スパークル残${left}回`;
+                            if (new Date(effect.startDate) <= now && new Date(effect.endDate) >= now) {
+                                const add = (typeof effect.perHabit === 'number' ? effect.perHabit : 1);
+                                displayText = `スパークル +${add}`;
                                 displayIcon = cardInfo ? cardInfo.icon : '🎆';
                                 displayColor = cardInfo ? cardInfo.color : '#f97316';
                             }
