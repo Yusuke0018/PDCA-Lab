@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250120-06';
+                const SW_VERSION_TAG = '20250120-07';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -16011,22 +16011,12 @@
                 // 週末スペシャルのサニタイズと重複排除
                 let boosts = Array.isArray(data.events.activeBoosts) ? data.events.activeBoosts.slice() : [];
 
-                // 1) 値・説明の正規化（週末スペシャル）
-                boosts = boosts.map(b => {
-                    if (b && b.eventId === 'weekend_special') {
-                        b.value = 1.2;
-                        b.description = '週末はポイント1.2倍！';
-                    }
-                    return b;
-                });
+                // 1) 値・説明の正規化（不要な強制変更を削除）
+                // マイナス効果も含めて正しく表示されるようにする
 
-                // 2) 明らかに古い表記（1.5など）を含む週末スペシャルを除外
+                // 2) 無効なブーストを除外
                 boosts = boosts.filter(b => {
                     if (!b) return false;
-                    if (b.eventId === 'weekend_special') {
-                        const desc = String(b.description || '');
-                        if (desc.includes('1.5') || desc.includes('×1.5')) return false;
-                    }
                     return true;
                 });
 
@@ -16045,15 +16035,29 @@
                 eventContainer.style.display = 'block';
                 eventContainer.innerHTML = `
                     <h3 style="margin-bottom: 12px; font-size: 16px;">🎉 今日のイベント</h3>
-                    ${boosts.map(boost => `
-                        <div class="event-card" style="background: rgba(251, 191, 36, 0.15); border-radius: 8px; padding: 12px; margin: 8px 0;">
+                    ${boosts.map(boost => {
+                        // マイナス効果かどうかを判定
+                        const isNegative = boost.value < 1.0 || 
+                                         boost.effect === 'combo_disable' || 
+                                         boost.effect === 'point_reduction' ||
+                                         boost.effect === 'intensity_restriction' ||
+                                         boost.effect === 'streak_reverse' ||
+                                         boost.effect === 'reward_multiplier';
+                        
+                        const bgColor = isNegative ? 'rgba(239, 68, 68, 0.15)' : 'rgba(251, 191, 36, 0.15)';
+                        const borderColor = isNegative ? 'rgba(239, 68, 68, 0.3)' : 'transparent';
+                        const iconColor = isNegative ? '#ef4444' : '#f59e0b';
+                        
+                        return `
+                        <div class="event-card" style="background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 8px; padding: 12px; margin: 8px 0;">
                             <div style="font-size: 16px; font-weight: bold;">${boost.name}</div>
                             <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">${boost.description}</div>
-                            <div style="font-size: 10px; margin-top: 8px; color: #f59e0b;">
+                            <div style="font-size: 10px; margin-top: 8px; color: ${iconColor};">
                                 期間: 本日中
                             </div>
                         </div>
-                    `).join('')}
+                        `;
+                    }).join('')}
                 `;
             }
         }

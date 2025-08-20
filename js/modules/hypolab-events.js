@@ -75,22 +75,14 @@ function checkDailyEvents() {
     const todayEvent = getDailyEvent();
     
     if (todayEvent) {
-        // 週末スペシャルの場合は値を1.5倍に強制修正
-        let eventValue = todayEvent.value;
-        let eventDescription = todayEvent.description;
-        if (todayEvent.id === 'weekend_special') {
-            eventValue = 1.5;
-            eventDescription = '週末はポイント1.5倍！';
-        }
-        
-        // イベントを記録
+        // イベントを記録（値の強制変更を削除し、定義通りの値を使用）
         data.events.activeBoosts.push({
             type: 'daily_event',
             eventId: todayEvent.id,
             name: todayEvent.name,
-            description: eventDescription,
+            description: todayEvent.description,
             effect: todayEvent.effect,
-            value: eventValue,
+            value: todayEvent.value,
             date: todayStr
         });
         
