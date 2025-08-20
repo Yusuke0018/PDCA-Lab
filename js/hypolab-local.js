@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250120-02';
+                const SW_VERSION_TAG = '20250120-03';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -1081,6 +1081,7 @@
                             <div style="font-size: 12px; color: var(--text-secondary); display: flex; gap: 12px; margin-bottom: 6px;">
                                 <span>体調: ${['😫', '😟', '😐', '🙂', '😊'][entry.morning.condition - 1]} ${entry.morning.condition}/5</span>
                                 <span>気分: ${['😔', '😕', '😐', '😌', '😄'][entry.morning.mood - 1]} ${entry.morning.mood}/5</span>
+                                ${entry.morning.weight ? `<span>体重: ${entry.morning.weight}kg</span>` : ''}
                             </div>
                             <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">最優先事項:</div>
                             <div style="font-size: 13px; background: var(--surface); padding: 8px; border-radius: 6px;">
@@ -2438,6 +2439,18 @@
             `;
             
             menu.innerHTML = `
+                <div onclick="editJournalEntry('${type}'); this.parentElement.remove();" style="
+                    padding: 8px 12px;
+                    cursor: pointer;
+                    border-radius: 4px;
+                    color: var(--text-primary);
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    transition: background 0.2s;
+                " onmouseover="this.style.background='var(--hover)'" onmouseout="this.style.background='transparent'">
+                    ✏️ 編集
+                </div>
                 <div onclick="deleteJournalEntry('${type}'); this.parentElement.remove();" style="
                     padding: 8px 12px;
                     cursor: pointer;
@@ -2464,6 +2477,278 @@
                 });
             }, 100);
         }
+        
+        // ジャーナルエントリを編集
+        function editJournalEntry(type) {
+            const data = loadData();
+            const todayKey = getJournalDateKey();
+            const todayEntry = data.dailyJournal?.entries?.[todayKey];
+            
+            if (!todayEntry || !todayEntry[type]) {
+                showNotification('編集するジャーナルが見つかりません', 'error');
+                return;
+            }
+            
+            // 編集モードでジャーナルモーダルを開く
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay active';
+            overlay.style.backdropFilter = 'blur(6px)';
+            
+            const modal = document.createElement('div');
+            modal.className = 'skip-modal active';
+            modal.style.maxWidth = '520px';
+            modal.style.padding = '24px';
+            
+            if (type === 'morning') {
+                const morning = todayEntry.morning;
+                modal.innerHTML = `
+                    <div class="modal-header" style="margin-bottom: 20px;">
+                        <h3 style="font-size: 20px; margin-bottom: 8px;">🌅 朝のジャーナルを編集</h3>
+                        <p style="color: var(--text-secondary); font-size: 14px;">記録した内容を修正できます</p>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 12px; font-weight: 600;">体調はどうですか？</label>
+                        <div id="condition-selector" style="display: flex; gap: 12px; justify-content: space-between;">
+                            ${[1,2,3,4,5].map(i => `
+                                <button class="mood-btn ${morning.condition === i ? 'active' : ''}" data-value="${i}" style="
+                                    flex: 1;
+                                    padding: 12px;
+                                    border: 2px solid ${morning.condition === i ? 'var(--primary)' : 'var(--border)'};
+                                    border-radius: 12px;
+                                    background: ${morning.condition === i ? 'var(--primary-bg)' : 'var(--surface)'};
+                                    cursor: pointer;
+                                    transition: all 0.3s;
+                                    text-align: center;
+                                ">
+                                    <div style="font-size: 24px; margin-bottom: 4px;">${['😫', '😟', '😐', '🙂', '😊'][i-1]}</div>
+                                    <div style="font-size: 12px; color: var(--text-secondary);">${i}</div>
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 12px; font-weight: 600;">睡眠時間</label>
+                        <div style="display: flex; gap: 12px; align-items: center;">
+                            <div style="flex: 1;">
+                                <label style="display: block; margin-bottom: 4px; font-size: 12px; color: var(--text-secondary);">昨夜の就寝時刻</label>
+                                <input type="time" id="bedtime-input" 
+                                    value="${morning.bedtime || ''}" 
+                                    style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 8px; 
+                                    background: var(--surface); color: var(--text-primary);">
+                            </div>
+                            <div style="flex: 1;">
+                                <label style="display: block; margin-bottom: 4px; font-size: 12px; color: var(--text-secondary);">今朝の起床時刻</label>
+                                <input type="time" id="wakeup-input" 
+                                    value="${morning.wakeup || ''}" 
+                                    style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 8px; 
+                                    background: var(--surface); color: var(--text-primary);">
+                            </div>
+                        </div>
+                        <div id="sleep-duration" style="margin-top: 8px; font-size: 14px; color: var(--text-secondary);"></div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 12px; font-weight: 600;">気分はどうですか？</label>
+                        <div id="mood-selector" style="display: flex; gap: 12px; justify-content: space-between;">
+                            ${[1,2,3,4,5].map(i => `
+                                <button class="mood-btn ${morning.mood === i ? 'active' : ''}" data-value="${i}" style="
+                                    flex: 1;
+                                    padding: 12px;
+                                    border: 2px solid ${morning.mood === i ? 'var(--primary)' : 'var(--border)'};
+                                    border-radius: 12px;
+                                    background: ${morning.mood === i ? 'var(--primary-bg)' : 'var(--surface)'};
+                                    cursor: pointer;
+                                    transition: all 0.3s;
+                                    text-align: center;
+                                ">
+                                    <div style="font-size: 24px; margin-bottom: 4px;">${['😔', '😕', '😐', '😌', '😄'][i-1]}</div>
+                                    <div style="font-size: 12px; color: var(--text-secondary);">${i}</div>
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 12px; font-weight: 600;">体重 (任意)</label>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="number" id="weight-input" placeholder="例: 65.52" step="0.01" 
+                                value="${morning.weight || ''}" 
+                                style="width: 120px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; 
+                                background: var(--surface); color: var(--text-primary);">
+                            <span style="color: var(--text-secondary); font-size: 14px;">kg</span>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 24px;">
+                        <label style="display: block; margin-bottom: 12px; font-weight: 600;">今日の最優先事項は？</label>
+                        <textarea id="priority-input" placeholder="例: プロジェクトXの企画書を完成させる" 
+                            style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; 
+                            background: var(--surface); color: var(--text-primary); min-height: 80px; resize: vertical;"
+                            maxlength="200">${morning.priority || ''}</textarea>
+                        <div style="text-align: right; margin-top: 4px;">
+                            <span id="priority-count" style="font-size: 12px; color: var(--text-secondary);">${(morning.priority || '').length}/200</span>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-footer" style="display: flex; gap: 12px; justify-content: flex-end;">
+                        <button class="button secondary" onclick="this.closest('.overlay').remove()">キャンセル</button>
+                        <button class="button primary" onclick="updateMorningJournal()" style="background: linear-gradient(135deg, #a855f7 0%, #3b82f6 100%);">
+                            💾 変更を保存
+                        </button>
+                    </div>
+                `;
+            } else {
+                const evening = todayEntry.evening;
+                modal.innerHTML = `
+                    <div class="modal-header" style="margin-bottom: 20px;">
+                        <h3 style="font-size: 20px; margin-bottom: 8px;">🌙 夜のジャーナルを編集</h3>
+                        <p style="color: var(--text-secondary); font-size: 14px;">記録した内容を修正できます</p>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 12px; font-weight: 600;">今日うまくいったことは？</label>
+                        <textarea id="success-input" placeholder="例: 企画書を予定通り完成できた。チームとの連携もスムーズだった" 
+                            style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; 
+                            background: var(--surface); color: var(--text-primary); min-height: 100px; resize: vertical;"
+                            maxlength="300">${evening.success || ''}</textarea>
+                        <div style="text-align: right; margin-top: 4px;">
+                            <span id="success-count" style="font-size: 12px; color: var(--text-secondary);">${(evening.success || '').length}/300</span>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 24px;">
+                        <label style="display: block; margin-bottom: 12px; font-weight: 600;">改善点は？</label>
+                        <textarea id="improvement-input" placeholder="例: 時間配分をもっと計画的にすべきだった" 
+                            style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; 
+                            background: var(--surface); color: var(--text-primary); min-height: 100px; resize: vertical;"
+                            maxlength="300">${evening.improvement || ''}</textarea>
+                        <div style="text-align: right; margin-top: 4px;">
+                            <span id="improvement-count" style="font-size: 12px; color: var(--text-secondary);">${(evening.improvement || '').length}/300</span>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-footer" style="display: flex; gap: 12px; justify-content: flex-end;">
+                        <button class="button secondary" onclick="this.closest('.overlay').remove()">キャンセル</button>
+                        <button class="button primary" onclick="updateEveningJournal()" style="background: linear-gradient(135deg, #a855f7 0%, #3b82f6 100%);">
+                            💾 変更を保存
+                        </button>
+                    </div>
+                `;
+            }
+            
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            
+            // イベントリスナーを設定
+            setTimeout(() => {
+                setupJournalModalListeners();
+            }, 100);
+        }
+        window.editJournalEntry = editJournalEntry;
+        
+        // 朝のジャーナルを更新
+        function updateMorningJournal() {
+            const condition = parseInt(document.querySelector('#condition-selector .mood-btn.active')?.dataset.value || '3');
+            const mood = parseInt(document.querySelector('#mood-selector .mood-btn.active')?.dataset.value || '3');
+            const priority = document.getElementById('priority-input').value.trim();
+            const bedtime = document.getElementById('bedtime-input').value;
+            const wakeup = document.getElementById('wakeup-input').value;
+            const weight = parseFloat(document.getElementById('weight-input').value) || null;
+            
+            if (!priority) {
+                showNotification('最優先事項を入力してください', 'error');
+                return;
+            }
+            
+            let data = loadData();
+            const todayKey = getJournalDateKey();
+            
+            // 既存のデータを保持しつつ更新
+            const existingMorning = data.dailyJournal.entries[todayKey].morning;
+            
+            // 睡眠時間を計算
+            let sleepHours = null;
+            if (bedtime && wakeup) {
+                const [bedHour, bedMin] = bedtime.split(':').map(Number);
+                const [wakeHour, wakeMin] = wakeup.split(':').map(Number);
+                
+                let bedMinutes = bedHour * 60 + bedMin;
+                let wakeMinutes = wakeHour * 60 + wakeMin;
+                
+                if (wakeMinutes <= bedMinutes) {
+                    wakeMinutes += 24 * 60;
+                }
+                
+                const diffMinutes = wakeMinutes - bedMinutes;
+                sleepHours = Math.round((diffMinutes / 60) * 10) / 10;
+            }
+            
+            // 朝のジャーナルを更新
+            data.dailyJournal.entries[todayKey].morning = {
+                ...existingMorning,
+                condition: condition,
+                mood: mood,
+                priority: priority,
+                bedtime: bedtime,
+                wakeup: wakeup,
+                sleepHours: sleepHours,
+                weight: weight,
+                timestamp: existingMorning.timestamp,
+                pointsEarned: existingMorning.pointsEarned
+            };
+            
+            // データを保存
+            saveData(data);
+            
+            // UIを更新
+            updateJournalStatus();
+            
+            // モーダルを閉じる
+            document.querySelector('.overlay').remove();
+            
+            showNotification('🌅 朝のジャーナルを更新しました！', 'success');
+        }
+        window.updateMorningJournal = updateMorningJournal;
+        
+        // 夜のジャーナルを更新
+        function updateEveningJournal() {
+            const success = document.getElementById('success-input').value.trim();
+            const improvement = document.getElementById('improvement-input').value.trim();
+            
+            if (!success && !improvement) {
+                showNotification('少なくとも1つの項目を入力してください', 'error');
+                return;
+            }
+            
+            let data = loadData();
+            const todayKey = getJournalDateKey();
+            
+            // 既存のデータを保持しつつ更新
+            const existingEvening = data.dailyJournal.entries[todayKey].evening;
+            
+            // 夜のジャーナルを更新
+            data.dailyJournal.entries[todayKey].evening = {
+                ...existingEvening,
+                success: success,
+                improvement: improvement,
+                timestamp: existingEvening.timestamp,
+                pointsEarned: existingEvening.pointsEarned
+            };
+            
+            // データを保存
+            saveData(data);
+            
+            // UIを更新
+            updateJournalStatus();
+            
+            // モーダルを閉じる
+            document.querySelector('.overlay').remove();
+            
+            showNotification('🌙 夜のジャーナルを更新しました！', 'success');
+        }
+        window.updateEveningJournal = updateEveningJournal;
         
         // ジャーナルエントリを削除
         function deleteJournalEntry(type) {
