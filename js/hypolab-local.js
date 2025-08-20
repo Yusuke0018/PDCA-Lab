@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250119-06';
+                const SW_VERSION_TAG = '20250119-07';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -1224,7 +1224,18 @@
                             `).join('')}
                         </div>
                     </div>
-                    
+
+                    <div class="form-group" style="margin-bottom: 16px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">体重（任意・小数第1位まで）</label>
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            <input type="number" id="weight-input" inputmode="decimal" step="0.1" min="0" placeholder="例: 67.8"
+                                value="${(todayEntry.morning && (typeof todayEntry.morning.weight === 'number')) ? todayEntry.morning.weight : }"
+                                style="flex:1; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text-primary);">
+                            <span style="color: var(--text-secondary); font-size: 14px;">kg</span>
+                        </div>
+                        <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">未入力でも保存できます</div>
+                    </div>
+
                     <div class="form-group" style="margin-bottom: 24px;">
                         <label style="display: block; margin-bottom: 12px; font-weight: 600;">今日の最優先事項は？</label>
                         <textarea id="priority-input" placeholder="例: プロジェクトXの企画書を完成させる" 
@@ -1399,6 +1410,7 @@
             const priority = document.getElementById('priority-input').value.trim();
             const bedtime = document.getElementById('bedtime-input').value;
             const wakeup = document.getElementById('wakeup-input').value;
+            const weightRaw = (document.getElementById('weight-input') && document.getElementById('weight-input').value) || '';
             
             // 睡眠時間を計算
             let sleepHours = null;
