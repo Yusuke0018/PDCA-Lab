@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250119-06';
+                const SW_VERSION_TAG = '20250119-05';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -1080,7 +1080,6 @@
                             <div style="font-size: 12px; color: var(--text-secondary); display: flex; gap: 12px; margin-bottom: 6px;">
                                 <span>体調: ${['😫', '😟', '😐', '🙂', '😊'][entry.morning.condition - 1]} ${entry.morning.condition}/5</span>
                                 <span>気分: ${['😔', '😕', '😐', '😌', '😄'][entry.morning.mood - 1]} ${entry.morning.mood}/5</span>
-                                ${typeof entry.morning.weight === 'number' ? `<span>⚖️ 体重: ${entry.morning.weight.toFixed(1)}kg</span>` : ''}
                             </div>
                             <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">最優先事項:</div>
                             <div style="font-size: 13px; background: var(--surface); padding: 8px; border-radius: 6px;">
@@ -1226,18 +1225,6 @@
                         </div>
                     </div>
                     
-                    <!-- 体重（任意） -->
-                    <div class="form-group" style="margin-bottom: 20px;">
-                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">体重（任意・小数第1位まで）</label>
-                        <div style="display:flex; gap:8px; align-items:center;">
-                            <input type="number" id="weight-input" inputmode="decimal" step="0.1" min="0" placeholder="例: 67.8"
-                                value="${todayEntry.morning?.weight ?? ''}"
-                                style="flex:1; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text-primary);">
-                            <span style="color: var(--text-secondary); font-size: 14px;">kg</span>
-                        </div>
-                        <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">未入力でも保存できます</div>
-                    </div>
-
                     <div class="form-group" style="margin-bottom: 24px;">
                         <label style="display: block; margin-bottom: 12px; font-weight: 600;">今日の最優先事項は？</label>
                         <textarea id="priority-input" placeholder="例: プロジェクトXの企画書を完成させる" 
@@ -1412,7 +1399,6 @@
             const priority = document.getElementById('priority-input').value.trim();
             const bedtime = document.getElementById('bedtime-input').value;
             const wakeup = document.getElementById('wakeup-input').value;
-            const weightRaw = (document.getElementById('weight-input') && document.getElementById('weight-input').value) || '';
             
             // 睡眠時間を計算
             let sleepHours = null;
@@ -1433,9 +1419,6 @@
             
             // データを保存
             if (!data.dailyJournal.entries[todayKey]) {
-                
-            }
-            
                 data.dailyJournal.entries[todayKey] = {};
             }
             
@@ -1443,14 +1426,6 @@
             const isFirstTime = !data.dailyJournal.entries[todayKey].morning;
             console.log('朝のジャーナル：初回判定 =', isFirstTime);
             
-            let weight = null;
-            if (weightRaw !== '') {
-                const w = parseFloat(weightRaw);
-                if (!isNaN(w) && isFinite(w)) {
-                    weight = Number(w.toFixed(1));
-                }
-            }
-
             data.dailyJournal.entries[todayKey].morning = {
                 condition: parseInt(conditionBtn.dataset.value),
                 mood: parseInt(moodBtn.dataset.value),
@@ -1458,7 +1433,6 @@
                 bedtime: bedtime,
                 wakeup: wakeup,
                 sleepHours: sleepHours,
-                weight: weight,
                 timestamp: new Date().toISOString(),
                 pointsEarned: isFirstTime ? 1 : 0
             };
@@ -1851,16 +1825,6 @@
                 }
 
                 ${
-                    // 体重の推移（過去30日）
-                    totalEntries > 0 ? `
-                    <div style=\"background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; margin-top: 16px;\">
-                        <h4 style=\"font-size: 14px; margin-bottom: 12px; color: var(--text-primary);\">⚖️ 体重の推移（30日）</h4>
-                        ${generateWeightTrend(entries)}
-                    </div>
-                ` : ''
-                }
-
-                ${
                     // 睡眠と体調/気分/達成率の相関
                     totalEntries > 0 ? `
                     <div style=\"background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; margin-top: 16px;\">
@@ -1990,39 +1954,6 @@
                     <span>${days[0].label}</span><span>${days[days.length-1].label}</span>
                 </div>
             `;
-        
-        
-        // 過去30日の体重トレンド（簡易バーグラフ）
-        function generateWeightTrend(entries) {
-            const days = [];
-            const today = new Date();
-            for (let i = 29; i >= 0; i--) {
-                const d = new Date(today);
-                d.setDate(d.getDate() - i);
-                const key = dateKeyLocal(d);
-                const e = entries[key];
-                const kg = (e && e.morning && typeof e.morning.weight === 'number') ? e.morning.weight : null;
-                days.push({ label: `${d.getMonth()+1}/${d.getDate()}`, value: kg });
-            }
-            const values = days.map(d => d.value).filter(v => v != null);
-            const max = values.length ? Math.ceil(Math.max(...values)) : 80;
-            const min = values.length ? Math.floor(Math.min(...values)) : 40;
-            const range = Math.max(1, max - min);
-            return `
-                <div style="display:flex; gap:4px; align-items:flex-end; height:140px;">
-                    ${days.map(d => {
-                        const h = d.value == null ? 0 : Math.max(2, Math.round(((d.value - min) / range) * 120));
-                        const color = d.value == null ? 'transparent' : '#f97316';
-                        const border = d.value == null ? '1px dashed rgba(255,255,255,0.2)' : 'none';
-                        const tip = d.value == null ? `${d.label}: データなし` : `${d.label}: ${d.value.toFixed(1)}kg`;
-                        return `<div title="${tip}" style="width:8px;height:${h}px;background:${color};border:${border};border-radius:3px;"></div>`;
-                    }).join('')}
-                </div>
-                <div style="display:flex; justify-content:space-between; font-size:10px; color: var(--text-secondary); margin-top:6px;">
-                    <span>${days[0].label}</span><span>${days[days.length-1].label}</span>
-                </div>
-            `;
-        }
         }
 
         // 相関: 睡眠時間と体調/気分/達成率
