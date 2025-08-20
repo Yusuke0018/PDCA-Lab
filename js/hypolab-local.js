@@ -1,7 +1,27 @@
         // PWA: service worker 登録
-        if ('serviceWorker' in navigator) {
+        // 緊急アップデータ（毎回に近い頻度で最新化）
+        (function(){
+            try {
+                var APP_VERSION = '2025-08-20-02';
+                var key = 'app_version_tag';
+                var prev = localStorage.getItem(key);
+                if (prev !== APP_VERSION && typeof caches !== 'undefined' && caches.keys) {
+                    // 旧キャッシュを削除
+                    caches.keys().then(function(keys){ keys.forEach(function(k){ caches.delete(k).catch(function(){}); }); });
+                    // 次回以降ループ防止に先に保存
+                    localStorage.setItem(key, APP_VERSION);
+                }
+            } catch(e) {}
+        })();
+        if ('serviceWorker' in navigator && !/Android/i.test(navigator.userAgent)) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250119-08';
+                // AndroidはSWを無効化（毎回最新を取得）
+                try {
+                    if (/Android/i.test(navigator.userAgent) && navigator.serviceWorker) {
+                        navigator.serviceWorker.getRegistrations().then(list => { list.forEach(r => r.unregister().catch(()=>{})); });
+                    }
+                } catch(_) {}
+                const SW_VERSION_TAG = '20250119-09';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE, { updateViaCache: 'none' })
                     .then(reg => {
@@ -48,7 +68,7 @@
             notify('更新を適用中です…');
             // 1) 既存SWの登録解除
             try {
-                if ('serviceWorker' in navigator) {
+                if ('serviceWorker' in navigator && !/Android/i.test(navigator.userAgent)) {
                     const regs = await navigator.serviceWorker.getRegistrations();
                     await Promise.all(regs.map(async (r) => {
                         try { r.active && r.active.postMessage && r.active.postMessage({ type:'SKIP_WAITING' }); } catch(_){}
@@ -13625,6 +13645,12 @@
         
         // 初期化
         window.addEventListener('load', () => {
+                // AndroidはSWを無効化（毎回最新を取得）
+                try {
+                    if (/Android/i.test(navigator.userAgent) && navigator.serviceWorker) {
+                        navigator.serviceWorker.getRegistrations().then(list => { list.forEach(r => r.unregister().catch(()=>{})); });
+                    }
+                } catch(_) {}
             updateHeaderHeightVar();
             // レイアウト安定後にも再測定（フォント/アドレスバー反映）
             setTimeout(updateHeaderHeightVar, 200);
