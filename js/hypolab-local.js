@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250120-03';
+                const SW_VERSION_TAG = '20250120-04';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -1078,7 +1078,7 @@
                                 <span style="font-size: 14px; font-weight: 600;">🌅 朝のジャーナル</span>
                                 <span style="font-size: 11px; color: var(--text-secondary);">${sleepInfo}</span>
                             </div>
-                            <div style="font-size: 12px; color: var(--text-secondary); display: flex; gap: 12px; margin-bottom: 6px;">
+                            <div style="font-size: 12px; color: var(--text-secondary); display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 6px;">
                                 <span>体調: ${['😫', '😟', '😐', '🙂', '😊'][entry.morning.condition - 1]} ${entry.morning.condition}/5</span>
                                 <span>気分: ${['😔', '😕', '😐', '😌', '😄'][entry.morning.mood - 1]} ${entry.morning.mood}/5</span>
                                 ${entry.morning.weight ? `<span>体重: ${entry.morning.weight}kg</span>` : ''}
