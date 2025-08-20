@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250820-06';
+                const SW_VERSION_TAG = '20250820-07';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -14072,6 +14072,7 @@
                 data.events.activeBoosts.forEach(boost => {
                     // 新しいイベントシステムの処理
                     if (boost.effect === 'points_multiplier') {
+                        console.log(`[DEBUG] ポイント倍率イベント適用: ${boost.name}, 倍率: ${boost.value}, 適用前: ${multiplier}, 適用後: ${multiplier * boost.value}`);
                         multiplier *= boost.value;
                     } else if (boost.effect === 'achievement_bonus' && source === 'habit') {
                         // 最初の3回達成のボーナス
@@ -14236,6 +14237,15 @@
             }
             
             const finalPoints = Math.round(basePoints * multiplier + bonus);
+            
+            // デバッグ: ポイント半減デーの確認
+            if (data.events && data.events.activeBoosts) {
+                const halfPointsEvent = data.events.activeBoosts.find(b => b.id === 'half_points');
+                if (halfPointsEvent) {
+                    console.log(`[DEBUG] ポイント半減デー適用結果: basePoints=${basePoints}, multiplier=${multiplier}, bonus=${bonus}, finalPoints=${finalPoints}`);
+                }
+            }
+            
             return { finalPoints, multiplierTotal: multiplier, bonusTotal: bonus, notes };
         }
 
