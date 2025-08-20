@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250820-01';
+                const SW_VERSION_TAG = '20250820-02';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -940,6 +940,9 @@
                                 <div style="margin-top: 12px;">
                                     <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">体調: ${['😫', '😟', '😐', '🙂', '😊'][todayEntry.morning.condition - 1]} (${todayEntry.morning.condition}/5)</div>
                                     <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">気分: ${['😔', '😕', '😐', '😌', '😄'][todayEntry.morning.mood - 1]} (${todayEntry.morning.mood}/5)</div>
+                                    ${((todayEntry.morning.weight !== null && todayEntry.morning.weight !== undefined && todayEntry.morning.weight !== '')) ? `
+                                        <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">体重: ${todayEntry.morning.weight}kg</div>
+                                    ` : ''}
                                     <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">最優先事項:</div>
                                     <div style="font-size: 13px; background: var(--surface); padding: 8px; border-radius: 6px; margin-top: 4px;">${todayEntry.morning.priority || 'なし'}</div>
                                 </div>
