@@ -2,32 +2,54 @@
 // Exposes functions on window for backward compatibility.
 
 const LEVEL_THRESHOLDS = [
-    { level: 1, name: '初心者', min: 0, max: 150 },
-    { level: 2, name: '見習い', min: 151, max: 450 },
-    { level: 3, name: '習慣家', min: 451, max: 900 },
-    { level: 4, name: '実践者', min: 901, max: 1500 },
-    { level: 5, name: '達人', min: 1501, max: 2250 },
-    { level: 6, name: 'マスター', min: 2251, max: 3300 },
-    { level: 7, name: 'グランドマスター', min: 3301, max: 4500 },
-    { level: 8, name: 'レジェンド', min: 4501, max: 6000 },
-    { level: 9, name: '神', min: 6001, max: 7800 },
-    { level: 10, name: '超越者', min: 7801, max: Infinity }
+    { level: 1, min: 0, max: 75 },
+    { level: 2, min: 76, max: 225 },
+    { level: 3, min: 226, max: 450 },
+    { level: 4, min: 451, max: 750 },
+    { level: 5, min: 751, max: 1125 },
+    { level: 6, min: 1126, max: 1650 },
+    { level: 7, min: 1651, max: 2250 },
+    { level: 8, min: 2251, max: 3000 },
+    { level: 9, min: 3001, max: 3900 }
 ];
 
+function getLevelTitle(level) {
+    const clamp = (n, min, max) => Math.max(min, Math.min(max, n|0));
+    const lv = clamp(level, 1, 10000);
+    const stageTitles = [
+        ['駆け出し冒険者', '見習い旅人', '草原を駆ける者'],
+        ['熟練の戦士', '森を統べる者', '王国に名を刻む者'],
+        ['英雄の継承者', '龍を討つ者', '世界を巡る賢者'],
+        ['星を導く者', '天空の覇者', '永劫の守護者'],
+        ['神話を紡ぐ者', '運命を超える者', '全てを極めし者']
+    ];
+    if (lv <= 25) {
+        const stageIndex = Math.floor((lv - 1) / 5);
+        const posInStage = ((lv - 1) % 5) + 1;
+        const titleIndex = posInStage <= 2 ? 0 : (posInStage <= 4 ? 1 : 2);
+        return stageTitles[stageIndex][titleIndex];
+    }
+    return '全てを極めし者';
+}
+
 function calculateLevel(lifetimeEarned) {
-    for (const threshold of LEVEL_THRESHOLDS) {
-        if (lifetimeEarned <= threshold.max) {
-            return threshold;
+    for (const t of LEVEL_THRESHOLDS) {
+        if (lifetimeEarned <= t.max) {
+            return { level: t.level, name: getLevelTitle(t.level), min: t.min, max: t.max };
         }
     }
-    const extraPoints = lifetimeEarned - 7801;
-    const extraLevels = Math.floor(extraPoints / 1400);
-    return {
-        level: 10 + extraLevels,
-        name: '超越者',
-        min: 7801 + (extraLevels * 1400),
-        max: 7801 + ((extraLevels + 1) * 1400)
-    };
+    const baseMin = 3901;
+    const step = 700;
+    const extraLevels = Math.floor((lifetimeEarned - baseMin) / step);
+    let level = 10 + extraLevels;
+    let min = baseMin + (extraLevels * step);
+    let max = baseMin + ((extraLevels + 1) * step) - 1;
+    if (level > 10000) {
+        level = 10000;
+        min = lifetimeEarned;
+        max = lifetimeEarned;
+    }
+    return { level, name: getLevelTitle(level), min, max };
 }
 
 function calculatePointsWithBoosts(basePoints, source, category = null, habitId = null) {
