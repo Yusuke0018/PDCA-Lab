@@ -14,7 +14,7 @@
     <link rel="icon" href="icons/icon.svg" sizes="any" type="image/svg+xml">
     <link rel="apple-touch-icon" href="icons/icon.svg">
     
-    <link rel="stylesheet" href="css/hypolab-local.css?v=20250823-42">
+    <link rel="stylesheet" href="css/hypolab-local.css?v=20250823-44">
 </head>
 <body>
     <!-- ヘッダー -->
@@ -185,21 +185,11 @@
                     </div>
                     
                     <div class="form-group">
-                        <label>検証期間を選択</label>
-                        <div class="duration-selector" id="duration-selector">
-                            <div class="duration-option" onclick="selectDuration('short')" data-duration="short">
-                                <h3>短期間</h3>
-                                <p id="duration-short-text">3〜7日</p>
-                            </div>
-                            <div class="duration-option" onclick="selectDuration('medium')" data-duration="medium">
-                                <h3>中期間</h3>
-                                <p id="duration-medium-text">8〜14日</p>
-                            </div>
-                            <div class="duration-option" onclick="selectDuration('long')" data-duration="long">
-                                <h3>長期間</h3>
-                                <p id="duration-long-text">15〜30日</p>
-                            </div>
-                        </div>
+                        <label for="hypothesis-days">期間（日数）</label>
+                        <input type="number" id="hypothesis-days" min="1" value="7" required
+                            placeholder="例: 7" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                            style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text-primary);">
+                        <small style="color: var(--text-secondary); display:block; margin-top:6px;">お好みの日数を自由に指定できます</small>
                     </div>
                     
                     <div class="form-group">
@@ -278,7 +268,7 @@
                     
                     <div class="form-group">
                         <button type="submit" class="btn">
-                            🎲 シャッフルして開始
+                            開始
                         </button>
                         <button type="button" class="btn btn-secondary" onclick="showHomeView()" style="margin-left: 12px;">
                             キャンセル
@@ -288,24 +278,7 @@
             </div>
         </div>
 
-        <!-- シャッフル画面 -->
-        <div id="shuffle-view" style="display: none;">
-            <div class="card">
-                <div class="shuffle-container">
-                    <h2>検証期間を決定中...</h2>
-                    <div class="shuffle-number" id="shuffle-number">?</div>
-                    <p>日間</p>
-                </div>
-                <div style="text-align: center; display: none;" id="shuffle-result">
-                    <h2 style="margin-bottom: 16px;">検証期間が決まりました！</h2>
-                    <div class="shuffle-number" id="final-days">7</div>
-                    <p style="margin-bottom: 24px;">日間</p>
-                    <button class="btn" onclick="startHypothesis()">
-                        検証を開始する
-                    </button>
-                </div>
-            </div>
-        </div>
+        
 
         <!-- 検証進捗画面 -->
         <div id="progress-view" style="display: none;">

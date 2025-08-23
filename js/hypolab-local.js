@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250823-42';
+                const SW_VERSION_TAG = '20250823-44';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -6318,12 +6318,12 @@
                 // noop
             }
 
-            // エッジナブの表示制御（進捗/シャッフルでは非表示）
+            // エッジナブの表示制御（進捗では非表示）
             try {
                 const leftNub = document.getElementById('edge-nub-left');
                 const rightNub = document.getElementById('edge-nub-right');
                 if (leftNub && rightNub) {
-                    const hideOn = ['progress','shuffle'];
+                    const hideOn = ['progress'];
                     const show = !hideOn.includes(activeView);
                     leftNub.style.display = show ? 'flex' : 'none';
                     rightNub.style.display = show ? 'flex' : 'none';
@@ -6336,7 +6336,7 @@
             resetScrollToTop();
             document.getElementById('home-view').style.display = 'block';
             document.getElementById('new-hypothesis-view').style.display = 'none';
-            document.getElementById('shuffle-view').style.display = 'none';
+            const _sv = document.getElementById('shuffle-view'); if (_sv) _sv.style.display = 'none';
             document.getElementById('progress-view').style.display = 'none';
             document.getElementById('history-view').style.display = 'none';
             document.getElementById('stats-view').style.display = 'none';
@@ -6700,12 +6700,15 @@
             
             // 短期集中ペナルティのチェック
             if (window.shortTermOnly) {
-                selectedDuration = 'short';
+                // 旧: シャッフル短期強制。現仕様では任意日数なので特に制限しない
                 window.shortTermOnly = false; // 効果を消費
             }
-            
-            if (!selectedDuration) {
-                alert('検証期間を選択してください');
+
+            // 任意日数の取得と検証
+            const daysInput = document.getElementById('hypothesis-days');
+            const daysVal = daysInput ? parseInt(daysInput.value, 10) : NaN;
+            if (!Number.isFinite(daysVal) || daysVal < 1) {
+                alert('1日以上の期間（日数）を入力してください');
                 return;
             }
             
@@ -6762,7 +6765,7 @@
                 title: title,
                 description: description,
                 category: category,  // カテゴリーを追加
-                duration: selectedDuration,
+                duration: 'custom',
                 startDate: startDate + 'T00:00:00.000Z',
                 achievements: {},
                 // ペナルティ効果を記録
@@ -6774,6 +6777,9 @@
                 ifThen: ifThen,
                 frequency: frequencyData  // 頻度設定を追加
             };
+
+            // 総日数を直接設定（シャッフル廃止）
+            currentHypothesis.totalDays = daysVal;
             
             // ペナルティ効果をリセット（一度使用したら消える）
             window.hardModeActive = false;
@@ -6788,8 +6794,8 @@
                 // ペナルティカードを適用
                 applyPenaltyCards();
             } else {
-                // シャッフル画面を表示
-                showShuffleView();
+                // 直接開始
+                finalizeStartHypothesis();
             }
         }
 
@@ -6900,11 +6906,25 @@
         // ペナルティ適用後の処理
         window.continuePenaltyApply = function() {
             document.querySelector('.modal:last-child').remove();
-            showShuffleView();
+            finalizeStartHypothesis();
         };
+
+        // シャッフルを使わずに、確定済みtotalDaysで開始
+        function finalizeStartHypothesis() {
+            if (!currentHypothesis) return;
+            // 延長ペナルティが保留されていれば適用
+            if (window.pendingExtension && Number.isFinite(window.pendingExtension)) {
+                currentHypothesis.totalDays = Math.max(1, (currentHypothesis.totalDays || 0) + window.pendingExtension);
+                window.pendingExtension = 0;
+            }
+            startHypothesis();
+        }
 
         // シャッフル画面を表示
         function showShuffleView() {
+            // 廃止: ランダム期間のシャッフルを行わず即時開始
+            try { finalizeStartHypothesis(); } catch(_) {}
+            return;
             resetScrollToTop();
             document.getElementById('new-hypothesis-view').style.display = 'none';
             document.getElementById('shuffle-view').style.display = 'block';
@@ -7031,7 +7051,7 @@
             }
             
             document.getElementById('home-view').style.display = 'none';
-            document.getElementById('shuffle-view').style.display = 'none';
+            { const el = document.getElementById('shuffle-view'); if (el) el.style.display = 'none'; }
             document.getElementById('progress-view').style.display = 'block';
             
             // 習慣情報を表示
@@ -12967,7 +12987,7 @@
             resetScrollToTop();
             document.getElementById('home-view').style.display = 'none';
             document.getElementById('new-hypothesis-view').style.display = 'none';
-            document.getElementById('shuffle-view').style.display = 'none';
+            { const el = document.getElementById('shuffle-view'); if (el) el.style.display = 'none'; }
             document.getElementById('progress-view').style.display = 'none';
             document.getElementById('history-view').style.display = 'none';
             document.getElementById('stats-view').style.display = 'none';
@@ -13446,9 +13466,9 @@
             
             // 水平スワイプのみを検出（垂直移動が少ない場合）
             if (Math.abs(diffX) > Math.abs(diffY) * horizontalRatio && Math.abs(diffX) > minSwipeDistance) {
-                // シャッフル画面や進捗画面ではスワイプ無効
-                if (currentView === 'shuffle' || currentView === 'progress') {
-                    console.log('[Swipe Debug] シャッフル/進捗画面のためスワイプ無効');
+                // 進捗画面ではスワイプ無効
+                if (currentView === 'progress') {
+                    console.log('[Swipe Debug] 進捗画面のためスワイプ無効');
                     return;
                 }
                 
@@ -13474,7 +13494,7 @@
             if (document.getElementById('stats-view').style.display !== 'none') return 'stats';
             if (document.getElementById('points-view').style.display !== 'none') return 'points';
             if (document.getElementById('cards-view').style.display !== 'none') return 'cards';
-            if (document.getElementById('shuffle-view').style.display !== 'none') return 'shuffle';
+            // シャッフルビューは廃止
             if (document.getElementById('progress-view').style.display !== 'none') return 'progress';
             return 'home';
         }
