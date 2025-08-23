@@ -821,6 +821,13 @@
             opacity: 0.9;
         }
 
+        /* 未入力（デフォルト）: 中立表示 */
+        .day-cell.unentered {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-secondary);
+            border: 1px dashed var(--border);
+        }
+
         .day-cell.future {
             background: rgba(255, 255, 255, 0.02);
             color: var(--text-secondary);

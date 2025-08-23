@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250824-03';
+                const SW_VERSION_TAG = '20250824-04';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -7556,10 +7556,15 @@
                 // 状態表示
                 const isFuture = cellDate > today;
                 const achieved = !!(window.currentHypothesis.achievements || {})[dateKey];
+                const failed = !!(window.currentHypothesis.failures || {})[dateKey];
                 if (achieved) {
                     dayCell.classList.add('achieved');
+                } else if (failed) {
+                    dayCell.classList.add('not-achieved');
+                } else if (isFuture) {
+                    dayCell.classList.add('future');
                 } else {
-                    dayCell.classList.add(isFuture ? 'future' : 'not-achieved');
+                    dayCell.classList.add('unentered');
                 }
                 
                 // 今日以前のみクリック可能
@@ -8016,7 +8021,8 @@
                 </div>
                 <div style="display: grid; gap: 8px;">
                     <button class="btn" id="btn-achieved" style="width: 100%;">✅ 達成（+1pt）</button>
-                    <button class="btn btn-secondary" id="btn-unachieved" style="width: 100%;">⬜ 未達成（0pt）</button>
+                    <button class="btn btn-secondary" id="btn-unachieved" style="width: 100%;">❌ 未達成（0pt）</button>
+                    <button class="btn btn-secondary" id="btn-clear" style="width: 100%; background: var(--surface); color: var(--text-secondary);">未入力に戻す</button>
                     <button class="btn btn-secondary" id="btn-cancel" style="width: 100%; background: var(--surface-light); color: var(--text-secondary);">キャンセル</button>
                 </div>
             `;
@@ -8026,6 +8032,7 @@
             const close = () => { try { overlay.remove(); } catch(_) {} };
             document.getElementById('btn-achieved').onclick = () => { setDayStatus(dateKey, true); close(); };
             document.getElementById('btn-unachieved').onclick = () => { setDayStatus(dateKey, false); close(); };
+            document.getElementById('btn-clear').onclick = () => { setDayStatus(dateKey, null); close(); };
             document.getElementById('btn-cancel').onclick = close;
             overlay.onclick = (e) => { if (e.target === overlay) close(); };
         }
@@ -8038,12 +8045,15 @@
             const hyp = data.currentHypotheses[idx];
             hyp.achievements = hyp.achievements || {};
             hyp.pointsByDate = hyp.pointsByDate || {};
+            hyp.failures = hyp.failures || {};
             const wasAchieved = !!hyp.achievements[dateKey];
+            const wasFailed = !!hyp.failures[dateKey];
             
-            if (makeAchieved && !wasAchieved) {
+            if (makeAchieved === true && !wasAchieved) {
                 // 達成にする → +1pt
                 hyp.achievements[dateKey] = true;
                 hyp.pointsByDate[dateKey] = 1;
+                if (wasFailed) delete hyp.failures[dateKey];
                 
                 data.pointSystem.currentPoints += 1;
                 data.pointSystem.lifetimeEarned = (data.pointSystem.lifetimeEarned || 0) + 1;
@@ -8061,10 +8071,32 @@
                     habitId: hyp.id,
                     dateKey
                 });
-            } else if (!makeAchieved && wasAchieved) {
-                // 未達成に戻す → 付与済みなら-1pt
-                delete hyp.achievements[dateKey];
-                if (hyp.pointsByDate[dateKey]) {
+            } else if (makeAchieved === false) {
+                // 未達成として明示（0pt）。達成済みなら取り消し(-1pt)。
+                if (wasAchieved) {
+                    delete hyp.achievements[dateKey];
+                    if (hyp.pointsByDate[dateKey]) {
+                        data.pointSystem.currentPoints = Math.max(0, data.pointSystem.currentPoints - 1);
+                        data.pointSystem.lifetimeEarned = Math.max(0, (data.pointSystem.lifetimeEarned || 0) - 1);
+                        data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
+                        const lvl = calculateLevel(data.pointSystem.lifetimeEarned);
+                        data.pointSystem.currentLevel = lvl.level;
+                        data.pointSystem.transactions.unshift({
+                            timestamp: new Date().toISOString(),
+                            type: 'spend',
+                            amount: 1,
+                            source: 'habit_simple_cancel',
+                            description: `${hyp.title} 取り消し (-1pt)`,
+                            habitId: hyp.id,
+                            dateKey
+                        });
+                        delete hyp.pointsByDate[dateKey];
+                    }
+                }
+                hyp.failures[dateKey] = true; // 明示的な未達成
+            } else if (makeAchieved === null) {
+                // 未入力に戻す。達成/未達成の記録を消す。達成済みだった場合は-1ptで取り消し。
+                if (wasAchieved && hyp.pointsByDate[dateKey]) {
                     data.pointSystem.currentPoints = Math.max(0, data.pointSystem.currentPoints - 1);
                     data.pointSystem.lifetimeEarned = Math.max(0, (data.pointSystem.lifetimeEarned || 0) - 1);
                     data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
@@ -8079,8 +8111,10 @@
                         habitId: hyp.id,
                         dateKey
                     });
-                    delete hyp.pointsByDate[dateKey];
                 }
+                delete hyp.pointsByDate[dateKey];
+                delete hyp.achievements[dateKey];
+                delete hyp.failures[dateKey];
             } else {
                 // 指定状態と現状態が同じ → なにもしない
                 return;
@@ -8132,7 +8166,8 @@
                 const startDate = new Date(window.currentHypothesis.startDate);
                 startDate.setHours(0, 0, 0, 0);
                 
-                if (checkDate >= startDate && !window.currentHypothesis.achievements[dateKey]) {
+                const failures = window.currentHypothesis.failures || {};
+                if (checkDate >= startDate && failures[dateKey]) {
                     consecutiveFailures++;
                 } else {
                     break; // 達成していれば連続失敗ではない
@@ -10294,7 +10329,7 @@
                     
                     // カテゴリヘッダー
                     const categoryHeader = document.createElement('div');
-                    const unachievedCount = habits.filter(h => !(h.achievements && h.achievements[todayKey])).length;
+                    const unachievedCount = habits.filter(h => h.failures && h.failures[todayKey]).length;
                     
                     categoryHeader.style.cssText = `
                         display: flex; 
@@ -10561,10 +10596,7 @@
                     ${(() => {
                         const todayKey = getActivityDateKey();
                         const isAchievedToday = !!(hypothesis.achievements && hypothesis.achievements[todayKey]);
-                        // 今日が期間内かどうか（開始日前/終了後はラベル非表示）
-                        const t = new Date(); t.setHours(0,0,0,0);
-                        const withinRange = (t >= startDate && t <= endDate);
-                        
+                        const isFailedToday = !!(hypothesis.failures && hypothesis.failures[todayKey]);
                         if (isAchievedToday) {
                             return `
                                 <div style="position: absolute; top: 10px; right: 10px; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;">
@@ -10575,8 +10607,7 @@
                                 </div>
                             `;
                         }
-                        if (withinRange) {
-                            // 本日未達成（期間内）の場合は赤い❌ラベルを表示
+                        if (isFailedToday) {
                             return `
                                 <div style="position: absolute; top: 12px; right: 12px;">
                                     <span style="display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid rgba(239,68,68,0.5); color:#ef4444; background: rgba(239,68,68,0.12);">❌ 未達成</span>
