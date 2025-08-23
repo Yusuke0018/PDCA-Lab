@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250823-38';
+                const SW_VERSION_TAG = '20250823-39';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -15603,6 +15603,7 @@
         // 日付切替を監視し、切替時にイベントを更新
         function startDailyRolloverWatcher() {
             let lastDay = new Date().toDateString();
+            let lastActivityKey = getActivityDateKey();
             const checkRollover = () => {
                 try {
                     const today = new Date().toDateString();
@@ -15610,6 +15611,13 @@
                         lastDay = today;
                         try { if (typeof checkDailyEvents === 'function') checkDailyEvents(); } catch (_) {}
                         try { if (typeof updateEventDisplay === 'function') updateEventDisplay(); } catch (_) {}
+                    }
+                    // 深夜2時基準の日付キーが変わったら、夜のチェックリスト等を更新
+                    const currentActivityKey = getActivityDateKey();
+                    if (currentActivityKey !== lastActivityKey) {
+                        lastActivityKey = currentActivityKey;
+                        try { if (typeof updateNightChecklistUI === 'function') updateNightChecklistUI(); } catch (_) {}
+                        try { if (typeof updateJournalStatus === 'function') updateJournalStatus(); } catch (_) {}
                     }
                 } catch (_) { /* noop */ }
             };
@@ -15904,7 +15912,7 @@
             const title = prompt('夜のチェック項目を追加');
             if (!title) return;
             const data = ensureNightChecklist(loadData());
-            data.nightChecklist.push({ id: 'nc_' + Date.now(), title: title.trim(), done: false });
+            data.nightChecklist.push({ id: 'nc_' + Date.now(), title: title.trim(), doneKey: null });
             saveData(data);
             updateNightChecklistUI();
         }
@@ -15914,12 +15922,19 @@
             const data = ensureNightChecklist(loadData());
             const item = data.nightChecklist.find(i => i.id === id);
             if (!item) return;
-            const wasDone = !!item.done;
-            item.done = !item.done;
-            saveData(data);
-            if (!wasDone && item.done) {
+            const currentKey = getActivityDateKey();
+            const wasDone = item.doneKey === currentKey;
+            if (wasDone) {
+                // 当日分の達成を取り消し（ポイント減算はしない）
+                item.doneKey = null;
+                if (typeof item.done !== 'undefined') delete item.done;
+            } else {
+                // 当日分を達成として記録（+1pt）
+                item.doneKey = currentKey;
+                if (typeof item.done !== 'undefined') delete item.done;
                 try { earnPoints(1, 'checklist', '🌙 夜のチェックリスト'); } catch(_) {}
             }
+            saveData(data);
             updateNightChecklistUI();
             try { updatePointDisplay(); } catch(_) {}
         }
@@ -15938,19 +15953,23 @@
             const list = document.getElementById('night-checklist-list');
             if (!list) return;
             const data = ensureNightChecklist(loadData());
+            const currentKey = getActivityDateKey();
             if (!Array.isArray(data.nightChecklist) || data.nightChecklist.length === 0){
                 list.innerHTML = '<div style="color: var(--text-secondary); font-size: 14px;">項目がありません。右上の「追加」から作成してください。</div>';
                 return;
             }
-            list.innerHTML = data.nightChecklist.map(item => `
-                <div style="display:flex; align-items:center; justify-content:space-between; border:1px solid var(--border); border-radius:8px; padding:8px; background:${item.done ? 'rgba(16,185,129,0.08)' : 'var(--surface)'};">
+            list.innerHTML = data.nightChecklist.map(item => {
+                const isDone = item.doneKey === currentKey; // 当日2時までは前日扱い
+                return `
+                <div style="display:flex; align-items:center; justify-content:space-between; border:1px solid var(--border); border-radius:8px; padding:8px; background:${isDone ? 'rgba(16,185,129,0.08)' : 'var(--surface)'};">
                     <div style="display:flex; align-items:center; gap:10px;">
-                        <button onclick="toggleNightChecklist('${item.id}')" title="切り替え" style="min-width:32px; height:32px; border-radius:8px; border:1px solid var(--border); background:${item.done ? '#10b981' : 'var(--surface-light)'}; color:${item.done ? '#fff' : 'var(--text-primary)'}; font-weight:700;">${item.done ? '✔' : '□'}</button>
-                        <div style="${item.done ? 'text-decoration: line-through; color: var(--text-secondary);' : ''}">${escapeHTML(item.title)}</div>
+                        <button onclick="toggleNightChecklist('${item.id}')" title="切り替え" style="min-width:32px; height:32px; border-radius:8px; border:1px solid var(--border); background:${isDone ? '#10b981' : 'var(--surface-light)'}; color:${isDone ? '#fff' : 'var(--text-primary)'}; font-weight:700;">${isDone ? '✔' : '□'}</button>
+                        <div style="${isDone ? 'text-decoration: line-through; color: var(--text-secondary);' : ''}">${escapeHTML(item.title)}</div>
                     </div>
                     <button class="btn btn-secondary" onclick="deleteNightChecklistItem('${item.id}')" style="padding:6px 10px; font-size:12px; background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.3);">削除</button>
                 </div>
-            `).join('');
+            `;
+            }).join('');
         }
         window.updateNightChecklistUI = updateNightChecklistUI;
 
