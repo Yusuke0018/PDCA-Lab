@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250823-40';
+                const SW_VERSION_TAG = '20250823-41';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -10563,6 +10563,17 @@
                 filteredHypotheses = data.currentHypotheses.filter(h => h.category === filterValue);
             }
             
+            // フィルタにより0件になった場合は、自動で「すべて」に戻す
+            if (filteredHypotheses.length === 0 && filterValue !== 'all' && data.currentHypotheses.length > 0) {
+                try {
+                    if (categoryFilter) {
+                        categoryFilter.value = 'all';
+                        localStorage.setItem('selectedCategory', 'all');
+                    }
+                } catch(_) {}
+                filteredHypotheses = data.currentHypotheses;
+            }
+
             if (filteredHypotheses.length === 0) {
                 if (filterValue !== 'all') {
                     listContainer.innerHTML = '<p style="color: var(--text-secondary);">このカテゴリの習慣はありません</p>';
