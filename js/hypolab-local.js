@@ -5221,33 +5221,7 @@
         }
 
         // ポイント画面を表示
-        function showPointsView() {
-            resetScrollToTop();
-            document.getElementById('home-view').style.display = 'none';
-            document.getElementById('new-hypothesis-view').style.display = 'none';
-            document.getElementById('shuffle-view').style.display = 'none';
-            document.getElementById('progress-view').style.display = 'none';
-            document.getElementById('history-view').style.display = 'none';
-            document.getElementById('stats-view').style.display = 'none';
-            document.getElementById('points-view').style.display = 'block';
-            document.getElementById('cards-view').style.display = 'none';
-            
-            updateNavigation('points');
-            // 報酬・前借り関連のUIを非表示
-            try {
-                ['rewards-tab-content','rewards-tab','reward-creation-form','rewards-list','loan-section'].forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el) el.style.display = 'none';
-                });
-            } catch(_) {}
-            updatePointsView();
-            showRewardsTab(); // デフォルトで報酬タブを表示
-            
-            // ポイント画面ではヘッダーのポイント表示を再表示
-            const pointDisplay = document.getElementById('point-display');
-            if (pointDisplay) {
-                pointDisplay.style.display = 'flex';
-            }
+        function showPointsView() { try { showHomeView(); } catch(_) {} }
         }
         
         // ポイント画面の更新
