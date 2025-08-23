@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250823-35';
+                const SW_VERSION_TAG = '20250823-36';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -3776,36 +3776,8 @@
 
         // ポイント消費処理
         function spendPoints(amount, rewardName) {
-            const data = loadData();
-            
-            if (data.pointSystem.currentPoints < amount) {
-                return false; // ポイント不足
-            }
-            
-            // ポイント消費
-            data.pointSystem.currentPoints -= amount;
-            data.pointSystem.lifetimeSpent += amount;
-            
-            // トランザクション記録
-            data.pointSystem.transactions.unshift({
-                timestamp: new Date().toISOString(),
-                type: 'spend',
-                amount: amount,
-                source: 'reward',
-                description: rewardName
-            });
-            
-            // トランザクション履歴を制限
-            if (data.pointSystem.transactions.length > 100) {
-                data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100);
-            }
-            
-            saveData(data);
-            
-            // UI更新
-            updatePointDisplay();
-            
-            return true;
+            // 報酬・支出機能は廃止
+            return false;
         }
 
         // 努力ボーナスポイント獲得（改善版：何度でも使用可能、1-3pt選択）
@@ -3835,11 +3807,8 @@
             console.log('updatePointDisplay: 現在のポイント =', data.pointSystem.currentPoints);
             
             if (pointDisplay) {
-                const multiplier = data.pointSystem.streakMultiplier || 1.0;
                 pointDisplay.innerHTML = `
-                    <span class="point-amount">💰 ${data.pointSystem.currentPoints}pt</span>
                     <span class="level-info">Lv.${levelInfo.level} ${levelInfo.name}</span>
-                    ${multiplier > 1 ? `<span class="multiplier">🔥×${multiplier.toFixed(1)}</span>` : ''}
                 `;
             }
             
@@ -5264,6 +5233,13 @@
             document.getElementById('cards-view').style.display = 'none';
             
             updateNavigation('points');
+            // 報酬・前借り関連のUIを非表示
+            try {
+                ['rewards-tab-content','rewards-tab','reward-creation-form','rewards-list','loan-section'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.style.display = 'none';
+                });
+            } catch(_) {}
             updatePointsView();
             showRewardsTab(); // デフォルトで報酬タブを表示
             
@@ -5338,84 +5314,14 @@
         }
 
         function updateLoanSection() {
-            const data = loadData();
-            const ps = data.pointSystem;
             const el = document.getElementById('loan-section');
-            if (!el) return;
-            const todayKey = dateKeyToday();
-            const hasLoan = !!ps.loan;
-            const eligibleToday = (!hasLoan) && (ps.lastBorrowDate !== todayKey);
-            if (!hasLoan) {
-                el.innerHTML = `
-                    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-                        <div>
-                            <div style="font-weight:700;">💳 前借り（1日1回/1〜20pt）</div>
-                            <div style="font-size:12px; color: var(--text-secondary);">未返還がある間は新規に借りられません</div>
-                        </div>
-                        <button class="btn" ${eligibleToday ? '' : 'disabled'} onclick="openBorrowDialog()" style="min-width:120px;">前借りする</button>
-                    </div>
-                    ${!eligibleToday ? `<div style=\"margin-top:8px; color: var(--text-secondary); font-size: 12px;\">本日の前借りは利用済みです</div>` : ''}
-                `;
-            } else {
-                const { owed, days } = calcLoanOwed(ps.loan);
-                const dateText = new Date(ps.loan.borrowedAt).toLocaleDateString('ja-JP');
-                el.innerHTML = `
-                    <div style="display:grid; gap:8px;">
-                        <div style="display:flex; align-items:center; justify-content:space-between;">
-                            <div style="font-weight:700;">💳 前借り残高</div>
-                            <div style="font-size:12px; color: var(--text-secondary);">借入日: ${dateText} (${days}日経過)</div>
-                        </div>
-                        <div style="display:flex; align-items:center; justify-content:space-between; background: var(--surface-light); border: 1px solid var(--border); border-radius: 8px; padding: 10px;">
-                            <div><span style="font-size:22px; font-weight:800; color:#f97316;">${owed}</span> pt</div>
-                            <button class="btn" onclick="repayLoan()">返還する</button>
-                        </div>
-                        <div style="font-size:11px; color: var(--text-secondary);">返還額は1日ごとに1.1倍ずつ増加します</div>
-                    </div>
-                `;
-            }
+            if (el) el.style.display = 'none';
         }
 
-        function openBorrowDialog() {
-            const data = loadData();
-            const ps = data.pointSystem;
-            if (ps.loan) { showNotification('未返還の前借りがあります', 'error'); return; }
-            const todayKey = dateKeyToday();
-            if (ps.lastBorrowDate === todayKey) { showNotification('今日は既に前借りを利用しています', 'error'); return; }
-            const v = prompt('前借りするポイント数（1〜20）');
-            if (v == null) return;
-            const n = parseInt(v, 10);
-            if (!Number.isFinite(n) || n < 1 || n > 20) { showNotification('1〜20の数値を入力してください', 'error'); return; }
-            // 付与（借入はEarnには含めない）
-            ps.currentPoints += n;
-            ps.loan = { principal: n, borrowedAt: new Date().toISOString() };
-            ps.lastBorrowDate = todayKey;
-            ps.transactions.unshift({ timestamp: new Date().toISOString(), type: 'loan_borrow', amount: n, source: 'loan', description: `前借り +${n}pt` });
-            saveData(data);
-            updatePointsView();
-            try { updatePointDisplay(); } catch (e) {}
-            showNotification(`💳 ${n}ptを前借りしました`, 'success');
-        }
+        function openBorrowDialog() { /* 廃止 */ }
         window.openBorrowDialog = openBorrowDialog;
 
-        function repayLoan() {
-            const data = loadData();
-            const ps = data.pointSystem;
-            if (!ps.loan) { showNotification('前借りはありません', 'error'); return; }
-            const { owed } = calcLoanOwed(ps.loan);
-            if (ps.currentPoints < owed) {
-                showNotification(`ポイントが不足しています（必要: ${owed}pt）`, 'error');
-                return;
-            }
-            if (!confirm(`前借り ${owed}pt を返還しますか？`)) return;
-            ps.currentPoints -= owed;
-            ps.lifetimeSpent = (ps.lifetimeSpent || 0) + owed;
-            ps.transactions.unshift({ timestamp: new Date().toISOString(), type: 'loan_repay', amount: owed, source: 'loan', description: `前借り返還 -${owed}pt` });
-            ps.loan = null;
-            saveData(data);
-            updatePointsView();
-            try { updatePointDisplay(); } catch (e) {}
-            showNotification('💳 前借りを返還しました', 'success');
-        }
+        function repayLoan() { /* 廃止 */ }
         window.repayLoan = repayLoan;
         
         // 報酬タブを表示

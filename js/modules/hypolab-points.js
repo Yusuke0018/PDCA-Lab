@@ -255,15 +255,8 @@ function earnPoints(amount, source, description, multiplier = 1.0, category = nu
 }
 
 function spendPoints(amount, rewardName) {
-    const data = loadData();
-    if (data.pointSystem.currentPoints < amount) { return false; }
-    data.pointSystem.currentPoints -= amount;
-    data.pointSystem.lifetimeSpent += amount;
-    data.pointSystem.transactions.unshift({ timestamp: new Date().toISOString(), type: 'spend', amount, source: 'reward', description: rewardName });
-    if (data.pointSystem.transactions.length > 100) { data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100); }
-    saveData(data);
-    if (typeof updatePointDisplay === 'function') { updatePointDisplay(); }
-    return true;
+    // 報酬・支出機能は廃止
+    return false;
 }
 
 function addEffortBonus(points, reason = '') {
