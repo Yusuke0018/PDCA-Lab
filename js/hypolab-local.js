@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250823-30';
+                const SW_VERSION_TAG = '20250823-31';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -3588,8 +3588,7 @@
             { level: 6, name: '', min: 1126, max: 1650 },
             { level: 7, name: '', min: 1651, max: 2250 },
             { level: 8, name: '', min: 2251, max: 3000 },
-            { level: 9, name: '', min: 3001, max: 3900 },
-            { level: 10, name: '', min: 3901, max: Infinity }
+            { level: 9, name: '', min: 3001, max: 3900 }
         ];
 
         // レベルに応じた肩書（タイトル）
@@ -3634,7 +3633,7 @@
             const extraLevels = Math.floor((lifetimeEarned - baseMin) / step);
             let level = 10 + extraLevels;
             let min = baseMin + (extraLevels * step);
-            let max = baseMin + ((extraLevels + 1) * step);
+            let max = baseMin + ((extraLevels + 1) * step) - 1;
             let capped = false;
             if (level > 10000) {
                 level = 10000;
