@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250823-46';
+                const SW_VERSION_TAG = '20250823-47';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -6343,7 +6343,7 @@
             document.getElementById('new-hypothesis-view').style.display = 'none';
             const _sv = document.getElementById('shuffle-view'); if (_sv) _sv.style.display = 'none';
             document.getElementById('progress-view').style.display = 'none';
-            document.getElementById('history-view').style.display = 'none';
+            { const el = document.getElementById('history-view'); if (el) el.style.display = 'none'; }
             document.getElementById('stats-view').style.display = 'none';
             document.getElementById('points-view').style.display = 'none';
             document.getElementById('cards-view').style.display = 'none';
@@ -15707,23 +15707,7 @@
         });
         
         // 初期化関数内で呼び出されるように移動
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => {
-                setupSwipeListeners();
-                
-                // モバイルデバイスの場合のみスワイプインジケーターを表示
-                if ('ontouchstart' in window) {
-                    addSwipeIndicator();
-                }
-            });
-        } else {
-            setupSwipeListeners();
-            
-            // モバイルデバイスの場合のみスワイプインジケーターを表示
-            if ('ontouchstart' in window) {
-                addSwipeIndicator();
-            }
-        }
+        // スワイプ機能は削除
 
         // 体重グラフを更新する関数
         function updateWeightChart() {
