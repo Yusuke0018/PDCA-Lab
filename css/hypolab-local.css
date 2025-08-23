@@ -805,8 +805,20 @@
         }
 
         .day-cell.not-achieved {
-            background: rgba(255, 255, 255, 0.05);
-            color: var(--text-secondary);
+            background: rgba(239, 68, 68, 0.12); /* red-500 @ ~12% */
+            color: #ef4444; /* red-500 */
+            border: 2px solid rgba(239, 68, 68, 0.35);
+        }
+
+        .day-cell.not-achieved::after {
+            content: '❌';
+            position: absolute;
+            bottom: 6px;
+            right: 8px;
+            font-size: 18px;
+            line-height: 1;
+            color: #ef4444;
+            opacity: 0.9;
         }
 
         .day-cell.future {

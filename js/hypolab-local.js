@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250823-50';
+                const SW_VERSION_TAG = '20250824-02';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -8423,6 +8423,12 @@
 
         // 強度（Intensity）パネル（各習慣ごとにラベル3種を編集可能）
         function renderIntensityPanel() {
+            // 今日の強度編集UIは廃止。既存のパネルがあれば削除して何もしない。
+            try {
+                const panel = document.getElementById('intensity-panel');
+                if (panel && panel.parentNode) panel.parentNode.removeChild(panel);
+            } catch(_) {}
+            return;
             if (!window.currentHypothesis) return;
             const hyp = window.currentHypothesis;
             hyp.intensity = hyp.intensity || {};
