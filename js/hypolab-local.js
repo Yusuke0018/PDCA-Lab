@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250823-48';
+                const SW_VERSION_TAG = '20250823-49';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -8031,8 +8031,10 @@
                     habitId: hyp.id,
                     dateKey
                 });
-                dayCell.classList.remove('not-achieved', 'future');
-                dayCell.classList.add('achieved');
+                if (dayCell) {
+                    dayCell.classList.remove('not-achieved', 'future');
+                    dayCell.classList.add('achieved');
+                }
             } else {
                 // 未達成に戻す → 付与済みなら-1pt
                 delete hyp.achievements[dateKey];
@@ -8053,8 +8055,10 @@
                     });
                     delete hyp.pointsByDate[dateKey];
                 }
-                dayCell.classList.remove('achieved');
-                dayCell.classList.add('not-achieved');
+                if (dayCell) {
+                    dayCell.classList.remove('achieved');
+                    dayCell.classList.add('not-achieved');
+                }
             }
             
             // 保存と反映
@@ -8063,6 +8067,15 @@
             window.currentHypothesis = hyp;
             updatePointDisplay();
             updateProgress();
+        }
+
+        // 強度関連UIは廃止（安全のためスタブ化）
+        function showIntensitySelectionModal(dateKey, dayCell) {
+            try { toggleDayStatus(dateKey, dayCell); } catch(_) {}
+        }
+        function openIntensityPicker(dateKey) { /* no-op: 強度選択は廃止 */ }
+        function applyAchievementWithIntensity(dateKey, dayCell, _intensity) {
+            try { toggleDayStatus(dateKey, dayCell); } catch(_) {}
         }
         
         // 週番号を取得する関数（グローバルに定義） - 検証開始日基準
