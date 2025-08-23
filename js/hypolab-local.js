@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250823-39';
+                const SW_VERSION_TAG = '20250823-40';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -11934,92 +11934,10 @@
         // サプライズブースト関連の機能は廃止
 
         // 履歴画面を表示
-        function showHistoryView() {
-            resetScrollToTop();
-            document.getElementById('home-view').style.display = 'none';
-            document.getElementById('new-hypothesis-view').style.display = 'none';
-            document.getElementById('shuffle-view').style.display = 'none';
-            document.getElementById('progress-view').style.display = 'none';
-            document.getElementById('history-view').style.display = 'block';
-            document.getElementById('stats-view').style.display = 'none';
-            document.getElementById('points-view').style.display = 'none';
-            document.getElementById('cards-view').style.display = 'none';
-            
-            updateNavigation('history');
-            
-            // 履歴画面ではヘッダーのポイント表示を再表示
-            const pointDisplay = document.getElementById('point-display');
-            if (pointDisplay) {
-                pointDisplay.style.display = 'flex';
-            }
-            
-            const data = loadData();
-            const historyList = document.getElementById('history-list');
-            historyList.innerHTML = '';
-            
-            if (data.completedHypotheses.length === 0) {
-                historyList.innerHTML = '<p style="color: var(--text-secondary);">完了した習慣はまだありません</p>';
-                return;
-            }
-            
-            // 新しい順に表示
-            const sortedHistory = [...data.completedHypotheses].reverse();
-            
-            sortedHistory.forEach(hypothesis => {
-                const item = document.createElement('div');
-                item.className = 'history-item';
-                
-                const completedDate = new Date(hypothesis.completedDate);
-                const dateStr = completedDate.toLocaleDateString('ja-JP');
-                
-                item.innerHTML = `
-                    <div class="history-info">
-                        <h4>${escapeHTML(hypothesis.title)}</h4>
-                        <div class="history-meta">
-                            完了日: ${dateStr} | 期間: ${hypothesis.totalDays}日間
-                        </div>
-                    </div>
-                    <div class="achievement-badge">
-                        ${hypothesis.finalAchievementRate}%
-                    </div>
-                `;
-                
-                // ダブルクリックで削除
-                item.ondblclick = () => {
-                    if (confirm('この履歴を削除しますか？')) {
-                        const newData = loadData();
-                        newData.completedHypotheses = newData.completedHypotheses.filter(h => h.id !== hypothesis.id);
-                        saveData(newData);
-                        showHistoryView();
-                    }
-                };
-                
-                historyList.appendChild(item);
-            });
-        }
+        function showHistoryView() { try { showHomeView(); } catch(_) {} }
 
         // 統計画面を表示
-        function showStatsView() {
-            resetScrollToTop();
-            document.getElementById('home-view').style.display = 'none';
-            document.getElementById('new-hypothesis-view').style.display = 'none';
-            document.getElementById('shuffle-view').style.display = 'none';
-            document.getElementById('progress-view').style.display = 'none';
-            document.getElementById('history-view').style.display = 'none';
-            document.getElementById('stats-view').style.display = 'block';
-            document.getElementById('points-view').style.display = 'none';
-            document.getElementById('cards-view').style.display = 'none';
-            
-            // 統計画面のすべてのトグルを閉じる
-            closeAllStatToggles();
-            
-            updateNavigation('stats');
-            
-            // 統計画面ではヘッダーのポイント表示を再表示
-            const pointDisplay = document.getElementById('point-display');
-            if (pointDisplay) {
-                pointDisplay.style.display = 'flex';
-            }
+        function showStatsView() { try { showHomeView(); } catch(_) {} }
             
             // チャレンジ統計を更新
             updateChallengeStats();
