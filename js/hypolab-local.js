@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250823-37';
+                const SW_VERSION_TAG = '20250823-38';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -5222,7 +5222,6 @@
 
         // ポイント画面を表示
         function showPointsView() { try { showHomeView(); } catch(_) {} }
-        }
         
         // ポイント画面の更新
         function updatePointsView() {
