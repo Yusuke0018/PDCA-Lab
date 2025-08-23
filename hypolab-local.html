@@ -14,7 +14,7 @@
     <link rel="icon" href="icons/icon.svg" sizes="any" type="image/svg+xml">
     <link rel="apple-touch-icon" href="icons/icon.svg">
     
-    <link rel="stylesheet" href="css/hypolab-local.css?v=20250823-33">
+    <link rel="stylesheet" href="css/hypolab-local.css?v=20250823-34">
 </head>
 <body>
     <!-- ヘッダー -->
@@ -68,9 +68,6 @@
             </button>
             <button class="nav-btn" onclick="showPointsView()" data-view="points">
                 <span style="font-size: 18px;">💰</span> ポイント
-            </button>
-            <button class="nav-btn" onclick="showCardsView()" data-view="cards">
-                <span style="font-size: 18px;">🎴</span> カード
             </button>
             <button class="nav-btn" onclick="showStatsView()" data-view="stats">
                 <span style="font-size: 18px;">📊</span> 統計
@@ -340,9 +337,6 @@
 
             <!-- カード使用ボタン -->
             <div id="card-use-section" style="margin-bottom: 20px; display: none;">
-                <button class="btn btn-secondary" onclick="showCardUseMenu()" style="width: 100%;">
-                    🎴 カードを使用
-                </button>
             </div>
 
             <!-- メモ入力（アウトプット/インプット）はデータ入出力と混同を避けるため削除 -->
@@ -925,53 +919,10 @@
             </div>
         </div>
 
-        <!-- カード一覧画面 -->
-        <div id="cards-view" style="display: none;">
-            <div class="card" style="margin-top: 0;">
-                <h2 style="margin-bottom: 24px; margin-top: 0;">🎴 カードコレクション</h2>
-                
-                
-                <div style="margin-bottom: 24px;">
-                    <h3 style="font-size: 18px; margin-bottom: 12px; color: var(--primary);">📦 所持カード</h3>
-                    <div id="card-inventory" style="display: grid; gap: 12px;">
-                        <!-- 動的に生成 -->
-                    </div>
-                </div>
-                
-                <div style="margin-bottom: 24px;">
-                    <h3 style="font-size: 18px; margin-bottom: 12px; color: var(--secondary);">⚠️ ペナルティカード</h3>
-                    <div id="penalty-cards" style="display: grid; gap: 12px;">
-                        <!-- 動的に生成 -->
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 
 
-    <!-- カード獲得モーダル -->
-    <div id="card-acquisition-modal" class="modal" style="display: none;">
-        <div class="modal-content" style="text-align: center; max-width: 400px;">
-            <h2 style="margin-bottom: 24px;">🎉 カード獲得！</h2>
-            <div id="acquired-cards-container" style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px;">
-                <!-- 動的に生成 -->
-            </div>
-            <button class="btn" onclick="closeCardAcquisition()">確認</button>
-        </div>
-    </div>
-
-    <!-- カード使用メニュー -->
-    <div id="card-use-modal" class="modal" style="display: none;">
-        <div class="modal-content" style="max-width: 500px;">
-            <div class="modal-header">
-                <h2 class="modal-title">カードを使用</h2>
-                <button class="close-btn" onclick="closeCardUseMenu()">×</button>
-            </div>
-            <div id="usable-cards-container" style="display: grid; gap: 12px;">
-                <!-- 動的に生成 -->
-            </div>
-        </div>
-    </div>
+    
 
     <!-- フッター -->
     <footer style="background: var(--surface); border-top: 1px solid var(--border); padding: 20px; margin-top: auto;">
@@ -985,12 +936,12 @@
         </div>
     </footer>
 
-    <script src="js/modules/hypolab-utils.js?v=20250823-33"></script>
-    <script src="js/modules/hypolab-storage.js?v=20250823-33"></script>
-    <script src="js/modules/hypolab-points.js?v=20250823-33"></script>
-    <script src="js/modules/hypolab-events.js?v=20250823-33"></script>
-    <script src="js/modules/hypolab-domain.js?v=20250823-33"></script>
-    <script src="js/modules/hypolab-router.js?v=20250823-33"></script>
-    <script src="js/hypolab-local.js?v=20250823-33"></script>
+    <script src="js/modules/hypolab-utils.js?v=20250823-34"></script>
+    <script src="js/modules/hypolab-storage.js?v=20250823-34"></script>
+    <script src="js/modules/hypolab-points.js?v=20250823-34"></script>
+    <script src="js/modules/hypolab-events.js?v=20250823-34"></script>
+    <script src="js/modules/hypolab-domain.js?v=20250823-34"></script>
+    <script src="js/modules/hypolab-router.js?v=20250823-34"></script>
+    <script src="js/hypolab-local.js?v=20250823-34"></script>
 </body>
 </html>

@@ -59,75 +59,7 @@ function calculatePointsWithBoosts(basePoints, source, category = null, habitId 
     let bonus = 0;
 
     const isChallenge = (source === 'daily_challenge' || source === 'weekly_challenge' || source === 'challenge');
-    if (isChallenge) {
-        // Apply challenge_multiplier to challenge sources only
-        if (data.cards && data.cards.activeEffects) {
-            const now = new Date();
-            const challengeBoost = data.cards.activeEffects.find(effect => 
-                effect.type === 'challenge_multiplier' && 
-                new Date(effect.startDate) <= now && 
-                new Date(effect.endDate) >= now
-            );
-            if (challengeBoost) {
-                return Math.round(basePoints * challengeBoost.value);
-            }
-        }
-        return basePoints;
-    }
-    if (data.cards && data.cards.activeEffects) {
-        const now = new Date();
-        const pointGem = data.cards.activeEffects.find(effect => 
-            effect.type === 'point_multiplier' && 
-            new Date(effect.startDate) <= now && 
-            new Date(effect.endDate) >= now
-        );
-        if (pointGem) { multiplier *= pointGem.multiplier; }
-
-        const rainbowBoost = data.cards.activeEffects.find(effect => 
-            effect.type === 'all_category_boost' && 
-            new Date(effect.startDate) <= now && 
-            new Date(effect.endDate) >= now
-        );
-        if (rainbowBoost && category) { multiplier *= rainbowBoost.multiplier; }
-
-        const slowdown = data.cards.activeEffects.find(effect => 
-            effect.type === 'slowdown' && 
-            new Date(effect.startDate) <= now && 
-            new Date(effect.endDate) >= now
-        );
-        if (slowdown) { multiplier *= 0.5; }
-
-        const reverseCurse = data.cards.activeEffects.find(effect => 
-            effect.type === 'reverse_curse' && 
-            new Date(effect.startDate) <= now && 
-            new Date(effect.endDate) >= now
-        );
-        if (reverseCurse && source === 'habit') { return 0; }
-        
-        // パワーブースト: 習慣達成時のみ+5pt
-        const powerBoost = data.cards.activeEffects.find(effect => 
-            effect.type === 'power_boost' && 
-            new Date(effect.startDate) <= now && 
-            new Date(effect.endDate) >= now
-        );
-        if (powerBoost && source === 'habit') { bonus += 5; }
-        
-        // パワーナップ: 次の習慣達成で+10pt（1回だけ）
-        const powerNap = data.cards.activeEffects.find(effect => 
-            effect.type === 'next_habit_bonus' && 
-            effect.cardId === 'power_nap' && 
-            !effect.used
-        );
-        if (powerNap && source === 'habit') { 
-            bonus += powerNap.value;
-            powerNap.used = true;
-            // 使用済みのパワーナップを削除
-            data.cards.activeEffects = data.cards.activeEffects.filter(e => 
-                !(e.type === 'next_habit_bonus' && e.cardId === 'power_nap' && e.used)
-            );
-            saveData(data);
-        }
-    }
+    if (isChallenge) { return basePoints; }
 
     if (!(typeof EVENTS_DISABLED !== 'undefined' && EVENTS_DISABLED) && data.events && data.events.activeBoosts) {
         const currentHour = new Date().getHours();
@@ -225,53 +157,7 @@ function calculatePointsWithBoostsDetailed(basePoints, source, category = null, 
 
     const isChallenge = (source === 'daily_challenge' || source === 'weekly_challenge' || source === 'challenge');
     if (isChallenge) {
-        // Apply challenge_multiplier to challenge sources only
-        if (data.cards && data.cards.activeEffects) {
-            const challengeBoost = data.cards.activeEffects.find(e => e.type === 'challenge_multiplier' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
-            if (challengeBoost) {
-                multiplier = challengeBoost.value;
-                notes.push(`Challenge ×${challengeBoost.value}`);
-                const finalPoints = Math.round(basePoints * multiplier);
-                return { finalPoints, multiplierTotal: multiplier, bonusTotal: 0, notes };
-            }
-        }
         return { finalPoints: basePoints, multiplierTotal: 1.0, bonusTotal: 0, notes };
-    }
-    if (data.cards && data.cards.activeEffects) {
-        const pointGem = data.cards.activeEffects.find(e => e.type === 'point_multiplier' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
-        if (pointGem) { multiplier *= pointGem.multiplier; notes.push(`PointGem ×${pointGem.multiplier}`); }
-        const rainbow = data.cards.activeEffects.find(e => e.type === 'all_category_boost' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
-        if (rainbow && category) { multiplier *= rainbow.multiplier; notes.push(`RainbowBoost ×${rainbow.multiplier}`); }
-        const comboChain = data.cards.activeEffects.find(e => e.type === 'combo_multiplier' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
-        if (comboChain && source === 'combo') { multiplier *= (comboChain.value || 2.0); notes.push(`Combo ×${comboChain.value || 2.0}`); }
-        const catFest = data.cards.activeEffects.find(e => e.type === 'category_theme_boost' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
-        if (catFest && category && catFest.target === category) { multiplier *= (catFest.multiplier || 1.5); notes.push(`Festival(${category}) ×${catFest.multiplier || 1.5}`); }
-        // ハッピーアワーは point_multiplier として処理されるので、ここでは削除
-        // const hh = data.cards.activeEffects.find(e => e.type === 'time_window_bonus' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
-        // if (hh) { bonus += (hh.value || 10); notes.push(`HappyHour +${hh.value || 10}`); }
-        const todayKey = dateKeyLocal(new Date());
-        const spark = data.cards.activeEffects.find(e => e.type === 'streak_spark' && e.dayKey === todayKey && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
-        if (spark && source === 'habit') {
-            const add = (typeof spark.perHabit === 'number' ? spark.perHabit : 1);
-            bonus += add; notes.push(`Sparkle +${add}`);
-        }
-        const slow = data.cards.activeEffects.find(e => e.type === 'slowdown' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
-        if (slow) { multiplier *= 0.5; notes.push('Slowdown ×0.5'); }
-        const reverse = data.cards.activeEffects.find(e => e.type === 'reverse_curse' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
-        if (reverse && source === 'habit') { return { finalPoints: 0, multiplierTotal: 0, bonusTotal: 0, notes: ['ReverseCurse'] }; }
-        // パワーブースト: 習慣達成時のみ+5pt
-        const powerBoost = data.cards.activeEffects.find(e => e.type === 'power_boost' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
-        if (powerBoost && source === 'habit') { bonus += 5; notes.push('PowerBoost +5'); }
-        // パワーナップ: 次の習慣達成で+10pt（1回だけ）
-        const powerNap = data.cards.activeEffects.find(e => e.type === 'next_habit_bonus' && e.cardId === 'power_nap' && !e.used);
-        if (powerNap && source === 'habit') { 
-            bonus += powerNap.value; 
-            notes.push('PowerNap +10'); 
-            powerNap.used = true;
-            // 使用済みのパワーナップを削除
-            data.cards.activeEffects = data.cards.activeEffects.filter(e => !(e.type === 'next_habit_bonus' && e.cardId === 'power_nap' && e.used));
-            saveData(data);
-        }
     }
 
     if (!(typeof EVENTS_DISABLED !== 'undefined' && EVENTS_DISABLED) && data.events && data.events.activeBoosts) {

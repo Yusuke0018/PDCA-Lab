@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250823-33';
+                const SW_VERSION_TAG = '20250823-34';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -16013,6 +16013,21 @@
                 </div>
             `;
         }
+
+        // ===== カード機能の完全無効化（安全なスタブ） =====
+        try {
+            window.CARDS_DISABLED = true;
+            window.showCardsView = function(){ try { showHomeView(); } catch(_) {} };
+            window.updateCardDisplay = function(){};
+            window.updateCardUseButton = function(){};
+            window.showCardUseMenu = function(){};
+            window.closeCardUseMenu = function(){};
+            window.showCardAcquisition = function(ids, cb){ try { if (typeof cb === 'function') cb(); } catch(_) {} };
+            window.applyPenaltyCards = function(){};
+            window.getRandomCardForLevelUp = function(){ return null; };
+            window.addCardToInventory = function(){ return loadData(); };
+            window.getCardsBasedOnAchievement = function(){ return []; };
+        } catch(_) {}
         window.updateWeightChart = updateWeightChart;
         
         // windowオブジェクトに関数を登録
