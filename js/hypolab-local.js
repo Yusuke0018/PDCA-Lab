@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250823-36';
+                const SW_VERSION_TAG = '20250823-37';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -6361,6 +6361,7 @@
             updatePenaltyIndicators();
             updateChallenges();
             updateJournalStatus();  // ジャーナルステータスを更新
+            try { updateNightChecklistUI(); } catch(_) {}
             
             // イベント表示を更新（スマホ対応）
             try {
@@ -15893,6 +15894,66 @@
                 </div>
             `;
         }
+
+        // ========== 夜のチェックリスト ==========
+        function ensureNightChecklist(data){
+            if (!data.nightChecklist) data.nightChecklist = [];
+            return data;
+        }
+
+        function openAddNightChecklistItem(){
+            const title = prompt('夜のチェック項目を追加');
+            if (!title) return;
+            const data = ensureNightChecklist(loadData());
+            data.nightChecklist.push({ id: 'nc_' + Date.now(), title: title.trim(), done: false });
+            saveData(data);
+            updateNightChecklistUI();
+        }
+        window.openAddNightChecklistItem = openAddNightChecklistItem;
+
+        function toggleNightChecklist(id){
+            const data = ensureNightChecklist(loadData());
+            const item = data.nightChecklist.find(i => i.id === id);
+            if (!item) return;
+            const wasDone = !!item.done;
+            item.done = !item.done;
+            saveData(data);
+            if (!wasDone && item.done) {
+                try { earnPoints(1, 'checklist', '🌙 夜のチェックリスト'); } catch(_) {}
+            }
+            updateNightChecklistUI();
+            try { updatePointDisplay(); } catch(_) {}
+        }
+        window.toggleNightChecklist = toggleNightChecklist;
+
+        function deleteNightChecklistItem(id){
+            if (!confirm('この項目を削除しますか？')) return;
+            const data = ensureNightChecklist(loadData());
+            data.nightChecklist = data.nightChecklist.filter(i => i.id !== id);
+            saveData(data);
+            updateNightChecklistUI();
+        }
+        window.deleteNightChecklistItem = deleteNightChecklistItem;
+
+        function updateNightChecklistUI(){
+            const list = document.getElementById('night-checklist-list');
+            if (!list) return;
+            const data = ensureNightChecklist(loadData());
+            if (!Array.isArray(data.nightChecklist) || data.nightChecklist.length === 0){
+                list.innerHTML = '<div style="color: var(--text-secondary); font-size: 14px;">項目がありません。右上の「追加」から作成してください。</div>';
+                return;
+            }
+            list.innerHTML = data.nightChecklist.map(item => `
+                <div style="display:flex; align-items:center; justify-content:space-between; border:1px solid var(--border); border-radius:8px; padding:8px; background:${item.done ? 'rgba(16,185,129,0.08)' : 'var(--surface)'};">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <button onclick="toggleNightChecklist('${item.id}')" title="切り替え" style="min-width:32px; height:32px; border-radius:8px; border:1px solid var(--border); background:${item.done ? '#10b981' : 'var(--surface-light)'}; color:${item.done ? '#fff' : 'var(--text-primary)'}; font-weight:700;">${item.done ? '✔' : '□'}</button>
+                        <div style="${item.done ? 'text-decoration: line-through; color: var(--text-secondary);' : ''}">${escapeHTML(item.title)}</div>
+                    </div>
+                    <button class="btn btn-secondary" onclick="deleteNightChecklistItem('${item.id}')" style="padding:6px 10px; font-size:12px; background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.3);">削除</button>
+                </div>
+            `).join('');
+        }
+        window.updateNightChecklistUI = updateNightChecklistUI;
 
         // ===== カード機能の完全無効化（安全なスタブ） =====
         try {
