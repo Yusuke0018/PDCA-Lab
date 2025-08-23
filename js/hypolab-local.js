@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250823-45';
+                const SW_VERSION_TAG = '20250823-46';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -847,6 +847,11 @@
                     }
                     return true; // 期限内または無期限なので保持
                 });
+            }
+            
+            // 進行中の習慣はすべて毎日実施に統一
+            if (Array.isArray(parsed.currentHypotheses)) {
+                parsed.currentHypotheses.forEach(h => { h.frequency = { type: 'daily' }; });
             }
             
             return parsed;
@@ -6611,42 +6616,7 @@
                 showCardEffect('短期集中ペナルティ適用中！', '短期間（3-7日）のみ選択可能です', '#ef4444');
             }
             
-            // 頻度設定UIの初期化
-            document.querySelectorAll('input[name="frequency"]').forEach(radio => {
-                radio.checked = radio.value === 'daily';
-            });
-            document.getElementById('weekly-count').disabled = true;
-            document.getElementById('weekdays-selector').style.display = 'none';
-            document.querySelectorAll('input[name="weekday"]').forEach(cb => {
-                cb.checked = false;
-            });
-            
-            // 頻度設定のイベントリスナー
-            const freqRadios = document.querySelectorAll('input[name="frequency"]');
-            freqRadios.forEach(radio => {
-                radio.addEventListener('change', function() {
-                    const weeklyCount = document.getElementById('weekly-count');
-                    const weekdaysSelector = document.getElementById('weekdays-selector');
-                    
-                    // すべて無効化
-                    weeklyCount.disabled = true;
-                    weekdaysSelector.style.display = 'none';
-                    
-                    // 選択されたものだけ有効化
-                    if (this.value === 'weekly') {
-                        weeklyCount.disabled = false;
-                        weeklyCount.focus();
-                    } else if (this.value === 'weekdays') {
-                        weekdaysSelector.style.display = 'block';
-                    }
-                    
-                    // 期間表示を更新
-                    updateDurationDisplay(this.value);
-                });
-            });
-            
-            // 初期状態設定
-            document.getElementById('freq-daily').checked = true;
+            // 頻度UIは廃止（すべて毎日扱い）
         }
 
         // 頻度に応じて期間表示を更新
@@ -6739,23 +6709,8 @@
                 }
             });
 
-            // 頻度設定を取得
-            const frequencyType = document.querySelector('input[name="frequency"]:checked').value;
-            let frequencyData = { type: frequencyType };
-            
-            if (frequencyType === 'weekly') {
-                frequencyData.count = parseInt(document.getElementById('weekly-count').value);
-            } else if (frequencyType === 'weekdays') {
-                const selectedDays = [];
-                document.querySelectorAll('input[name="weekday"]:checked').forEach(cb => {
-                    selectedDays.push(parseInt(cb.value));
-                });
-                if (selectedDays.length === 0) {
-                    alert('少なくとも1つの曜日を選択してください');
-                    return;
-                }
-                frequencyData.weekdays = selectedDays;
-            }
+            // すべて毎日実施に固定
+            let frequencyData = { type: 'daily' };
 
             // 開始日を取得（未選択の場合は今日）
             let startDate = window.selectedStartDate || new Date().toISOString().split('T')[0];

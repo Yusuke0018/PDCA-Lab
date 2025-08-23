@@ -14,7 +14,7 @@
     <link rel="icon" href="icons/icon.svg" sizes="any" type="image/svg+xml">
     <link rel="apple-touch-icon" href="icons/icon.svg">
     
-    <link rel="stylesheet" href="css/hypolab-local.css?v=20250823-45">
+    <link rel="stylesheet" href="css/hypolab-local.css?v=20250823-46">
 </head>
 <body>
     <!-- ヘッダー -->
@@ -195,79 +195,7 @@
                         <small style="color: var(--text-secondary); display:block; margin-top:6px;">お好みの日数を自由に指定できます</small>
                     </div>
                     
-                    <div class="form-group">
-                        <label>実施頻度を選択</label>
-                        <div style="display: grid; gap: 12px; margin-top: 12px;">
-                            <!-- 毎日 -->
-                            <div class="frequency-option">
-                                <input type="radio" id="freq-daily" name="frequency" value="daily" checked>
-                                <label for="freq-daily">
-                                    <div style="font-weight: 600; margin-bottom: 4px;">毎日</div>
-                                    <div style="font-size: 12px; opacity: 0.8;">すべての日で実施します</div>
-                                </label>
-                            </div>
-                            
-                            <!-- 週に◯回 -->
-                            <div class="frequency-option">
-                                <input type="radio" id="freq-weekly" name="frequency" value="weekly">
-                                <label for="freq-weekly">
-                                    <div style="display: flex; align-items: center; gap: 8px;">
-                                        <span style="font-weight: 600;">週に</span>
-                                        <input type="number" id="weekly-count" min="1" max="7" value="3" 
-                                               style="width: 50px; padding: 4px 8px; border: 1px solid var(--border); 
-                                                      border-radius: 6px; background: var(--surface); text-align: center;" 
-                                               onclick="event.stopPropagation(); document.getElementById('freq-weekly').click();">
-                                        <span style="font-weight: 600;">回</span>
-                                    </div>
-                                    <div style="font-size: 12px; opacity: 0.8; margin-top: 4px;">1週間あたりの実施回数を指定</div>
-                                </label>
-                            </div>
-                            
-                            <!-- 特定の曜日 -->
-                            <div class="frequency-option">
-                                <input type="radio" id="freq-weekdays" name="frequency" value="weekdays">
-                                <label for="freq-weekdays">
-                                    <div style="font-weight: 600; margin-bottom: 4px;">特定の曜日</div>
-                                    <div style="font-size: 12px; opacity: 0.8;">実施する曜日を選択</div>
-                                </label>
-                            </div>
-                            
-                            <!-- 曜日選択ボタン -->
-                            <div id="weekdays-selector" style="display: none; margin-top: 12px; padding: 16px; background: var(--surface); border-radius: 12px; border: 1px solid var(--border);">
-                                <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px;">
-                                    <div class="weekday-option">
-                                        <input type="checkbox" id="weekday-1" name="weekday" value="1">
-                                        <label for="weekday-1">月</label>
-                                    </div>
-                                    <div class="weekday-option">
-                                        <input type="checkbox" id="weekday-2" name="weekday" value="2">
-                                        <label for="weekday-2">火</label>
-                                    </div>
-                                    <div class="weekday-option">
-                                        <input type="checkbox" id="weekday-3" name="weekday" value="3">
-                                        <label for="weekday-3">水</label>
-                                    </div>
-                                    <div class="weekday-option">
-                                        <input type="checkbox" id="weekday-4" name="weekday" value="4">
-                                        <label for="weekday-4">木</label>
-                                    </div>
-                                    <div class="weekday-option">
-                                        <input type="checkbox" id="weekday-5" name="weekday" value="5">
-                                        <label for="weekday-5">金</label>
-                                    </div>
-                                    <div class="weekday-option">
-                                        <input type="checkbox" id="weekday-6" name="weekday" value="6">
-                                        <label for="weekday-6">土</label>
-                                    </div>
-                                    <div class="weekday-option">
-                                        <input type="checkbox" id="weekday-0" name="weekday" value="0">
-                                        <label for="weekday-0">日</label>
-                                    </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    
                     
                     <div class="form-group">
                         <button type="submit" class="btn">
