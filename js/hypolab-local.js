@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250824-02';
+                const SW_VERSION_TAG = '20250824-03';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -10560,16 +10560,30 @@
                     </div>` : ''}
                     ${(() => {
                         const todayKey = getActivityDateKey();
-                        const isAchievedToday = hypothesis.achievements && hypothesis.achievements[todayKey];
+                        const isAchievedToday = !!(hypothesis.achievements && hypothesis.achievements[todayKey]);
+                        // 今日が期間内かどうか（開始日前/終了後はラベル非表示）
+                        const t = new Date(); t.setHours(0,0,0,0);
+                        const withinRange = (t >= startDate && t <= endDate);
                         
-                        return isAchievedToday ? `
-                            <div style="position: absolute; top: 10px; right: 10px; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;">
-                                <div style="position: relative; width: 100%; height: 100%; transform: rotate(-10deg);">
-                                    <div style="position: absolute; inset: 0; border: 3px solid #dc2626; border-radius: 50%; background: rgba(220, 38, 38, 0.05);"></div>
-                                    <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: bold; color: #dc2626; font-family: serif;">完</div>
+                        if (isAchievedToday) {
+                            return `
+                                <div style="position: absolute; top: 10px; right: 10px; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;">
+                                    <div style="position: relative; width: 100%; height: 100%; transform: rotate(-10deg);">
+                                        <div style="position: absolute; inset: 0; border: 3px solid #dc2626; border-radius: 50%; background: rgba(220, 38, 38, 0.05);"></div>
+                                        <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: bold; color: #dc2626; font-family: serif;">完</div>
+                                    </div>
                                 </div>
-                            </div>
-                        ` : '';
+                            `;
+                        }
+                        if (withinRange) {
+                            // 本日未達成（期間内）の場合は赤い❌ラベルを表示
+                            return `
+                                <div style="position: absolute; top: 12px; right: 12px;">
+                                    <span style="display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid rgba(239,68,68,0.5); color:#ef4444; background: rgba(239,68,68,0.12);">❌ 未達成</span>
+                                </div>
+                            `;
+                        }
+                        return '';
                     })()}
                 `;
                 
