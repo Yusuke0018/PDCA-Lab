@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250823-47';
+                const SW_VERSION_TAG = '20250823-48';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -7522,281 +7522,58 @@
             updateProgress();
         }
 
-        // カレンダーを更新
+        // カレンダーを更新（シンプル: 達成/未達成 のみ）
         function updateCalendar() {
             const calendarGrid = document.getElementById('calendar-grid');
             calendarGrid.innerHTML = '';
             
             const startDate = new Date(window.currentHypothesis.startDate);
             const today = new Date();
+            startDate.setHours(0, 0, 0, 0);
             today.setHours(0, 0, 0, 0);
             
-            // 開始日を0時0分0秒に設定
-            startDate.setHours(0, 0, 0, 0);
-            
-            // 経過日数を計算（開始日を1日目として計算）
+            // 経過日数（開始日を1日目として計算）
             const timeDiff = today.getTime() - startDate.getTime();
-            // 無期限の場合は実際の経過日数を使用
-            const daysPassed = window.currentHypothesis.isUnlimited 
+            const daysPassed = window.currentHypothesis.isUnlimited
                 ? Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1)
-                : Math.min(
-                    Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1),
-                    window.currentHypothesis.totalDays
-                );
-            
-            // 週ごとの達成状況を追跡（週●回の場合）
-            const weeklyAchievements = new Map(); // weekNumber -> {achieved: count, required: count, canAchieve: count}
-            const frequency = window.currentHypothesis.frequency;
-            
-            // 検証開始日からの週番号を取得（開始日から7日ごとに1週間）
-            function getWeekNumber(date) {
-                const d = new Date(date);
-                d.setHours(0, 0, 0, 0);
-                const start = new Date(startDate);
-                start.setHours(0, 0, 0, 0);
-                const days = Math.floor((d - start) / (24 * 60 * 60 * 1000));
-                return Math.floor(days / 7) + 1;  // 1週目から開始
-            }
-            
-            // 週●回の場合、先に各週の達成状況を計算
-            if (frequency && frequency.type === 'weekly') {
-                for (let i = 0; i < window.currentHypothesis.totalDays; i++) {
-                    const cellDate = new Date(startDate);
-                    cellDate.setDate(startDate.getDate() + i);
-                    const weekNum = getWeekNumber(cellDate);
-                    const dateKey = dateKeyLocal(cellDate);
-                    
-                    if (!weeklyAchievements.has(weekNum)) {
-                        weeklyAchievements.set(weekNum, {
-                            achieved: 0,
-                            required: frequency.count || 3,
-                            canAchieve: 0,
-                            dates: []
-                        });
-                    }
-                    
-                    const weekData = weeklyAchievements.get(weekNum);
-                    weekData.dates.push(cellDate);
-                    
-                    if (window.currentHypothesis.achievements && window.currentHypothesis.achievements[dateKey]) {
-                        weekData.achieved++;
-                    }
-                    
-                    // 今日以前の日数をカウント
-                    if (cellDate <= today) {
-                        weekData.canAchieve++;
-                    }
-                }
-            }
-            
-            let lastWeekNum = -1;
+                : Math.min(Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1), window.currentHypothesis.totalDays);
             
             for (let i = 0; i < window.currentHypothesis.totalDays; i++) {
                 const cellDate = new Date(startDate);
                 cellDate.setDate(startDate.getDate() + i);
-                const weekNum = getWeekNumber(cellDate);
-                
-                // 新しい週が始まったら週情報を表示（週●回の場合のみ）
-                if (frequency && frequency.type === 'weekly' && weekNum !== lastWeekNum) {
-                    const weekData = weeklyAchievements.get(weekNum);
-                    if (weekData) {
-                        const weekInfo = document.createElement('div');
-                        weekInfo.className = 'week-info';
-                        const progressPercent = Math.min(100, (weekData.achieved / weekData.required) * 100);
-                        
-                        weekInfo.innerHTML = `
-                            <span>第${weekNum}週</span>
-                            <div class="progress">
-                                <span>${weekData.achieved}/${weekData.required}回${weekData.achieved > weekData.required ? ' ✨' : ''}</span>
-                                <div class="progress-bar">
-                                    <div class="progress-fill" style="width: ${progressPercent}%; ${weekData.achieved > weekData.required ? 'background: linear-gradient(90deg, #10b981, #3b82f6);' : ''}"></div>
-                                </div>
-                            </div>
-                        `;
-                        calendarGrid.appendChild(weekInfo);
-                    }
-                    lastWeekNum = weekNum;
-                }
-                
-                // 頻度に応じて対象日かどうかを判定
-                let isTargetDay = true;
-                let canClickToday = true;
-                
-                if (frequency) {
-                    if (frequency.type === 'weekdays') {
-                        // 特定曜日の場合：該当する曜日のみ対象
-                        isTargetDay = frequency.weekdays.includes(cellDate.getDay());
-                    } else if (frequency.type === 'weekly') {
-                        // 週●回の場合：上限を超えても記録可能にする
-                        // すべての日をクリック可能にする
-                        const weekData = weeklyAchievements.get(weekNum);
-                        // 制限を削除：常にクリック可能
-                    }
-                    // daily の場合はすべて対象
-                }
-                
+                const dateKey = dateKeyLocal(cellDate);
                 const dayCell = document.createElement('div');
                 dayCell.className = 'day-cell';
                 dayCell.style.position = 'relative';
                 
-                // 対象外の日は薄く表示
-                if (!isTargetDay || !canClickToday) {
-                    dayCell.style.opacity = '0.3';
-                    dayCell.style.background = 'var(--surface-dark)';
-                }
-                
-                // 実際の日付を表示（月/日形式）
+                // ラベル（M/D(曜) と通算日）
                 const displayMonth = cellDate.getMonth() + 1;
                 const displayDate = cellDate.getDate();
                 const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][cellDate.getDay()];
                 dayCell.innerHTML = `<small style="font-size: 10px;">${displayMonth}/${displayDate}(${dayOfWeek})</small><br><span style="font-size: 18px; font-weight: bold;">${i + 1}</span>`;
                 dayCell.dataset.day = i + 1;
                 
-                // 特定曜日の場合、対象曜日を強調表示
-                if (frequency && frequency.type === 'weekdays') {
-                    if (isTargetDay) {
-                        dayCell.style.border = '2px solid var(--primary)';
-                        dayCell.style.boxShadow = '0 0 8px rgba(59, 130, 246, 0.2)';
-                    }
-                }
-                
-                const dateKey = dateKeyLocal(cellDate);
-                // 強度バッジ（設定時）
-                const mult = Number((window.currentHypothesis.intensity || {})[dateKey] ?? 1.0);
-                const multBadge = document.createElement('div');
-                multBadge.style.cssText = 'position:absolute;bottom:6px;right:6px;font-size:10px;color:#94a3b8;';
-                multBadge.textContent = `×${mult.toFixed(1)}`;
-                dayCell.appendChild(multBadge);
-                
-                // 対象外の日はクリック不可
-                if (!isTargetDay || !canClickToday) {
-                    dayCell.classList.add('not-target');
-                    dayCell.style.cursor = 'not-allowed';
-                    
-                    // 週●回で目標達成済みでも追加記録可能なのでバッジ表示を削除
-                } else if (cellDate > today && !window.skipTicketMode) {
-                    dayCell.classList.add('future');
-                } else if (window.currentHypothesis.failures && window.currentHypothesis.failures[dateKey]) {
-                    // 未達成として記録された日
-                    dayCell.classList.add('failed');
-                    dayCell.style.background = 'rgba(239, 68, 68, 0.2)';
-                    dayCell.style.border = '2px solid #ef4444';
-                    dayCell.style.cursor = 'pointer';
-                    dayCell.onclick = () => toggleDayStatus(dateKey, dayCell);
-                } else if (window.currentHypothesis.achievements[dateKey]) {
+                // 状態表示
+                const isFuture = cellDate > today;
+                const achieved = !!(window.currentHypothesis.achievements || {})[dateKey];
+                if (achieved) {
                     dayCell.classList.add('achieved');
-                    // 達成済みでもクリック可能にする（取り消しできるように）
+                } else {
+                    dayCell.classList.add(isFuture ? 'future' : 'not-achieved');
+                }
+                
+                // 今日以前のみクリック可能
+                if (!isFuture) {
                     dayCell.style.cursor = 'pointer';
                     dayCell.onclick = () => toggleDayStatus(dateKey, dayCell);
-                } else {
-                    dayCell.classList.add('not-achieved');
-                    if (window.skipTicketMode) {
-                        // スキップモードでも過去と今日のみ選択可能
-                        if (cellDate <= today && isTargetDay && canClickToday) {
-                            dayCell.style.cursor = 'pointer';
-                            dayCell.style.border = '2px dashed var(--primary)';
-                            dayCell.onclick = () => applySkipTicket(dateKey, dayCell);
-                        } else {
-                            dayCell.classList.add('future');
-                        }
-                    } else {
-                        if (isTargetDay && canClickToday) {
-                            dayCell.onclick = () => toggleDayStatus(dateKey, dayCell);
-                        }
-                    }
                 }
                 
-                // 今日の日付の場合、対象日ならクリック可能にする（深夜対応）
-                // 深夜2時までは前日のセルもクリック可能
-                const currentActivityKey = getActivityDateKey();
-                const isClickableToday = (dateKey === currentActivityKey) && isTargetDay && canClickToday;
-                if (isClickableToday) {
-                    if (!window.currentHypothesis.achievements[dateKey]) {
-                        dayCell.classList.remove('future');
-                        dayCell.classList.add('not-achieved');
-                        dayCell.onclick = window.skipTicketMode ? 
-                            () => applySkipTicket(dateKey, dayCell) : 
-                            () => toggleDayStatus(dateKey, dayCell);
-                    }
-                }
-                
-                // 長押し（または右クリック）でその日の強度を編集
-                if (cellDate <= today) {
-                    attachLongPress(dayCell, () => openIntensityPicker(dateKey));
-                    dayCell.addEventListener('contextmenu', (e) => {
-                        e.preventDefault();
-                        openIntensityPicker(dateKey);
-                    });
-                }
                 calendarGrid.appendChild(dayCell);
             }
             
-            // 週N回の習慣で未達成分のペナルティをチェック
-            if (frequency && frequency.type === 'weekly') {
-                // 現在の週番号を取得
-                const currentWeekNum = getWeekNumber(today);
-                
-                // 完了した週についてペナルティを適用
-                weeklyAchievements.forEach((weekData, weekNum) => {
-                    // 現在の週より前の週で、目標回数に達していない場合
-                    if (weekNum < currentWeekNum && weekData.achieved < weekData.required) {
-                        const shortage = weekData.required - weekData.achieved;
-                        const penaltyKey = `week_${window.currentHypothesis.id}_${weekNum}_penalty`;
-                        
-                        // すでにペナルティを適用済みかチェック
-                        const data = loadData();
-                        if (!data.meta) data.meta = {};
-                        if (!data.meta.weeklyPenalties) data.meta.weeklyPenalties = {};
-                        
-                        if (!data.meta.weeklyPenalties[penaltyKey]) {
-                            // ペナルティを適用
-                            const penaltyAmount = shortage * 5;
-                            data.pointSystem.currentPoints = Math.max(0, data.pointSystem.currentPoints - penaltyAmount);
-                            
-                            // トランザクション記録
-                            data.pointSystem.transactions.unshift({
-                                timestamp: new Date().toISOString(),
-                                type: 'penalty',
-                                amount: -penaltyAmount,
-                                source: 'weekly_shortage',
-                                description: `${window.currentHypothesis.title} 第${weekNum}週 未達成分 (${shortage}回不足)`,
-                                habitId: window.currentHypothesis.id,
-                                weekNum: weekNum
-                            });
-                            
-                            // トランザクション履歴を制限
-                            if (data.pointSystem.transactions.length > 100) {
-                                data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100);
-                            }
-                            
-                            // ペナルティ適用済みフラグを保存
-                            data.meta.weeklyPenalties[penaltyKey] = true;
-                            
-                            saveData(data);
-                            updatePointDisplay();
-                            
-                            // 通知を表示
-                            showNotification(`第${weekNum}週の未達成ペナルティ\n${shortage}回不足 -${penaltyAmount}pt`, 'error', 3);
-                        }
-                    }
-                });
-            }
-            
-            // 期間情報と頻度情報を更新
-            let frequencyInfo = '';
-            if (frequency) {
-                if (frequency.type === 'daily') {
-                    frequencyInfo = ' (毎日)';
-                } else if (frequency.type === 'weekly') {
-                    frequencyInfo = ` (週${frequency.count}回)`;
-                } else if (frequency.type === 'weekdays') {
-                    const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
-                    const days = frequency.weekdays.map(d => dayNames[d]).join('・');
-                    frequencyInfo = ` (${days})`;
-                }
-            }
-            document.getElementById('progress-days-info').textContent = 
-                `検証期間: ${daysPassed}日目 / ${window.currentHypothesis.totalDays}日間${frequencyInfo}`;
+            // 期間情報を更新（頻度情報は廃止）
+            document.getElementById('progress-days-info').textContent =
+                `検証期間: ${daysPassed}日目 / ${window.currentHypothesis.totalDays}日間`;
         }
 
         // 長押し検出ユーティリティ
@@ -8223,207 +8000,69 @@
             checkStageProgress();
         }
         
-        // 日の達成状態を切り替え
+        // 日の達成状態を切り替え（シンプル: 達成=+1pt / 未達成=0pt）
         function toggleDayStatus(dateKey, dayCell) {
-            // 週●回の制限チェック
-            const frequency = window.currentHypothesis.frequency;
-            if (frequency && frequency.type === 'weekly') {
-                // 日付から週番号を取得
-                const [year, month, day] = dateKey.split('-').map(Number);
-                const date = new Date(year, month - 1, day);
-                const weekNum = getWeekNumber(date, window.currentHypothesis.startDate);
-                
-                // この週の達成状況を確認
-                let weekAchieved = 0;
-                const startOfWeek = new Date(date);
-                startOfWeek.setDate(date.getDate() - date.getDay() + 1); // 月曜日
-                
-                for (let i = 0; i < 7; i++) {
-                    const checkDate = new Date(startOfWeek);
-                    checkDate.setDate(startOfWeek.getDate() + i);
-                    const checkKey = dateKeyLocal(checkDate);
-                    if (window.currentHypothesis.achievements && window.currentHypothesis.achievements[checkKey]) {
-                        weekAchieved++;
-                    }
-                }
-                
-                // 週●回の制限を削除：目標回数に達成してもそれ以上記録可能
-                // 達成済みかどうかのみチェック（トグル処理のため）
-            }
+            const data = loadData();
+            const idx = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            if (idx === -1) return;
+            const hyp = data.currentHypotheses[idx];
+            hyp.achievements = hyp.achievements || {};
+            hyp.pointsByDate = hyp.pointsByDate || {};
+            const wasAchieved = !!hyp.achievements[dateKey];
             
-            if (!window.currentHypothesis.achievements[dateKey] && (!window.currentHypothesis.failures || !window.currentHypothesis.failures[dateKey])) {
-                // 未記録の日 → 強度選択モーダルを表示
-                showIntensitySelectionModal(dateKey, dayCell);
-                // 注：カード取得チェックはapplyAchievementWithIntensity内で行う
-            } else if (window.currentHypothesis.failures && window.currentHypothesis.failures[dateKey]) {
-                // 未達成の日 → 取り消す（ペナルティポイントを返す）
-                delete window.currentHypothesis.failures[dateKey];
-                dayCell.classList.remove('failed');
-                dayCell.classList.add('not-achieved');
-                dayCell.style.background = '';
-                dayCell.style.border = '';
+            if (!wasAchieved) {
+                // 達成にする → +1pt
+                hyp.achievements[dateKey] = true;
+                hyp.pointsByDate[dateKey] = 1;
                 
-                // ペナルティポイントを返す（+5ポイント）
-                const data = loadData();
-                const refundAmount = 5;
-                
-                // ポイント加算
-                data.pointSystem.currentPoints += refundAmount;
-                
-                // トランザクション記録
-                data.pointSystem.transactions.unshift({
-                    timestamp: new Date().toISOString(),
-                    type: 'refund',
-                    amount: refundAmount,
-                    source: 'failure_cancel',
-                    description: `${window.currentHypothesis.title} 未達成取り消し`,
-                    habitId: window.currentHypothesis.id,
-                    dateKey: dateKey
-                });
-                
-                // トランザクション履歴を制限
-                if (data.pointSystem.transactions.length > 100) {
-                    data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100);
-                }
-                
-                // 習慣データを保存
-                const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
-                if (index !== -1) {
-                    data.currentHypotheses[index].failures = window.currentHypothesis.failures;
-                }
-                
-                saveData(data);
-                
-                // UI更新
-                updatePointDisplay();
-                updateProgress();
-                updateCalendar();
-                
-                // 通知を表示
-                showNotification(`${window.currentHypothesis.title} 未達成を取り消しました\n+${refundAmount}pt`, 'success', 2);
-                
-            } else {
-                // 達成を取り消す（ポイントを減算する）
-                delete window.currentHypothesis.achievements[dateKey];
-                dayCell.classList.remove('achieved');
-                dayCell.classList.add('not-achieved');
-                
-                // ポイント減算処理
-                const data = loadData();
-                // 実際に付与済みのポイントを参照（なければ強度ベースで推定）
-                const creditedMap = window.currentHypothesis.pointsByDate || {};
-                let creditedPoints = creditedMap[dateKey];
-                let baseDeduct = 0;
-                if (typeof creditedPoints === 'number') {
-                    baseDeduct = creditedPoints;
-                } else {
-                    // 追加フォールバック：トランザクションから当日の付与を推定
-                    const tx = (data.pointSystem.transactions || []).find(t => {
-                        if (t.type !== 'earn' || t.source !== 'habit') return false;
-                        if (t.habitId && t.habitId !== window.currentHypothesis.id) return false;
-                        const d = new Date(t.timestamp);
-                        const key = dateKeyLocal(d);
-                        return key === dateKey;
-                    });
-                    if (tx && typeof tx.finalAmount === 'number') {
-                        baseDeduct = tx.finalAmount;
-                    } else {
-                        // 最終フォールバック：強度から推定
-                        const intensityValue = window.currentHypothesis.intensity?.[dateKey] || 1.0;
-                        if (intensityValue === 0.8) baseDeduct = 1; else if (intensityValue === 1.2) baseDeduct = 3; else baseDeduct = 2;
-                    }
-                }
-                
-                // コンボボーナスを再計算して調整
-                let comboDeduction = 0;
-                
-                // 取り消し前の達成数を確認
-                let achievedBeforeCancel = 0;
-                data.currentHypotheses.forEach(h => {
-                    if (h.achievements && h.achievements[dateKey]) {
-                        achievedBeforeCancel++;
-                    }
-                });
-                
-                // 取り消し後の達成数（現在の習慣は既に取り消し済み）
-                const achievedAfterCancel = achievedBeforeCancel - 1;
-                
-                // コンボボーナスの差分を計算
-                if (data.meta && data.meta.comboAwards && data.meta.comboAwards[dateKey]) {
-                    const previousComboBonus = data.meta.comboAwards[dateKey] || 0;
-                    
-                    // 新しいコンボボーナスを計算
-                    let newComboBonus = 0;
-                    const totalHabits = data.currentHypotheses.length;
-                    
-                    if (achievedAfterCancel === 2) {
-                        newComboBonus = 1; // 2習慣同時達成ボーナス
-                    } else if (achievedAfterCancel === 3) {
-                        newComboBonus = 3; // 3習慣同時達成ボーナス
-                    } else if (totalHabits >= 4 && achievedAfterCancel === totalHabits) {
-                        newComboBonus = 5; // 全習慣達成ボーナス
-                    }
-                    
-                    // 差分を計算
-                    comboDeduction = previousComboBonus - newComboBonus;
-                    
-                    // メタデータを更新
-                    if (newComboBonus > 0) {
-                        data.meta.comboAwards[dateKey] = newComboBonus;
-                    } else {
-                        delete data.meta.comboAwards[dateKey];
-                    }
-                }
-                
-                // 基本ポイントとコンボボーナスの差分を減算
-                const totalDeduction = baseDeduct + comboDeduction;
-                data.pointSystem.currentPoints = Math.max(0, data.pointSystem.currentPoints - totalDeduction);
-                // レベル進行も巻き戻す（生涯獲得からも減算）
-                data.pointSystem.lifetimeEarned = Math.max(0, (data.pointSystem.lifetimeEarned || 0) - totalDeduction);
+                data.pointSystem.currentPoints += 1;
+                data.pointSystem.lifetimeEarned = (data.pointSystem.lifetimeEarned || 0) + 1;
                 data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
-                // レベル再計算
                 const lvl = calculateLevel(data.pointSystem.lifetimeEarned);
                 data.pointSystem.currentLevel = lvl.level;
                 
-                // トランザクション記録（habitIdを含める）
-                const transactionDescription = comboDeduction > 0 ? 
-                    `${window.currentHypothesis.title} 取り消し（コンボ -${comboDeduction}pt含む）` :
-                    `${window.currentHypothesis.title} 取り消し`;
-                    
                 data.pointSystem.transactions.unshift({
-                    type: 'spend',
-                    amount: totalDeduction,
-                    source: 'habit_cancel',
-                    description: transactionDescription,
                     timestamp: new Date().toISOString(),
-                    habitId: window.currentHypothesis.id,
-                    meta: {
-                        baseDeduction: baseDeduct,
-                        comboDeduction: comboDeduction
-                    }
+                    type: 'earn',
+                    amount: 1,
+                    finalAmount: 1,
+                    source: 'habit_simple',
+                    description: `${hyp.title} 達成 (+1pt)`,
+                    habitId: hyp.id,
+                    dateKey
                 });
-                
-                // トランザクション履歴を100件に制限
-                if (data.pointSystem.transactions.length > 100) {
-                    data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100);
+                dayCell.classList.remove('not-achieved', 'future');
+                dayCell.classList.add('achieved');
+            } else {
+                // 未達成に戻す → 付与済みなら-1pt
+                delete hyp.achievements[dateKey];
+                if (hyp.pointsByDate[dateKey]) {
+                    data.pointSystem.currentPoints = Math.max(0, data.pointSystem.currentPoints - 1);
+                    data.pointSystem.lifetimeEarned = Math.max(0, (data.pointSystem.lifetimeEarned || 0) - 1);
+                    data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
+                    const lvl = calculateLevel(data.pointSystem.lifetimeEarned);
+                    data.pointSystem.currentLevel = lvl.level;
+                    data.pointSystem.transactions.unshift({
+                        timestamp: new Date().toISOString(),
+                        type: 'spend',
+                        amount: 1,
+                        source: 'habit_simple_cancel',
+                        description: `${hyp.title} 取り消し (-1pt)`,
+                        habitId: hyp.id,
+                        dateKey
+                    });
+                    delete hyp.pointsByDate[dateKey];
                 }
-                
-                // 習慣データも更新
-                const index = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
-                if (index !== -1) {
-                    data.currentHypotheses[index] = window.currentHypothesis;
-                }
-                
-                saveData(data);
-                updatePointDisplay();
-                updateProgress();
-                updateCalendar();
-                // 付与記録を削除
-                if (window.currentHypothesis.pointsByDate) {
-                    delete window.currentHypothesis.pointsByDate[dateKey];
-                }
-                showNotification(`習慣の達成を取り消しました (-${baseDeduct}pt)`, 'info');
+                dayCell.classList.remove('achieved');
+                dayCell.classList.add('not-achieved');
             }
+            
+            // 保存と反映
+            data.currentHypotheses[idx] = hyp;
+            saveData(data);
+            window.currentHypothesis = hyp;
+            updatePointDisplay();
+            updateProgress();
         }
         
         // 週番号を取得する関数（グローバルに定義） - 検証開始日基準
@@ -8526,79 +8165,29 @@
         function updateProgress() {
             const startDate = new Date(window.currentHypothesis.startDate);
             const today = new Date();
+            startDate.setHours(0, 0, 0, 0);
             today.setHours(0, 0, 0, 0);
             
-            // 開始日を0時0分0秒に設定
-            startDate.setHours(0, 0, 0, 0);
-            
-            // 経過日数を計算（開始日を1日目として計算）
             const timeDiff = today.getTime() - startDate.getTime();
-            // 無期限の場合は実際の経過日数を使用
-            const daysPassed = window.currentHypothesis.isUnlimited 
+            const daysPassed = window.currentHypothesis.isUnlimited
                 ? Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1)
-                : Math.min(
-                    Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1),
-                    window.currentHypothesis.totalDays
-                );
+                : Math.min(Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1), window.currentHypothesis.totalDays);
             
-            // 頻度に応じて目標日数を計算
-            let targetDays = daysPassed;
-            const frequency = window.currentHypothesis.frequency;
+            const achievedDays = Object.keys(window.currentHypothesis.achievements || {}).length;
+            const rate = window.currentHypothesis.totalDays > 0
+                ? Math.round((achievedDays / window.currentHypothesis.totalDays) * 100)
+                : 0;
             
-            if (frequency) {
-                if (frequency.type === 'weekly') {
-                    // 週単位の場合：経過週数 × 週あたりの回数
-                    const weeks = Math.ceil(daysPassed / 7);
-                    targetDays = Math.min(weeks * frequency.count, daysPassed);
-                } else if (frequency.type === 'weekdays') {
-                    // 特定曜日の場合：該当する曜日の数を数える
-                    targetDays = 0;
-                    for (let i = 0; i < daysPassed; i++) {
-                        const checkDate = new Date(startDate);
-                        checkDate.setDate(startDate.getDate() + i);
-                        if (frequency.weekdays.includes(checkDate.getDay())) {
-                            targetDays++;
-                        }
-                    }
-                }
-            }
-            
-            const achievedDays = Object.keys(window.currentHypothesis.achievements).length;
-            const achievementRate = targetDays > 0 ? Math.round((achievedDays / targetDays) * 100) : 0;
-            
-            // 表示用の達成率: 全日数を分母に、各達成日の強度倍率を適用した合計を分子に
-            const todayKey = dateKeyLocal(new Date());
-            const intensity = window.currentHypothesis.intensity || {};
-            let weightedAchieved = 0;
-            for (let i = 0; i < window.currentHypothesis.totalDays; i++) {
-                const d = new Date(startDate);
-                d.setDate(startDate.getDate() + i);
-                const key = dateKeyLocal(d);
-                const isAchieved = !!(window.currentHypothesis.achievements || {})[key];
-                if (!isAchieved) continue;
-                const mult = Number(intensity[key] ?? 1.0);
-                weightedAchieved += mult;
-            }
-            const displayRate = Math.min(100, Math.floor((weightedAchieved / window.currentHypothesis.totalDays) * 100));
-            const rateEl = document.getElementById('achievement-rate');
-            rateEl.textContent = displayRate + '%';
-            document.getElementById('progress-fill').style.width = Math.min(100, Math.floor(achievementRate)) + '%';
+            document.getElementById('achievement-rate').textContent = `${Math.min(100, rate)}%`;
+            document.getElementById('progress-fill').style.width = `${Math.min(100, rate)}%`;
             document.getElementById('achieved-days').textContent = `達成: ${achievedDays}日`;
-            // 無期限の場合は残り日数を表示しない
-            const remainingText = window.currentHypothesis.isUnlimited 
-                ? '継続中' 
+            document.getElementById('remaining-days').textContent = window.currentHypothesis.isUnlimited
+                ? '継続中'
                 : `残り: ${window.currentHypothesis.totalDays - daysPassed}日`;
-            document.getElementById('remaining-days').textContent = remainingText;
             
-            // 達成率に応じてグラデーションを変更
+            // シンプル化: プログレスバー配色は固定
             const progressFill = document.getElementById('progress-fill');
-            if (achievementRate >= 80) {
-                progressFill.style.background = 'var(--gradient-1)';
-            } else if (achievementRate >= 50) {
-                progressFill.style.background = 'var(--gradient-2)';
-            } else {
-                progressFill.style.background = 'var(--gradient-3)';
-            }
+            progressFill.style.background = 'var(--gradient-1)';
 
             // サプライズブーストは廃止（以前のランダム付与は削除）
             
