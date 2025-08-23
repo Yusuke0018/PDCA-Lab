@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250823-44';
+                const SW_VERSION_TAG = '20250823-45';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -11965,7 +11965,70 @@
         // サプライズブースト関連の機能は廃止
 
         // 履歴画面を表示
-        function showHistoryView() { try { showHomeView(); } catch(_) {} }
+        function showHistoryView() {
+            resetScrollToTop();
+            // 表示切替
+            document.getElementById('home-view').style.display = 'none';
+            document.getElementById('new-hypothesis-view').style.display = 'none';
+            { const el = document.getElementById('shuffle-view'); if (el) el.style.display = 'none'; }
+            document.getElementById('progress-view').style.display = 'none';
+            document.getElementById('history-view').style.display = 'block';
+            document.getElementById('stats-view').style.display = 'none';
+            document.getElementById('points-view').style.display = 'none';
+            document.getElementById('cards-view').style.display = 'none';
+            
+            updateNavigation('history');
+            
+            // リストを更新
+            try { updateHistoryList(); } catch(_) {}
+            
+            // ヘッダーのポイント表示は履歴でも表示
+            const pointDisplay = document.getElementById('point-display');
+            if (pointDisplay) pointDisplay.style.display = 'flex';
+        }
+
+        // 履歴リストを更新
+        function updateHistoryList() {
+            const data = loadData();
+            const container = document.getElementById('history-list');
+            if (!container) return;
+            const list = Array.isArray(data.completedHypotheses) ? data.completedHypotheses.slice() : [];
+            if (list.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-secondary);">完了した習慣はまだありません</p>';
+                return;
+            }
+            // 最新順に並べ替え（終了日が新しい順、なければ開始日）
+            list.sort((a, b) => {
+                const as = new Date(a.startDate);
+                const bs = new Date(b.startDate);
+                const ae = new Date(as); ae.setDate(ae.getDate() + (a.totalDays || 0) - 1);
+                const be = new Date(bs); be.setDate(be.getDate() + (b.totalDays || 0) - 1);
+                return be - ae;
+            });
+            // レンダリング
+            const pad = (n) => String(n).padStart(2, '0');
+            const fmt = (d) => `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())}`;
+            container.innerHTML = list.map(h => {
+                const s = new Date(h.startDate);
+                const e = new Date(s); e.setDate(e.getDate() + (h.totalDays || 0) - 1);
+                const total = Math.max(0, (h.totalDays || 0));
+                const achieved = h.achievements ? Object.keys(h.achievements).length : 0;
+                const rate = total > 0 ? Math.round((achieved/total)*100) : 0;
+                const cat = (h.category || 'その他');
+                const title = escapeHTML(h.title || '（無題）');
+                const desc = escapeHTML(h.description || '');
+                return `
+                    <div class="history-item" style="border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:8px; background:var(--surface);">
+                        <div style="font-weight:700;">${title}</div>
+                        <div style="font-size:12px; color:var(--text-secondary); margin:4px 0;">${desc}</div>
+                        <div style="font-size:12px; color:var(--text-secondary);">カテゴリ: ${escapeHTML(cat)} / 期間: ${fmt(s)} 〜 ${fmt(e)}</div>
+                        <div style="margin-top:6px; font-size:12px;">
+                            達成: <strong>${achieved}</strong> / ${total} 日（${rate}%）
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
 
         // 統計画面を表示
         function showStatsView() { try { showHomeView(); } catch(_) {} }
