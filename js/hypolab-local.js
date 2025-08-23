@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250823-49';
+                const SW_VERSION_TAG = '20250823-50';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -7565,7 +7565,7 @@
                 // 今日以前のみクリック可能
                 if (!isFuture) {
                     dayCell.style.cursor = 'pointer';
-                    dayCell.onclick = () => toggleDayStatus(dateKey, dayCell);
+                    dayCell.onclick = () => openDayStatusPicker(dateKey);
                 }
                 
                 calendarGrid.appendChild(dayCell);
@@ -8000,8 +8000,38 @@
             checkStageProgress();
         }
         
-        // 日の達成状態を切り替え（シンプル: 達成=+1pt / 未達成=0pt）
-        function toggleDayStatus(dateKey, dayCell) {
+        // ステータス選択モーダル（達成 / 未達成）
+        function openDayStatusPicker(dateKey) {
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay active';
+            overlay.style.backdropFilter = 'blur(4px)';
+            overlay.style.zIndex = '9999';
+            const modal = document.createElement('div');
+            modal.className = 'skip-modal active';
+            modal.style.maxWidth = '360px';
+            modal.style.padding = '20px';
+            modal.innerHTML = `
+                <div class="modal-header" style="margin-bottom: 12px;">
+                    <h3 style="font-size: 18px;">この日の状態を選択</h3>
+                </div>
+                <div style="display: grid; gap: 8px;">
+                    <button class="btn" id="btn-achieved" style="width: 100%;">✅ 達成（+1pt）</button>
+                    <button class="btn btn-secondary" id="btn-unachieved" style="width: 100%;">⬜ 未達成（0pt）</button>
+                    <button class="btn btn-secondary" id="btn-cancel" style="width: 100%; background: var(--surface-light); color: var(--text-secondary);">キャンセル</button>
+                </div>
+            `;
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            
+            const close = () => { try { overlay.remove(); } catch(_) {} };
+            document.getElementById('btn-achieved').onclick = () => { setDayStatus(dateKey, true); close(); };
+            document.getElementById('btn-unachieved').onclick = () => { setDayStatus(dateKey, false); close(); };
+            document.getElementById('btn-cancel').onclick = close;
+            overlay.onclick = (e) => { if (e.target === overlay) close(); };
+        }
+
+        // 日の達成状態を設定（達成=+1pt / 未達成=0pt）
+        function setDayStatus(dateKey, makeAchieved) {
             const data = loadData();
             const idx = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
             if (idx === -1) return;
@@ -8010,7 +8040,7 @@
             hyp.pointsByDate = hyp.pointsByDate || {};
             const wasAchieved = !!hyp.achievements[dateKey];
             
-            if (!wasAchieved) {
+            if (makeAchieved && !wasAchieved) {
                 // 達成にする → +1pt
                 hyp.achievements[dateKey] = true;
                 hyp.pointsByDate[dateKey] = 1;
@@ -8031,11 +8061,7 @@
                     habitId: hyp.id,
                     dateKey
                 });
-                if (dayCell) {
-                    dayCell.classList.remove('not-achieved', 'future');
-                    dayCell.classList.add('achieved');
-                }
-            } else {
+            } else if (!makeAchieved && wasAchieved) {
                 // 未達成に戻す → 付与済みなら-1pt
                 delete hyp.achievements[dateKey];
                 if (hyp.pointsByDate[dateKey]) {
@@ -8055,10 +8081,9 @@
                     });
                     delete hyp.pointsByDate[dateKey];
                 }
-                if (dayCell) {
-                    dayCell.classList.remove('achieved');
-                    dayCell.classList.add('not-achieved');
-                }
+            } else {
+                // 指定状態と現状態が同じ → なにもしない
+                return;
             }
             
             // 保存と反映
@@ -8067,15 +8092,16 @@
             window.currentHypothesis = hyp;
             updatePointDisplay();
             updateProgress();
+            updateCalendar();
         }
 
         // 強度関連UIは廃止（安全のためスタブ化）
         function showIntensitySelectionModal(dateKey, dayCell) {
-            try { toggleDayStatus(dateKey, dayCell); } catch(_) {}
+            try { openDayStatusPicker(dateKey); } catch(_) {}
         }
         function openIntensityPicker(dateKey) { /* no-op: 強度選択は廃止 */ }
         function applyAchievementWithIntensity(dateKey, dayCell, _intensity) {
-            try { toggleDayStatus(dateKey, dayCell); } catch(_) {}
+            try { openDayStatusPicker(dateKey); } catch(_) {}
         }
         
         // 週番号を取得する関数（グローバルに定義） - 検証開始日基準
