@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250823-41';
+                const SW_VERSION_TAG = '20250823-42';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -11949,7 +11949,7 @@
 
         // 統計画面を表示
         function showStatsView() { try { showHomeView(); } catch(_) {} }
-            
+            /*
             // チャレンジ統計を更新
             updateChallengeStats();
             
@@ -12333,7 +12333,7 @@
             
             // すべてのトグルを確実に閉じる
             closeAllStatToggles();
-        }
+        */
         
         // 達成率ランキングを表示
         function showAchievementRanking() {
