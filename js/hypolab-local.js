@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250823-28';
+                const SW_VERSION_TAG = '20250823-29';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -3580,35 +3580,70 @@
         
         // レベル設定（より長期的な目標設定）
         window.LEVEL_THRESHOLDS = window.LEVEL_THRESHOLDS || [
-            { level: 1, name: '初心者', min: 0, max: 75 },           // 50 → 75 (1.5倍)
-            { level: 2, name: '見習い', min: 76, max: 225 },         // 150 → 225 (1.5倍)
-            { level: 3, name: '習慣家', min: 226, max: 450 },        // 300 → 450 (1.5倍)
-            { level: 4, name: '実践者', min: 451, max: 750 },        // 500 → 750 (1.5倍)
-            { level: 5, name: '達人', min: 751, max: 1125 },         // 750 → 1125 (1.5倍)
-            { level: 6, name: 'マスター', min: 1126, max: 1650 },    // 1100 → 1650 (1.5倍)
-            { level: 7, name: 'グランドマスター', min: 1651, max: 2250 }, // 1500 → 2250 (1.5倍)
-            { level: 8, name: 'レジェンド', min: 2251, max: 3000 },  // 2000 → 3000 (1.5倍)
-            { level: 9, name: '神', min: 3001, max: 3900 },          // 2600 → 3900 (1.5倍)
-            { level: 10, name: '超越者', min: 3901, max: Infinity }
+            { level: 1, name: '', min: 0, max: 75 },
+            { level: 2, name: '', min: 76, max: 225 },
+            { level: 3, name: '', min: 226, max: 450 },
+            { level: 4, name: '', min: 451, max: 750 },
+            { level: 5, name: '', min: 751, max: 1125 },
+            { level: 6, name: '', min: 1126, max: 1650 },
+            { level: 7, name: '', min: 1651, max: 2250 },
+            { level: 8, name: '', min: 2251, max: 3000 },
+            { level: 9, name: '', min: 3001, max: 3900 },
+            { level: 10, name: '', min: 3901, max: Infinity }
         ];
+
+        // レベルに応じた肩書（タイトル）
+        function getLevelTitle(level) {
+            const clamp = (n, min, max) => Math.max(min, Math.min(max, n|0));
+            const lv = clamp(level, 1, 10000);
+            const stageTitles = [
+                // 1-5 序盤
+                ['駆け出し冒険者', '見習い旅人', '草原を駆ける者'],
+                // 6-10 中盤
+                ['熟練の戦士', '森を統べる者', '王国に名を刻む者'],
+                // 11-15 後半
+                ['英雄の継承者', '龍を討つ者', '世界を巡る賢者'],
+                // 16-20 終盤
+                ['星を導く者', '天空の覇者', '永劫の守護者'],
+                // 21-25 終極
+                ['神話を紡ぐ者', '運命を超える者', '全てを極めし者']
+            ];
+            if (lv <= 25) {
+                const stageIndex = Math.floor((lv - 1) / 5); // 0..4
+                const posInStage = ((lv - 1) % 5) + 1;       // 1..5
+                // 1-2: 0番目, 3-4: 1番目, 5: 2番目
+                const titleIndex = posInStage <= 2 ? 0 : (posInStage <= 4 ? 1 : 2);
+                return stageTitles[stageIndex][titleIndex];
+            }
+            // 26以上は終極の最終称号で固定
+            return '全てを極めし者';
+        }
 
         // 現在のレベルを計算（モジュール存在時は再定義しない）
         window.calculateLevel = window.calculateLevel || function(lifetimeEarned) {
             const thresholds = window.LEVEL_THRESHOLDS || [];
-            for (const threshold of thresholds) {
-                if (lifetimeEarned <= threshold.max) {
-                    return threshold;
+            for (const t of thresholds) {
+                if (lifetimeEarned <= t.max) {
+                    const level = t.level;
+                    return { level, name: getLevelTitle(level), min: t.min, max: t.max };
                 }
             }
-            // レベル10以上の計算
-            const extraPoints = lifetimeEarned - 3901;
-            const extraLevels = Math.floor(extraPoints / 700);
-            return {
-                level: 10 + extraLevels,
-                name: '超越者',
-                min: 3901 + (extraLevels * 700),
-                max: 3901 + ((extraLevels + 1) * 700)
-            };
+            // レベル10以上の計算（700ptごとに+1レベル）
+            const baseMin = 3901;
+            const step = 700;
+            const extraLevels = Math.floor((lifetimeEarned - baseMin) / step);
+            let level = 10 + extraLevels;
+            let min = baseMin + (extraLevels * step);
+            let max = baseMin + ((extraLevels + 1) * step);
+            let capped = false;
+            if (level > 10000) {
+                level = 10000;
+                capped = true;
+                // 10000到達時はこれ以上上がらないため、進捗範囲を固定
+                min = lifetimeEarned;
+                max = lifetimeEarned;
+            }
+            return { level, name: getLevelTitle(level), min, max, capped };
         }
 
         // ポイント獲得処理（habitIdパラメータを追加）
@@ -4572,10 +4607,8 @@
             const progressPercent = Math.round((progressInLevel / levelRange) * 100);
             
             // 次のレベル名を取得
-            let nextLevelName = '超越者';
-            if (levelInfo.level < 10) {
-                nextLevelName = (window.LEVEL_THRESHOLDS || [])[levelInfo.level]?.name || '超越者';
-            }
+            // 次のレベル名（上限時はMAX表示）
+            const nextLevelName = levelInfo.capped ? 'MAX' : getLevelTitle(levelInfo.level + 1);
             
             // ポップアップを作成
             const popup = document.createElement('div');
@@ -4914,7 +4947,9 @@
             
             const levelProgressLabel = document.getElementById('level-progress-label');
             if (levelProgressLabel) {
-                levelProgressLabel.textContent = `Lv.${levelInfo.level + 1} ${levelInfo.level < 10 ? ((window.LEVEL_THRESHOLDS || [])[levelInfo.level]?.name || '超越者') : '超越者'} まで`;
+                levelProgressLabel.textContent = levelInfo.capped
+                    ? '最大レベルに到達'
+                    : `Lv.${levelInfo.level + 1} ${getLevelTitle(levelInfo.level + 1)} まで`;
             }
             
             const levelProgressText = document.getElementById('level-progress-text');
