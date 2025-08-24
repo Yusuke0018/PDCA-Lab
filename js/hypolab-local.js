@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250824-10';
+                const SW_VERSION_TAG = '20250824-11';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -15564,12 +15564,9 @@
             list.innerHTML = data.nightChecklist.map(item => {
                 const isDone = item.doneKey === currentKey; // 当日2時までは前日扱い
                 return `
-                <div style="display:flex; align-items:center; justify-content:space-between; border:1px solid var(--border); border-radius:8px; padding:8px; background:${isDone ? 'rgba(16,185,129,0.08)' : 'var(--surface)'};">
-                    <div style="display:flex; align-items:center; gap:10px;">
-                        <button onclick="toggleNightChecklist('${item.id}')" title="切り替え" style="min-width:32px; height:32px; border-radius:8px; border:1px solid var(--border); background:${isDone ? '#10b981' : 'var(--surface-light)'}; color:${isDone ? '#fff' : 'var(--text-primary)'}; font-weight:700;">${isDone ? '✔' : '□'}</button>
-                        <div class="night-label" data-night-id="${item.id}" style="${isDone ? 'text-decoration: line-through; color: var(--text-secondary);' : ''}">${escapeHTML(item.title)}</div>
-                    </div>
-                    <button class="btn btn-secondary" onclick="deleteNightChecklistItem('${item.id}')" style="padding:6px 10px; font-size:12px; background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.3);">削除</button>
+                <div style="display:flex; align-items:center; justify-content:flex-start; gap:10px; border:1px solid var(--border); border-radius:8px; padding:8px; background:${isDone ? 'rgba(16,185,129,0.08)' : 'var(--surface)'};">
+                    <button onclick="toggleNightChecklist('${item.id}')" title="切り替え" style="min-width:32px; height:32px; border-radius:8px; border:1px solid var(--border); background:${isDone ? '#10b981' : 'var(--surface-light)'}; color:${isDone ? '#fff' : 'var(--text-primary)'}; font-weight:700;">${isDone ? '✔' : '□'}</button>
+                    <div class="night-label" data-night-id="${item.id}" style="${isDone ? 'text-decoration: line-through; color: var(--text-secondary);' : ''}">${escapeHTML(item.title)}</div>
                 </div>
             `;
             }).join('');
