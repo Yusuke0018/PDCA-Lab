@@ -16,20 +16,15 @@ const LEVEL_THRESHOLDS = [
 function getLevelTitle(level) {
     const clamp = (n, min, max) => Math.max(min, Math.min(max, n|0));
     const lv = clamp(level, 1, 10000);
-    const stageTitles = [
-        ['駆け出し冒険者', '見習い旅人', '草原を駆ける者'],
-        ['熟練の戦士', '森を統べる者', '王国に名を刻む者'],
-        ['英雄の継承者', '龍を討つ者', '世界を巡る賢者'],
-        ['星を導く者', '天空の覇者', '永劫の守護者'],
-        ['神話を紡ぐ者', '運命を超える者', '全てを極めし者']
+    const titles = [
+        '駆け出し冒険者', '見習い旅人', '草原を駆ける者',
+        '熟練の戦士', '森を統べる者', '王国に名を刻む者',
+        '英雄の継承者', '龍を討つ者', '世界を巡る賢者',
+        '星を導く者', '天空の覇者', '永劫の守護者',
+        '神話を紡ぐ者', '運命を超える者', '全てを極めし者'
     ];
-    if (lv <= 25) {
-        const stageIndex = Math.floor((lv - 1) / 5);
-        const posInStage = ((lv - 1) % 5) + 1;
-        const titleIndex = posInStage <= 2 ? 0 : (posInStage <= 4 ? 1 : 2);
-        return stageTitles[stageIndex][titleIndex];
-    }
-    return '全てを極めし者';
+    const idx = (lv - 1) % titles.length;
+    return titles[idx];
 }
 
 function calculateLevel(lifetimeEarned) {

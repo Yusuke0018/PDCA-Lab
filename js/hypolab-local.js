@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250824-17';
+                const SW_VERSION_TAG = '20250824-18';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -3545,27 +3545,15 @@
         function getLevelTitle(level) {
             const clamp = (n, min, max) => Math.max(min, Math.min(max, n|0));
             const lv = clamp(level, 1, 10000);
-            const stageTitles = [
-                // 1-5 序盤
-                ['駆け出し冒険者', '見習い旅人', '草原を駆ける者'],
-                // 6-10 中盤
-                ['熟練の戦士', '森を統べる者', '王国に名を刻む者'],
-                // 11-15 後半
-                ['英雄の継承者', '龍を討つ者', '世界を巡る賢者'],
-                // 16-20 終盤
-                ['星を導く者', '天空の覇者', '永劫の守護者'],
-                // 21-25 終極
-                ['神話を紡ぐ者', '運命を超える者', '全てを極めし者']
+            const titles = [
+                '駆け出し冒険者', '見習い旅人', '草原を駆ける者',
+                '熟練の戦士', '森を統べる者', '王国に名を刻む者',
+                '英雄の継承者', '龍を討つ者', '世界を巡る賢者',
+                '星を導く者', '天空の覇者', '永劫の守護者',
+                '神話を紡ぐ者', '運命を超える者', '全てを極めし者'
             ];
-            if (lv <= 25) {
-                const stageIndex = Math.floor((lv - 1) / 5); // 0..4
-                const posInStage = ((lv - 1) % 5) + 1;       // 1..5
-                // 1-2: 0番目, 3-4: 1番目, 5: 2番目
-                const titleIndex = posInStage <= 2 ? 0 : (posInStage <= 4 ? 1 : 2);
-                return stageTitles[stageIndex][titleIndex];
-            }
-            // 26以上は終極の最終称号で固定
-            return '全てを極めし者';
+            const idx = (lv - 1) % titles.length;
+            return titles[idx];
         }
 
         // 現在のレベルを計算（モジュール存在時は再定義しない）
@@ -8531,7 +8519,7 @@
                                     <span style="font-weight: 600; font-size: 16px;" id="name-preview-${key}">${cat.name}</span>
                                     <div style="width: 24px; height: 24px; border-radius: 50%; background: ${cat.color};" id="color-preview-${key}"></div>
                                 </div>
-                                ${(['study','exercise','health','work','hobby','other'].includes(key)) 
+                                ${(['other'].includes(key)) 
                                     ? '' 
                                     : `<button class="btn btn-secondary" style="padding:6px 10px; font-size:12px;" onclick="removeCategory('${key}')">削除</button>`}
                             </div>
@@ -8691,7 +8679,7 @@
 
         // カテゴリを削除（既存の習慣は「その他」に移動）
         window.removeCategory = function(key) {
-            const RESERVED = new Set(['study','exercise','health','work','hobby','other']);
+            const RESERVED = new Set(['other']);
             const data = loadData();
             if (!data.categoryMaster || !data.categoryMaster[key]) {
                 showNotification('該当するカテゴリが見つかりません', 'error');
