@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250824-06';
+                const SW_VERSION_TAG = '20250824-07';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -644,7 +644,7 @@
             { id: 'perfect_streak', name: '3日連続で全習慣達成', points: 8, icon: '⚡', checkFunction: 'checkPerfectStreak' },
             { id: 'category_master', name: '同じカテゴリーの習慣を3つ達成', points: 4, icon: '📊', checkFunction: 'checkCategoryMaster' },
             { id: 'early_bird', name: '午前中に習慣を2つ以上達成', points: 3, icon: '🐦', checkFunction: 'checkEarlyBird' },
-            { id: 'if_then_execute', name: 'IF-THENルールを3回実行', points: 4, icon: '🔄', checkFunction: 'checkIfThenExecute' },
+            
             { id: 'variety_day', name: '4種類の異なるカテゴリーを達成', points: 6, icon: '🌈', checkFunction: 'checkVarietyDay' },
             { id: 'consistency_bonus', name: '同じ時間帯に習慣を実行', points: 3, icon: '⏰', checkFunction: 'checkConsistencyBonus' },
             { id: 'effort_bonus_max', name: '努力ボーナスを最大まで使用', points: 4, icon: '💪', checkFunction: 'checkEffortBonusMax' },
@@ -667,7 +667,7 @@
             { id: 'week_consistency', name: '毎日同じ時間に習慣を実行', points: 20, icon: '⏰', checkFunction: 'checkWeekConsistency' },
             { id: 'week_intensity_up', name: '週の後半は強度を上げて達成', points: 18, icon: '📈', checkFunction: 'checkWeekIntensityUp' },
             { id: 'week_all_categories', name: '全カテゴリーを週3回以上達成', points: 25, icon: '🌈', checkFunction: 'checkWeekAllCategories' },
-            { id: 'week_if_then_master', name: 'IF-THENルールを20回以上実行', points: 22, icon: '🔄', checkFunction: 'checkWeekIfThenMaster' },
+            
             { id: 'week_card_collector', name: 'カードを5枚以上獲得', points: 20, icon: '🎴', checkFunction: 'checkWeekCardCollector' },
             { id: 'week_comeback', name: '3日サボってから復活', points: 15, icon: '💪', checkFunction: 'checkWeekComeback' },
             { id: 'week_habit_combo', name: '習慣コンボを10回達成', points: 18, icon: '🔥', checkFunction: 'checkWeekHabitCombo' },
@@ -6585,9 +6585,7 @@
             if (titleInput) {
                 setTimeout(() => titleInput.focus(), 0);
             }
-            // IF-THEN初期行
-            const list = document.getElementById('ifthen-list');
-            if (list) { list.innerHTML = ''; addIfThenRow(); }
+            // IF-THEN機能は削除
             selectedDuration = null;
             document.querySelectorAll('.duration-option').forEach(opt => {
                 opt.classList.remove('selected');
@@ -6649,20 +6647,7 @@
             document.querySelector(`[data-duration="${duration}"]`).classList.add('selected');
         }
         
-
-        // 新規作成フォーム: IF行のみ追加（THENは廃止）
-        function addIfThenRow() {
-            const list = document.getElementById('ifthen-list');
-            if (!list) return;
-            const row = document.createElement('div');
-            row.className = 'ifthen-row';
-            row.style.cssText = 'display:flex; gap:8px; align-items:center;';
-            row.innerHTML = `
-                <input type="text" class="if-input" placeholder="もし（例: 朝アラームが鳴ったら）" style="flex:1;" />
-                <button type="button" class="btn btn-secondary" onclick="this.parentElement.remove()">削除</button>
-            `;
-            list.appendChild(row);
-        }
+        
 
         // 習慣を作成
         function createHypothesis(event) {
@@ -6700,15 +6685,6 @@
             }
             // 1行宣言は廃止したため入力不要
             
-            // IF-THEN収集
-            const ifThen = [];
-            document.querySelectorAll('#ifthen-list .ifthen-row').forEach(row => {
-                const ifv = row.querySelector('.if-input')?.value.trim() || '';
-                if (ifv) {
-                    ifThen.push({ id: Date.now().toString() + Math.random(), if: ifv, then: '' });
-                }
-            });
-
             // すべて毎日実施に固定
             let frequencyData = { type: 'daily' };
 
@@ -6729,7 +6705,6 @@
                 achievementDecrease: window.achievementDecrease || 0,
                 shortTermOnly: window.shortTermOnly || false,
                 // benefit: 廃止
-                ifThen: ifThen,
                 frequency: frequencyData  // 頻度設定を追加
             };
 
@@ -7075,9 +7050,6 @@
 
             // ストリークと強度（Intensity）UIを更新
             renderIntensityPanel();
-
-            // IF-THENパネル
-            renderIfThenPanel();
             
             // 追加のUI更新があればここで実行
         }
@@ -9113,47 +9085,7 @@
         }
 
 
-        function renderIfThenPanel() {
-            const panel = document.getElementById('ifthen-panel');
-            if (!panel || !window.currentHypothesis) return;
-            const list = window.currentHypothesis.ifThen || [];
-            panel.style.display = 'block';
-            const items = list.map((it, i) => `
-                <div style=\"display:flex;align-items:center;justify-content:space-between;gap:12px; padding:8px 0; border-bottom:1px solid var(--border);\">
-                    <div style=\"flex:1;\">
-                        <div><strong>もし</strong> ${escapeHTML(it.if)}</div>
-                    </div>
-                    <div>
-                        <button class=\"btn btn-secondary\" onclick=\"editIfThen(${i})\">編集</button>
-                        <button class=\"btn btn-secondary\" onclick=\"deleteIfThen(${i})\" style=\"margin-left:6px;\">削除</button>
-                    </div>
-                </div>
-            `).join('');
-            panel.innerHTML = `
-                <h3 style="margin-bottom:12px;">🧠 IF-THEN ルール</h3>
-                ${items || '<div style="color: var(--text-secondary);">ルールはまだありません</div>'}
-                <div style="margin-top:12px;">
-                    <button class="btn" onclick="addIfThenInProgress()">＋ ルールを追加</button>
-                </div>
-            `;
-        }
-
-        window.addIfThenInProgress = function() {
-            const iff = prompt('もし（トリガー）を入力');
-            if (iff == null) return;
-            const thenv = prompt('なら（行動）を入力');
-            if (thenv == null) return;
-            const ifv = (iff||'').trim();
-            const tv = (thenv||'').trim();
-            if (!ifv || !tv) return;
-            window.currentHypothesis.ifThen = window.currentHypothesis.ifThen || [];
-            window.currentHypothesis.ifThen.push({ id: Date.now().toString()+Math.random(), if: ifv, then: tv });
-            const data = loadData();
-            const idx = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
-            if (idx !== -1) data.currentHypotheses[idx] = window.currentHypothesis;
-            saveData(data);
-            renderIfThenPanel();
-        }
+        // IF-THEN機能は削除
 
         // 習慣別詳細統計を表示
         function showHabitDetailStats() {
@@ -9411,30 +9343,7 @@
             return stats;
         }
         
-        window.editIfThen = function(index) {
-            const item = (window.currentHypothesis.ifThen || [])[index];
-            if (!item) return;
-            const iff = prompt('もし（トリガー）を修正', item.if);
-            if (iff == null) return;
-            const ifv = (iff||'').trim();
-            if (!ifv) return;
-            window.currentHypothesis.ifThen[index] = { ...item, if: ifv, then: '' };
-            const data = loadData();
-            const idx = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
-            if (idx !== -1) data.currentHypotheses[idx] = window.currentHypothesis;
-            saveData(data);
-            renderIfThenPanel();
-        }
-
-        window.deleteIfThen = function(index) {
-            if (!confirm('このルールを削除しますか？')) return;
-            (window.currentHypothesis.ifThen || []).splice(index, 1);
-            const data = loadData();
-            const idx = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
-            if (idx !== -1) data.currentHypotheses[idx] = window.currentHypothesis;
-            saveData(data);
-            renderIfThenPanel();
-        }
+// IF-THEN機能は削除
 
         // バッジシステムの定義
         const BADGE_DEFINITIONS = {
