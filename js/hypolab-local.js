@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250824-08';
+                const SW_VERSION_TAG = '20250824-09';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -8999,6 +8999,9 @@
                             <span style="font-weight: 600;">${cat.name}</span>
                         </label>
                     `).join('')}
+                </div>
+                <div style="display:flex; justify-content:flex-end; margin-top: 4px;">
+                    <button class="btn btn-secondary" onclick="try{ document.querySelector('.overlay')?.remove(); }catch(_){}; try{ editCategoryMaster(); }catch(_){}" style="padding:6px 10px; font-size:12px;">🗂 カテゴリ編集</button>
                 </div>
                 
                 <div class="modal-footer" style="display: flex; gap: 8px; justify-content: flex-end;">
