@@ -14,7 +14,7 @@
     <link rel="icon" href="icons/icon.svg" sizes="any" type="image/svg+xml">
     <link rel="apple-touch-icon" href="icons/icon.svg">
     
-    <link rel="stylesheet" href="css/hypolab-local.css?v=20250824-07">
+    <link rel="stylesheet" href="css/hypolab-local.css?v=20250824-08">
 </head>
 <body>
     <!-- ヘッダー -->
@@ -84,18 +84,21 @@
             <div class="card">
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
                     <h2>現在の習慣</h2>
-                    <!-- カテゴリフィルター -->
-                    <select id="category-filter" onchange="filterHabitsByCategory()" style="
-                        padding: 6px 12px;
-                        border: 1px solid var(--border);
-                        border-radius: 8px;
-                        background: var(--surface);
-                        color: var(--text-primary);
-                        font-size: 14px;
-                        cursor: pointer;
-                    ">
-                        <!-- カテゴリオプションは動的に生成 -->
-                    </select>
+                    <!-- カテゴリフィルター + 編集 -->
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <select id="category-filter" onchange="filterHabitsByCategory()" style="
+                            padding: 6px 12px;
+                            border: 1px solid var(--border);
+                            border-radius: 8px;
+                            background: var(--surface);
+                            color: var(--text-primary);
+                            font-size: 14px;
+                            cursor: pointer;
+                        ">
+                            <!-- カテゴリオプションは動的に生成 -->
+                        </select>
+                        <button class="btn btn-secondary" onclick="editCategoryMaster()" style="padding:6px 10px; font-size:12px;">🗂 カテゴリ編集</button>
+                    </div>
                 </div>
                 <div id="current-hypothesis-list" class="hypothesis-list">
                     <!-- 動的に生成 -->
@@ -133,7 +136,10 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="hypothesis-category">カテゴリー</label>
+                        <div style="display:flex; align-items:center; justify-content:space-between;">
+                            <label for="hypothesis-category">カテゴリー</label>
+                            <button type="button" class="btn btn-secondary" onclick="editCategoryMaster()" style="padding:6px 10px; font-size:12px;">🗂 カテゴリ編集</button>
+                        </div>
                         <select id="hypothesis-category" required>
                             <!-- カテゴリオプションは動的に生成 -->
                         </select>

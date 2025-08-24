@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250824-07';
+                const SW_VERSION_TAG = '20250824-08';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -41,6 +41,9 @@
                     .catch(() => {});
             });
         }
+
+        // グローバルから呼び出せるように公開
+        try { window.editCategoryMaster = editCategoryMaster; } catch(_) {}
 
         // 手動更新（モバイルのキャッシュ固着対策・データは消さない）
         window.forceUpdateApp = async function(){
