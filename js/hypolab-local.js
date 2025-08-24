@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250824-30';
+                const SW_VERSION_TAG = '20250824-31';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -6948,6 +6948,8 @@
             document.getElementById('home-view').style.display = 'none';
             { const el = document.getElementById('shuffle-view'); if (el) el.style.display = 'none'; }
             document.getElementById('progress-view').style.display = 'block';
+            // 夜のチェックリストは詳細画面では非表示
+            try { const n = document.getElementById('night-checklist-card'); if (n) n.style.display = 'none'; } catch(_) {}
             
             // 習慣情報を表示
             document.getElementById('progress-hypothesis-title').textContent = hypothesis.title;
