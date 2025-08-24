@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250824-14';
+                const SW_VERSION_TAG = '20250824-15';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -6597,13 +6597,9 @@
                 window.shortTermOnly = false; // 効果を消費
             }
 
-            // 任意日数の取得と検証
+            // 任意日数の取得と検証（期日指定があればそちらを優先）
             const daysInput = document.getElementById('hypothesis-days');
-            const daysVal = daysInput ? parseInt(daysInput.value, 10) : NaN;
-            if (!Number.isFinite(daysVal) || daysVal < 1) {
-                alert('1日以上の期間（日数）を入力してください');
-                return;
-            }
+            let daysVal = daysInput ? parseInt(daysInput.value, 10) : NaN;
             
             const title = document.getElementById('hypothesis-title').value.trim();
             const description = document.getElementById('hypothesis-description').value.trim();
@@ -6628,6 +6624,23 @@
 
             // 開始日を取得（未選択の場合は今日）
             let startDate = window.selectedStartDate || new Date().toISOString().split('T')[0];
+            // 期日（終了日）があれば優先
+            const endDateEl = document.getElementById('habit-end-date');
+            if (endDateEl && endDateEl.value) {
+                const s = new Date(startDate + 'T00:00:00');
+                const e = new Date(endDateEl.value + 'T00:00:00');
+                const diffDays = Math.floor((e.getTime() - s.getTime()) / (1000*60*60*24)) + 1;
+                if (!Number.isFinite(diffDays) || diffDays < 1) {
+                    alert('期日は開始日以降の日付を指定してください');
+                    return;
+                }
+                daysVal = diffDays;
+            } else {
+                if (!Number.isFinite(daysVal) || daysVal < 1) {
+                    alert('1日以上の期間（日数）を入力してください');
+                    return;
+                }
+            }
             
             currentHypothesis = {
                 id: Date.now(),
@@ -15463,9 +15476,25 @@
             const currentKey = getActivityDateKey();
             const wasDone = item.doneKey === currentKey;
             if (wasDone) {
-                // 当日分の達成を取り消し（ポイント減算はしない）
+                // 当日分の達成を取り消し（1pt減算）
                 item.doneKey = null;
                 if (typeof item.done !== 'undefined') delete item.done;
+                // ポイント減算（生涯は維持・現在のみ減算）
+                data.pointSystem.currentPoints = Math.max(0, (data.pointSystem.currentPoints || 0) - 1);
+                try {
+                    data.pointSystem.transactions.unshift({
+                        timestamp: new Date().toISOString(),
+                        type: 'spend',
+                        amount: 1,
+                        source: 'checklist_undo',
+                        description: '🌙 夜のチェックリスト取り消しによる減算',
+                        multiplier: 1.0,
+                        finalAmount: -1
+                    });
+                    if (data.pointSystem.transactions.length > 100) {
+                        data.pointSystem.transactions = data.pointSystem.transactions.slice(0,100);
+                    }
+                } catch(_) {}
                 saveData(data);
             } else {
                 // 当日分を達成として記録（+1pt）

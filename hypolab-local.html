@@ -14,7 +14,7 @@
     <link rel="icon" href="icons/icon.svg" sizes="any" type="image/svg+xml">
     <link rel="apple-touch-icon" href="icons/icon.svg">
     
-    <link rel="stylesheet" href="css/hypolab-local.css?v=20250824-14">
+    <link rel="stylesheet" href="css/hypolab-local.css?v=20250824-15">
 </head>
 <body>
     <!-- ヘッダー -->
@@ -163,6 +163,12 @@
                         <div id="start-date-display" style="padding: 8px 12px; background: var(--surface-light); border-radius: 8px; margin-bottom: 12px; display: none;">
                             <span style="color: var(--text-secondary); font-size: 14px;">開始日: </span>
                             <span id="selected-start-date" style="font-weight: 600;"></span>
+                        </div>
+                        <!-- 期日（終了日）を指定するオプション -->
+                        <div class="form-group" style="margin-top: 8px;">
+                            <label for="habit-end-date">期日（終了日・任意）</label>
+                            <input type="date" id="habit-end-date" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface);" />
+                            <small style="color: var(--text-secondary); display:block; margin-top:6px;">期日を指定した場合は日数より優先されます</small>
                         </div>
                     </div>
                     
@@ -781,11 +787,11 @@
         </div>
     </footer>
 
-    <script src="js/modules/hypolab-utils.js?v=20250824-14"></script>
-    <script src="js/modules/hypolab-storage.js?v=20250824-14"></script>
-    <script src="js/modules/hypolab-points.js?v=20250824-14"></script>
-    <script src="js/modules/hypolab-domain.js?v=20250824-14"></script>
-    <script src="js/modules/hypolab-router.js?v=20250824-14"></script>
-    <script src="js/hypolab-local.js?v=20250824-14"></script>
+    <script src="js/modules/hypolab-utils.js?v=20250824-15"></script>
+    <script src="js/modules/hypolab-storage.js?v=20250824-15"></script>
+    <script src="js/modules/hypolab-points.js?v=20250824-15"></script>
+    <script src="js/modules/hypolab-domain.js?v=20250824-15"></script>
+    <script src="js/modules/hypolab-router.js?v=20250824-15"></script>
+    <script src="js/hypolab-local.js?v=20250824-15"></script>
 </body>
 </html>
