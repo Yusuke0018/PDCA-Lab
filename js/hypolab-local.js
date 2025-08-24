@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250824-24';
+                const SW_VERSION_TAG = '20250824-25';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -7491,7 +7491,7 @@
                 // 今日以前のみクリック可能
                 if (!isFuture) {
                     dayCell.style.cursor = 'pointer';
-                    dayCell.onclick = () => openDayStatusPicker(dateKey);
+                    dayCell.onclick = () => cycleDayStatus(dateKey);
                 }
                 
                 calendarGrid.appendChild(dayCell);
@@ -8049,6 +8049,28 @@
             updateProgress();
             updateCalendar();
         }
+
+        // 日付セルをワンタップで「達成 → 未達成 → 未入力 → 達成」と循環
+        function cycleDayStatus(dateKey) {
+            const data = loadData();
+            const idx = data.currentHypotheses.findIndex(h => h.id === (window.currentHypothesis && window.currentHypothesis.id));
+            if (idx === -1) return;
+            const hyp = data.currentHypotheses[idx];
+            const wasAchieved = !!((hyp.achievements || {})[dateKey]);
+            const wasFailed = !!((hyp.failures || {})[dateKey]);
+
+            if (wasAchieved) {
+                // 達成 → 未達成（ポイント減算を含む）
+                setDayStatus(dateKey, false);
+            } else if (wasFailed) {
+                // 未達成 → 未入力
+                setDayStatus(dateKey, null);
+            } else {
+                // 未入力 → 達成（ポイント加算）
+                setDayStatus(dateKey, true);
+            }
+        }
+        window.cycleDayStatus = cycleDayStatus;
 
         // 強度関連UIは廃止（安全のためスタブ化）
         function showIntensitySelectionModal(dateKey, dayCell) {
@@ -15468,46 +15490,27 @@
         window.openAddNightChecklistItem = openAddNightChecklistItem;
 
         function toggleNightChecklist(id){
+            // 二択に戻す：押すと+1pt、達成→未達成で-1pt（生涯ポイントも調整）
             const data = ensureNightChecklist(loadData());
             const item = data.nightChecklist.find(i => i.id === id);
             if (!item) return;
             const currentKey = getActivityDateKey();
             const isDone = item.doneKey === currentKey;
-            const isFailed = item.failKey === currentKey;
+
             if (isDone) {
-                // 達成 → 未達成（-1pt、現在ポイントのみ減算）
+                // 達成 → 未達成（取り消し -1pt）
                 item.doneKey = null;
-                item.failKey = currentKey;
                 if (typeof item.done !== 'undefined') delete item.done;
-                data.pointSystem.currentPoints = Math.max(0, (data.pointSystem.currentPoints || 0) - 1);
-                try {
-                    data.pointSystem.transactions.unshift({
-                        timestamp: new Date().toISOString(),
-                        type: 'spend',
-                        amount: 1,
-                        source: 'checklist_fail',
-                        description: '🌙 夜のチェックリスト 未達成に変更',
-                        multiplier: 1.0,
-                        finalAmount: -1
-                    });
-                    if (data.pointSystem.transactions.length > 100) {
-                        data.pointSystem.transactions = data.pointSystem.transactions.slice(0,100);
-                    }
-                } catch(_) {}
                 saveData(data);
-            } else if (isFailed) {
-                // 未達成 → 未入力
-                item.failKey = null;
-                saveData(data);
+                try { earnPoints(-1, 'checklist', '🌙 夜のチェックリスト 取り消し'); } catch(_) {}
             } else {
-                // 未入力 → 達成（+1pt）
+                // 未達成/未入力 → 達成（+1pt）
                 item.doneKey = currentKey;
                 if (typeof item.done !== 'undefined') delete item.done;
                 saveData(data);
                 try { earnPoints(1, 'checklist', '🌙 夜のチェックリスト'); } catch(_) {}
             }
             updateNightChecklistUI();
-            try { updatePointDisplay(); } catch(_) {}
         }
         window.toggleNightChecklist = toggleNightChecklist;
 
@@ -15531,13 +15534,11 @@
             }
             list.innerHTML = data.nightChecklist.map(item => {
                 const done = item.doneKey === currentKey;
-                const failed = item.failKey === currentKey;
-                const state = done ? 'done' : (failed ? 'failed' : 'none');
-                const bg = state === 'done' ? 'rgba(16,185,129,0.08)' : (state === 'failed' ? 'rgba(239,68,68,0.08)' : 'var(--surface)');
-                const btnBg = state === 'done' ? '#10b981' : (state === 'failed' ? '#ef4444' : 'var(--surface-light)');
-                const btnColor = (state === 'done' || state === 'failed') ? '#fff' : 'var(--text-primary)';
-                const symbol = state === 'done' ? '✔' : (state === 'failed' ? '×' : '□');
-                const labelStyle = state === 'done' ? 'text-decoration: line-through; color: var(--text-secondary);' : (state === 'failed' ? 'color:#ef4444; font-weight:600;' : '');
+                const bg = done ? 'rgba(16,185,129,0.08)' : 'var(--surface)';
+                const btnBg = done ? '#10b981' : 'var(--surface-light)';
+                const btnColor = done ? '#fff' : 'var(--text-primary)';
+                const symbol = done ? '✔' : '□';
+                const labelStyle = done ? 'text-decoration: line-through; color: var(--text-secondary);' : '';
                 return `
                 <div style="display:flex; align-items:center; justify-content:flex-start; gap:10px; border:1px solid var(--border); border-radius:8px; padding:8px; background:${bg};">
                     <button onclick="toggleNightChecklist('${item.id}')" title="切り替え" style="min-width:32px; height:32px; border-radius:8px; border:1px solid var(--border); background:${btnBg}; color:${btnColor}; font-weight:700;">${symbol}</button>
