@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250824-23';
+                const SW_VERSION_TAG = '20250824-24';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -15472,20 +15472,21 @@
             const item = data.nightChecklist.find(i => i.id === id);
             if (!item) return;
             const currentKey = getActivityDateKey();
-            const wasDone = item.doneKey === currentKey;
-            if (wasDone) {
-                // 当日分の達成を取り消し（1pt減算）
+            const isDone = item.doneKey === currentKey;
+            const isFailed = item.failKey === currentKey;
+            if (isDone) {
+                // 達成 → 未達成（-1pt、現在ポイントのみ減算）
                 item.doneKey = null;
+                item.failKey = currentKey;
                 if (typeof item.done !== 'undefined') delete item.done;
-                // ポイント減算（生涯は維持・現在のみ減算）
                 data.pointSystem.currentPoints = Math.max(0, (data.pointSystem.currentPoints || 0) - 1);
                 try {
                     data.pointSystem.transactions.unshift({
                         timestamp: new Date().toISOString(),
                         type: 'spend',
                         amount: 1,
-                        source: 'checklist_undo',
-                        description: '🌙 夜のチェックリスト取り消しによる減算',
+                        source: 'checklist_fail',
+                        description: '🌙 夜のチェックリスト 未達成に変更',
                         multiplier: 1.0,
                         finalAmount: -1
                     });
@@ -15494,11 +15495,14 @@
                     }
                 } catch(_) {}
                 saveData(data);
+            } else if (isFailed) {
+                // 未達成 → 未入力
+                item.failKey = null;
+                saveData(data);
             } else {
-                // 当日分を達成として記録（+1pt）
+                // 未入力 → 達成（+1pt）
                 item.doneKey = currentKey;
                 if (typeof item.done !== 'undefined') delete item.done;
-                // 先にチェック状態を保存し、その後ポイント加算
                 saveData(data);
                 try { earnPoints(1, 'checklist', '🌙 夜のチェックリスト'); } catch(_) {}
             }
@@ -15526,11 +15530,18 @@
                 return;
             }
             list.innerHTML = data.nightChecklist.map(item => {
-                const isDone = item.doneKey === currentKey; // 当日2時までは前日扱い
+                const done = item.doneKey === currentKey;
+                const failed = item.failKey === currentKey;
+                const state = done ? 'done' : (failed ? 'failed' : 'none');
+                const bg = state === 'done' ? 'rgba(16,185,129,0.08)' : (state === 'failed' ? 'rgba(239,68,68,0.08)' : 'var(--surface)');
+                const btnBg = state === 'done' ? '#10b981' : (state === 'failed' ? '#ef4444' : 'var(--surface-light)');
+                const btnColor = (state === 'done' || state === 'failed') ? '#fff' : 'var(--text-primary)';
+                const symbol = state === 'done' ? '✔' : (state === 'failed' ? '×' : '□');
+                const labelStyle = state === 'done' ? 'text-decoration: line-through; color: var(--text-secondary);' : (state === 'failed' ? 'color:#ef4444; font-weight:600;' : '');
                 return `
-                <div style="display:flex; align-items:center; justify-content:flex-start; gap:10px; border:1px solid var(--border); border-radius:8px; padding:8px; background:${isDone ? 'rgba(16,185,129,0.08)' : 'var(--surface)'};">
-                    <button onclick="toggleNightChecklist('${item.id}')" title="切り替え" style="min-width:32px; height:32px; border-radius:8px; border:1px solid var(--border); background:${isDone ? '#10b981' : 'var(--surface-light)'}; color:${isDone ? '#fff' : 'var(--text-primary)'}; font-weight:700;">${isDone ? '✔' : '□'}</button>
-                    <div class="night-label" data-night-id="${item.id}" style="${isDone ? 'text-decoration: line-through; color: var(--text-secondary);' : ''}">${escapeHTML(item.title)}</div>
+                <div style="display:flex; align-items:center; justify-content:flex-start; gap:10px; border:1px solid var(--border); border-radius:8px; padding:8px; background:${bg};">
+                    <button onclick="toggleNightChecklist('${item.id}')" title="切り替え" style="min-width:32px; height:32px; border-radius:8px; border:1px solid var(--border); background:${btnBg}; color:${btnColor}; font-weight:700;">${symbol}</button>
+                    <div class="night-label" data-night-id="${item.id}" style="${labelStyle}">${escapeHTML(item.title)}</div>
                 </div>
             `;
             }).join('');
