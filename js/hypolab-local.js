@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250824-20';
+                const SW_VERSION_TAG = '20250824-21';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -6900,8 +6900,8 @@
             const data = loadData();
             data.currentHypotheses.push(currentHypothesis);
             saveData(data);
-            
-            window.showProgressView(currentHypothesis.id);
+            // 立案後はホームへ戻る
+            try { showHomeView(); } catch(_) { document.getElementById('home-view').style.display = 'block'; }
         }
 
         // 進捗画面を表示
