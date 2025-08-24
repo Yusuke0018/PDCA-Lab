@@ -53,162 +53,17 @@ function calculateLevel(lifetimeEarned) {
 }
 
 function calculatePointsWithBoosts(basePoints, source, category = null, habitId = null) {
-    const data = loadData();
-    let finalPoints = basePoints;
-    let multiplier = 1.0;
-    let bonus = 0;
-
-    const isChallenge = (source === 'daily_challenge' || source === 'weekly_challenge' || source === 'challenge');
-    if (isChallenge) { return basePoints; }
-
-    if (!(typeof EVENTS_DISABLED !== 'undefined' && EVENTS_DISABLED) && data.events && data.events.activeBoosts) {
-        const currentHour = new Date().getHours();
-        
-        data.events.activeBoosts.forEach(boost => {
-            if (boost.effect === 'points_multiplier') {
-                multiplier *= boost.value;
-            } else if (boost.effect === 'achievement_bonus' && source === 'habit') {
-                if (!data.events.dailyAchievementCount) data.events.dailyAchievementCount = 0;
-                if (data.events.dailyAchievementCount < 3) {
-                    bonus += boost.value;
-                    data.events.dailyAchievementCount++;
-                    saveData(data);
-                }
-            } else if (boost.effect === 'flat_bonus') {
-                bonus += boost.value;
-            } else if (boost.effect === 'time_bonus') {
-                if (boost.hours && boost.hours.includes(currentHour)) {
-                    multiplier *= boost.multiplier;
-                }
-            } else if (boost.effect === 'lucky_time') {
-                if (boost.hours && boost.hours.includes(currentHour)) {
-                    bonus += boost.bonus;
-                }
-            } else if (boost.effect === 'category_boost' && category === boost.category) {
-                multiplier *= boost.multiplier;
-            } else if (boost.effect === 'random_points' && source === 'habit') {
-                const dice = Math.floor(Math.random() * (boost.max - boost.min + 1)) + boost.min;
-                bonus += dice;
-            } else if (boost.effect === 'coin_flip' && source === 'habit') {
-                const win = Math.random() < 0.5;
-                multiplier *= win ? boost.win : boost.lose;
-            } else if (boost.effect === 'chain' && source === 'habit') {
-                if (!data.events.chainCount) data.events.chainCount = 0;
-                if (data.events.chainCount < boost.maxBonus) {
-                    data.events.chainCount++;
-                    bonus += data.events.chainCount;
-                    saveData(data);
-                } else {
-                    bonus += boost.maxBonus;
-                }
-            } else if (boost.effect === 'momentum' && source === 'habit') {
-                if (!data.events.momentumIndex) data.events.momentumIndex = 0;
-                const index = Math.min(data.events.momentumIndex, boost.multipliers.length - 1);
-                multiplier *= boost.multipliers[index];
-                data.events.momentumIndex++;
-                saveData(data);
-            } else if (boost.effect === 'perfect_bonus' && source === 'habit') {
-                // パーフェクトチャレンジ: 全習慣達成で+10pt
-                const today = dateKeyLocal(new Date());
-                const todayAchievements = data.habits.filter(h => h.achievedDates && h.achievedDates.includes(today));
-                if (todayAchievements.length === data.habits.length && data.habits.length > 0) {
-                    bonus += boost.value || 10;
-                }
-            } else if (boost.effect === 'streak_bonus' && source === 'habit') {
-                // ストリークパーティ: 連続3日以上の習慣に+3pt
-                // habitIdはearnPointsから渡される（引数を追加する必要があります）
-                if (habitId) {
-                    const habit = data.habits.find(h => h.id === habitId);
-                    if (habit && habit.currentStreak >= (boost.minDays || 3)) {
-                        bonus += boost.bonus || 3;
-                    }
-                }
-            }
-
-            const effect = boost.effect;
-            if (typeof effect === 'object') {
-                switch (effect.type) {
-                    case 'global_multiplier':
-                        multiplier *= effect.value;
-                        break;
-                    case 'category_multiplier':
-                        if (category === effect.target) { multiplier *= effect.value; }
-                        break;
-                    case 'challenge_multiplier':
-                        if (source === 'challenge') { multiplier *= effect.value; }
-                        break;
-                    case 'journal_multiplier':
-                        if (source === 'journal') { multiplier *= effect.value; }
-                        break;
-                }
-            }
-        });
-    }
-    finalPoints = Math.round(basePoints * multiplier + bonus);
-    return finalPoints;
+    return Math.round(basePoints);
 }
 
 function calculatePointsWithBoostsDetailed(basePoints, source, category = null, habitId = null) {
-    const data = loadData();
-    let multiplier = 1.0;
-    let bonus = 0;
-    const notes = [];
-    const now = new Date();
-
-    const isChallenge = (source === 'daily_challenge' || source === 'weekly_challenge' || source === 'challenge');
-    if (isChallenge) {
-        return { finalPoints: basePoints, multiplierTotal: 1.0, bonusTotal: 0, notes };
-    }
-
-    if (!(typeof EVENTS_DISABLED !== 'undefined' && EVENTS_DISABLED) && data.events && data.events.activeBoosts) {
-        data.events.activeBoosts.forEach(boost => {
-            const eff = boost.effect;
-            switch (eff.type) {
-                case 'global_multiplier': multiplier *= eff.value; notes.push(`Global ×${eff.value}`); break;
-                case 'category_multiplier': if (category === eff.target) { multiplier *= eff.value; notes.push(`${eff.target} ×${eff.value}`); } break;
-                case 'category_bonus': if (category === eff.target) { bonus += eff.value; notes.push(`${eff.target} +${eff.value}`); } break;
-                case 'challenge_multiplier': if (source === 'challenge') { multiplier *= eff.value; notes.push(`Challenge ×${eff.value}`); } break;
-                case 'journal_multiplier': if (source === 'journal') { multiplier *= eff.value; notes.push(`Journal ×${eff.value}`); } break;
-                case 'time_bonus':
-                    const hour = new Date().getHours();
-                    if ((boost.duration === 'morning' && hour >= 6 && hour <= 9) || (boost.duration === 'night' && hour >= 20 && hour <= 23)) {
-                        bonus += eff.value; notes.push(`Time +${eff.value}`);
-                    }
-                    break;
-            }
-            
-            // 文字列形式のeffectも処理
-            if (boost.effect === 'perfect_bonus' && source === 'habit') {
-                // パーフェクトチャレンジ: 全習慣達成で+10pt
-                const today = dateKeyLocal(new Date());
-                const todayAchievements = data.habits.filter(h => h.achievedDates && h.achievedDates.includes(today));
-                if (todayAchievements.length === data.habits.length && data.habits.length > 0) {
-                    bonus += boost.value || 10;
-                    notes.push(`Perfect +${boost.value || 10}`);
-                }
-            } else if (boost.effect === 'streak_bonus' && source === 'habit') {
-                // ストリークパーティ: 連続3日以上の習慣に+3pt
-                if (habitId) {
-                    const habit = data.habits.find(h => h.id === habitId);
-                    if (habit && habit.currentStreak >= (boost.minDays || 3)) {
-                        bonus += boost.bonus || 3;
-                        notes.push(`Streak +${boost.bonus || 3}`);
-                    }
-                }
-            }
-        });
-    }
-
-    const finalPoints = Math.round(basePoints * multiplier + bonus);
-    return { finalPoints, multiplierTotal: multiplier, bonusTotal: bonus, notes };
+    return { finalPoints: Math.round(basePoints), multiplierTotal: 1.0, bonusTotal: 0, notes: [] };
 }
 
 function earnPoints(amount, source, description, multiplier = 1.0, category = null, habitId = null, meta = {}) {
     const data = loadData();
-    const boost = calculatePointsWithBoostsDetailed(amount, source, category, habitId);
-    const finalAmount = Math.round((boost.finalPoints) * multiplier);
+    const finalAmount = Math.round((amount || 0) * (multiplier || 1.0));
 
-    const beforePoints = data.pointSystem.currentPoints;
     data.pointSystem.currentPoints += finalAmount;
     data.pointSystem.lifetimeEarned += finalAmount;
     data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
@@ -227,26 +82,16 @@ function earnPoints(amount, source, description, multiplier = 1.0, category = nu
         finalAmount: finalAmount
     };
     if (habitId) { transaction.habitId = habitId; }
-    if (boost && boost.notes && boost.notes.length > 0) { transaction.appliedEffects = boost.notes; }
     if (meta && typeof meta === 'object') { transaction.meta = meta; }
     data.pointSystem.transactions.unshift(transaction);
     if (data.pointSystem.transactions.length > 100) { data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100); }
     saveData(data);
-    // 効果（例：スパークル残回数）の表示を即時更新
-    try { if (typeof updateActiveEffectsDisplay === 'function') { updateActiveEffectsDisplay(); } } catch(_) {}
 
     if (newLevel.level > oldLevel && typeof showLevelUpNotification === 'function') {
         showLevelUpNotification(oldLevel, newLevel);
     }
     if (typeof showPointAnimation === 'function') {
         showPointAnimation(finalAmount);
-    }
-    if ((boost.multiplierTotal && boost.multiplierTotal !== 1) || (boost.bonusTotal && boost.bonusTotal !== 0)) {
-        const title = '💎 ポイントブースト！';
-        const effects = boost.notes && boost.notes.length ? boost.notes.join(' / ') : '効果適用';
-        if (typeof showCardEffect === 'function') {
-            showCardEffect(title, `+${finalAmount}pt (${effects})`, '#06b6d4');
-        }
     }
     if (typeof updatePointDisplay === 'function') {
         updatePointDisplay();

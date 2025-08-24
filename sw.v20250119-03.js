@@ -1,5 +1,5 @@
 // GitHub Pagesなどサブパス配信でも動くようにベースパス対応
-const VERSION = 'v52'; // 2025-08-24-11 更新 (force cache-bust)
+const VERSION = 'v53'; // 2025-08-24-12 更新 (force cache-bust)
 const CACHE_NAME = `hypolab-cache-${VERSION}`;
 
 // ベースURL（例: https://example.com/PDCA-Lab/）
@@ -15,7 +15,6 @@ const CORE_ASSETS = [
   'js/hypolab-local.js',
   'js/modules/hypolab-utils.js',
   'js/modules/hypolab-storage.js',
-  'js/modules/hypolab-events.js',
   'js/modules/hypolab-points.js',
   'js/modules/hypolab-domain.js',
   'js/modules/hypolab-router.js',

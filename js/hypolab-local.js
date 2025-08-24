@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250824-11';
+                const SW_VERSION_TAG = '20250824-12';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -473,19 +473,7 @@
 
         // イベント機能 一時停止フラグ（URL/LocalStorageで切替可）
         // 優先度: URLパラメータ ?events=on|off > localStorage('hypolab_events_disabled') > 既定true
-        const EVENTS_DISABLED = (() => {
-            try {
-                const q = new URLSearchParams(location.search).get('events');
-                if (q === 'on' || q === 'enable') return false;
-                if (q === 'off' || q === 'disable') return true;
-            } catch (_) {}
-            try {
-                const v = localStorage.getItem('hypolab_events_disabled');
-                if (v === 'true') return true;
-                if (v === 'false') return false;
-            } catch (_) {}
-            return false; // 既定で有効
-        })();
+        const EVENTS_DISABLED = true;
         
         // イベント定義
         const EVENT_DEFINITIONS = [
@@ -3033,55 +3021,9 @@
             }
         }
         
-        // 現在のブースト倍率を取得
+        // 現在のブースト倍率を取得（ブースト機能は無効化）
         function getBoostMultiplier() {
-            const data = loadData();
-            let multiplier = 1.0;
-            
-            // アクティブなカード効果を確認
-            if (data.cards && data.cards.activeEffects) {
-                data.cards.activeEffects.forEach(effect => {
-                    if (effect.cardId === 'double_points') {
-                        multiplier = Math.max(multiplier, 2.0);
-                    } else if (effect.cardId === 'triple_points') {
-                        multiplier = Math.max(multiplier, 3.0);
-                    }
-                    // power_boostは固定ボーナスなので倍率には含めない
-                });
-            }
-            
-            // 連続達成ボーナス（7日以上で+10%）
-            if (data.challenges && data.challenges.streak >= 7) {
-                multiplier *= 1.1;
-            }
-            
-            // 完璧な週ボーナス（週に7日すべて達成で+20%）
-            const weekStart = new Date();
-            weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-            let perfectWeek = true;
-            for (let i = 0; i < 7; i++) {
-                const checkDate = new Date(weekStart);
-                checkDate.setDate(checkDate.getDate() + i);
-                if (checkDate > new Date()) break;
-                
-                // その日にチャレンジが完了しているかチェック
-                const dateStr = checkDate.toDateString();
-                const hasCompletion = data.challenges.history.some(h => {
-                    const completedDate = new Date(h.completedAt).toDateString();
-                    return completedDate === dateStr;
-                });
-                
-                if (!hasCompletion && checkDate.toDateString() !== new Date().toDateString()) {
-                    perfectWeek = false;
-                    break;
-                }
-            }
-            
-            if (perfectWeek && new Date().getDay() === 6) { // 土曜日にボーナス
-                multiplier *= 1.2;
-            }
-            
-            return multiplier;
+            return 1.0;
         }
         
         // チャレンジを完了（トグル機能付き）
@@ -3653,15 +3595,15 @@
             return { level, name: getLevelTitle(level), min, max, capped };
         }
 
-        // ポイント獲得処理（habitIdパラメータを追加）
+        // ポイント獲得処理（ブースト機能は無効化）
         function earnPoints(amount, source, description, multiplier = 1.0, category = null, habitId = null, meta = {}) {
             console.log('earnPoints呼び出し:', {amount, source, description, habitId});
             const data = loadData();
             
-            // ブースト効果（詳細）を適用
-            const boost = calculatePointsWithBoostsDetailed(amount, source, category);
-            const finalAmount = Math.round((boost.finalPoints) * multiplier);
-            console.log('計算後のポイント:', finalAmount, '詳細:', boost.notes);
+            // ブースト適用を行わず、素点×倍率のみ反映
+            const base = Number.isFinite(amount) ? amount : 0;
+            const finalAmount = Math.round(base * (Number.isFinite(multiplier) ? multiplier : 1.0));
+            console.log('計算後のポイント:', finalAmount);
             
             // ポイント追加
             const beforePoints = data.pointSystem.currentPoints;
@@ -3692,9 +3634,6 @@
             }
             
             // 追加メタ
-            if (boost && boost.notes && boost.notes.length > 0) {
-                transaction.appliedEffects = boost.notes;
-            }
             if (meta && typeof meta === 'object') {
                 transaction.meta = meta;
             }
@@ -3729,12 +3668,7 @@
             
             // ポイント獲得アニメーション
             showPointAnimation(finalAmount);
-            // 効果の演出（ブーストがある場合）
-            if ((boost.multiplierTotal && boost.multiplierTotal !== 1) || (boost.bonusTotal && boost.bonusTotal !== 0)) {
-                const title = '💎 ポイントブースト！';
-                const effects = boost.notes && boost.notes.length ? boost.notes.join(' / ') : '効果適用';
-                showCardEffect(title, `+${finalAmount}pt (${effects})`, '#06b6d4');
-            }
+            // ブースト演出は無効化
 
             // ミステリーボックス効果（今日の最初の習慣達成で発火）
             try {
@@ -15600,6 +15534,8 @@
         // windowオブジェクトに関数を登録
         // 日替わりイベントを取得（毎日ランダムに変更）
         function getDailyEvent() {
+            return null;
+            /*
             const data = loadData();
             const today = dateKeyLocal(new Date());
             const todayStr = new Date().toISOString().split('T')[0];
@@ -15650,7 +15586,7 @@
                 const eventIndex = Math.floor(Math.random() * negativeEvents.length);
                 return negativeEvents[eventIndex];
             }
-        }
+        */}
         
         // イベント表示の更新
         function updateEventDisplay() {
