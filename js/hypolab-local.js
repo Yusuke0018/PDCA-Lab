@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250824-22';
+                const SW_VERSION_TAG = '20250824-23';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -3734,8 +3734,8 @@
             const data = loadData();
             const pointDisplay = document.getElementById('point-display');
             const levelInfo = calculateLevel(data.pointSystem.lifetimeEarned);
-            const current = data.pointSystem.currentPoints;
-            console.log('updatePointDisplay: 現在のポイント =', current);
+            const current = data.pointSystem.lifetimeEarned; // ヘッダーは生涯ポイントで統一
+            console.log('updatePointDisplay: 生涯ポイント =', current);
             if (pointDisplay) {
                 const amountEl = pointDisplay.querySelector('.point-amount');
                 const levelEl = pointDisplay.querySelector('.level-info');
