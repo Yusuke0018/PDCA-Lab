@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250824-18';
+                const SW_VERSION_TAG = '20250824-19';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -15552,33 +15552,7 @@
         window.updateWeightChart = updateWeightChart;
         
         // windowオブジェクトに関数を登録
-        // 一時: 全データ初期化（ポイント・習慣・チェックリスト）
-        function resetAllData(){
-            if (!confirm('全データを初期化します。\nポイント、習慣（進行中・完了）、夜のチェックリストが削除されます。\nこの操作は取り消せません。実行しますか？')) return;
-            const data = loadData();
-            try {
-                data.currentHypotheses = [];
-                data.completedHypotheses = [];
-                data.nightChecklist = [];
-                if (data.pointSystem) {
-                    data.pointSystem.currentPoints = 0;
-                    data.pointSystem.lifetimeEarned = 0;
-                    data.pointSystem.levelProgress = 0;
-                    data.pointSystem.currentLevel = 1;
-                    data.pointSystem.transactions = [];
-                }
-                saveData(data);
-                window.currentHypothesis = null;
-                // UI更新
-                try { updateCurrentHypothesisList(); } catch(_) {}
-                try { updateNightChecklistUI(); } catch(_) {}
-                try { updatePointDisplay(); } catch(_) {}
-                showNotification('初期化が完了しました', 'success');
-            } catch(e) {
-                alert('初期化に失敗しました: ' + e);
-            }
-        }
-        try { window.resetAllData = resetAllData; } catch(_) {}
+        // 初期化機能（開発用）は削除
         // 日替わりイベントを取得（毎日ランダムに変更）
         function getDailyEvent() {
             return null;

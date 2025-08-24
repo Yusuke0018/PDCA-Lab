@@ -14,7 +14,7 @@
     <link rel="icon" href="icons/icon.svg" sizes="any" type="image/svg+xml">
     <link rel="apple-touch-icon" href="icons/icon.svg">
     
-    <link rel="stylesheet" href="css/hypolab-local.css?v=20250824-18">
+    <link rel="stylesheet" href="css/hypolab-local.css?v=20250824-19">
 </head>
 <body>
     <!-- ヘッダー -->
@@ -56,16 +56,6 @@
                 <span class="point-amount" style="font-weight: bold; color: #fbbf24;">💰 0pt</span>
                 <span class="level-info" style="font-size: 12px; color: var(--text-secondary);">Lv.1 駆け出し冒険者</span>
             </div>
-            <!-- 一時: 初期化ボタン（後で削除） -->
-            <button id="dev-reset" onclick="resetAllData()" style="
-                background: rgba(239,68,68,0.12);
-                color: #ef4444;
-                border: 1px solid rgba(239,68,68,0.35);
-                border-radius: 10px;
-                padding: 6px 10px;
-                font-size: 12px;
-                cursor: pointer;
-            " title="全データ初期化（ポイント・習慣・チェックリスト）">⚠️ 初期化</button>
             </div>
         </div>
 
@@ -75,9 +65,9 @@
 
     <!-- ナビゲーションバーは削除 -->
 
-    <!-- FAB: ホームへ戻る -->
+    <!-- FAB: 新規習慣立案 -->
     <div class="fab-container" id="fab">
-        <button class="fab-main" id="fab-main" aria-label="Go Home" onclick="showHomeView()" title="ホームに戻る">＋</button>
+        <button class="fab-main" id="fab-main" aria-label="New Habit" onclick="showNewHypothesisView()" title="新規習慣を作成">＋</button>
     </div>
 
     <!-- 左右スワイプ用エッジは削除 -->
@@ -797,11 +787,11 @@
         </div>
     </footer>
 
-    <script src="js/modules/hypolab-utils.js?v=20250824-18"></script>
-    <script src="js/modules/hypolab-storage.js?v=20250824-18"></script>
-    <script src="js/modules/hypolab-points.js?v=20250824-18"></script>
-    <script src="js/modules/hypolab-domain.js?v=20250824-18"></script>
-    <script src="js/modules/hypolab-router.js?v=20250824-18"></script>
-    <script src="js/hypolab-local.js?v=20250824-18"></script>
+    <script src="js/modules/hypolab-utils.js?v=20250824-19"></script>
+    <script src="js/modules/hypolab-storage.js?v=20250824-19"></script>
+    <script src="js/modules/hypolab-points.js?v=20250824-19"></script>
+    <script src="js/modules/hypolab-domain.js?v=20250824-19"></script>
+    <script src="js/modules/hypolab-router.js?v=20250824-19"></script>
+    <script src="js/hypolab-local.js?v=20250824-19"></script>
 </body>
 </html>
