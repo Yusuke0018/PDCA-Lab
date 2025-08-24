@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250824-19';
+                const SW_VERSION_TAG = '20250824-20';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -6273,6 +6273,8 @@
             document.getElementById('stats-view').style.display = 'none';
             document.getElementById('points-view').style.display = 'none';
             document.getElementById('cards-view').style.display = 'none';
+            // 夜のチェックリストはホームでのみ表示
+            try { const n = document.getElementById('night-checklist-card'); if (n) n.style.display = 'block'; } catch(_) {}
             
             updateNavigation('home');
             
@@ -6479,6 +6481,8 @@
             resetScrollToTop();
             document.getElementById('home-view').style.display = 'none';
             document.getElementById('new-hypothesis-view').style.display = 'block';
+            // 夜のチェックリストは非表示
+            try { const n = document.getElementById('night-checklist-card'); if (n) n.style.display = 'none'; } catch(_) {}
             
             // カテゴリドロップダウンを更新
             updateCategoryDropdowns();
