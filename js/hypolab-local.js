@@ -15498,11 +15498,10 @@
             const isDone = item.doneKey === currentKey;
 
             if (isDone) {
-                // 達成 → 未達成（取り消し -1pt）
+                // 達成 → 未達成（ポイント変動なしに戻す）
                 item.doneKey = null;
                 if (typeof item.done !== 'undefined') delete item.done;
                 saveData(data);
-                try { earnPoints(-1, 'checklist', '🌙 夜のチェックリスト 取り消し'); } catch(_) {}
             } else {
                 // 未達成/未入力 → 達成（+1pt）
                 item.doneKey = currentKey;
