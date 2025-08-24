@@ -14,7 +14,7 @@
     <link rel="icon" href="icons/icon.svg" sizes="any" type="image/svg+xml">
     <link rel="apple-touch-icon" href="icons/icon.svg">
     
-    <link rel="stylesheet" href="css/hypolab-local.css?v=20250824-31">
+    <link rel="stylesheet" href="css/hypolab-local.css?v=20250824-32">
 </head>
 <body>
     <!-- ヘッダー -->
@@ -109,15 +109,15 @@
             </div>
             
 
-        </div>
-
-        <!-- 夜のチェックリスト -->
-        <div class="card" id="night-checklist-card" style="margin-top: 16px; background: linear-gradient(135deg, rgba(2, 6, 23, 0.5), rgba(15, 23, 42, 0.6)); border: 1px solid rgba(148, 163, 184, 0.2);">
-            <div style="display:flex; align-items:center; justify-content:space-between;">
-                <h3 style="margin-bottom: 12px; font-size: 16px;">🌙 夜のチェックリスト</h3>
-                <button class="btn" onclick="openAddNightChecklistItem()" style="padding:6px 10px; font-size:12px;">➕ 追加</button>
+            
+            <!-- 夜のチェックリスト（ホーム内へ移動） -->
+            <div class="card" id="night-checklist-card" style="margin-top: 16px; background: linear-gradient(135deg, rgba(2, 6, 23, 0.5), rgba(15, 23, 42, 0.6)); border: 1px solid rgba(148, 163, 184, 0.2);">
+                <div style="display:flex; align-items:center; justify-content:space-between;">
+                    <h3 style="margin-bottom: 12px; font-size: 16px;">🌙 夜のチェックリスト</h3>
+                    <button class="btn" onclick="openAddNightChecklistItem()" style="padding:6px 10px; font-size:12px;">➕ 追加</button>
+                </div>
+                <div id="night-checklist-list" style="display:grid; gap:8px;"></div>
             </div>
-            <div id="night-checklist-list" style="display:grid; gap:8px;"></div>
         </div>
 
         <!-- 新規習慣作成画面 -->
