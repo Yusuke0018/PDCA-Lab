@@ -35,3 +35,5 @@ build/
 .vscode/
 *.swp
 *.swo
+# ローカル編集用ディレクトリ（誤ってサブモジュール化防止）
+pdca-lab-edit/
