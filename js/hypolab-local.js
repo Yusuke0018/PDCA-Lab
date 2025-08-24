@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250824-12';
+                const SW_VERSION_TAG = '20250824-13';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -3746,12 +3746,13 @@
             const data = loadData();
             const pointDisplay = document.getElementById('point-display');
             const levelInfo = calculateLevel(data.pointSystem.lifetimeEarned);
-            console.log('updatePointDisplay: 現在のポイント =', data.pointSystem.currentPoints);
-            
+            const current = data.pointSystem.currentPoints;
+            console.log('updatePointDisplay: 現在のポイント =', current);
             if (pointDisplay) {
-                pointDisplay.innerHTML = `
-                    <span class="level-info">Lv.${levelInfo.level} ${levelInfo.name}</span>
-                `;
+                const amountEl = pointDisplay.querySelector('.point-amount');
+                const levelEl = pointDisplay.querySelector('.level-info');
+                if (amountEl) amountEl.textContent = `💰 ${current}pt`;
+                if (levelEl) levelEl.textContent = `Lv.${levelInfo.level} ${levelInfo.name}`;
             }
             
             // 努力ボーナスエリアの表示も更新
