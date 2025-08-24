@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250824-05';
+                const SW_VERSION_TAG = '20250824-06';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -8602,10 +8602,15 @@
                 <div style="margin: 20px 0;">
                     ${Object.entries(data.categoryMaster).map(([key, cat]) => `
                         <div style="margin-bottom: 16px; padding: 12px; background: rgba(30, 41, 59, 0.5); border-radius: 8px; border: 1px solid var(--border);">
-                            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
-                                <span style="font-size: 24px;" id="icon-preview-${key}">${cat.icon}</span>
-                                <span style="font-weight: 600; font-size: 16px;" id="name-preview-${key}">${cat.name}</span>
-                                <div style="width: 24px; height: 24px; border-radius: 50%; background: ${cat.color};" id="color-preview-${key}"></div>
+                            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px;">
+                                <div style="display:flex; align-items:center; gap:12px;">
+                                    <span style="font-size: 24px;" id="icon-preview-${key}">${cat.icon}</span>
+                                    <span style="font-weight: 600; font-size: 16px;" id="name-preview-${key}">${cat.name}</span>
+                                    <div style="width: 24px; height: 24px; border-radius: 50%; background: ${cat.color};" id="color-preview-${key}"></div>
+                                </div>
+                                ${(['study','exercise','health','work','hobby','other'].includes(key)) 
+                                    ? '' 
+                                    : `<button class="btn btn-secondary" style="padding:6px 10px; font-size:12px;" onclick="removeCategory('${key}')">削除</button>`}
                             </div>
                             <div style="display: grid; grid-template-columns: 1fr 80px 100px; gap: 8px;">
                                 <input type="text" id="name-${key}" value="${cat.name}" placeholder="カテゴリ名" style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface);">
@@ -8760,6 +8765,51 @@
             editCategoryMaster();
             showNotification('新しいカテゴリを追加しました', 'success');
         }
+
+        // カテゴリを削除（既存の習慣は「その他」に移動）
+        window.removeCategory = function(key) {
+            const RESERVED = new Set(['study','exercise','health','work','hobby','other']);
+            const data = loadData();
+            if (!data.categoryMaster || !data.categoryMaster[key]) {
+                showNotification('該当するカテゴリが見つかりません', 'error');
+                return;
+            }
+            if (RESERVED.has(key)) {
+                showNotification('このカテゴリは削除できません', 'error');
+                return;
+            }
+            const name = data.categoryMaster[key].name || key;
+            if (!confirm(`カテゴリ「${name}」を削除します。既存の習慣は「その他」に移動します。よろしいですか？`)) {
+                return;
+            }
+            // 再割当て
+            (data.currentHypotheses || []).forEach(h => { if (h.category === key) h.category = 'other'; });
+            (data.completedHypotheses || []).forEach(h => { if (h.category === key) h.category = 'other'; });
+            delete data.categoryMaster[key];
+            saveData(data);
+            try {
+                if (window.currentHypothesis && window.currentHypothesis.category === key) {
+                    window.currentHypothesis.category = 'other';
+                }
+            } catch(_) {}
+            try {
+                if (localStorage.getItem('selectedCategory') === key) {
+                    localStorage.setItem('selectedCategory', 'all');
+                    const filter = document.getElementById('category-filter');
+                    if (filter) filter.value = 'all';
+                }
+            } catch(_) {}
+            // モーダルを閉じて再描画
+            const modal = document.querySelector('.skip-modal');
+            const overlay = document.querySelector('.overlay');
+            if (modal) modal.remove();
+            if (overlay) overlay.remove();
+            updateCategoryDropdowns();
+            updateCurrentHypothesisList();
+            renderCategoryPanel();
+            editCategoryMaster();
+            showNotification('カテゴリを削除しました', 'success');
+        };
         
         // 新しいカテゴリを追加
         window.addNewCategory = function() {
