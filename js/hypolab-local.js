@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250824-21';
+                const SW_VERSION_TAG = '20250824-22';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -6509,6 +6509,12 @@
             // フォームをリセット
             document.getElementById('hypothesis-title').value = '';
             document.getElementById('hypothesis-description').value = '';
+            try {
+                const daysEl = document.getElementById('hypothesis-days');
+                if (daysEl) daysEl.value = 7;
+                const endEl = document.getElementById('habit-end-date');
+                if (endEl) endEl.value = '';
+            } catch(_) {}
             // 1行宣言UIは廃止
             // 入力にフォーカス
             const titleInput = document.getElementById('hypothesis-title');
