@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250824-09';
+                const SW_VERSION_TAG = '20250824-10';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -10366,10 +10366,18 @@
                         
                         habitItem.innerHTML = `
                             ${checkMarkHtml}
-                            <span style="flex: 1; font-size: 14px; color: var(--text-primary);">${escapeHTML(hypothesis.title)}</span>
+                            <span class="habit-title" data-habit-id="${hypothesis.id}" style="flex: 1; font-size: 14px; color: var(--text-primary);">${escapeHTML(hypothesis.title)}</span>
                             ${freqText ? `<span style="font-size: 11px; padding: 2px 6px; background: rgba(59, 130, 246, 0.1); color: #3b82f6; border-radius: 999px;">${freqText}</span>` : ''}
                         `;
                         habitItem.appendChild(arrow);
+                        // スマホ: タイトル長押しで削除（PCは右クリック）
+                        try {
+                            const titleEl = habitItem.querySelector('.habit-title');
+                            if (titleEl) {
+                                attachLongPressToDelete(titleEl, hypothesis.id);
+                                titleEl.addEventListener('contextmenu', (e) => { e.preventDefault(); confirmDeleteHypothesis(hypothesis.id); });
+                            }
+                        } catch(_) {}
                         
                         // 詳細エリア（初期は非表示）
                         const detailArea = document.createElement('div');
@@ -15559,12 +15567,20 @@
                 <div style="display:flex; align-items:center; justify-content:space-between; border:1px solid var(--border); border-radius:8px; padding:8px; background:${isDone ? 'rgba(16,185,129,0.08)' : 'var(--surface)'};">
                     <div style="display:flex; align-items:center; gap:10px;">
                         <button onclick="toggleNightChecklist('${item.id}')" title="切り替え" style="min-width:32px; height:32px; border-radius:8px; border:1px solid var(--border); background:${isDone ? '#10b981' : 'var(--surface-light)'}; color:${isDone ? '#fff' : 'var(--text-primary)'}; font-weight:700;">${isDone ? '✔' : '□'}</button>
-                        <div style="${isDone ? 'text-decoration: line-through; color: var(--text-secondary);' : ''}">${escapeHTML(item.title)}</div>
+                        <div class="night-label" data-night-id="${item.id}" style="${isDone ? 'text-decoration: line-through; color: var(--text-secondary);' : ''}">${escapeHTML(item.title)}</div>
                     </div>
                     <button class="btn btn-secondary" onclick="deleteNightChecklistItem('${item.id}')" style="padding:6px 10px; font-size:12px; background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.3);">削除</button>
                 </div>
             `;
             }).join('');
+            // スマホ: ラベル長押しで削除（PCは右クリック）
+            try {
+                document.querySelectorAll('.night-label').forEach(el => {
+                    const id = el.getAttribute('data-night-id');
+                    attachLongPress(el, () => deleteNightChecklistItem(id), 600);
+                    el.addEventListener('contextmenu', (e) => { e.preventDefault(); deleteNightChecklistItem(id); });
+                });
+            } catch(_) {}
         }
         window.updateNightChecklistUI = updateNightChecklistUI;
 
