@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250824-25';
+                const SW_VERSION_TAG = '20250824-26';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -8054,7 +8054,7 @@
         function cycleTodayStatusForHabit(habitId) {
             try {
                 const data = loadData();
-                const idx = data.currentHypotheses.findIndex(h => h.id === habitId);
+                const idx = data.currentHypotheses.findIndex(h => String(h.id) === String(habitId));
                 if (idx === -1) return;
                 const hyp = data.currentHypotheses[idx];
                 const todayKey = getActivityDateKey();
@@ -10341,10 +10341,10 @@
                         
                         // 達成マーク（目立つデザイン）: ✅/🔴/空 の三値
                         const checkMarkHtml = isAchievedToday 
-                            ? `<button class="home-check" onclick="event.stopPropagation(); cycleTodayStatusForHabit('${hypothesis.id}')" style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;background:#10b981;border-radius:50%;flex-shrink:0;border:none;cursor:pointer;"><span style=\"color: white; font-size: 16px; font-weight: bold;\">✓</span></button>`
+                            ? `<button class="home-check" data-habit-id="${hypothesis.id}" style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;background:#10b981;border-radius:50%;flex-shrink:0;border:none;cursor:pointer;"><span style=\"color: white; font-size: 16px; font-weight: bold;\">✓</span></button>`
                             : (isFailedToday
-                               ? `<button class="home-check" onclick="event.stopPropagation(); cycleTodayStatusForHabit('${hypothesis.id}')" style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;background:#ef4444;border-radius:50%;flex-shrink:0;border:none;cursor:pointer;"><span style=\"color: white; font-size: 16px; font-weight: bold;\">❌</span></button>`
-                               : `<button class="home-check" onclick="event.stopPropagation(); cycleTodayStatusForHabit('${hypothesis.id}')" style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;background:#e2e8f0;border:2px solid #cbd5e1;border-radius:50%;flex-shrink:0;cursor:pointer;"></button>`);
+                               ? `<button class="home-check" data-habit-id="${hypothesis.id}" style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;background:#ef4444;border-radius:50%;flex-shrink:0;border:none;cursor:pointer;"><span style=\"color: white; font-size: 16px; font-weight: bold;\">❌</span></button>`
+                               : `<button class="home-check" data-habit-id="${hypothesis.id}" style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;background:#e2e8f0;border:2px solid #cbd5e1;border-radius:50%;flex-shrink:0;cursor:pointer;"></button>`);
                         
                         // 頻度表示
                         let freqText = '';
@@ -10608,6 +10608,17 @@
             editButton.innerHTML = '⚙️ カテゴリを編集';
             editButton.onclick = editCategoryMaster;
             listContainer.appendChild(editButton);
+
+            // ホームのチェックボタンにイベントを付与（動的生成後にアタッチ）
+            try {
+                listContainer.querySelectorAll('.home-check').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        try { e.stopPropagation(); } catch(_) {}
+                        const id = btn.getAttribute('data-habit-id');
+                        cycleTodayStatusForHabit(id);
+                    }, { passive: false });
+                });
+            } catch(_) {}
             
         }
 
