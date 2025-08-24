@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250824-13';
+                const SW_VERSION_TAG = '20250824-14';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -15466,13 +15466,15 @@
                 // 当日分の達成を取り消し（ポイント減算はしない）
                 item.doneKey = null;
                 if (typeof item.done !== 'undefined') delete item.done;
+                saveData(data);
             } else {
                 // 当日分を達成として記録（+1pt）
                 item.doneKey = currentKey;
                 if (typeof item.done !== 'undefined') delete item.done;
+                // 先にチェック状態を保存し、その後ポイント加算
+                saveData(data);
                 try { earnPoints(1, 'checklist', '🌙 夜のチェックリスト'); } catch(_) {}
             }
-            saveData(data);
             updateNightChecklistUI();
             try { updatePointDisplay(); } catch(_) {}
         }
