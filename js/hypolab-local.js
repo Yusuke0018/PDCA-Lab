@@ -8050,6 +8050,36 @@
             updateCalendar();
         }
 
+        // ホーム画面用：今日の状態を対象の習慣に対してワンタップで循環
+        function cycleTodayStatusForHabit(habitId) {
+            try {
+                const data = loadData();
+                const idx = data.currentHypotheses.findIndex(h => h.id === habitId);
+                if (idx === -1) return;
+                const hyp = data.currentHypotheses[idx];
+                const todayKey = getActivityDateKey();
+                const wasAchieved = !!(hyp.achievements && hyp.achievements[todayKey]);
+                const wasFailed = !!(hyp.failures && hyp.failures[todayKey]);
+
+                // setDayStatus は window.currentHypothesis を参照するため一時的に設定
+                const prev = window.currentHypothesis;
+                window.currentHypothesis = hyp;
+                if (wasAchieved) {
+                    setDayStatus(todayKey, false); // 達成 → 未達成（-1pt）
+                } else if (wasFailed) {
+                    setDayStatus(todayKey, null);  // 未達成 → 未入力
+                } else {
+                    setDayStatus(todayKey, true);  // 未入力 → 達成（+1pt）
+                }
+                // 画面を再描画
+                try { updateCurrentHypothesisList(); } catch(_) {}
+                try { updatePointDisplay(); } catch(_) {}
+                // 元に戻す
+                window.currentHypothesis = prev;
+            } catch (e) { /* no-op */ }
+        }
+        window.cycleTodayStatusForHabit = cycleTodayStatusForHabit;
+
         // 日付セルをワンタップで「達成 → 未達成 → 未入力 → 達成」と循環
         function cycleDayStatus(dateKey) {
             const data = loadData();
@@ -10311,10 +10341,10 @@
                         
                         // 達成マーク（目立つデザイン）: ✅/🔴/空 の三値
                         const checkMarkHtml = isAchievedToday 
-                            ? '<span style="display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; background: #10b981; border-radius: 50%; flex-shrink: 0;"><span style="color: white; font-size: 16px; font-weight: bold;">✓</span></span>'
+                            ? `<button class="home-check" onclick="event.stopPropagation(); cycleTodayStatusForHabit('${hypothesis.id}')" style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;background:#10b981;border-radius:50%;flex-shrink:0;border:none;cursor:pointer;"><span style=\"color: white; font-size: 16px; font-weight: bold;\">✓</span></button>`
                             : (isFailedToday
-                               ? '<span style="display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; background: #ef4444; border-radius: 50%; flex-shrink: 0;"><span style="color: white; font-size: 16px; font-weight: bold;">❌</span></span>'
-                               : '<span style="display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; background: #e2e8f0; border: 2px solid #cbd5e1; border-radius: 50%; flex-shrink: 0;"></span>');
+                               ? `<button class="home-check" onclick="event.stopPropagation(); cycleTodayStatusForHabit('${hypothesis.id}')" style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;background:#ef4444;border-radius:50%;flex-shrink:0;border:none;cursor:pointer;"><span style=\"color: white; font-size: 16px; font-weight: bold;\">❌</span></button>`
+                               : `<button class="home-check" onclick="event.stopPropagation(); cycleTodayStatusForHabit('${hypothesis.id}')" style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;background:#e2e8f0;border:2px solid #cbd5e1;border-radius:50%;flex-shrink:0;cursor:pointer;"></button>`);
                         
                         // 頻度表示
                         let freqText = '';
@@ -15490,7 +15520,7 @@
         window.openAddNightChecklistItem = openAddNightChecklistItem;
 
         function toggleNightChecklist(id){
-            // 二択に戻す：押すと+1pt、達成→未達成で-1pt（生涯ポイントも調整）
+            // 二択：未入力⇄達成。達成→未入力で-1pt（生涯ポイントも調整）
             const data = ensureNightChecklist(loadData());
             const item = data.nightChecklist.find(i => i.id === id);
             if (!item) return;
@@ -15498,10 +15528,11 @@
             const isDone = item.doneKey === currentKey;
 
             if (isDone) {
-                // 達成 → 未達成（ポイント変動なしに戻す）
+                // 達成 → 未入力（取り消し -1pt）
                 item.doneKey = null;
                 if (typeof item.done !== 'undefined') delete item.done;
                 saveData(data);
+                try { earnPoints(-1, 'checklist', '🌙 夜のチェックリスト 取り消し'); } catch(_) {}
             } else {
                 // 未達成/未入力 → 達成（+1pt）
                 item.doneKey = currentKey;
