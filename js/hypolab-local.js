@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250824-26';
+                const SW_VERSION_TAG = '20250824-27';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -6487,11 +6487,10 @@
             // カテゴリドロップダウンを更新
             updateCategoryDropdowns();
             
-            // ホーム画面で選択していたカテゴリを自動設定
-            const selectedCategory = localStorage.getItem('selectedCategory');
+            // カテゴリをデフォルトにリセット
             const categorySelect = document.getElementById('hypothesis-category');
-            if (selectedCategory && selectedCategory !== 'all' && categorySelect) {
-                categorySelect.value = selectedCategory;
+            if (categorySelect) {
+                categorySelect.value = 'other';
             }
             document.getElementById('history-view').style.display = 'none';
             document.getElementById('stats-view').style.display = 'none';
