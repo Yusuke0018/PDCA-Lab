@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250826-08';
+                const SW_VERSION_TAG = '20250826-09';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -3753,9 +3753,33 @@
                 if (amountEl) amountEl.textContent = `💰 ${current}pt`;
                 if (levelEl) levelEl.textContent = `Lv.${levelInfo.level} ${levelInfo.name}`;
             }
-            
+
             // 努力ボーナスエリアの表示も更新
             updateEffortBonusArea();
+
+            // レベルアップ演出の保険（ホーム画面の表示更新時に検知して発火）
+            try {
+                if (!data.meta) data.meta = {};
+                const prevCelebrated = typeof data.meta.lastLevelCelebrated === 'number' ? data.meta.lastLevelCelebrated : levelInfo.level;
+                if (levelInfo.level > prevCelebrated) {
+                    const oldLv = prevCelebrated;
+                    const newLv = levelInfo;
+                    // 最優先で直接アニメ表示、無ければ簡易通知
+                    if (typeof showLevelUpCelebration === 'function') {
+                        showLevelUpCelebration(oldLv, newLv);
+                    } else if (typeof window !== 'undefined' && typeof window.showLevelUpCelebration === 'function') {
+                        window.showLevelUpCelebration(oldLv, newLv);
+                    } else {
+                        try { showNotification(`Lv.${oldLv} → Lv.${newLv.level}｜${newLv.name}`, 'success', 6); } catch(_) {}
+                    }
+                    data.meta.lastLevelCelebrated = levelInfo.level;
+                    saveData(data);
+                } else if (data.meta.lastLevelCelebrated === undefined) {
+                    // 初期化
+                    data.meta.lastLevelCelebrated = levelInfo.level;
+                    saveData(data);
+                }
+            } catch(_) {}
         }
         
         // 努力ボーナス表示を更新（改善版：使用回数表示）
