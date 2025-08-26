@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250826-06';
+                const SW_VERSION_TAG = '20250826-07';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -3638,11 +3638,16 @@
             
             // レベルアップ通知
             if (newLevel.level > oldLevel) {
-                // ドラクエ風アニメーションを直接実行
-                if (window.showLevelUpCelebration) {
+                // ドラクエ風アニメーションを最優先で直接呼び出し（関数宣言はホイストされるため利用可）
+                if (typeof showLevelUpCelebration === 'function') {
                     console.log('レベルアップ演出を表示:', oldLevel, '->', newLevel);
+                    showLevelUpCelebration(oldLevel, newLevel);
+                } else if (typeof window !== 'undefined' && typeof window.showLevelUpCelebration === 'function') {
+                    console.log('レベルアップ演出を表示(window):', oldLevel, '->', newLevel);
                     window.showLevelUpCelebration(oldLevel, newLevel);
-                } else if (window.showLevelUpNotification) {
+                } else if (typeof showLevelUpNotification === 'function') {
+                    showLevelUpNotification(oldLevel, newLevel);
+                } else if (typeof window !== 'undefined' && typeof window.showLevelUpNotification === 'function') {
                     window.showLevelUpNotification(oldLevel, newLevel);
                 } else {
                     // フォールバック
@@ -4098,11 +4103,16 @@
             
             // レベルアップ通知
             if (newLevel.level > oldLevel) {
-                // ドラクエ風アニメーションを直接実行
-                if (window.showLevelUpCelebration) {
+                // ドラクエ風アニメーションを最優先で直接呼び出し（関数宣言はホイストされるため利用可）
+                if (typeof showLevelUpCelebration === 'function') {
                     console.log('レベルアップ演出を表示:', oldLevel, '->', newLevel);
+                    showLevelUpCelebration(oldLevel, newLevel);
+                } else if (typeof window !== 'undefined' && typeof window.showLevelUpCelebration === 'function') {
+                    console.log('レベルアップ演出を表示(window):', oldLevel, '->', newLevel);
                     window.showLevelUpCelebration(oldLevel, newLevel);
-                } else if (window.showLevelUpNotification) {
+                } else if (typeof showLevelUpNotification === 'function') {
+                    showLevelUpNotification(oldLevel, newLevel);
+                } else if (typeof window !== 'undefined' && typeof window.showLevelUpNotification === 'function') {
                     window.showLevelUpNotification(oldLevel, newLevel);
                 } else {
                     // フォールバック
