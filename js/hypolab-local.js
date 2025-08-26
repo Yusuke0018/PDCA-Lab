@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250826-02';
+                const SW_VERSION_TAG = '20250826-03';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -4402,11 +4402,132 @@
         }
 
         function showLevelUpCelebration(oldLevel, newLevel) {
+            // ドラクエ風レベルアップ演出
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: radial-gradient(ellipse at center, rgba(255, 215, 0, 0.3) 0%, rgba(255, 215, 0, 0) 70%);
+                z-index: 10000;
+                animation: levelUpFlash 0.5s ease-out;
+            `;
+            
+            const messageBox = document.createElement('div');
+            messageBox.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+                color: #fff;
+                padding: 30px 40px;
+                border-radius: 12px;
+                border: 3px solid #ffd700;
+                box-shadow: 0 0 40px rgba(255, 215, 0, 0.6), inset 0 0 20px rgba(255, 255, 255, 0.2);
+                font-size: 20px;
+                font-weight: bold;
+                text-align: center;
+                z-index: 10001;
+                animation: levelUpBounce 1s ease-out;
+                min-width: 300px;
+            `;
+            
+            // レベルアップメッセージ
+            messageBox.innerHTML = `
+                <div style="font-size: 32px; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); animation: levelUpPulse 1s ease-in-out infinite;">
+                    ✨ LEVEL UP! ✨
+                </div>
+                <div style="font-size: 24px; margin: 15px 0; color: #ffd700; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">
+                    Lv.${oldLevel} ▶ Lv.${newLevel.level}
+                </div>
+                <div style="font-size: 18px; margin-top: 10px; color: #fff9c4;">
+                    ${newLevel.name}
+                </div>
+                <div style="margin-top: 20px; font-size: 14px; opacity: 0.9;">
+                    タップして閉じる
+                </div>
+            `;
+            
+            // キラキラエフェクト
+            const particles = [];
+            for (let i = 0; i < 20; i++) {
+                const particle = document.createElement('div');
+                const angle = (Math.PI * 2 * i) / 20;
+                const distance = 100 + Math.random() * 50;
+                particle.style.cssText = `
+                    position: fixed;
+                    width: 4px;
+                    height: 4px;
+                    background: #ffd700;
+                    border-radius: 50%;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    z-index: 10002;
+                    animation: particleFloat 1.5s ease-out forwards;
+                    --x: ${Math.cos(angle) * distance}px;
+                    --y: ${Math.sin(angle) * distance}px;
+                `;
+                particles.push(particle);
+                document.body.appendChild(particle);
+            }
+            
+            // CSSアニメーションを追加
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes levelUpFlash {
+                    0% { opacity: 0; }
+                    50% { opacity: 1; }
+                    100% { opacity: 0; }
+                }
+                @keyframes levelUpBounce {
+                    0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+                    50% { transform: translate(-50%, -50%) scale(1.1); }
+                    100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+                }
+                @keyframes levelUpPulse {
+                    0%, 100% { transform: scale(1); }
+                    50% { transform: scale(1.05); }
+                }
+                @keyframes particleFloat {
+                    0% {
+                        transform: translate(-50%, -50%);
+                        opacity: 1;
+                    }
+                    100% {
+                        transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y)));
+                        opacity: 0;
+                    }
+                }
+            `;
+            document.head.appendChild(style);
+            
+            document.body.appendChild(overlay);
+            document.body.appendChild(messageBox);
+            
+            // クリックで閉じる
+            const closeAnimation = () => {
+                messageBox.style.animation = 'levelUpBounce 0.3s ease-in reverse';
+                overlay.style.animation = 'levelUpFlash 0.3s ease-in reverse';
+                setTimeout(() => {
+                    overlay.remove();
+                    messageBox.remove();
+                    particles.forEach(p => p.remove());
+                    style.remove();
+                }, 300);
+            };
+            
+            messageBox.addEventListener('click', closeAnimation);
+            overlay.addEventListener('click', closeAnimation);
+            
+            // 3秒後に自動で閉じる
+            setTimeout(closeAnimation, 3000);
+            
+            // 紙吹雪も追加
             showConfetti(1200, 28);
-            showMiniModal('🎉 レベルアップ！', `Lv.${oldLevel} → Lv.${newLevel.level}｜${newLevel.name}`,[
-                { label: '進捗を見る', onclick: 'showLevelProgress()' },
-                { label: 'バッジを見る', onclick: "(function(){ showStatsView(); setTimeout(()=>toggleStatSection('badge-collection'), 120); })()" }
-            ]);
         }
         window.showLevelUpCelebration = showLevelUpCelebration;
 
