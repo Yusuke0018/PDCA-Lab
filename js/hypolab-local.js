@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250826-04';
+                const SW_VERSION_TAG = '20250826-05';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -3638,19 +3638,25 @@
             
             // レベルアップ通知
             if (newLevel.level > oldLevel) {
-                if (window.showLevelUpNotification) {
+                // ドラクエ風アニメーションを直接実行
+                if (window.showLevelUpCelebration) {
+                    console.log('レベルアップ演出を表示:', oldLevel, '->', newLevel);
+                    window.showLevelUpCelebration(oldLevel, newLevel);
+                } else if (window.showLevelUpNotification) {
                     window.showLevelUpNotification(oldLevel, newLevel);
                 } else {
                     // フォールバック
                     showNotification(`Lv.${oldLevel} → Lv.${newLevel.level}｜${newLevel.name}`, 'success', 6);
-                    const cardId = getRandomCardForLevelUp();
-                    if (cardId) {
-                        const updatedData = addCardToInventory(cardId);
-                        if (updatedData) {
-                            saveData(updatedData);
-                        }
-                        showNotification('🎁 レベルアップボーナス！カードを1枚獲得！', 'success');
+                }
+                
+                // カード獲得処理
+                const cardId = getRandomCardForLevelUp();
+                if (cardId) {
+                    const updatedData = addCardToInventory(cardId);
+                    if (updatedData) {
+                        saveData(updatedData);
                     }
+                    showNotification('🎁 レベルアップボーナス！カードを1枚獲得！', 'success');
                 }
             }
             
@@ -4092,19 +4098,25 @@
             
             // レベルアップ通知
             if (newLevel.level > oldLevel) {
-                if (window.showLevelUpNotification) {
+                // ドラクエ風アニメーションを直接実行
+                if (window.showLevelUpCelebration) {
+                    console.log('レベルアップ演出を表示:', oldLevel, '->', newLevel);
+                    window.showLevelUpCelebration(oldLevel, newLevel);
+                } else if (window.showLevelUpNotification) {
                     window.showLevelUpNotification(oldLevel, newLevel);
                 } else {
                     // フォールバック
                     showNotification(`Lv.${oldLevel} → Lv.${newLevel.level}｜${newLevel.name}`, 'success', 6);
-                    const cardId = getRandomCardForLevelUp();
-                    if (cardId) {
-                        const updatedData = addCardToInventory(cardId);
-                        if (updatedData) {
-                            saveData(updatedData);
-                        }
-                        showNotification('🎁 レベルアップボーナス！カードを1枚獲得！', 'success');
+                }
+                
+                // カード獲得処理
+                const cardId = getRandomCardForLevelUp();
+                if (cardId) {
+                    const updatedData = addCardToInventory(cardId);
+                    if (updatedData) {
+                        saveData(updatedData);
                     }
+                    showNotification('🎁 レベルアップボーナス！カードを1枚獲得！', 'success');
                 }
             }
         }
