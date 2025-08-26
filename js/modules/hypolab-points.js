@@ -170,10 +170,20 @@ function earnPoints(amount, source, description, multiplier = 1.0, category = nu
     saveData(data);
 
     if (newLevel.level > oldLevel) {
-        if (typeof showLevelUpNotification === 'function') {
-            showLevelUpNotification(oldLevel, newLevel);
-        } else if (typeof window.showLevelUpNotification === 'function') {
+        // レベルアップ演出は優先してドラクエ風アニメーションを直接呼び出す
+        if (typeof window !== 'undefined' && typeof window.showLevelUpCelebration === 'function') {
+            window.showLevelUpCelebration(oldLevel, newLevel);
+        } else if (typeof showLevelUpCelebration === 'function') {
+            // グローバル関数として存在する場合
+            showLevelUpCelebration(oldLevel, newLevel);
+        } else if (typeof window !== 'undefined' && typeof window.showLevelUpNotification === 'function') {
+            // フォールバック（従来の通知）
             window.showLevelUpNotification(oldLevel, newLevel);
+        } else if (typeof showLevelUpNotification === 'function') {
+            showLevelUpNotification(oldLevel, newLevel);
+        } else {
+            // どれも無い場合の最終フォールバック
+            try { showNotification(`Lv.${oldLevel} → Lv.${newLevel.level}｜${newLevel.name}`, 'success', 6); } catch(_) {}
         }
     }
     if (typeof showPointAnimation === 'function') {
