@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250826-09';
+                const SW_VERSION_TAG = '20250826-40';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -4576,6 +4576,7 @@
             showConfetti(1200, 28);
         }
         window.showLevelUpCelebration = showLevelUpCelebration;
+        window.showLevelProgress = showLevelProgress;
 
         function showBadgeShowcase(emoji, name){
             const box = document.createElement('div');
