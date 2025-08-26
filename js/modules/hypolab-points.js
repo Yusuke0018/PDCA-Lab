@@ -169,8 +169,12 @@ function earnPoints(amount, source, description, multiplier = 1.0, category = nu
     if (data.pointSystem.transactions.length > 100) { data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100); }
     saveData(data);
 
-    if (newLevel.level > oldLevel && typeof showLevelUpNotification === 'function') {
-        showLevelUpNotification(oldLevel, newLevel);
+    if (newLevel.level > oldLevel) {
+        if (typeof showLevelUpNotification === 'function') {
+            showLevelUpNotification(oldLevel, newLevel);
+        } else if (typeof window.showLevelUpNotification === 'function') {
+            window.showLevelUpNotification(oldLevel, newLevel);
+        }
     }
     if (typeof showPointAnimation === 'function') {
         showPointAnimation(finalAmount);
