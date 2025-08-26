@@ -142,6 +142,41 @@ function calculatePointsWithBoostsDetailed(basePoints, source, category = null, 
     return { finalPoints: Math.round(basePoints), multiplierTotal: 1.0, bonusTotal: 0, notes: [] };
 }
 
+// レベルアップ演出の安全呼び出し（依存関数未登録時でも最低限のUIを表示）
+function __safeShowLevelUp(oldLevel, newLevel) {
+  try {
+    if (typeof window !== 'undefined' && typeof window.showLevelUpCelebration === 'function') {
+      window.showLevelUpCelebration(oldLevel, newLevel);
+      return;
+    }
+  } catch(_){}
+  try {
+    if (typeof showLevelUpCelebration === 'function') { showLevelUpCelebration(oldLevel, newLevel); return; }
+  } catch(_){}
+  try {
+    if (typeof window !== 'undefined' && typeof window.showLevelUpNotification === 'function') {
+      window.showLevelUpNotification(oldLevel, newLevel);
+      return;
+    }
+  } catch(_){}
+  try {
+    if (typeof showLevelUpNotification === 'function') { showLevelUpNotification(oldLevel, newLevel); return; }
+  } catch(_){}
+  // 極小フォールバック（依存なし）
+  try {
+    const box = document.createElement('div');
+    box.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);'+
+      'background:rgba(30,60,114,.95);color:#fff;padding:22px 26px;border-radius:12px;'+
+      'border:2px solid #ffd700;box-shadow:0 0 30px rgba(255,215,0,.5);z-index:10000;font-weight:700;'+
+      'text-align:center;min-width:260px;';
+    box.innerHTML = `✨ LEVEL UP! ✨<br/>Lv.${oldLevel} ▶ Lv.${newLevel.level}<br/>${(newLevel && newLevel.name) ? newLevel.name : ''}`;
+    document.body.appendChild(box);
+    setTimeout(()=>{ box.remove(); }, 1800);
+  } catch(e) {
+    try { alert(`LEVEL UP! Lv.${oldLevel} → Lv.${newLevel.level}`); } catch(_){}
+  }
+}
+
 function earnPoints(amount, source, description, multiplier = 1.0, category = null, habitId = null, meta = {}) {
     const data = loadData();
     const finalAmount = Math.round((amount || 0) * (multiplier || 1.0));
@@ -170,21 +205,7 @@ function earnPoints(amount, source, description, multiplier = 1.0, category = nu
     saveData(data);
 
     if (newLevel.level > oldLevel) {
-        // レベルアップ演出は優先してドラクエ風アニメーションを直接呼び出す
-        if (typeof window !== 'undefined' && typeof window.showLevelUpCelebration === 'function') {
-            window.showLevelUpCelebration(oldLevel, newLevel);
-        } else if (typeof showLevelUpCelebration === 'function') {
-            // グローバル関数として存在する場合
-            showLevelUpCelebration(oldLevel, newLevel);
-        } else if (typeof window !== 'undefined' && typeof window.showLevelUpNotification === 'function') {
-            // フォールバック（従来の通知）
-            window.showLevelUpNotification(oldLevel, newLevel);
-        } else if (typeof showLevelUpNotification === 'function') {
-            showLevelUpNotification(oldLevel, newLevel);
-        } else {
-            // どれも無い場合の最終フォールバック
-            try { showNotification(`Lv.${oldLevel} → Lv.${newLevel.level}｜${newLevel.name}`, 'success', 6); } catch(_) {}
-        }
+        __safeShowLevelUp(oldLevel, newLevel);
     }
     if (typeof showPointAnimation === 'function') {
         showPointAnimation(finalAmount);
