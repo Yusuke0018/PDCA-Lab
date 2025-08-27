@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250826-40';
+                const SW_VERSION_TAG = '20250827-01';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -44,6 +44,67 @@
 
         // グローバルから呼び出せるように公開
         try { window.editCategoryMaster = editCategoryMaster; } catch(_) {}
+        
+        // 習慣の詳細を編集する関数
+        window.editHabitDetails = function() {
+            if (!window.currentHypothesis) return;
+            
+            // 現在の値をモーダルに設定
+            document.getElementById('edit-habit-title').value = window.currentHypothesis.title || '';
+            document.getElementById('edit-habit-description').value = window.currentHypothesis.description || '';
+            
+            // モーダルを表示
+            document.getElementById('habit-edit-modal').style.display = 'block';
+        };
+        
+        // 編集内容を保存
+        window.saveHabitEdits = function() {
+            if (!window.currentHypothesis) return;
+            
+            const newTitle = document.getElementById('edit-habit-title').value.trim();
+            const newDescription = document.getElementById('edit-habit-description').value.trim();
+            
+            if (!newTitle) {
+                alert('習慣の名前は必須です');
+                return;
+            }
+            
+            const data = loadData();
+            const habitIndex = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
+            
+            if (habitIndex === -1) return;
+            
+            // データを更新
+            data.currentHypotheses[habitIndex].title = newTitle;
+            data.currentHypotheses[habitIndex].description = newDescription;
+            
+            // 現在の習慣も更新
+            window.currentHypothesis.title = newTitle;
+            window.currentHypothesis.description = newDescription;
+            
+            // データを保存
+            saveData(data);
+            
+            // UIを更新
+            document.getElementById('progress-hypothesis-title').textContent = newTitle;
+            document.getElementById('progress-hypothesis-description').textContent = newDescription;
+            
+            // モーダルを閉じる
+            window.closeEditModal();
+            
+            // 通知を表示
+            try {
+                showNotification('習慣を更新しました', 'success');
+            } catch(_) {}
+            
+            // ホーム画面のリストも更新
+            updateCurrentHypothesisList();
+        };
+        
+        // 編集モーダルを閉じる
+        window.closeEditModal = function() {
+            document.getElementById('habit-edit-modal').style.display = 'none';
+        };
 
         // 手動更新（モバイルのキャッシュ固着対策・データは消さない）
         window.forceUpdateApp = async function(){
