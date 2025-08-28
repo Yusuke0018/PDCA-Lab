@@ -246,14 +246,16 @@
   function refreshStatusView(){
     try{
       const data = loadData();
-      const lv = (data && data.pointSystem && data.pointSystem.currentLevel) ? data.pointSystem.currentLevel : 1;
-      const points = (data && data.pointSystem && data.pointSystem.currentPoints) ? data.pointSystem.currentPoints : 0;
-      const levelTitle = (typeof getLevelTitle === 'function') ? getLevelTitle(lv) : '';
+      // lifetimeEarnedからレベルを正確に計算
+      const lifetimePoints = (data && data.pointSystem && data.pointSystem.lifetimeEarned) ? data.pointSystem.lifetimeEarned : 0;
+      const levelInfo = (typeof calculateLevel === 'function') ? calculateLevel(lifetimePoints) : { level: 1, name: '見習い冒険者' };
+      const lv = levelInfo.level;
+      const levelTitle = levelInfo.name;
       const s = getStatusForLevel(lv);
       const set = (id,val)=>{ const el = document.getElementById(id); if (el) el.textContent = String(val); };
       set('dq-level', lv);
       set('dq-level-title', levelTitle);
-      set('dq-points', points);
+      set('dq-points', lifetimePoints);
       set('dq-keizoku', s.keizoku);
       set('dq-shuchu', s.shuchu);
       set('dq-kaifuku', s.kaifuku);
