@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250829-04';
+                const SW_VERSION_TAG = '20250829-05';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -6923,7 +6923,7 @@
             }
         }
         
-        // 検証期間を選択
+        // 検証期間を選択（廃止）
         function selectDuration(duration) {
             selectedDuration = duration;
             document.querySelectorAll('.duration-option').forEach(opt => {
@@ -6934,7 +6934,7 @@
         
         
 
-        // 習慣を作成
+        // 習慣を作成（無期限）
         function createHypothesis(event) {
             event.preventDefault();
             
@@ -6944,10 +6944,6 @@
                 window.shortTermOnly = false; // 効果を消費
             }
 
-            // 任意日数の取得と検証（期日指定があればそちらを優先）
-            const daysInput = document.getElementById('hypothesis-days');
-            let daysVal = daysInput ? parseInt(daysInput.value, 10) : NaN;
-            
             const title = document.getElementById('hypothesis-title').value.trim();
             const description = document.getElementById('hypothesis-description').value.trim();
             const category = document.getElementById('hypothesis-category').value;
@@ -6971,30 +6967,14 @@
 
             // 開始日を取得（未選択の場合は今日）
             let startDate = window.selectedStartDate || new Date().toISOString().split('T')[0];
-            // 期日（終了日）があれば優先
-            const endDateEl = document.getElementById('habit-end-date');
-            if (endDateEl && endDateEl.value) {
-                const s = new Date(startDate + 'T00:00:00');
-                const e = new Date(endDateEl.value + 'T00:00:00');
-                const diffDays = Math.floor((e.getTime() - s.getTime()) / (1000*60*60*24)) + 1;
-                if (!Number.isFinite(diffDays) || diffDays < 1) {
-                    alert('期日は開始日以降の日付を指定してください');
-                    return;
-                }
-                daysVal = diffDays;
-            } else {
-                if (!Number.isFinite(daysVal) || daysVal < 1) {
-                    alert('1日以上の期間（日数）を入力してください');
-                    return;
-                }
-            }
             
             currentHypothesis = {
                 id: Date.now(),
                 title: title,
                 description: description,
                 category: category,  // カテゴリーを追加
-                duration: 'custom',
+                duration: 'unlimited',
+                isUnlimited: true,
                 startDate: startDate + 'T00:00:00.000Z',
                 achievements: {},
                 // ペナルティ効果を記録
@@ -7006,8 +6986,7 @@
                 frequency: frequencyData  // 頻度設定を追加
             };
 
-            // 総日数を直接設定（シャッフル廃止）
-            currentHypothesis.totalDays = daysVal;
+            // 無期限のため totalDays は設定しない
             
             // ペナルティ効果をリセット（一度使用したら消える）
             window.hardModeActive = false;
@@ -7810,7 +7789,8 @@
                 ? Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1)
                 : Math.min(Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1), window.currentHypothesis.totalDays);
             
-            for (let i = 0; i < window.currentHypothesis.totalDays; i++) {
+            const calendarDays = window.currentHypothesis.isUnlimited ? daysPassed : window.currentHypothesis.totalDays;
+            for (let i = 0; i < calendarDays; i++) {
                 const cellDate = new Date(startDate);
                 cellDate.setDate(startDate.getDate() + i);
                 const dateKey = dateKeyLocal(cellDate);
@@ -7849,8 +7829,9 @@
             }
             
             // 期間情報を更新（頻度情報は廃止）
-            document.getElementById('progress-days-info').textContent =
-                `検証期間: ${daysPassed}日目 / ${window.currentHypothesis.totalDays}日間`;
+            document.getElementById('progress-days-info').textContent = window.currentHypothesis.isUnlimited
+                ? `継続日数: ${daysPassed}日`
+                : `検証期間: ${daysPassed}日目 / ${window.currentHypothesis.totalDays}日間`;
         }
 
         // 長押し検出ユーティリティ
@@ -8671,9 +8652,9 @@
                 : Math.min(Math.max(1, Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1), window.currentHypothesis.totalDays);
             
             const achievedDays = Object.keys(window.currentHypothesis.achievements || {}).length;
-            const rate = window.currentHypothesis.totalDays > 0
-                ? Math.round((achievedDays / window.currentHypothesis.totalDays) * 100)
-                : 0;
+            const rate = window.currentHypothesis.isUnlimited
+                ? (daysPassed > 0 ? Math.round((achievedDays / daysPassed) * 100) : 0)
+                : (window.currentHypothesis.totalDays > 0 ? Math.round((achievedDays / window.currentHypothesis.totalDays) * 100) : 0);
             
             document.getElementById('achievement-rate').textContent = `${Math.min(100, rate)}%`;
             document.getElementById('progress-fill').style.width = `${Math.min(100, rate)}%`;
@@ -10854,7 +10835,7 @@
                                 ${escapeHTML(hypothesis.description)}
                             </div>
                             <div style="display: flex; gap: 12px; font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
-                                <span>📅 ${daysPassed}日目/${hypothesis.totalDays}日</span>
+                                <span>📅 継続${daysPassed}日</span>
                                 <span>📂 カテゴリ ${(initializeCategoryMaster()[hypothesis.category]||{}).name || hypothesis.category || 'その他'}</span>
                             </div>
                             <button class="btn btn-primary" style="width: 100%; padding: 10px; font-size: 14px;" onclick="event.stopPropagation(); window.openHabitEditModal(${hypothesis.id});">
@@ -10994,7 +10975,7 @@
                     ` : ''}
                     <div class="hypothesis-meta">
                         <div class="hypothesis-days">
-                            📅 ${daysPassed}日目 / ${hypothesis.totalDays}日間
+                            📅 継続${daysPassed}日
                         </div>
                     </div>
                     ${badges.length ? `<div class="hypothesis-intensity" style="margin-top:8px; color: var(--text-secondary); font-size:12px; display:flex; align-items:center; gap:6px;">
