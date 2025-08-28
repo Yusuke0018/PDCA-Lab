@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250829-05';
+                const SW_VERSION_TAG = '20250829-06';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -10829,6 +10829,7 @@
                         today.setHours(0, 0, 0, 0);
                         startDate.setHours(0, 0, 0, 0);
                         const daysPassed = Math.max(1, Math.floor((today - startDate) / (1000 * 60 * 60 * 24)) + 1);
+                        const achievedDays = Object.keys(hypothesis.achievements || {}).length;
                         
                         detailContent.innerHTML = `
                             <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 10px; line-height: 1.5;">
@@ -10836,6 +10837,7 @@
                             </div>
                             <div style="display: flex; gap: 12px; font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
                                 <span>📅 継続${daysPassed}日</span>
+                                <span>✅ 達成${achievedDays}日</span>
                                 <span>📂 カテゴリ ${(initializeCategoryMaster()[hypothesis.category]||{}).name || hypothesis.category || 'その他'}</span>
                             </div>
                             <button class="btn btn-primary" style="width: 100%; padding: 10px; font-size: 14px;" onclick="event.stopPropagation(); window.openHabitEditModal(${hypothesis.id});">
@@ -10957,6 +10959,7 @@
                     frequencyBadge = `<span style="display: inline-block; padding: 2px 8px; background: rgba(139, 92, 246, 0.15); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 999px; font-size: 11px; font-weight: 600; margin-left: 8px;">${days}</span>`;
                 }
                 
+                const achievedDaysCount = Object.keys(hypothesis.achievements || {}).length;
                 item.innerHTML = `
                     <h3 class="hypothesis-title">${escapeHTML(hypothesis.title)}${frequencyBadge}</h3>
                     <p class="hypothesis-description">${escapeHTML(hypothesis.description)}</p>
@@ -10974,9 +10977,8 @@
                         </div>
                     ` : ''}
                     <div class="hypothesis-meta">
-                        <div class="hypothesis-days">
-                            📅 継続${daysPassed}日
-                        </div>
+                        <div class="hypothesis-days">📅 継続${daysPassed}日</div>
+                        <div class="hypothesis-progress">✅ 達成${achievedDaysCount}日</div>
                     </div>
                     ${badges.length ? `<div class="hypothesis-intensity" style="margin-top:8px; color: var(--text-secondary); font-size:12px; display:flex; align-items:center; gap:6px;">
                         <span>💪 直近:</span> ${badges.join(' ')}
