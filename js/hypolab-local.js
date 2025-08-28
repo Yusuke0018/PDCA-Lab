@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250829-03';
+                const SW_VERSION_TAG = '20250829-04';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -53,6 +53,13 @@
             document.getElementById('edit-habit-title').value = window.currentHypothesis.title || '';
             document.getElementById('edit-habit-description').value = window.currentHypothesis.description || '';
             
+            // カテゴリ選択を更新
+            try {
+                updateCategoryDropdowns();
+                const catEl = document.getElementById('edit-habit-category');
+                if (catEl) catEl.value = window.currentHypothesis.category || 'other';
+            } catch(_) {}
+            
             // モーダルを表示
             document.getElementById('habit-edit-modal').style.display = 'block';
         };
@@ -63,6 +70,8 @@
             
             const newTitle = document.getElementById('edit-habit-title').value.trim();
             const newDescription = document.getElementById('edit-habit-description').value.trim();
+            const catEl = document.getElementById('edit-habit-category');
+            const newCategory = catEl ? catEl.value : (window.currentHypothesis.category || 'other');
             
             if (!newTitle) {
                 alert('習慣の名前は必須です');
@@ -77,10 +86,12 @@
             // データを更新
             data.currentHypotheses[habitIndex].title = newTitle;
             data.currentHypotheses[habitIndex].description = newDescription;
+            data.currentHypotheses[habitIndex].category = newCategory;
             
             // 現在の習慣も更新
             window.currentHypothesis.title = newTitle;
             window.currentHypothesis.description = newDescription;
+            window.currentHypothesis.category = newCategory;
             
             // データを保存
             saveData(data);
@@ -104,6 +115,15 @@
         // 編集モーダルを閉じる
         window.closeEditModal = function() {
             document.getElementById('habit-edit-modal').style.display = 'none';
+        };
+
+        // ホーム詳細の「編集」ボタン用ヘルパー
+        window.openHabitEditModal = function(hypothesisId) {
+            const data = loadData();
+            const hypothesis = data.currentHypotheses.find(h => h.id === hypothesisId);
+            if (!hypothesis) return;
+            window.currentHypothesis = hypothesis;
+            window.editHabitDetails();
         };
 
         // 手動更新（モバイルのキャッシュ固着対策・データは消さない）
@@ -9096,24 +9116,25 @@
                 }
                 
                 // 新規立案画面のカテゴリ選択
-                const categorySelect = document.getElementById('hypothesis-category');
-                if (categorySelect) {
-                    const currentValue = categorySelect.value || localStorage.getItem('selectedCategory') || 'other';
-                    categorySelect.innerHTML = '';
+                const populate = (selectEl) => {
+                    if (!selectEl) return;
+                    const currentValue = selectEl.value || localStorage.getItem('selectedCategory') || 'other';
+                    selectEl.innerHTML = '';
                     Object.entries(categoryMaster).forEach(([key, cat]) => {
                         const option = document.createElement('option');
                         option.value = key;
                         option.textContent = `${cat.icon} ${cat.name}`;
-                        categorySelect.appendChild(option);
+                        selectEl.appendChild(option);
                     });
-                    // ホーム画面で選択されたカテゴリを設定
                     const selectedCategory = localStorage.getItem('selectedCategory');
                     if (selectedCategory && selectedCategory !== 'all') {
-                        categorySelect.value = selectedCategory;
+                        selectEl.value = selectedCategory;
                     } else {
-                        categorySelect.value = currentValue;
+                        selectEl.value = currentValue;
                     }
-                }
+                };
+                populate(document.getElementById('hypothesis-category'));
+                populate(document.getElementById('edit-habit-category'));
             } catch (e) {
                 console.error('カテゴリドロップダウンの更新に失敗:', e);
             }
@@ -10828,23 +10849,16 @@
                         startDate.setHours(0, 0, 0, 0);
                         const daysPassed = Math.max(1, Math.floor((today - startDate) / (1000 * 60 * 60 * 24)) + 1);
                         
-                        // 達成率計算
-                        let achievedDays = 0;
-                        if (hypothesis.achievements) {
-                            achievedDays = Object.keys(hypothesis.achievements).length;
-                        }
-                        const achievementRate = Math.floor((achievedDays / hypothesis.totalDays) * 100);
-                        
                         detailContent.innerHTML = `
                             <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 10px; line-height: 1.5;">
                                 ${escapeHTML(hypothesis.description)}
                             </div>
                             <div style="display: flex; gap: 12px; font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
                                 <span>📅 ${daysPassed}日目/${hypothesis.totalDays}日</span>
-                                <span>✨ 達成率 ${achievementRate}%</span>
+                                <span>📂 カテゴリ ${(initializeCategoryMaster()[hypothesis.category]||{}).name || hypothesis.category || 'その他'}</span>
                             </div>
-                            <button class="btn btn-primary" style="width: 100%; padding: 10px; font-size: 14px;" onclick="event.stopPropagation(); window.showProgressView(${hypothesis.id});">
-                                📊 詳細を見る
+                            <button class="btn btn-primary" style="width: 100%; padding: 10px; font-size: 14px;" onclick="event.stopPropagation(); window.openHabitEditModal(${hypothesis.id});">
+                                ✏️ 編集
                             </button>
                         `;
                         
