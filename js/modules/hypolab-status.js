@@ -1,4 +1,4 @@
-// ステータス管理（ドラクエ風）。効果は演出のみ。
+// ステータス管理（ドラクエ風）
 (function(){
   const KEY = 'statusTable.v1';
 
@@ -111,37 +111,6 @@
     };
   }
 
-  // CSV 読み込み（列: level,継続力,集中力,回復力,設計力,基礎体力, ...）
-  function parseStatusCSV(text){
-    const lines = text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
-    if (!lines.length) throw new Error('empty csv');
-    const header = lines[0].split(',');
-    const idx = {
-      level: header.findIndex(h=>/level/i.test(h)),
-      keizoku: header.findIndex(h=>/(継続|keizoku)/i.test(h)),
-      shuchu:  header.findIndex(h=>/(集中|shuchu)/i.test(h)),
-      kaifuku: header.findIndex(h=>/(回復|kaifuku)/i.test(h)),
-      sekkei:  header.findIndex(h=>/(設計|sekkei)/i.test(h)),
-      kiso:    header.findIndex(h=>/(基礎|kiso)/i.test(h)),
-    };
-    const req = ['level','keizoku','shuchu','kaifuku','sekkei','kiso'];
-    if (!req.every(k=>idx[k] >= 0)) throw new Error('missing columns');
-    const out = [];
-    for (let i=1;i<lines.length;i++){
-      const cols = lines[i].split(',');
-      const lv = parseInt(cols[idx.level]||'0',10);
-      if (!lv) continue;
-      out[lv-1] = {
-        keizoku: parseInt(cols[idx.keizoku]||'0',10),
-        shuchu:  parseInt(cols[idx.shuchu]||'0',10),
-        kaifuku: parseInt(cols[idx.kaifuku]||'0',10),
-        sekkei:  parseInt(cols[idx.sekkei]||'0',10),
-        kiso:    parseInt(cols[idx.kiso]||'0',10),
-      };
-    }
-    if (out.length !== 100 || out.some(v=>!v)) throw new Error('need 100 levels');
-    return out;
-  }
 
   // UI 更新
   function refreshStatusView(){
@@ -172,46 +141,12 @@
     }catch(_){ }
   }
 
-  // CSV ハンドラ
-  function handleStatusCSV(ev){
-    const file = ev && ev.target && ev.target.files && ev.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ()=>{
-      try{
-        const tbl = parseStatusCSV(String(reader.result||''));
-        saveStatusTable(tbl);
-        showNotification('ステータスCSVを読み込みました', 'success');
-        refreshStatusView();
-      }catch(e){
-        console.error(e);
-        showNotification('CSVの読み込みに失敗しました', 'error');
-      }
-    };
-    reader.readAsText(file, 'utf-8');
-  }
 
-  function exportCurrentStatusCSV(){
-    const tbl = getTable();
-    const lines = ['level,継続力,集中力,回復力,設計力,基礎体力'];
-    for(let i=0;i<tbl.length;i++){
-      const lv=i+1, s=tbl[i];
-      lines.push([lv,s.keizoku,s.shuchu,s.kaifuku,s.sekkei,s.kiso].join(','));
-    }
-    const blob = new Blob([lines.join('\n')], {type:'text/csv'});
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'status_table.csv';
-    a.click();
-    setTimeout(()=>URL.revokeObjectURL(a.href),1000);
-  }
 
   // 公開
   window.getStatusForLevel = getStatusForLevel;
   window.getStatusDelta = getStatusDelta;
   window.showStatusView = showStatusView;
   window.refreshStatusView = refreshStatusView;
-  window.handleStatusCSV = handleStatusCSV;
-  window.exportCurrentStatusCSV = exportCurrentStatusCSV;
 })();
 
