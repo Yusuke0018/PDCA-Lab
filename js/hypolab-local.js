@@ -6624,7 +6624,6 @@
             updatePenaltyIndicators();
             updateChallenges();
             updateJournalStatus();  // ジャーナルステータスを更新
-            try { updateNightChecklistUI(); } catch(_) {}
             
             // イベント表示を更新（スマホ対応）
             try {
@@ -15597,7 +15596,6 @@
                     const currentActivityKey = getActivityDateKey();
                     if (currentActivityKey !== lastActivityKey) {
                         lastActivityKey = currentActivityKey;
-                        try { if (typeof updateNightChecklistUI === 'function') updateNightChecklistUI(); } catch (_) {}
                         try { if (typeof updateJournalStatus === 'function') updateJournalStatus(); } catch (_) {}
                     }
                 } catch (_) { /* noop */ }
@@ -15867,89 +15865,6 @@
             `;
         }
 
-        // ========== 夜のチェックリスト ==========
-        function ensureNightChecklist(data){
-            if (!data.nightChecklist) data.nightChecklist = [];
-            return data;
-        }
-
-        function openAddNightChecklistItem(){
-            const title = prompt('夜のチェック項目を追加');
-            if (!title) return;
-            const data = ensureNightChecklist(loadData());
-            data.nightChecklist.push({ id: 'nc_' + Date.now(), title: title.trim(), doneKey: null });
-            saveData(data);
-            updateNightChecklistUI();
-        }
-        window.openAddNightChecklistItem = openAddNightChecklistItem;
-
-        function toggleNightChecklist(id){
-            // 二択：未入力⇄達成。達成→未入力で-1pt（生涯ポイントも調整）
-            const data = ensureNightChecklist(loadData());
-            const item = data.nightChecklist.find(i => i.id === id);
-            if (!item) return;
-            const currentKey = getActivityDateKey();
-            const isDone = item.doneKey === currentKey;
-
-            if (isDone) {
-                // 達成 → 未入力（取り消し -1pt）
-                item.doneKey = null;
-                if (typeof item.done !== 'undefined') delete item.done;
-                saveData(data);
-                try { earnPoints(-1, 'checklist', '🌙 夜のチェックリスト 取り消し'); } catch(_) {}
-            } else {
-                // 未達成/未入力 → 達成（+1pt）
-                item.doneKey = currentKey;
-                if (typeof item.done !== 'undefined') delete item.done;
-                saveData(data);
-                try { earnPoints(1, 'checklist', '🌙 夜のチェックリスト'); } catch(_) {}
-            }
-            updateNightChecklistUI();
-        }
-        window.toggleNightChecklist = toggleNightChecklist;
-
-        function deleteNightChecklistItem(id){
-            if (!confirm('この項目を削除しますか？')) return;
-            const data = ensureNightChecklist(loadData());
-            data.nightChecklist = data.nightChecklist.filter(i => i.id !== id);
-            saveData(data);
-            updateNightChecklistUI();
-        }
-        window.deleteNightChecklistItem = deleteNightChecklistItem;
-
-        function updateNightChecklistUI(){
-            const list = document.getElementById('night-checklist-list');
-            if (!list) return;
-            const data = ensureNightChecklist(loadData());
-            const currentKey = getActivityDateKey();
-            if (!Array.isArray(data.nightChecklist) || data.nightChecklist.length === 0){
-                list.innerHTML = '<div style="color: var(--text-secondary); font-size: 14px;">項目がありません。右上の「追加」から作成してください。</div>';
-                return;
-            }
-            list.innerHTML = data.nightChecklist.map(item => {
-                const done = item.doneKey === currentKey;
-                const bg = done ? 'rgba(16,185,129,0.08)' : 'var(--surface)';
-                const btnBg = done ? '#10b981' : 'var(--surface-light)';
-                const btnColor = done ? '#fff' : 'var(--text-primary)';
-                const symbol = done ? '✔' : '□';
-                const labelStyle = done ? 'text-decoration: line-through; color: var(--text-secondary);' : '';
-                return `
-                <div style="display:flex; align-items:center; justify-content:flex-start; gap:10px; border:1px solid var(--border); border-radius:8px; padding:8px; background:${bg};">
-                    <button onclick="toggleNightChecklist('${item.id}')" title="切り替え" style="min-width:32px; height:32px; border-radius:8px; border:1px solid var(--border); background:${btnBg}; color:${btnColor}; font-weight:700;">${symbol}</button>
-                    <div class="night-label" data-night-id="${item.id}" style="${labelStyle}">${escapeHTML(item.title)}</div>
-                </div>
-            `;
-            }).join('');
-            // スマホ: ラベル長押しで削除（PCは右クリック）
-            try {
-                document.querySelectorAll('.night-label').forEach(el => {
-                    const id = el.getAttribute('data-night-id');
-                    attachLongPress(el, () => deleteNightChecklistItem(id), 600);
-                    el.addEventListener('contextmenu', (e) => { e.preventDefault(); deleteNightChecklistItem(id); });
-                });
-            } catch(_) {}
-        }
-        window.updateNightChecklistUI = updateNightChecklistUI;
 
         // ===== カード機能の完全無効化（安全なスタブ） =====
         try {
