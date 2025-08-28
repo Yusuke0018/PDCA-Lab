@@ -14,7 +14,7 @@
     <link rel="icon" href="icons/icon.svg" sizes="any" type="image/svg+xml">
     <link rel="apple-touch-icon" href="icons/icon.svg">
     
-    <link rel="stylesheet" href="css/hypolab-local.css?v=20250826-40">
+    <link rel="stylesheet" href="css/hypolab-local.css?v=20250828-01">
 </head>
 <body>
     <!-- ヘッダー -->
@@ -63,7 +63,14 @@
         <div id="cards-view" style="display: none;"></div>
     </header>
 
-    <!-- ナビゲーションバーは削除 -->
+    <!-- ナビゲーションバー（ホーム・ステータス） -->
+    <nav class="nav">
+        <div class="nav-content">
+            <button class="nav-btn active" data-view="home" onclick="showHomeView()">🏠 ホーム</button>
+            <button class="nav-btn" data-view="status" onclick="showStatusView()">🧙 ステータス</button>
+            <div id="nav-indicator" class="nav-indicator"></div>
+        </div>
+    </nav>
 
     <!-- FAB: 新規習慣立案 -->
     <div class="fab-container" id="fab">
@@ -191,6 +198,30 @@
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        <!-- ステータス画面（ドラクエ風） -->
+        <div id="status-view" style="display:none;">
+            <div class="dq-card">
+                <div class="dq-title">なまえ: ゆうすけ</div>
+                <div class="dq-row">レベル: <span id="dq-level">1</span></div>
+                <div class="dq-row">けいぞくりょく: <span id="dq-keizoku">20</span></div>
+                <div class="dq-row">しゅうちゅうりょく: <span id="dq-shuchu">15</span></div>
+                <div class="dq-row">かいふくりょく: <span id="dq-kaifuku">12</span></div>
+                <div class="dq-row">せっけいりょく: <span id="dq-sekkei">12</span></div>
+                <div class="dq-row">きそたいりょく: <span id="dq-kiso">12</span></div>
+                <div class="dq-footer">
+                    ステータスは演出のみ（効果なし）
+                </div>
+            </div>
+            <div class="card" style="margin-top:16px;">
+                <h3 style="margin-bottom:8px;">📥 ステータス表の読み込み</h3>
+                <p style="color:var(--text-secondary); margin-bottom:8px;">CSV を読み込むとレベルごとの値と増分を正確に表示します</p>
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <input id="status-csv-input" type="file" accept="text/csv,.csv" onchange="handleStatusCSV(event)" />
+                    <button class="btn btn-secondary" onclick="exportCurrentStatusCSV()">📤 現在表をエクスポート</button>
+                </div>
             </div>
         </div>
 
@@ -783,19 +814,19 @@
             <div style="max-width: 1200px; margin: 0 auto; text-align: center; color: var(--text-secondary); font-size: 14px;">
             <p>© 2025 HypoLab - 習慣検証プラットフォーム</p>
             <p style="margin-top: 8px; opacity: 0.7;">すべてのデータはブラウザ内に保存されます</p>
-            <div style="margin-top: 4px; opacity: 0.6;">App Version: 2025-08-26 40</div>
+            <div style="margin-top: 4px; opacity: 0.6;">App Version: 2025-08-28 01</div>
             <div style="margin-top: 8px;">
                 <button onclick="forceUpdateApp()" style="font-size:12px; padding:6px 10px; border-radius:8px; border:1px solid var(--border); background: var(--surface-light); color: var(--text-secondary);">更新が反映されないときはここをタップ</button>
             </div>
         </div>
     </footer>
 
-    <script src="js/modules/hypolab-utils.js?v=20250826-40"></script>
-    <script src="js/modules/hypolab-storage.js?v=20250826-40"></script>
-    <script src="js/modules/hypolab-points.js?v=20250826-40"></script>
-    <script src="js/modules/hypolab-domain.js?v=20250826-40"></script>
-    <script src="js/modules/hypolab-router.js?v=20250826-40"></script>
-    <!-- 習慣編集モーダル -->
+    <script src="js/modules/hypolab-utils.js?v=20250828-01"></script>
+    <script src="js/modules/hypolab-storage.js?v=20250828-01"></script>
+    <script src="js/modules/hypolab-points.js?v=20250828-01"></script>
+    <script src="js/modules/hypolab-domain.js?v=20250828-01"></script>
+    <script src="js/modules/hypolab-router.js?v=20250828-01"></script>
+    <!-- 習慣編集モーダル（HEAD由来を維持） -->
     <div id="habit-edit-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); z-index: 10000; padding: 20px;">
         <div style="background: var(--surface); border-radius: 16px; max-width: 500px; margin: 50px auto; padding: 24px; max-height: 80vh; overflow-y: auto;">
             <h3 style="margin-bottom: 20px;">習慣を編集</h3>
@@ -814,6 +845,7 @@
         </div>
     </div>
 
-    <script src="js/hypolab-local.js?v=20250827-01"></script>
+    <script src="js/modules/hypolab-status.js?v=20250828-01"></script>
+    <script src="js/hypolab-local.js?v=20250828-01"></script>
 </body>
 </html>

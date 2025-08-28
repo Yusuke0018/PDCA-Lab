@@ -1688,3 +1688,20 @@
     .edge-nub.left { left: 0; border-radius: 0 12px 12px 0; }
     .edge-nub.right { right: 0; border-radius: 12px 0 0 12px; }
     
+    /* ドラクエ風ステータス */
+    .dq-card {
+        background: #0b0f1a;
+        border: 2px solid #ffffff;
+        color: #e8e8e8;
+        border-radius: 12px;
+        padding: 16px 18px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        box-shadow: inset 0 0 0 2px #1f2937;
+    }
+    .dq-title { font-size: 18px; margin-bottom: 10px; letter-spacing: 0.5px; }
+    .dq-row {
+        font-size: 16px; padding: 6px 0; display: flex; justify-content: space-between;
+        border-bottom: 1px dashed rgba(255,255,255,0.08);
+    }
+    .dq-row:last-child { border-bottom: none; }
+    .dq-footer { margin-top: 12px; color: #94a3b8; font-size: 12px; text-align: right; }

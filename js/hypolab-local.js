@@ -4542,6 +4542,25 @@
                 min-width: 300px;
             `;
             
+            // ステータス増分（存在すれば計算）
+            let deltaHtml = '';
+            try {
+                if (typeof getStatusDelta === 'function') {
+                    const d = getStatusDelta(oldLevel, newLevel.level);
+                    if (d && (d.keizoku||d.shuchu||d.kaifuku||d.sekkei||d.kiso)) {
+                        deltaHtml = `
+                        <div style="margin-top:12px; font-size:16px; text-align:left; border-top:1px solid rgba(255,255,255,0.2); padding-top:10px;">
+                            <div style="margin-bottom:6px; color:#ffd700;">ステータスが上がった！</div>
+                            <div>けいぞくりょく +${d.keizoku||0}</div>
+                            <div>しゅうちゅうりょく +${d.shuchu||0}</div>
+                            <div>かいふくりょく +${d.kaifuku||0}</div>
+                            <div>せっけいりょく +${d.sekkei||0}</div>
+                            <div>きそたいりょく +${d.kiso||0}</div>
+                        </div>`;
+                    }
+                }
+            } catch(_) {}
+
             // レベルアップメッセージ
             messageBox.innerHTML = `
                 <div style="font-size: 32px; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); animation: levelUpPulse 1s ease-in-out infinite;">
@@ -4553,6 +4572,7 @@
                 <div style="font-size: 18px; margin-top: 10px; color: #fff9c4;">
                     ${newLevel.name}
                 </div>
+                ${deltaHtml}
                 <div style="margin-top: 20px; font-size: 14px; opacity: 0.9;">
                     タップして閉じる
                 </div>
@@ -6499,6 +6519,7 @@
             const _sv = document.getElementById('shuffle-view'); if (_sv) _sv.style.display = 'none';
             document.getElementById('progress-view').style.display = 'none';
             { const el = document.getElementById('history-view'); if (el) el.style.display = 'none'; }
+            { const el = document.getElementById('status-view'); if (el) el.style.display = 'none'; }
             document.getElementById('stats-view').style.display = 'none';
             document.getElementById('points-view').style.display = 'none';
             document.getElementById('cards-view').style.display = 'none';
