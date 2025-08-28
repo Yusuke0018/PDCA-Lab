@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250827-01';
+                const SW_VERSION_TAG = '20250828-02';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -3693,11 +3693,30 @@
                 data.pointSystem.transactions = data.pointSystem.transactions.slice(0, 100);
             }
             
+            // カテゴリーポイントを加算（categoryパラメータがある場合）
+            let categoryLevelUps = [];
+            if (category && window.StatusManager && window.StatusManager.addCategoryPoints) {
+                // カテゴリーにポイントを追加（素点×倍率を使用）
+                categoryLevelUps = window.StatusManager.addCategoryPoints(category, finalAmount);
+            }
+            
             saveData(data);
             // 効果（例：スパークル残回数）の表示を即時更新
             try { if (typeof updateActiveEffectsDisplay === 'function') { updateActiveEffectsDisplay(); } } catch(_) {}
             
-            // レベルアップ通知
+            // カテゴリーレベルアップ通知（全体レベルアップより先に表示）
+            if (categoryLevelUps && categoryLevelUps.length > 0) {
+                // カテゴリーレベルアップ演出をキュー式に表示
+                setTimeout(() => {
+                    if (typeof showCategoryLevelUpQueue === 'function') {
+                        showCategoryLevelUpQueue(categoryLevelUps);
+                    } else if (typeof window.showCategoryLevelUpQueue === 'function') {
+                        window.showCategoryLevelUpQueue(categoryLevelUps);
+                    }
+                }, newLevel.level > oldLevel ? 3500 : 500); // 全体レベルアップがある場合は少し遅らせる
+            }
+            
+            // 全体レベルアップ通知
             if (newLevel.level > oldLevel) {
                 // ドラクエ風アニメーションを最優先で直接呼び出し（関数宣言はホイストされるため利用可）
                 if (typeof showLevelUpCelebration === 'function') {
@@ -4508,8 +4527,8 @@
             setTimeout(() => modal.remove(), 1800);
         }
 
-        function showLevelUpCelebration(oldLevel, newLevel) {
-            // ドラクエ風レベルアップ演出
+        function showLevelUpCelebration(oldLevel, newLevel, categoryInfo = null) {
+            // ドラクエ風レベルアップ演出（全体／カテゴリー共通）
             const overlay = document.createElement('div');
             overlay.style.cssText = `
                 position: fixed;
@@ -4561,22 +4580,52 @@
                 }
             } catch(_) {}
 
-            // レベルアップメッセージ
-            messageBox.innerHTML = `
-                <div style="font-size: 32px; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); animation: levelUpPulse 1s ease-in-out infinite;">
-                    ✨ LEVEL UP! ✨
-                </div>
-                <div style="font-size: 24px; margin: 15px 0; color: #ffd700; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">
-                    Lv.${oldLevel} ▶ Lv.${newLevel.level}
-                </div>
-                <div style="font-size: 18px; margin-top: 10px; color: #fff9c4;">
-                    ${newLevel.name}
-                </div>
-                ${deltaHtml}
-                <div style="margin-top: 20px; font-size: 14px; opacity: 0.9;">
-                    タップして閉じる
-                </div>
-            `;
+            // レベルアップメッセージ（カテゴリー対応）
+            if (categoryInfo) {
+                // カテゴリーレベルアップ
+                const statNames = {
+                    keizoku: 'けいぞくりょく',
+                    shuchu: 'しゅうちゅうりょく',
+                    kaifuku: 'かいふくりょく',
+                    sekkei: 'せっけいりょく',
+                    kiso: 'きそたいりょく'
+                };
+                messageBox.innerHTML = `
+                    <div style="font-size: 28px; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); animation: levelUpPulse 1s ease-in-out infinite;">
+                        ✨ ${categoryInfo.categoryName} LEVEL UP! ✨
+                    </div>
+                    <div style="font-size: 20px; margin: 15px 0; color: #ffd700; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">
+                        Lv.${categoryInfo.oldLevel || (categoryInfo.level-1)} ▶ Lv.${categoryInfo.level}
+                    </div>
+                    <div style="font-size: 18px; margin-top: 10px; color: #fff9c4;">
+                        ${categoryInfo.title}
+                    </div>
+                    <div style="margin-top:12px; font-size:16px; text-align:left; border-top:1px solid rgba(255,255,255,0.2); padding-top:10px;">
+                        <div style="margin-bottom:6px; color:#ffd700;">ステータスが上がった！</div>
+                        <div>${statNames[categoryInfo.stat]} +${categoryInfo.increment}</div>
+                    </div>
+                    <div style="margin-top: 20px; font-size: 14px; opacity: 0.9;">
+                        タップして閉じる
+                    </div>
+                `;
+            } else {
+                // 全体レベルアップ
+                messageBox.innerHTML = `
+                    <div style="font-size: 32px; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); animation: levelUpPulse 1s ease-in-out infinite;">
+                        ✨ LEVEL UP! ✨
+                    </div>
+                    <div style="font-size: 24px; margin: 15px 0; color: #ffd700; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">
+                        Lv.${oldLevel} ▶ Lv.${newLevel.level}
+                    </div>
+                    <div style="font-size: 18px; margin-top: 10px; color: #fff9c4;">
+                        ${newLevel.name}
+                    </div>
+                    ${deltaHtml}
+                    <div style="margin-top: 20px; font-size: 14px; opacity: 0.9;">
+                        タップして閉じる
+                    </div>
+                `;
+            }
             
             // キラキラエフェクト
             const particles = [];
@@ -4720,6 +4769,20 @@
                 }, 1500);
             }
         }
+        
+        // カテゴリーレベルアップ演出関数を追加
+        function showCategoryLevelUpQueue(levelUps, index = 0) {
+            if (!levelUps || index >= levelUps.length) return;
+            
+            const lvUp = levelUps[index];
+            showLevelUpCelebration(null, null, lvUp);
+            
+            // 3秒後に次の演出
+            setTimeout(() => {
+                showCategoryLevelUpQueue(levelUps, index + 1);
+            }, 3000);
+        }
+        window.showCategoryLevelUpQueue = showCategoryLevelUpQueue;
         
         // レベルアップ時のランダムカード取得
         function getRandomCardForLevelUp() {
@@ -8250,6 +8313,21 @@
                 const lvl = calculateLevel(data.pointSystem.lifetimeEarned);
                 data.pointSystem.currentLevel = lvl.level;
                 
+                // カテゴリーポイントも加算
+                if (hyp.category && window.StatusManager && window.StatusManager.addCategoryPoints) {
+                    const categoryLevelUps = window.StatusManager.addCategoryPoints(hyp.category, 1);
+                    // カテゴリーレベルアップ演出
+                    if (categoryLevelUps && categoryLevelUps.length > 0) {
+                        setTimeout(() => {
+                            if (typeof showCategoryLevelUpQueue === 'function') {
+                                showCategoryLevelUpQueue(categoryLevelUps);
+                            } else if (typeof window.showCategoryLevelUpQueue === 'function') {
+                                window.showCategoryLevelUpQueue(categoryLevelUps);
+                            }
+                        }, 500);
+                    }
+                }
+                
                 data.pointSystem.transactions.unshift({
                     timestamp: new Date().toISOString(),
                     type: 'earn',
@@ -8809,19 +8887,24 @@
         }
 
         // 強度ラベル/倍率の編集（シンプルなプロンプトUI）
-        // カテゴリマスターを編集する関数
+        // カテゴリマスターを編集する関数（固定カテゴリー・レベル表示版）
         function editCategoryMaster() {
             const data = loadData();
-            if (!data.categoryMaster) {
-                data.categoryMaster = {
-                    study: { name: '勉強', icon: '📚', color: '#3b82f6' },
-                    exercise: { name: '運動', icon: '💪', color: '#ef4444' },
-                    health: { name: '健康', icon: '🧘', color: '#10b981' },
-                    work: { name: '仕事', icon: '💼', color: '#f59e0b' },
-                    hobby: { name: '趣味', icon: '🎨', color: '#8b5cf6' },
-                    other: { name: 'その他', icon: '📝', color: '#6b7280' }
-                };
-            }
+            // 固定カテゴリーを設定
+            data.categoryMaster = {
+                morning: { name: '朝活', icon: '🌅', color: '#fbbf24' },
+                english: { name: '英語', icon: '🌍', color: '#60a5fa' },
+                life: { name: '人生', icon: '🎯', color: '#a78bfa' },
+                family: { name: '妻と家庭', icon: '❤️', color: '#f87171' },
+                health: { name: '健康資産', icon: '💪', color: '#34d399' },
+                knowledge: { name: '博識', icon: '📚', color: '#fde047' },
+                exercise: { name: '運動', icon: '🏃', color: '#fb923c' },
+                other: { name: 'その他', icon: '📝', color: '#6b7280' }
+            };
+            saveData(data);
+            
+            // カテゴリーレベルを取得
+            const categoryLevels = window.StatusManager ? window.StatusManager.loadCategoryLevels() : {};
             
             const overlay = document.createElement('div');
             overlay.className = 'overlay active';
@@ -8836,99 +8919,76 @@
             
             modal.innerHTML = `
                 <div class="modal-header">
-                    <h3>⚙️ カテゴリの編集</h3>
-                    <p>カテゴリ名、アイコン、色をカスタマイズできます</p>
+                    <h3>📊 カテゴリーレベル状況</h3>
+                    <p>各カテゴリーのレベルと称号</p>
                 </div>
                 
                 <div style="margin: 20px 0;">
-                    ${Object.entries(data.categoryMaster).map(([key, cat]) => `
-                        <div style="margin-bottom: 16px; padding: 12px; background: rgba(30, 41, 59, 0.5); border-radius: 8px; border: 1px solid var(--border);">
-                            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px;">
-                                <div style="display:flex; align-items:center; gap:12px;">
-                                    <span style="font-size: 24px;" id="icon-preview-${key}">${cat.icon}</span>
-                                    <span style="font-weight: 600; font-size: 16px;" id="name-preview-${key}">${cat.name}</span>
-                                    <div style="width: 24px; height: 24px; border-radius: 50%; background: ${cat.color};" id="color-preview-${key}"></div>
+                    ${Object.entries(data.categoryMaster).filter(([key]) => key !== 'other').map(([key, cat]) => {
+                        const catLevel = categoryLevels[key] || { level: 1, points: 0 };
+                        const catTitle = window.StatusManager ? window.StatusManager.getCategoryTitle(key, catLevel.level) : '';
+                        const nextThreshold = window.StatusManager && window.StatusManager.LEVEL_THRESHOLDS ? 
+                            window.StatusManager.LEVEL_THRESHOLDS[catLevel.level] || 10 : 10;
+                        return `
+                            <div style="margin-bottom: 16px; padding: 12px; background: rgba(30, 41, 59, 0.5); border-radius: 8px; border: 1px solid ${cat.color}33;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <span style="font-size: 24px;">${cat.icon}</span>
+                                        <strong style="color: ${cat.color};">${cat.name}</strong>
+                                    </div>
+                                    <div style="text-align: right;">
+                                        <div style="font-size: 14px; font-weight: bold; color: ${cat.color};">Lv.${catLevel.level}</div>
+                                        <div style="font-size: 11px; color: var(--text-secondary);">${catLevel.points}/${nextThreshold}pt</div>
+                                    </div>
                                 </div>
-                                ${(['other'].includes(key)) 
-                                    ? '' 
-                                    : `<button class="btn btn-secondary" style="padding:6px 10px; font-size:12px;" onclick="removeCategory('${key}')">削除</button>`}
+                                
+                                <div style="margin: 8px 0;">
+                                    <div style="font-size: 13px; color: var(--text-primary); font-weight: 500;">${catTitle}</div>
+                                    <div style="margin-top: 8px; background: var(--surface); border-radius: 4px; overflow: hidden; height: 6px;">
+                                        <div style="background: ${cat.color}; height: 100%; width: ${Math.min(100, (catLevel.points / nextThreshold) * 100)}%; transition: width 0.3s;"></div>
+                                    </div>
+                                </div>
                             </div>
-                            <div style="display: grid; grid-template-columns: 1fr 80px 100px; gap: 8px;">
-                                <input type="text" id="name-${key}" value="${cat.name}" placeholder="カテゴリ名" style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface);">
-                                <input type="text" id="icon-${key}" value="${cat.icon}" placeholder="📝" style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); text-align: center;">
-                                <input type="color" id="color-${key}" value="${cat.color}" style="width: 100%; height: 32px; border-radius: 6px; border: 1px solid var(--border); cursor: pointer;">
-                            </div>
-                        </div>
-                    `).join('')}
-                    
-                    <button class="btn btn-secondary" onclick="addNewCategory()" style="width: 100%; margin-top: 12px; padding: 10px;">
-                        ➕ 新しいカテゴリを追加
-                    </button>
+                        `;
+                    }).join('')}
+                </div>
+                
+                <div style="margin-top: 16px; padding: 12px; background: rgba(96, 165, 250, 0.1); border-radius: 8px; border: 1px solid rgba(96, 165, 250, 0.3);">
+                    <div style="font-size: 12px; color: var(--text-secondary);">
+                        💡 カテゴリーを選んで習慣を実行すると、そのカテゴリーのレベルが上がります。
+                    </div>
                 </div>
                 
                 <div class="modal-footer" style="display: flex; gap: 8px; justify-content: flex-end;">
-                    <button class="button secondary" id="cat-cancel">キャンセル</button>
-                    <button class="button primary" id="cat-save">保存</button>
+                    <button class="button primary" id="cat-close">閉じる</button>
                 </div>
             `;
             
             overlay.appendChild(modal);
             document.body.appendChild(overlay);
             
-            // リアルタイムプレビュー
-            Object.keys(data.categoryMaster).forEach(key => {
-                const nameInput = document.getElementById(`name-${key}`);
-                const iconInput = document.getElementById(`icon-${key}`);
-                const colorInput = document.getElementById(`color-${key}`);
-                
-                if (nameInput) nameInput.oninput = () => {
-                    document.getElementById(`name-preview-${key}`).textContent = nameInput.value || 'カテゴリ';
-                };
-                if (iconInput) iconInput.oninput = () => {
-                    document.getElementById(`icon-preview-${key}`).textContent = iconInput.value || '📝';
-                };
-                if (colorInput) colorInput.oninput = () => {
-                    document.getElementById(`color-preview-${key}`).style.background = colorInput.value;
-                };
-            });
-            
-            // キャンセル
-            document.getElementById('cat-cancel').onclick = () => overlay.remove();
-            
-            // 保存
-            document.getElementById('cat-save').onclick = () => {
-                Object.keys(data.categoryMaster).forEach(key => {
-                    const name = document.getElementById(`name-${key}`).value.trim();
-                    const icon = document.getElementById(`icon-${key}`).value.trim();
-                    const color = document.getElementById(`color-${key}`).value;
-                    
-                    if (name) data.categoryMaster[key].name = name;
-                    if (icon) data.categoryMaster[key].icon = icon;
-                    if (color) data.categoryMaster[key].color = color;
-                });
-                
-                saveData(data);
+            // 閉じるボタン
+            document.getElementById('cat-close').onclick = () => {
                 overlay.remove();
-                showNotification('カテゴリを更新しました', 'success');
                 updateCategoryDropdowns();  // ドロップダウンを更新
-                updateCurrentHypothesisList();
             };
         }
         
-        // カテゴリマスターを初期化（存在しない場合のみ）
+        // カテゴリマスターを初期化（固定カテゴリー版）
         function initializeCategoryMaster() {
             const data = loadData();
-            if (!data.categoryMaster) {
-                data.categoryMaster = {
-                    study: { name: '勉強', icon: '📚', color: '#3b82f6' },
-                    exercise: { name: '運動', icon: '💪', color: '#ef4444' },
-                    health: { name: '健康', icon: '🧘', color: '#10b981' },
-                    work: { name: '仕事', icon: '💼', color: '#f59e0b' },
-                    hobby: { name: '趣味', icon: '🎨', color: '#8b5cf6' },
-                    other: { name: 'その他', icon: '📝', color: '#6b7280' }
-                };
-                saveData(data);
-            }
+            // 常に固定カテゴリーを設定
+            data.categoryMaster = {
+                morning: { name: '朝活', icon: '🌅', color: '#fbbf24' },
+                english: { name: '英語', icon: '🌍', color: '#60a5fa' },
+                life: { name: '人生', icon: '🎯', color: '#a78bfa' },
+                family: { name: '妻と家庭', icon: '❤️', color: '#f87171' },
+                health: { name: '健康資産', icon: '💪', color: '#34d399' },
+                knowledge: { name: '博識', icon: '📚', color: '#fde047' },
+                exercise: { name: '運動', icon: '🏃', color: '#fb923c' },
+                other: { name: 'その他', icon: '📝', color: '#6b7280' }
+            };
+            saveData(data);
             return data.categoryMaster;
         }
         
