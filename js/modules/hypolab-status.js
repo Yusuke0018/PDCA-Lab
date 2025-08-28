@@ -110,6 +110,14 @@
     
     saveCategoryLevels(levels);
     
+    // ステータス値も更新
+    if(CATEGORIES[categoryKey] && CATEGORIES[categoryKey].stat && CATEGORIES[categoryKey].increment) {
+      const statName = CATEGORIES[categoryKey].stat;
+      const increment = CATEGORIES[categoryKey].increment * points;
+      // ステータスの実際の更新はgetStatusForLevelで反映される
+      console.log(`${statName}に${increment}ポイント追加予定（カテゴリー: ${categoryKey}）`);
+    }
+    
     // レベルアップした場合の情報を返す
     const levelUps = [];
     if(newLevel > oldLevel){
@@ -304,7 +312,6 @@
   window.StatusManager = {
     getStatusForLevel,
     getStatusDelta,
-    updateStatusUI,
     getTable,
     loadCategoryLevels,
     saveCategoryLevels,

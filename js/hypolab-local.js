@@ -3831,6 +3831,7 @@
                 const amountEl = pointDisplay.querySelector('.point-amount');
                 const levelEl = pointDisplay.querySelector('.level-info');
                 if (amountEl) amountEl.textContent = `💰 ${current}pt`;
+                // 称号のみ表示（次回称号は表示しない）
                 if (levelEl) levelEl.textContent = `Lv.${levelInfo.level} ${levelInfo.name}`;
             }
 
