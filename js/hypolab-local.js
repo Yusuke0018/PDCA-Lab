@@ -7883,6 +7883,66 @@
             element.addEventListener('mouseleave', cancel);
         }
         
+        // 習慣のコンテキストメニュー表示
+        function showHabitContextMenu(hypothesisId, x, y) {
+            // 既存のメニューを削除
+            const existing = document.querySelector('.habit-context-menu');
+            if (existing) existing.remove();
+            
+            const data = loadData();
+            const hypothesis = data.currentHypotheses.find(h => h.id === hypothesisId);
+            if (!hypothesis) return;
+            
+            // メニュー作成
+            const menu = document.createElement('div');
+            menu.className = 'habit-context-menu';
+            menu.style.cssText = `
+                position: fixed;
+                left: ${x}px;
+                top: ${y}px;
+                background: white;
+                border: 1px solid #ccc;
+                border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+                z-index: 10000;
+                min-width: 150px;
+            `;
+            
+            menu.innerHTML = `
+                <div style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #eee;" onclick="editHabit(${hypothesisId}); document.querySelector('.habit-context-menu').remove();">
+                    ✏️ 編集
+                </div>
+                <div style="padding: 8px 12px; cursor: pointer; color: #dc2626;" onclick="confirmDeleteHypothesis(${hypothesisId}); document.querySelector('.habit-context-menu').remove();">
+                    🗑️ 削除
+                </div>
+            `;
+            
+            document.body.appendChild(menu);
+            
+            // メニュー外クリックで閉じる
+            setTimeout(() => {
+                document.addEventListener('click', function closeMenu() {
+                    menu.remove();
+                    document.removeEventListener('click', closeMenu);
+                }, { once: true });
+            }, 100);
+        }
+        
+        // 習慣を編集
+        function editHabit(hypothesisId) {
+            const data = loadData();
+            const hypothesis = data.currentHypotheses.find(h => h.id === hypothesisId);
+            if (!hypothesis) return;
+            
+            const newTitle = prompt('習慣名を編集:', hypothesis.title);
+            if (newTitle && newTitle.trim() && newTitle !== hypothesis.title) {
+                hypothesis.title = newTitle.trim();
+                saveData(data);
+                updateCurrentHypothesisList();
+                showNotification('習慣を編集しました', 'success');
+            }
+        }
+        
         // 習慣の削除確認
         function confirmDeleteHypothesis(hypothesisId) {
             const data = loadData();
@@ -10720,12 +10780,26 @@
                             ${freqText ? `<span style="font-size: 11px; padding: 2px 6px; background: rgba(59, 130, 246, 0.1); color: #3b82f6; border-radius: 999px;">${freqText}</span>` : ''}
                         `;
                         habitItem.appendChild(arrow);
-                        // スマホ: タイトル長押しで削除（PCは右クリック）
+                        // スマホ: タイトル長押しでメニュー（PCは右クリック）
                         try {
                             const titleEl = habitItem.querySelector('.habit-title');
                             if (titleEl) {
-                                attachLongPressToDelete(titleEl, hypothesis.id);
-                                titleEl.addEventListener('contextmenu', (e) => { e.preventDefault(); confirmDeleteHypothesis(hypothesis.id); });
+                                // 長押しでコンテキストメニュー表示
+                                let longPressTimer;
+                                titleEl.addEventListener('touchstart', (e) => {
+                                    longPressTimer = setTimeout(() => {
+                                        e.preventDefault();
+                                        showHabitContextMenu(hypothesis.id, e.touches[0].clientX, e.touches[0].clientY);
+                                    }, 600);
+                                });
+                                titleEl.addEventListener('touchend', () => clearTimeout(longPressTimer));
+                                titleEl.addEventListener('touchmove', () => clearTimeout(longPressTimer));
+                                
+                                // PC右クリックでコンテキストメニュー
+                                titleEl.addEventListener('contextmenu', (e) => {
+                                    e.preventDefault();
+                                    showHabitContextMenu(hypothesis.id, e.clientX, e.clientY);
+                                });
                             }
                         } catch(_) {}
                         
@@ -15881,6 +15955,9 @@
             window.getCardsBasedOnAchievement = function(){ return []; };
         } catch(_) {}
         window.updateWeightChart = updateWeightChart;
+        window.showHabitContextMenu = showHabitContextMenu;
+        window.editHabit = editHabit;
+        window.confirmDeleteHypothesis = confirmDeleteHypothesis;
         
         // windowオブジェクトに関数を登録
         // 初期化機能（開発用）は削除
