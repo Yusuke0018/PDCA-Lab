@@ -8201,6 +8201,20 @@
                 window.currentHypothesis.id,
                 { dateKey }
             );
+            
+            // カテゴリーポイントも付与
+            if (window.currentHypothesis.category && typeof window.StatusManager !== 'undefined' && window.StatusManager.addCategoryPoints) {
+                const categoryPoints = actualPoints;
+                const levelUps = window.StatusManager.addCategoryPoints(window.currentHypothesis.category, categoryPoints);
+                console.log(`カテゴリー${window.currentHypothesis.category}に${categoryPoints}pt追加`);
+                
+                // カテゴリーレベルアップ通知
+                if (levelUps && levelUps.length > 0) {
+                    levelUps.forEach(lu => {
+                        showNotification(`🎉 ${lu.categoryName} Lv.${lu.level}！\n「${lu.title}」`, 'success');
+                    });
+                }
+            }
             // 当日付の実際の付与ポイントを記録（取り消し時に正確に減算するため）
             if (!window.currentHypothesis.pointsByDate) window.currentHypothesis.pointsByDate = {};
             window.currentHypothesis.pointsByDate[dateKey] = credited;
@@ -8358,6 +8372,11 @@
                             dateKey
                         });
                         delete hyp.pointsByDate[dateKey];
+                        
+                        // カテゴリーポイントも減算
+                        if (hyp.category && window.StatusManager && window.StatusManager.addCategoryPoints) {
+                            window.StatusManager.addCategoryPoints(hyp.category, -1);
+                        }
                     }
                 }
                 hyp.failures[dateKey] = true; // 明示的な未達成
@@ -8378,6 +8397,11 @@
                         habitId: hyp.id,
                         dateKey
                     });
+                    
+                    // カテゴリーポイントも減算
+                    if (hyp.category && window.StatusManager && window.StatusManager.addCategoryPoints) {
+                        window.StatusManager.addCategoryPoints(hyp.category, -1);
+                    }
                 }
                 delete hyp.pointsByDate[dateKey];
                 delete hyp.achievements[dateKey];
