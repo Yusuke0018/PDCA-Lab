@@ -10975,16 +10975,12 @@
                             </div>
                             <div style="display: flex; gap: 12px; margin-top: 6px; font-size: 11px;">
                                 <span style="color: #10b981;">🔥 連続${stage.streak}日</span>
-                                <span style="color: #3b82f6;">📊 達成率${stage.achievementRate}%</span>
                             </div>
                         </div>
                     ` : ''}
                     <div class="hypothesis-meta">
                         <div class="hypothesis-days">
                             📅 ${daysPassed}日目 / ${hypothesis.totalDays}日間
-                        </div>
-                        <div class="hypothesis-progress">
-                            ✨ 達成率: ${displayRate}%
                         </div>
                     </div>
                     ${badges.length ? `<div class="hypothesis-intensity" style="margin-top:8px; color: var(--text-secondary); font-size:12px; display:flex; align-items:center; gap:6px;">
