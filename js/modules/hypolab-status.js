@@ -248,9 +248,11 @@
       const data = loadData();
       const lv = (data && data.pointSystem && data.pointSystem.currentLevel) ? data.pointSystem.currentLevel : 1;
       const points = (data && data.pointSystem && data.pointSystem.currentPoints) ? data.pointSystem.currentPoints : 0;
+      const levelTitle = (typeof getLevelTitle === 'function') ? getLevelTitle(lv) : '';
       const s = getStatusForLevel(lv);
       const set = (id,val)=>{ const el = document.getElementById(id); if (el) el.textContent = String(val); };
       set('dq-level', lv);
+      set('dq-level-title', levelTitle);
       set('dq-points', points);
       set('dq-keizoku', s.keizoku);
       set('dq-shuchu', s.shuchu);
