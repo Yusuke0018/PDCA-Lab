@@ -205,12 +205,20 @@
         <div id="status-view" style="display:none;">
             <div class="dq-card">
                 <div class="dq-title">なまえ: ゆうすけ</div>
-                <div class="dq-row">レベル: <span id="dq-level">1</span></div>
-                <div class="dq-row">けいぞくりょく: <span id="dq-keizoku">20</span></div>
-                <div class="dq-row">しゅうちゅうりょく: <span id="dq-shuchu">15</span></div>
-                <div class="dq-row">かいふくりょく: <span id="dq-kaifuku">12</span></div>
-                <div class="dq-row">せっけいりょく: <span id="dq-sekkei">12</span></div>
-                <div class="dq-row">きそたいりょく: <span id="dq-kiso">12</span></div>
+                <div class="dq-row">そうごうレベル: <span id="dq-level">1</span></div>
+                <div class="dq-row">そうごうポイント: <span id="dq-points">0</span>pt</div>
+                <div style="margin: 15px 0; border-top: 1px solid #555; padding-top: 10px;">
+                    <div class="dq-row" style="font-size: 14px; font-weight: bold; margin-bottom: 8px;">きほんのうりょく</div>
+                    <div class="dq-row">けいぞくりょく: <span id="dq-keizoku">20</span></div>
+                    <div class="dq-row">しゅうちゅうりょく: <span id="dq-shuchu">15</span></div>
+                    <div class="dq-row">かいふくりょく: <span id="dq-kaifuku">12</span></div>
+                    <div class="dq-row">せっけいりょく: <span id="dq-sekkei">12</span></div>
+                    <div class="dq-row">きそたいりょく: <span id="dq-kiso">12</span></div>
+                </div>
+                <div style="margin: 15px 0; border-top: 1px solid #555; padding-top: 10px;">
+                    <div class="dq-row" style="font-size: 14px; font-weight: bold; margin-bottom: 8px;">カテゴリーべつレベル</div>
+                    <div id="category-titles-list"></div>
+                </div>
                 <div class="dq-footer">
                 </div>
             </div>
@@ -844,7 +852,7 @@
         </div>
     </div>
 
-    <script src="js/modules/hypolab-status.js?v=20250828-01"></script>
+    <script src="js/modules/hypolab-status.js?v=20250828-02"></script>
     <script src="js/hypolab-local.js?v=20250828-01"></script>
 </body>
 </html>

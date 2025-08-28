@@ -247,9 +247,11 @@
     try{
       const data = loadData();
       const lv = (data && data.pointSystem && data.pointSystem.currentLevel) ? data.pointSystem.currentLevel : 1;
+      const points = (data && data.pointSystem && data.pointSystem.currentPoints) ? data.pointSystem.currentPoints : 0;
       const s = getStatusForLevel(lv);
       const set = (id,val)=>{ const el = document.getElementById(id); if (el) el.textContent = String(val); };
       set('dq-level', lv);
+      set('dq-points', points);
       set('dq-keizoku', s.keizoku);
       set('dq-shuchu', s.shuchu);
       set('dq-kaifuku', s.kaifuku);
@@ -263,7 +265,13 @@
         const html = Object.entries(CATEGORIES).filter(([key]) => key !== 'other').map(([key, cat]) => {
           const catLevel = categoryLevels[key] || { level: 1, points: 0 };
           const catTitle = getCategoryTitle(key, catLevel.level);
-          return `<div class="dq-row" style="font-size: 13px;">${cat.name} Lv.${catLevel.level}: <span style="color: #ffd700;">${catTitle}</span></div>`;
+          const nextThreshold = catLevel.level < 20 ? LEVEL_THRESHOLDS[catLevel.level] : '---';
+          const pointsDisplay = `${catLevel.points}pt${nextThreshold !== '---' ? ` / 次Lv${nextThreshold}pt` : ''}`;
+          return `<div class="dq-row" style="font-size: 13px; margin-bottom: 4px;">
+            <div>${cat.name} <span style="color: #4fc3f7;">Lv.${catLevel.level}</span></div>
+            <div style="font-size: 11px; color: #999; margin-left: 10px;">${pointsDisplay}</div>
+            <div style="color: #ffd700; margin-left: 10px;">${catTitle}</div>
+          </div>`;
         }).join('');
         categoryList.innerHTML = html;
       }
