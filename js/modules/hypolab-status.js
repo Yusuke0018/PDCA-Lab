@@ -231,7 +231,30 @@
   function getStatusForLevel(level){
     const tbl = getTable();
     const lv = clamp(level|0, 1, 100);
-    return tbl[lv-1];
+    const base = tbl[lv-1];
+    
+    // カテゴリーレベル由来のボーナスを加算（各カテゴリの「(レベル-1)×increment」を対応ステータスへ）
+    const categoryLevels = loadCategoryLevels();
+    const bonus = { keizoku:0, shuchu:0, kaifuku:0, sekkei:0, kiso:0 };
+    try{
+      Object.keys(CATEGORIES).forEach(key => {
+        const cat = CATEGORIES[key];
+        const lvInfo = (categoryLevels && categoryLevels[key]) ? categoryLevels[key] : { level: 1 };
+        const catLevel = clamp((lvInfo.level|0) || 1, 1, LEVEL_THRESHOLDS.length);
+        const inc = Math.max(0, (catLevel - 1) * (cat.increment || 0));
+        if (cat.stat && inc > 0 && bonus.hasOwnProperty(cat.stat)) {
+          bonus[cat.stat] += inc;
+        }
+      });
+    }catch(_){}
+    
+    return {
+      keizoku: base.keizoku + bonus.keizoku,
+      shuchu:  base.shuchu  + bonus.shuchu,
+      kaifuku: base.kaifuku + bonus.kaifuku,
+      sekkei:  base.sekkei  + bonus.sekkei,
+      kiso:    base.kiso    + bonus.kiso,
+    };
   }
 
   function getStatusDelta(fromLevel, toLevel){
@@ -323,4 +346,3 @@
   };
   window.refreshStatusView = refreshStatusView;
 })();
-
