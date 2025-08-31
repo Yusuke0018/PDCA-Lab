@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250829-06';
+                const SW_VERSION_TAG = '20250831-01';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -3735,6 +3735,9 @@
                     }
                 }, newLevel.level > oldLevel ? 3500 : 500); // 全体レベルアップがある場合は少し遅らせる
             }
+            
+            // ステータスビューを即時更新（開いていなくても安全）
+            try { if (typeof refreshStatusView === 'function') refreshStatusView(); } catch(_) {}
             
             // 全体レベルアップ通知
             if (newLevel.level > oldLevel) {
