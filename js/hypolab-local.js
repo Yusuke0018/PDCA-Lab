@@ -15701,7 +15701,7 @@
             items.forEach(item => {
                 const li = document.createElement('li');
                 li.className = 'checklist-item';
-                li.style.cssText = '';
+                li.style.cssText = 'padding:8px; background: var(--surface-light); border:1px solid var(--border); border-radius:8px;';
 
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
@@ -15714,18 +15714,24 @@
                 text.textContent = item.text || '';
                 text.onclick = () => window.editChecklistItem(category, item.id);
 
-                // アクションは行内表示しない（長押しで編集）
-                li.oncontextmenu = (e) => { e.preventDefault(); window.editChecklistItem(category, item.id); };
-                li.addEventListener('touchstart', (e) => {
-                    const timer = setTimeout(() => window.editChecklistItem(category, item.id), 600);
-                    const clear = () => { clearTimeout(timer); li.removeEventListener('touchend', clear); li.removeEventListener('touchmove', clear); };
-                    li.addEventListener('touchend', clear);
-                    li.addEventListener('touchmove', clear);
-                }, { passive: true });
+                const editBtn = document.createElement('button');
+                editBtn.textContent = '✏️';
+                editBtn.title = '編集';
+                editBtn.className = 'checklist-action';
+                editBtn.style.cssText = 'background: var(--surface); border:1px solid var(--border); color: var(--text-primary); padding:4px 8px; border-radius:6px; cursor:pointer;';
+                editBtn.onclick = (e) => { e.stopPropagation(); window.editChecklistItem(category, item.id); };
+
+                const delBtn = document.createElement('button');
+                delBtn.textContent = '🗑';
+                delBtn.title = '削除';
+                delBtn.className = 'checklist-action';
+                delBtn.style.cssText = 'background: var(--surface); border:1px solid var(--border); color: var(--text-primary); padding:4px 8px; border-radius:6px; cursor:pointer;';
+                delBtn.onclick = (e) => { e.stopPropagation(); window.deleteChecklistItem(category, item.id); };
 
                 li.appendChild(checkbox);
                 li.appendChild(text);
-                // 行内の編集/削除ボタンは非表示
+                li.appendChild(editBtn);
+                li.appendChild(delBtn);
                 ul.appendChild(li);
             });
         }
