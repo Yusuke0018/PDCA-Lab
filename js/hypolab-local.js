@@ -753,6 +753,7 @@
                 return {
                     currentHypotheses: [],
                     completedHypotheses: [],
+                    checklists: { morning: [], day: [], night: [] },
                     cards: {
                         inventory: [],
                         pendingPenalties: []
@@ -805,6 +806,10 @@
             }
             if (!parsed.meta) {
                 parsed.meta = {};
+            }
+            // チェックリスト（朝/日中/夜）初期化
+            if (!parsed.checklists) {
+                parsed.checklists = { morning: [], day: [], night: [] };
             }
             // ポイントシステムがない場合は初期化
             if (!parsed.pointSystem) {
@@ -6647,6 +6652,8 @@
             updatePenaltyIndicators();
             updateChallenges();
             updateJournalStatus();  // ジャーナルステータスを更新
+            // チェックリスト表示を更新
+            try { if (typeof renderChecklists === 'function') renderChecklists(); } catch(_) {}
             
             // イベント表示を更新（スマホ対応）
             try {
@@ -15676,6 +15683,110 @@
             window.addEventListener('visibilitychange', () => { if (!document.hidden) checkRollover(); });
             window.addEventListener('focus', checkRollover);
         }
+
+        // ========== チェックリスト（朝/日中/夜） ==========
+        function renderChecklistSection(category, listId) {
+            const data = loadData();
+            const ul = document.getElementById(listId);
+            if (!ul) return;
+
+            const items = (data.checklists && data.checklists[category]) ? data.checklists[category] : [];
+            ul.innerHTML = '';
+
+            items.forEach(item => {
+                const li = document.createElement('li');
+                li.style.cssText = 'display:flex; align-items:center; gap:8px; padding:8px; background: var(--surface-light); border:1px solid var(--border); border-radius:8px;';
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = !!item.done;
+                checkbox.onchange = () => window.toggleChecklistItem(category, item.id);
+
+                const text = document.createElement('span');
+                text.textContent = item.text || '';
+                text.style.cssText = 'flex:1; user-select:none;';
+                text.onclick = () => window.editChecklistItem(category, item.id);
+
+                const editBtn = document.createElement('button');
+                editBtn.textContent = '✏️';
+                editBtn.title = '編集';
+                editBtn.style.cssText = 'background: var(--surface); border:1px solid var(--border); color: var(--text-primary); padding:4px 8px; border-radius:6px; cursor:pointer;';
+                editBtn.onclick = (e) => { e.stopPropagation(); window.editChecklistItem(category, item.id); };
+
+                const delBtn = document.createElement('button');
+                delBtn.textContent = '🗑';
+                delBtn.title = '削除';
+                delBtn.style.cssText = 'background: var(--surface); border:1px solid var(--border); color: var(--text-primary); padding:4px 8px; border-radius:6px; cursor:pointer;';
+                delBtn.onclick = (e) => { e.stopPropagation(); window.deleteChecklistItem(category, item.id); };
+
+                li.appendChild(checkbox);
+                li.appendChild(text);
+                li.appendChild(editBtn);
+                li.appendChild(delBtn);
+                ul.appendChild(li);
+            });
+        }
+
+        function renderChecklists() {
+            try { renderChecklistSection('morning', 'checklist-morning'); } catch(_) {}
+            try { renderChecklistSection('day', 'checklist-day'); } catch(_) {}
+            try { renderChecklistSection('night', 'checklist-night'); } catch(_) {}
+        }
+
+        function promptAddChecklistItem(category) {
+            const text = prompt('項目名を入力してください');
+            if (!text) return;
+            const data = loadData();
+            if (!data.checklists) data.checklists = { morning: [], day: [], night: [] };
+            const id = `ci_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+            data.checklists[category].push({ id, text: text.trim(), done: false });
+            saveData(data);
+            renderChecklists();
+        }
+
+        function toggleChecklistItem(category, id) {
+            const data = loadData();
+            const list = (data.checklists && data.checklists[category]) ? data.checklists[category] : [];
+            const idx = list.findIndex(i => i.id === id);
+            if (idx === -1) return;
+            list[idx].done = !list[idx].done;
+            saveData(data);
+            renderChecklists();
+        }
+
+        function editChecklistItem(category, id) {
+            const data = loadData();
+            const list = (data.checklists && data.checklists[category]) ? data.checklists[category] : [];
+            const idx = list.findIndex(i => i.id === id);
+            if (idx === -1) return;
+            const current = list[idx].text || '';
+            const next = prompt('項目名を編集', current);
+            if (next == null) return;
+            const trimmed = next.trim();
+            if (!trimmed) return;
+            list[idx].text = trimmed;
+            saveData(data);
+            renderChecklists();
+        }
+
+        function deleteChecklistItem(category, id) {
+            if (!confirm('この項目を削除しますか？')) return;
+            const data = loadData();
+            const list = (data.checklists && data.checklists[category]) ? data.checklists[category] : [];
+            const next = list.filter(i => i.id !== id);
+            data.checklists[category] = next;
+            saveData(data);
+            renderChecklists();
+        }
+
+        // グローバル公開
+        try {
+            window.renderChecklists = renderChecklists;
+            window.promptAddChecklistItem = promptAddChecklistItem;
+            window.toggleChecklistItem = toggleChecklistItem;
+            window.editChecklistItem = editChecklistItem;
+            window.deleteChecklistItem = deleteChecklistItem;
+        } catch(_) {}
 
         function initializeApp() {
             // テーマを初期化
