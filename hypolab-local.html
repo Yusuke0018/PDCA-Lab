@@ -88,28 +88,28 @@
                 <h2 style="margin-bottom: 12px;">チェックリスト</h2>
                 <div class="checklist-sections">
                     <!-- 朝起きたら -->
-                    <div class="checklist-section" data-category="morning" style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px;">
+                    <div class="checklist-section" data-category="morning">
                         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 8px;">
                             <div style="font-weight:700;">🌅 朝起きたら</div>
                             <button class="btn btn-secondary" style="padding:6px 10px; font-size:12px;" onclick="window.promptAddChecklistItem('morning')">➕ 追加</button>
                         </div>
-                        <ul id="checklist-morning" style="list-style:none; display:grid; gap:8px; margin:0; padding:0;"></ul>
+                        <ul id="checklist-morning" class="checklist-list"></ul>
                     </div>
                     <!-- 日中 -->
-                    <div class="checklist-section" data-category="day" style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px;">
+                    <div class="checklist-section" data-category="day">
                         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 8px;">
                             <div style="font-weight:700;">☀️ 日中</div>
                             <button class="btn btn-secondary" style="padding:6px 10px; font-size:12px;" onclick="window.promptAddChecklistItem('day')">➕ 追加</button>
                         </div>
-                        <ul id="checklist-day" style="list-style:none; display:grid; gap:8px; margin:0; padding:0;"></ul>
+                        <ul id="checklist-day" class="checklist-list"></ul>
                     </div>
                     <!-- 夜寝る前に -->
-                    <div class="checklist-section" data-category="night" style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px;">
+                    <div class="checklist-section" data-category="night">
                         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 8px;">
                             <div style="font-weight:700;">🌙 夜寝る前に</div>
                             <button class="btn btn-secondary" style="padding:6px 10px; font-size:12px;" onclick="window.promptAddChecklistItem('night')">➕ 追加</button>
                         </div>
-                        <ul id="checklist-night" style="list-style:none; display:grid; gap:8px; margin:0; padding:0;"></ul>
+                        <ul id="checklist-night" class="checklist-list"></ul>
                     </div>
                 </div>
             </div>
