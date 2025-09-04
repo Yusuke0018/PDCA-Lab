@@ -112,11 +112,15 @@
         }
 
         /* チェックリスト（朝/日中/夜）のレイアウト */
-        .checklist-sections { display: grid; gap: 12px; grid-template-columns: 1fr; }
+        .checklist-sections { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        @media (max-width: 360px) {
+            .checklist-sections { grid-template-columns: 1fr; }
+        }
+        @media (min-width: 900px) {
+            .checklist-sections { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
         .checklist-section { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
         .checklist-list { list-style: none; display: grid; gap: 8px; margin: 0; padding: 0; }
-        .checklist-item { display: flex; align-items: center; gap: 8px; }
-        .checklist-text { flex: 1; user-select: none; white-space: normal; word-break: break-word; overflow-wrap: anywhere; }
 
         /* ナビゲーションバー */
         .nav {
