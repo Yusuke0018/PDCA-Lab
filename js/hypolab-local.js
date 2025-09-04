@@ -15700,7 +15700,8 @@
 
             items.forEach(item => {
                 const li = document.createElement('li');
-                li.style.cssText = 'display:flex; align-items:center; gap:8px; padding:8px; background: var(--surface-light); border:1px solid var(--border); border-radius:8px;';
+                li.className = 'checklist-item';
+                li.style.cssText = 'padding:8px; background: var(--surface-light); border:1px solid var(--border); border-radius:8px;';
 
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
@@ -15708,8 +15709,8 @@
                 checkbox.onchange = () => window.toggleChecklistItem(category, item.id);
 
                 const text = document.createElement('span');
+                text.className = 'checklist-text';
                 text.textContent = item.text || '';
-                text.style.cssText = 'flex:1; user-select:none;';
                 text.onclick = () => window.editChecklistItem(category, item.id);
 
                 const editBtn = document.createElement('button');
