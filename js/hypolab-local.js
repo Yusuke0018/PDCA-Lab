@@ -15705,7 +15705,6 @@
 
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
-                checkbox.className = 'checklist-checkbox';
                 checkbox.checked = !!item.done;
                 checkbox.onchange = () => window.toggleChecklistItem(category, item.id);
 
@@ -15717,14 +15716,12 @@
                 const editBtn = document.createElement('button');
                 editBtn.textContent = '✏️';
                 editBtn.title = '編集';
-                editBtn.className = 'checklist-action';
                 editBtn.style.cssText = 'background: var(--surface); border:1px solid var(--border); color: var(--text-primary); padding:4px 8px; border-radius:6px; cursor:pointer;';
                 editBtn.onclick = (e) => { e.stopPropagation(); window.editChecklistItem(category, item.id); };
 
                 const delBtn = document.createElement('button');
                 delBtn.textContent = '🗑';
                 delBtn.title = '削除';
-                delBtn.className = 'checklist-action';
                 delBtn.style.cssText = 'background: var(--surface); border:1px solid var(--border); color: var(--text-primary); padding:4px 8px; border-radius:6px; cursor:pointer;';
                 delBtn.onclick = (e) => { e.stopPropagation(); window.deleteChecklistItem(category, item.id); };
 
