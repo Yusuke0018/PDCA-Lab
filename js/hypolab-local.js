@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250831-01';
+                const SW_VERSION_TAG = '20250104-01';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -884,7 +884,17 @@
                 });
             }
             
-            // 日付が変わったら努力ポイントとデイリーチャレンジをリセット
+            // チェックリストの初期化
+            if (!parsed.checklist) {
+                parsed.checklist = {
+                    morning: [false, false, false],
+                    daytime: [false, false, false],
+                    night: [false, false, false],
+                    lastResetDate: null
+                };
+            }
+            
+            // 日付が変わったら努力ポイントとデイリーチャレンジとチェックリストをリセット
             const today = new Date().toDateString();
             if (parsed.pointSystem && parsed.pointSystem.dailyEffortLastReset !== today) {
                 parsed.pointSystem.dailyEffortUsed = 0;
@@ -894,6 +904,13 @@
                 parsed.challenges.daily = null;
                 parsed.challenges.completedToday = [];
                 parsed.challenges.lastDailyReset = today;
+            }
+            // チェックリストも日付が変わったらリセット
+            if (parsed.checklist && parsed.checklist.lastResetDate !== today) {
+                parsed.checklist.morning = [false, false, false];
+                parsed.checklist.daytime = [false, false, false];
+                parsed.checklist.night = [false, false, false];
+                parsed.checklist.lastResetDate = today;
             }
             // 週が変わったらウィークリーチャレンジをリセット
             const weekStart = new Date();
@@ -6647,6 +6664,11 @@
             updatePenaltyIndicators();
             updateChallenges();
             updateJournalStatus();  // ジャーナルステータスを更新
+            
+            // チェックリストの状態を読み込み
+            if (typeof window.loadChecklistState === 'function') {
+                window.loadChecklistState();
+            }
             
             // イベント表示を更新（スマホ対応）
             try {
@@ -15942,6 +15964,67 @@
             window.showCardsView = function(){ try { showHomeView(); } catch(_) {} };
             window.updateCardDisplay = function(){};
             window.updateCardUseButton = function(){};
+            
+            // チェックリスト関連の関数
+            window.updateChecklistItem = function(category, index, checked) {
+                const data = loadData();
+                if (!data.checklist) {
+                    data.checklist = {
+                        morning: [false, false, false],
+                        daytime: [false, false, false],
+                        night: [false, false, false],
+                        lastResetDate: new Date().toDateString()
+                    };
+                }
+                
+                // チェック状態を更新
+                if (data.checklist[category]) {
+                    data.checklist[category][index] = checked;
+                }
+                
+                saveData(data);
+            };
+            
+            window.loadChecklistState = function() {
+                const data = loadData();
+                const today = new Date().toDateString();
+                
+                // 今日の日付を表示
+                const dateElement = document.getElementById('checklist-date');
+                if (dateElement) {
+                    const dateObj = new Date();
+                    const month = dateObj.getMonth() + 1;
+                    const day = dateObj.getDate();
+                    const weekday = ['日', '月', '火', '水', '木', '金', '土'][dateObj.getDay()];
+                    dateElement.textContent = `${month}月${day}日(${weekday})`;
+                }
+                
+                if (!data.checklist) return;
+                
+                // 朝のチェックリスト
+                const morningItems = document.querySelectorAll('#morning-checklist input[type="checkbox"]');
+                morningItems.forEach((checkbox, index) => {
+                    if (data.checklist.morning && index < data.checklist.morning.length) {
+                        checkbox.checked = data.checklist.morning[index];
+                    }
+                });
+                
+                // 日中のチェックリスト
+                const daytimeItems = document.querySelectorAll('#daytime-checklist input[type="checkbox"]');
+                daytimeItems.forEach((checkbox, index) => {
+                    if (data.checklist.daytime && index < data.checklist.daytime.length) {
+                        checkbox.checked = data.checklist.daytime[index];
+                    }
+                });
+                
+                // 夜のチェックリスト
+                const nightItems = document.querySelectorAll('#night-checklist input[type="checkbox"]');
+                nightItems.forEach((checkbox, index) => {
+                    if (data.checklist.night && index < data.checklist.night.length) {
+                        checkbox.checked = data.checklist.night[index];
+                    }
+                });
+            };
             window.showCardUseMenu = function(){};
             window.closeCardUseMenu = function(){};
             window.showCardAcquisition = function(ids, cb){ try { if (typeof cb === 'function') cb(); } catch(_) {} };

@@ -14,7 +14,7 @@
     <link rel="icon" href="icons/icon.svg" sizes="any" type="image/svg+xml">
     <link rel="apple-touch-icon" href="icons/icon.svg">
     
-    <link rel="stylesheet" href="css/hypolab-local.css?v=20250828-02">
+    <link rel="stylesheet" href="css/hypolab-local.css?v=20250104-01">
 </head>
 <body>
     <!-- ヘッダー -->
@@ -83,11 +83,72 @@
     <div class="container">
         <!-- ホーム画面 -->
         <div id="home-view">
+            <!-- デイリーチェックリスト -->
+            <div class="card">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                    <h2>今日のチェックリスト</h2>
+                    <span id="checklist-date" style="color: var(--text-secondary); font-size: 14px;"></span>
+                </div>
+                <div id="daily-checklist" class="daily-checklist">
+                    <!-- 朝起きたら -->
+                    <div class="checklist-category">
+                        <h3 style="color: var(--primary); margin-bottom: 12px;">☀️ 朝起きたら</h3>
+                        <div class="checklist-items" id="morning-checklist">
+                            <label class="checklist-item">
+                                <input type="checkbox" onchange="updateChecklistItem('morning', 0, this.checked)">
+                                <span>顔を洗う</span>
+                            </label>
+                            <label class="checklist-item">
+                                <input type="checkbox" onchange="updateChecklistItem('morning', 1, this.checked)">
+                                <span>歯を磨く</span>
+                            </label>
+                            <label class="checklist-item">
+                                <input type="checkbox" onchange="updateChecklistItem('morning', 2, this.checked)">
+                                <span>朝食を食べる</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- 日中 -->
+                    <div class="checklist-category">
+                        <h3 style="color: var(--primary); margin-bottom: 12px;">🌞 日中</h3>
+                        <div class="checklist-items" id="daytime-checklist">
+                            <label class="checklist-item">
+                                <input type="checkbox" onchange="updateChecklistItem('daytime', 0, this.checked)">
+                                <span>水を飲む（2L目標）</span>
+                            </label>
+                            <label class="checklist-item">
+                                <input type="checkbox" onchange="updateChecklistItem('daytime', 1, this.checked)">
+                                <span>休憩を取る</span>
+                            </label>
+                            <label class="checklist-item">
+                                <input type="checkbox" onchange="updateChecklistItem('daytime', 2, this.checked)">
+                                <span>ストレッチをする</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- 夜寝る前に -->
+                    <div class="checklist-category">
+                        <h3 style="color: var(--primary); margin-bottom: 12px;">🌙 夜寝る前に</h3>
+                        <div class="checklist-items" id="night-checklist">
+                            <label class="checklist-item">
+                                <input type="checkbox" onchange="updateChecklistItem('night', 0, this.checked)">
+                                <span>明日の準備をする</span>
+                            </label>
+                            <label class="checklist-item">
+                                <input type="checkbox" onchange="updateChecklistItem('night', 1, this.checked)">
+                                <span>歯を磨く</span>
+                            </label>
+                            <label class="checklist-item">
+                                <input type="checkbox" onchange="updateChecklistItem('night', 2, this.checked)">
+                                <span>スマホを見ない（就寝30分前）</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
             
-            
-            
-            
-
             <div class="card">
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
                     <h2>現在の習慣</h2>
@@ -829,6 +890,6 @@
     </div>
 
     <script src="js/modules/hypolab-status.js?v=20250831-01"></script>
-    <script src="js/hypolab-local.js?v=20250831-01"></script>
+    <script src="js/hypolab-local.js?v=20250104-01"></script>
 </body>
 </html>

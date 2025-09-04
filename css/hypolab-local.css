@@ -1298,6 +1298,59 @@
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
         }
         
+        /* チェックリストスタイル */
+        .daily-checklist {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .checklist-category {
+            background: var(--surface-light);
+            padding: 16px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+        
+        .checklist-items {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .checklist-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px;
+            background: var(--surface);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .checklist-item:hover {
+            background: var(--surface-hover);
+        }
+        
+        .checklist-item input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: var(--primary);
+        }
+        
+        .checklist-item span {
+            flex: 1;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+        
+        .checklist-item input[type="checkbox"]:checked + span {
+            text-decoration: line-through;
+            color: var(--text-secondary);
+        }
+        
         .skip-modal .modal-header {
             text-align: center;
             margin-bottom: 24px;
