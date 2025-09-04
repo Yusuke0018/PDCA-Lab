@@ -41,6 +41,22 @@
                 " title="テーマを切り替え">
                     <span id="theme-icon">🌙</span>
                 </button>
+                <!-- キャッシュ更新ボタン -->
+                <button id="cache-refresh" onclick="if(window.forceUpdateApp){forceUpdateApp();} else { location.reload(true); }" style="
+                    background: var(--surface-light);
+                    border: 1px solid var(--border);
+                    border-radius: 12px;
+                    padding: 8px 12px;
+                    color: var(--text-primary);
+                    cursor: pointer;
+                    font-size: 14px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    transition: all 0.3s ease;
+                " title="キャッシュをクリアして更新">
+                    🔄 更新
+                </button>
                 <!-- ポイント表示 -->
                 <div id="point-display" style="
                 display: flex;
