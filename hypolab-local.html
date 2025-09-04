@@ -14,7 +14,7 @@
     <link rel="icon" href="icons/icon.svg" sizes="any" type="image/svg+xml">
     <link rel="apple-touch-icon" href="icons/icon.svg">
     
-    <link rel="stylesheet" href="css/hypolab-local.css?v=20250104-01">
+    <link rel="stylesheet" href="css/hypolab-local.css?v=20250104-02">
 </head>
 <body>
     <!-- ヘッダー -->
@@ -87,65 +87,13 @@
             <div class="card">
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
                     <h2>今日のチェックリスト</h2>
-                    <span id="checklist-date" style="color: var(--text-secondary); font-size: 14px;"></span>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span id="checklist-date" style="color: var(--text-secondary); font-size: 14px;"></span>
+                        <button class="btn btn-secondary" onclick="editChecklistItems()" style="padding: 6px 10px; font-size: 12px;">✏️ 編集</button>
+                    </div>
                 </div>
                 <div id="daily-checklist" class="daily-checklist">
-                    <!-- 朝起きたら -->
-                    <div class="checklist-category">
-                        <h3 style="color: var(--primary); margin-bottom: 12px;">☀️ 朝起きたら</h3>
-                        <div class="checklist-items" id="morning-checklist">
-                            <label class="checklist-item">
-                                <input type="checkbox" onchange="updateChecklistItem('morning', 0, this.checked)">
-                                <span>顔を洗う</span>
-                            </label>
-                            <label class="checklist-item">
-                                <input type="checkbox" onchange="updateChecklistItem('morning', 1, this.checked)">
-                                <span>歯を磨く</span>
-                            </label>
-                            <label class="checklist-item">
-                                <input type="checkbox" onchange="updateChecklistItem('morning', 2, this.checked)">
-                                <span>朝食を食べる</span>
-                            </label>
-                        </div>
-                    </div>
-                    
-                    <!-- 日中 -->
-                    <div class="checklist-category">
-                        <h3 style="color: var(--primary); margin-bottom: 12px;">🌞 日中</h3>
-                        <div class="checklist-items" id="daytime-checklist">
-                            <label class="checklist-item">
-                                <input type="checkbox" onchange="updateChecklistItem('daytime', 0, this.checked)">
-                                <span>水を飲む（2L目標）</span>
-                            </label>
-                            <label class="checklist-item">
-                                <input type="checkbox" onchange="updateChecklistItem('daytime', 1, this.checked)">
-                                <span>休憩を取る</span>
-                            </label>
-                            <label class="checklist-item">
-                                <input type="checkbox" onchange="updateChecklistItem('daytime', 2, this.checked)">
-                                <span>ストレッチをする</span>
-                            </label>
-                        </div>
-                    </div>
-                    
-                    <!-- 夜寝る前に -->
-                    <div class="checklist-category">
-                        <h3 style="color: var(--primary); margin-bottom: 12px;">🌙 夜寝る前に</h3>
-                        <div class="checklist-items" id="night-checklist">
-                            <label class="checklist-item">
-                                <input type="checkbox" onchange="updateChecklistItem('night', 0, this.checked)">
-                                <span>明日の準備をする</span>
-                            </label>
-                            <label class="checklist-item">
-                                <input type="checkbox" onchange="updateChecklistItem('night', 1, this.checked)">
-                                <span>歯を磨く</span>
-                            </label>
-                            <label class="checklist-item">
-                                <input type="checkbox" onchange="updateChecklistItem('night', 2, this.checked)">
-                                <span>スマホを見ない（就寝30分前）</span>
-                            </label>
-                        </div>
-                    </div>
+                    <!-- チェックリストのカテゴリーは動的に生成される -->
                 </div>
             </div>
             
@@ -889,7 +837,46 @@
         </div>
     </div>
 
+    <!-- チェックリスト編集モーダル -->
+    <div id="checklist-edit-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); z-index: 10000; padding: 20px;">
+        <div style="background: var(--surface); border-radius: 16px; max-width: 600px; margin: 50px auto; padding: 24px; max-height: 80vh; overflow-y: auto;">
+            <h3 style="margin-bottom: 20px;">チェックリスト項目を編集</h3>
+            
+            <!-- 朝起きたら -->
+            <div class="checklist-edit-category" style="margin-bottom: 24px;">
+                <h4 style="color: var(--primary); margin-bottom: 12px;">☀️ 朝起きたら</h4>
+                <div id="morning-items-editor" class="checklist-items-editor">
+                    <!-- 動的に生成される -->
+                </div>
+                <button onclick="addChecklistItem('morning')" class="btn btn-secondary" style="margin-top: 8px; font-size: 14px;">+ 項目を追加</button>
+            </div>
+            
+            <!-- 日中 -->
+            <div class="checklist-edit-category" style="margin-bottom: 24px;">
+                <h4 style="color: var(--primary); margin-bottom: 12px;">🌞 日中</h4>
+                <div id="daytime-items-editor" class="checklist-items-editor">
+                    <!-- 動的に生成される -->
+                </div>
+                <button onclick="addChecklistItem('daytime')" class="btn btn-secondary" style="margin-top: 8px; font-size: 14px;">+ 項目を追加</button>
+            </div>
+            
+            <!-- 夜寝る前に -->
+            <div class="checklist-edit-category" style="margin-bottom: 24px;">
+                <h4 style="color: var(--primary); margin-bottom: 12px;">🌙 夜寝る前に</h4>
+                <div id="night-items-editor" class="checklist-items-editor">
+                    <!-- 動的に生成される -->
+                </div>
+                <button onclick="addChecklistItem('night')" class="btn btn-secondary" style="margin-top: 8px; font-size: 14px;">+ 項目を追加</button>
+            </div>
+            
+            <div style="display: flex; gap: 12px; margin-top: 24px;">
+                <button onclick="saveChecklistItems()" class="btn btn-primary" style="flex: 1;">保存</button>
+                <button onclick="closeChecklistEditModal()" class="btn btn-secondary" style="flex: 1;">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
     <script src="js/modules/hypolab-status.js?v=20250831-01"></script>
-    <script src="js/hypolab-local.js?v=20250104-01"></script>
+    <script src="js/hypolab-local.js?v=20250104-02"></script>
 </body>
 </html>

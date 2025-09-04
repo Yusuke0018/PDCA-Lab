@@ -1,7 +1,7 @@
         // PWA: service worker 登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const SW_VERSION_TAG = '20250104-01';
+                const SW_VERSION_TAG = '20250104-02';
                 const SW_FILE = `./sw.v20250119-03.js?v=${SW_VERSION_TAG}`; // 新ファイル名で確実に更新
                 navigator.serviceWorker.register(SW_FILE)
                     .then(reg => {
@@ -887,10 +887,34 @@
             // チェックリストの初期化
             if (!parsed.checklist) {
                 parsed.checklist = {
-                    morning: [false, false, false],
-                    daytime: [false, false, false],
-                    night: [false, false, false],
+                    items: {
+                        morning: ['顔を洗う', '歯を磨く', '朝食を食べる'],
+                        daytime: ['水を飲む（2L目標）', '休憩を取る', 'ストレッチをする'],
+                        night: ['明日の準備をする', '歯を磨く', 'スマホを見ない（就寝30分前）']
+                    },
+                    checked: {
+                        morning: [],
+                        daytime: [],
+                        night: []
+                    },
                     lastResetDate: null
+                };
+            }
+            // 旧形式から新形式への移行
+            if (parsed.checklist && Array.isArray(parsed.checklist.morning)) {
+                const oldChecklist = parsed.checklist;
+                parsed.checklist = {
+                    items: {
+                        morning: ['顔を洗う', '歯を磨く', '朝食を食べる'],
+                        daytime: ['水を飲む（2L目標）', '休憩を取る', 'ストレッチをする'],
+                        night: ['明日の準備をする', '歯を磨く', 'スマホを見ない（就寝30分前）']
+                    },
+                    checked: {
+                        morning: oldChecklist.morning || [],
+                        daytime: oldChecklist.daytime || [],
+                        night: oldChecklist.night || []
+                    },
+                    lastResetDate: oldChecklist.lastResetDate
                 };
             }
             
@@ -907,9 +931,11 @@
             }
             // チェックリストも日付が変わったらリセット
             if (parsed.checklist && parsed.checklist.lastResetDate !== today) {
-                parsed.checklist.morning = [false, false, false];
-                parsed.checklist.daytime = [false, false, false];
-                parsed.checklist.night = [false, false, false];
+                parsed.checklist.checked = {
+                    morning: [],
+                    daytime: [],
+                    night: []
+                };
                 parsed.checklist.lastResetDate = today;
             }
             // 週が変わったらウィークリーチャレンジをリセット
@@ -15968,26 +15994,27 @@
             // チェックリスト関連の関数
             window.updateChecklistItem = function(category, index, checked) {
                 const data = loadData();
-                if (!data.checklist) {
-                    data.checklist = {
-                        morning: [false, false, false],
-                        daytime: [false, false, false],
-                        night: [false, false, false],
-                        lastResetDate: new Date().toDateString()
-                    };
-                }
+                if (!data.checklist || !data.checklist.checked) return;
                 
                 // チェック状態を更新
-                if (data.checklist[category]) {
-                    data.checklist[category][index] = checked;
+                if (checked) {
+                    if (!data.checklist.checked[category].includes(index)) {
+                        data.checklist.checked[category].push(index);
+                    }
+                } else {
+                    const idx = data.checklist.checked[category].indexOf(index);
+                    if (idx !== -1) {
+                        data.checklist.checked[category].splice(idx, 1);
+                    }
                 }
                 
                 saveData(data);
             };
             
-            window.loadChecklistState = function() {
+            window.renderChecklist = function() {
                 const data = loadData();
-                const today = new Date().toDateString();
+                const container = document.getElementById('daily-checklist');
+                if (!container || !data.checklist) return;
                 
                 // 今日の日付を表示
                 const dateElement = document.getElementById('checklist-date');
@@ -15999,31 +16026,160 @@
                     dateElement.textContent = `${month}月${day}日(${weekday})`;
                 }
                 
+                const categories = [
+                    { key: 'morning', label: '☀️ 朝起きたら', color: 'var(--primary)' },
+                    { key: 'daytime', label: '🌞 日中', color: 'var(--primary)' },
+                    { key: 'night', label: '🌙 夜寝る前に', color: 'var(--primary)' }
+                ];
+                
+                let html = '';
+                categories.forEach(cat => {
+                    const items = data.checklist.items[cat.key] || [];
+                    const checkedIndices = data.checklist.checked[cat.key] || [];
+                    
+                    html += `
+                        <div class="checklist-category">
+                            <h3 style="color: ${cat.color}; margin-bottom: 12px;">${cat.label}</h3>
+                            <div class="checklist-items" id="${cat.key}-checklist">
+                    `;
+                    
+                    items.forEach((item, index) => {
+                        const isChecked = checkedIndices.includes(index);
+                        html += `
+                            <label class="checklist-item">
+                                <input type="checkbox" ${isChecked ? 'checked' : ''} 
+                                       onchange="updateChecklistItem('${cat.key}', ${index}, this.checked)">
+                                <span>${item}</span>
+                            </label>
+                        `;
+                    });
+                    
+                    html += `
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                container.innerHTML = html;
+            };
+            
+            window.loadChecklistState = function() {
+                window.renderChecklist();
+            };
+            
+            // チェックリスト編集機能
+            window.editChecklistItems = function() {
+                const data = loadData();
                 if (!data.checklist) return;
                 
-                // 朝のチェックリスト
-                const morningItems = document.querySelectorAll('#morning-checklist input[type="checkbox"]');
-                morningItems.forEach((checkbox, index) => {
-                    if (data.checklist.morning && index < data.checklist.morning.length) {
-                        checkbox.checked = data.checklist.morning[index];
-                    }
+                // 編集モーダルに現在の項目を表示
+                ['morning', 'daytime', 'night'].forEach(category => {
+                    const container = document.getElementById(`${category}-items-editor`);
+                    if (!container) return;
+                    
+                    const items = data.checklist.items[category] || [];
+                    let html = '';
+                    
+                    items.forEach((item, index) => {
+                        html += `
+                            <div class="checklist-edit-item" style="display: flex; gap: 8px; margin-bottom: 8px;">
+                                <input type="text" value="${item}" 
+                                       data-category="${category}" data-index="${index}"
+                                       style="flex: 1; padding: 8px; border: 1px solid var(--border); 
+                                              border-radius: 8px; background: var(--background); 
+                                              color: var(--text-primary); font-size: 14px;">
+                                <button onclick="removeChecklistItem('${category}', ${index})" 
+                                        class="btn btn-secondary" style="padding: 8px 12px;">削除</button>
+                            </div>
+                        `;
+                    });
+                    
+                    container.innerHTML = html;
                 });
                 
-                // 日中のチェックリスト
-                const daytimeItems = document.querySelectorAll('#daytime-checklist input[type="checkbox"]');
-                daytimeItems.forEach((checkbox, index) => {
-                    if (data.checklist.daytime && index < data.checklist.daytime.length) {
-                        checkbox.checked = data.checklist.daytime[index];
-                    }
+                document.getElementById('checklist-edit-modal').style.display = 'block';
+            };
+            
+            window.addChecklistItem = function(category) {
+                const container = document.getElementById(`${category}-items-editor`);
+                if (!container) return;
+                
+                const newIndex = container.children.length;
+                const newItemDiv = document.createElement('div');
+                newItemDiv.className = 'checklist-edit-item';
+                newItemDiv.style = 'display: flex; gap: 8px; margin-bottom: 8px;';
+                newItemDiv.innerHTML = `
+                    <input type="text" value="" placeholder="新しい項目"
+                           data-category="${category}" data-index="${newIndex}"
+                           style="flex: 1; padding: 8px; border: 1px solid var(--border); 
+                                  border-radius: 8px; background: var(--background); 
+                                  color: var(--text-primary); font-size: 14px;">
+                    <button onclick="removeChecklistItem('${category}', ${newIndex})" 
+                            class="btn btn-secondary" style="padding: 8px 12px;">削除</button>
+                `;
+                
+                container.appendChild(newItemDiv);
+            };
+            
+            window.removeChecklistItem = function(category, index) {
+                const container = document.getElementById(`${category}-items-editor`);
+                if (!container) return;
+                
+                const items = container.querySelectorAll('.checklist-edit-item');
+                if (items[index]) {
+                    items[index].remove();
+                }
+                
+                // インデックスを再調整
+                container.querySelectorAll('input[type="text"]').forEach((input, newIndex) => {
+                    input.setAttribute('data-index', newIndex);
+                });
+                container.querySelectorAll('button').forEach((button, newIndex) => {
+                    button.setAttribute('onclick', `removeChecklistItem('${category}', ${newIndex})`);
+                });
+            };
+            
+            window.saveChecklistItems = function() {
+                const data = loadData();
+                if (!data.checklist) {
+                    data.checklist = {
+                        items: { morning: [], daytime: [], night: [] },
+                        checked: { morning: [], daytime: [], night: [] },
+                        lastResetDate: new Date().toDateString()
+                    };
+                }
+                
+                // 各カテゴリーの項目を保存
+                ['morning', 'daytime', 'night'].forEach(category => {
+                    const container = document.getElementById(`${category}-items-editor`);
+                    if (!container) return;
+                    
+                    const inputs = container.querySelectorAll('input[type="text"]');
+                    const newItems = [];
+                    
+                    inputs.forEach(input => {
+                        const value = input.value.trim();
+                        if (value) {
+                            newItems.push(value);
+                        }
+                    });
+                    
+                    data.checklist.items[category] = newItems;
+                    // チェック状態をクリア（項目が変わったため）
+                    data.checklist.checked[category] = [];
                 });
                 
-                // 夜のチェックリスト
-                const nightItems = document.querySelectorAll('#night-checklist input[type="checkbox"]');
-                nightItems.forEach((checkbox, index) => {
-                    if (data.checklist.night && index < data.checklist.night.length) {
-                        checkbox.checked = data.checklist.night[index];
-                    }
-                });
+                saveData(data);
+                
+                // モーダルを閉じる
+                document.getElementById('checklist-edit-modal').style.display = 'none';
+                
+                // チェックリストを再描画
+                window.renderChecklist();
+            };
+            
+            window.closeChecklistEditModal = function() {
+                document.getElementById('checklist-edit-modal').style.display = 'none';
             };
             window.showCardUseMenu = function(){};
             window.closeCardUseMenu = function(){};
