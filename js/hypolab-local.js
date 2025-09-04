@@ -810,11 +810,6 @@
             // チェックリスト（朝/日中/夜）初期化
             if (!parsed.checklists) {
                 parsed.checklists = { morning: [], day: [], night: [] };
-            } else {
-                // 欠けているキーを補完
-                if (!Array.isArray(parsed.checklists.morning)) parsed.checklists.morning = [];
-                if (!Array.isArray(parsed.checklists.day)) parsed.checklists.day = [];
-                if (!Array.isArray(parsed.checklists.night)) parsed.checklists.night = [];
             }
             // ポイントシステムがない場合は初期化
             if (!parsed.pointSystem) {
@@ -15743,7 +15738,6 @@
             if (!text) return;
             const data = loadData();
             if (!data.checklists) data.checklists = { morning: [], day: [], night: [] };
-            if (!Array.isArray(data.checklists[category])) data.checklists[category] = [];
             const id = `ci_${Date.now()}_${Math.floor(Math.random()*1000)}`;
             data.checklists[category].push({ id, text: text.trim(), done: false });
             saveData(data);
