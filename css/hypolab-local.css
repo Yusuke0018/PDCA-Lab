@@ -115,19 +115,20 @@
         .checklist-sections { display: grid; gap: 12px; grid-template-columns: 1fr; }
         .checklist-section { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
         .checklist-list { list-style: none; display: grid; gap: 8px; margin: 0; padding: 0; }
-        .checklist-item { display: flex; align-items: center; gap: 10px; }
+        .checklist-item { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
         .checklist-text { 
             flex: 1; 
             min-width: 0; 
             user-select: none; 
             writing-mode: horizontal-tb; 
             text-orientation: mixed; 
-            white-space: nowrap; 
-            overflow: hidden; 
-            text-overflow: ellipsis; 
-            word-break: keep-all; 
+            white-space: normal; 
+            word-break: break-word; 
+            overflow-wrap: anywhere; 
             letter-spacing: normal; 
             line-height: 1.5;
+            font-size: 14px;
+            color: var(--text-primary);
         }
         .checklist-checkbox { flex-shrink: 0; }
         .checklist-action { flex-shrink: 0; }
