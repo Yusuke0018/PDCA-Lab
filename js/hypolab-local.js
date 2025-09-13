@@ -8422,6 +8422,23 @@
             const idx = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
             if (idx === -1) return;
             const hyp = data.currentHypotheses[idx];
+            const beforeState = {
+                yesterdayAchieved: (function(){
+                    try {
+                        const y = new Date(); y.setDate(y.getDate()-1); y.setHours(0,0,0,0);
+                        const yKey = dateKeyLocal(y);
+                        return !!((hyp.achievements||{})[yKey]);
+                    } catch(_) { return false; }
+                })(),
+                weeklyCount: (function(){
+                    try {
+                        let cnt = 0; const today = new Date(); today.setHours(0,0,0,0);
+                        for (let i=0;i<7;i++) { const d=new Date(today); d.setDate(today.getDate()-i); const k=dateKeyLocal(d); if ((hyp.achievements||{})[k]) cnt++; }
+                        return cnt;
+                    } catch(_) { return 0; }
+                })(),
+                currentStreak: (function(){ try { return calculateCurrentStreak(hyp); } catch(_) { return 0; } })()
+            };
             hyp.achievements = hyp.achievements || {};
             hyp.pointsByDate = hyp.pointsByDate || {};
             hyp.failures = hyp.failures || {};
@@ -8533,6 +8550,23 @@
             updatePointDisplay();
             updateProgress();
             updateCalendar();
+
+            // 達成時のメッセージウィンドウ（毎回表示）
+            if (makeAchieved === true && !wasAchieved) {
+                try {
+                    const ctxData = loadData();
+                    const lvl = calculateLevel((ctxData.pointSystem && ctxData.pointSystem.lifetimeEarned) ? ctxData.pointSystem.lifetimeEarned : 0);
+                    const context = {
+                        title: (lvl && lvl.name) ? lvl.name : '',
+                        habitTitle: hyp.title || '',
+                        yesterdayAchieved: beforeState.yesterdayAchieved,
+                        weeklyCount: (beforeState.weeklyCount||0) + 1,
+                        streak: Math.max((beforeState.currentStreak||0) + 1, 1)
+                    };
+                    const msg = pickAchievementMessage(context);
+                    showAchievementPopup(msg);
+                } catch(_) {}
+            }
         }
 
         // ホーム画面用：今日の状態を対象の習慣に対してワンタップで循環
@@ -8594,6 +8628,163 @@
         function openIntensityPicker(dateKey) { /* no-op: 強度選択は廃止 */ }
         function applyAchievementWithIntensity(dateKey, dayCell, _intensity) {
             try { openDayStatusPicker(dateKey); } catch(_) {}
+        }
+        
+        // 達成メッセージのポップアップ
+        function showAchievementPopup(message) {
+            try { const exist = document.getElementById('achievement-popup'); if (exist) exist.remove(); } catch(_) {}
+            const overlay = document.createElement('div');
+            overlay.id = 'achievement-popup';
+            overlay.className = 'overlay active';
+            overlay.style.backdropFilter = 'blur(3px)';
+            overlay.style.zIndex = '10000';
+            const modal = document.createElement('div');
+            modal.className = 'skip-modal active';
+            modal.style.maxWidth = '420px';
+            modal.style.padding = '20px';
+            modal.innerHTML = `
+                <div class=\"modal-header\" style=\"margin-bottom: 8px;\">
+                    <h3 style=\"font-size: 18px; margin: 0;\">🎉 ナイス達成！</h3>
+                </div>
+                <div style=\"font-size: 14px; line-height: 1.8; color: var(--text-primary); white-space: pre-line;\">${escapeHTML(String(message || '今日も素晴らしい一歩です！'))}</div>
+                <div style=\"margin-top: 16px; display: flex; gap: 8px; justify-content: flex-end;\">
+                    <button class=\"btn\" id=\"achievement-close-btn\">OK</button>
+                </div>
+            `;
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            const close = () => { try { overlay.remove(); } catch(_) {} };
+            try { document.getElementById('achievement-close-btn').onclick = close; } catch(_) {}
+            overlay.onclick = (e) => { if (e.target === overlay) close(); };
+        }
+
+        // 300種類の達成メッセージプール生成
+        function ensureAchievementMessages() {
+            if (window.__ACHIEVEMENT_MESSAGES && window.__ACHIEVEMENT_MESSAGES.length >= 300) return;
+            const simpleBases = [
+                '本日も習慣を達成しました！さすが{title}ですね。',
+                '今日も一歩前進！{title}の面目躍如です。',
+                '継続の力、確かに感じます。{title}らしい安定感！',
+                'よくできました！この調子で進みましょう、{title}！',
+                '淡々と進める姿勢が最高です。{title}の真骨頂！',
+                '積み上げが光っています。{title}、いい流れです。',
+                '着実な一歩！今日の自分に拍手、{title}！',
+                '今日も未来が1歩近づきました。さすが{title}！',
+                '静かな闘志、見事な実行力。{title}、素敵です。',
+                '続ける人が勝つ。まさに{title}の道です。',
+                'いいリズム！このペースでいきましょう。{title}！',
+                '積み上げの1日が加算されました。{title}、ナイス！',
+                '「できた」を重ねる力、{title}が証明中！',
+                '今日の1回が、明日の当たり前に。{title}、素晴らしい！',
+                '地道さが最大の武器。{title}の快進撃！',
+                'やるべきことをやる。{title}の王道です。',
+                '努力は静かに、結果は華やかに。{title}が体現！',
+                '今日の達成、未来の自信。{title}、いい積み重ね！',
+                '一歩を笑うな、一歩を侮るな。{title}の一歩！',
+                '「やった」が増えるほど強くなる。{title}が強化中！'
+            ];
+            const comebackBases = [
+                '昨日は未達でしたが今日は達成。挽回できて素晴らしいですね。',
+                '見事なリカバリー！昨日の分も取り返しました。',
+                'たとえ崩れても、また積めばいい。今日は積めました！',
+                '完璧じゃなくていい、継続すればいい。今日はそれができました！',
+                '昨日の悔しさを今日のエネルギーに。最高です！',
+                '休むことも前進。今日は再始動の一歩、素晴らしい！',
+                '途切れても、また始めれば連続。今日から再開！',
+                '復活の狼煙！この一歩で流れが変わります。',
+                '昨日の「できなかった」を今日の「できた」に。見事です！',
+                '切り替え力は才能。今日の達成がそれを証明しました。'
+            ];
+            const streakBases = [
+                '{streak}日連続で達成です！素晴らしすぎて言葉も出ません…。',
+                '{streak}日連続達成！習慣の芯が育っています。',
+                '{streak}連勝中！勢い、そのままに。',
+                '{streak}日目もクリア。継続の職人技！',
+                '{streak}日連続は見事！自分への信頼が増しています。',
+                '{streak}日継続！小さな勝ちが大きな力に。',
+                '{streak}日目の安定感、{title}の風格です。',
+                '{streak}日ライン突破！達人の階段を登っています。',
+                '{streak}日、いい流れです。このままいきましょう！',
+                '{streak}日達成！積み上げの証がまた一つ。'
+            ];
+            const weeklyBases = [
+                'この一週間で{weekly}回達成！いいペースです。毎日達成も狙いましょう。',
+                '直近7日で{weekly}回の実行。再現性が育っています！',
+                '7日間で{weekly}回クリア。次は“皆勤”に挑戦！',
+                '過去7日で{weekly}回達成。十分に前進しています！',
+                '今週{weekly}回の達成！生活に溶け込んできましたね。'
+            ];
+            const prefixes = ['素晴らしい！','いいですね！','最高！','ナイス！','お見事！','素敵！','グッド！','完璧！','順調！','完走！'];
+            const suffixes = ['次もこの調子で！','呼吸するように続けましょう。','小さく積んで大きく勝つ！','未来の自分が喜びます。','ルーティン化が進んでいます。','自分を褒めてあげましょう。','コツコツが最強です。','積み上げていきましょう。','丁寧に続けましょう。','淡々と進めましょう。'];
+            const expand = (base) => prefixes.flatMap(p => suffixes.map(s => `${base}\n${p} ${s}`));
+            let pool = [];
+            pool = pool.concat(simpleBases.flatMap(expand));
+            pool = pool.concat(comebackBases.flatMap(expand));
+            pool = pool.concat(streakBases.flatMap(expand));
+            pool = pool.concat(weeklyBases.flatMap(expand));
+            const seen = new Set();
+            const unique = [];
+            for (const m of pool) { if (!seen.has(m)) { seen.add(m); unique.push(m); } }
+            const shuffled = unique.sort(() => Math.random() - 0.5);
+            window.__ACHIEVEMENT_MESSAGES = shuffled.slice(0, 300);
+            if (window.__ACHIEVEMENT_MESSAGES.length < 300) {
+                while (window.__ACHIEVEMENT_MESSAGES.length < 300) {
+                    const base = simpleBases[Math.floor(Math.random()*simpleBases.length)];
+                    const p = prefixes[Math.floor(Math.random()*prefixes.length)];
+                    const s = suffixes[Math.floor(Math.random()*suffixes.length)];
+                    const msg = `${base}\n${p} ${s}`;
+                    if (!window.__ACHIEVEMENT_MESSAGES.includes(msg)) window.__ACHIEVEMENT_MESSAGES.push(msg);
+                }
+            }
+        }
+
+        function getMessageQueue() {
+            try { const raw = localStorage.getItem('achievement_msg_queue'); if (raw) return JSON.parse(raw); } catch(_) {}
+            return [];
+        }
+        function setMessageQueue(q) {
+            try { localStorage.setItem('achievement_msg_queue', JSON.stringify(q)); } catch(_) {}
+        }
+        function nextMessageIndex() {
+            ensureAchievementMessages();
+            let q = getMessageQueue();
+            if (!Array.isArray(q) || q.length === 0) {
+                q = Array.from({length: 300}, (_,i)=>i).sort(()=>Math.random()-0.5);
+            }
+            const idx = q.shift(); setMessageQueue(q);
+            return typeof idx === 'number' ? idx : 0;
+        }
+
+        function formatTemplate(tpl, context) {
+            return String(tpl)
+                .replaceAll('{title}', context.title || '')
+                .replaceAll('{streak}', String(context.streak || 0))
+                .replaceAll('{weekly}', String(context.weeklyCount || 0))
+                .replaceAll('{habit}', context.habitTitle || '');
+        }
+
+        function pickAchievementMessage(context) {
+            ensureAchievementMessages();
+            if (!context.yesterdayAchieved) {
+                const comebackSamples = [
+                    '昨日は未達でしたが今日は達成。挽回できて素晴らしいですね。',
+                    '見事なリカバリー！昨日の分も取り返しました。',
+                    'たとえ崩れても、また積めばいい。今日は積めました！'
+                ];
+                const tpl = comebackSamples[Math.floor(Math.random()*comebackSamples.length)];
+                return formatTemplate(tpl, context);
+            }
+            if (context.streak >= 10) {
+                const tpl = '{streak}日連続で達成です！素晴らしすぎて言葉も出ません…。';
+                return formatTemplate(tpl, context);
+            }
+            if (context.weeklyCount >= 5) {
+                const tpl = 'この一週間で{weekly}回達成です！いいペース。次は毎日達成に挑戦しましょう、{title}！';
+                return formatTemplate(tpl, context);
+            }
+            const idx = nextMessageIndex();
+            const tpl = window.__ACHIEVEMENT_MESSAGES[idx] || '本日も習慣を達成しました！さすが{title}ですね。';
+            return formatTemplate(tpl, context);
         }
         
         // 週番号を取得する関数（グローバルに定義） - 検証開始日基準
