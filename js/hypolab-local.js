@@ -4884,9 +4884,7 @@
             const levelRange = levelInfo.max - levelInfo.min + 1;
             const progressPercent = Math.round((progressInLevel / levelRange) * 100);
             
-            // 次のレベル名を取得
-            // 次のレベル名（上限時はMAX表示）
-            const nextLevelName = levelInfo.capped ? 'MAX' : getLevelTitle(levelInfo.level + 1);
+            // 次のレベル名は非表示（称号は見せない）
             
             // ポップアップを作成
             const popup = document.createElement('div');
@@ -4955,7 +4953,7 @@
                                 ${pointsNeeded}pt
                             </span>
                             <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
-                                Lv.${levelInfo.level + 1} ${nextLevelName}
+                                Lv.${levelInfo.level + 1}
                             </div>
                         </div>
                         <div style="text-align: right;">
