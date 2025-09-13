@@ -3594,7 +3594,7 @@
                 type: document.getElementById('challenge-type').value,
                 points: parseInt(document.getElementById('challenge-points').value),
                 icon: document.getElementById('challenge-emoji').value || '🎯',
-                category: document.getElementById('challenge-category').value,
+                category: (document.getElementById('challenge-category') ? document.getElementById('challenge-category').value : ''),
                 isCustom: true,
                 createdAt: new Date().toISOString()
             };
@@ -5791,7 +5791,8 @@
             const name = document.getElementById('reward-name').value;
             const cost = parseInt(document.getElementById('reward-cost').value);
             const emoji = document.getElementById('reward-emoji').value || '🎁';
-            const category = document.getElementById('reward-category').value;
+            const categoryEl = document.getElementById('reward-category');
+            const category = categoryEl ? categoryEl.value : '';
             const memo = document.getElementById('reward-memo').value;
             
             const data = loadData();
@@ -6675,15 +6676,11 @@
             
             updateNavigation('home');
             
-            // カテゴリドロップダウンを更新
-            updateCategoryDropdowns();
+            // カテゴリー機能は廃止
             
             // 保存されたカテゴリフィルターを復元
             const savedCategory = localStorage.getItem('selectedCategory') || 'all';
-            const categoryFilter = document.getElementById('category-filter');
-            if (categoryFilter) {
-                categoryFilter.value = savedCategory;
-            }
+            // カテゴリフィルターは廃止
             
             updateCurrentHypothesisList();
             updatePerfectBonusIndicator();
@@ -6867,13 +6864,8 @@
 
         // カテゴリで習慣をフィルタリング
         function filterHabitsByCategory() {
-            const filter = document.getElementById('category-filter');
-            if (filter) {
-                // 選択中のカテゴリを保存
-                localStorage.setItem('selectedCategory', filter.value);
-                // 習慣リストを更新
-                updateCurrentHypothesisList();
-            }
+            // カテゴリ機能は廃止。リストのみ更新。
+            try { updateCurrentHypothesisList(); } catch(_) {}
         }
         window.filterHabitsByCategory = filterHabitsByCategory;
         
@@ -6885,14 +6877,10 @@
             // 夜のチェックリストは非表示
             try { const n = document.getElementById('night-checklist-card'); if (n) n.style.display = 'none'; } catch(_) {}
             
-            // カテゴリドロップダウンを更新
-            updateCategoryDropdowns();
+            // カテゴリー機能は廃止
             
             // カテゴリをデフォルトにリセット
-            const categorySelect = document.getElementById('hypothesis-category');
-            if (categorySelect) {
-                categorySelect.value = 'other';
-            }
+            // カテゴリー機能は廃止
             document.getElementById('history-view').style.display = 'none';
             document.getElementById('stats-view').style.display = 'none';
             document.getElementById('points-view').style.display = 'none';
@@ -6997,7 +6985,6 @@
 
             const title = document.getElementById('hypothesis-title').value.trim();
             const description = document.getElementById('hypothesis-description').value.trim();
-            const category = document.getElementById('hypothesis-category').value;
 
             if (!title || !description) {
                 alert('タイトルと詳細を入力してください');
@@ -7023,7 +7010,6 @@
                 id: Date.now(),
                 title: title,
                 description: description,
-                category: category,  // カテゴリーを追加
                 duration: 'unlimited',
                 isUnlimited: true,
                 startDate: startDate + 'T00:00:00.000Z',
@@ -9106,7 +9092,9 @@
             // 閉じるボタン
             document.getElementById('cat-close').onclick = () => {
                 overlay.remove();
-                updateCategoryDropdowns();  // ドロップダウンを更新
+                showNotification('カテゴリを更新しました', 'success');
+                // カテゴリー機能は廃止
+                updateCurrentHypothesisList();
             };
         }
         
@@ -9130,46 +9118,8 @@
         
         // カテゴリドロップダウンを更新
         function updateCategoryDropdowns() {
-            try {
-                const categoryMaster = initializeCategoryMaster();
-                
-                // ホーム画面のフィルター
-                const filterSelect = document.getElementById('category-filter');
-                if (filterSelect) {
-                    const currentValue = filterSelect.value || localStorage.getItem('selectedCategory') || 'all';
-                    filterSelect.innerHTML = '<option value="all">📂 全て表示</option>';
-                    Object.entries(categoryMaster).forEach(([key, cat]) => {
-                        const option = document.createElement('option');
-                        option.value = key;
-                        option.textContent = `${cat.icon} ${cat.name}`;
-                        filterSelect.appendChild(option);
-                    });
-                    filterSelect.value = currentValue;
-                }
-                
-                // 新規立案画面のカテゴリ選択
-                const populate = (selectEl) => {
-                    if (!selectEl) return;
-                    const currentValue = selectEl.value || localStorage.getItem('selectedCategory') || 'other';
-                    selectEl.innerHTML = '';
-                    Object.entries(categoryMaster).forEach(([key, cat]) => {
-                        const option = document.createElement('option');
-                        option.value = key;
-                        option.textContent = `${cat.icon} ${cat.name}`;
-                        selectEl.appendChild(option);
-                    });
-                    const selectedCategory = localStorage.getItem('selectedCategory');
-                    if (selectedCategory && selectedCategory !== 'all') {
-                        selectEl.value = selectedCategory;
-                    } else {
-                        selectEl.value = currentValue;
-                    }
-                };
-                populate(document.getElementById('hypothesis-category'));
-                populate(document.getElementById('edit-habit-category'));
-            } catch (e) {
-                console.error('カテゴリドロップダウンの更新に失敗:', e);
-            }
+            // カテゴリー機能は廃止のため、何もしない
+            return;
         }
         
         // 新しいカテゴリを追加
@@ -9242,7 +9192,7 @@
             const overlay = document.querySelector('.overlay');
             if (modal) modal.remove();
             if (overlay) overlay.remove();
-            updateCategoryDropdowns();
+            // カテゴリー機能は廃止
             updateCurrentHypothesisList();
             renderCategoryPanel();
             editCategoryMaster();
@@ -15793,8 +15743,7 @@
                 }
             } catch (_) { /* noop */ }
             
-            // カテゴリドロップダウンを初期化
-            updateCategoryDropdowns();
+            // カテゴリー機能は廃止
             
             // ホーム画面を表示（これが習慣リストも更新する）
             showHomeView();

@@ -63,11 +63,10 @@
         <div id="cards-view" style="display: none;"></div>
     </header>
 
-    <!-- ナビゲーションバー（ホーム・ステータス） -->
+    <!-- ナビゲーションバー（ホームのみ） -->
     <nav class="nav">
         <div class="nav-content">
             <button class="nav-btn active" data-view="home" onclick="showHomeView()">🏠 ホーム</button>
-            <button class="nav-btn" data-view="status" onclick="showStatusView()">🧙 ステータス</button>
             <div id="nav-indicator" class="nav-indicator"></div>
         </div>
     </nav>
@@ -83,38 +82,10 @@
     <div class="container">
         <!-- ホーム画面 -->
         <div id="home-view">
-            <!-- デイリーチェックリスト -->
-            <div class="card">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
-                    <h2>今日のチェックリスト</h2>
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span id="checklist-date" style="color: var(--text-secondary); font-size: 14px;"></span>
-                        <button class="btn btn-secondary" onclick="editChecklistItems()" style="padding: 6px 10px; font-size: 12px;">✏️ 編集</button>
-                    </div>
-                </div>
-                <div id="daily-checklist" class="daily-checklist">
-                    <!-- チェックリストのカテゴリーは動的に生成される -->
-                </div>
-            </div>
-            
             <div class="card">
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
                     <h2>現在の習慣</h2>
-                    <!-- カテゴリフィルター + 編集 -->
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <select id="category-filter" onchange="filterHabitsByCategory()" style="
-                            padding: 6px 12px;
-                            border: 1px solid var(--border);
-                            border-radius: 8px;
-                            background: var(--surface);
-                            color: var(--text-primary);
-                            font-size: 14px;
-                            cursor: pointer;
-                        ">
-                            <!-- カテゴリオプションは動的に生成 -->
-                        </select>
-                        <button class="btn btn-secondary" onclick="editCategoryMaster()" style="padding:6px 10px; font-size:12px;">🗂 カテゴリ編集</button>
-                    </div>
+                    <!-- カテゴリ機能は廃止 -->
                 </div>
                 <div id="current-hypothesis-list" class="hypothesis-list">
                     <!-- 動的に生成 -->
@@ -124,7 +95,7 @@
                 </button>
             </div>
             
-
+            <!-- 夜のチェックリストは廃止 -->
         </div>
 
         <!-- 新規習慣作成画面 -->
@@ -142,15 +113,7 @@
                         <textarea id="hypothesis-description" required placeholder="この習慣で何を実現したいか詳しく記述してください" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
                     </div>
 
-                    <div class="form-group">
-                        <div style="display:flex; align-items:center; justify-content:space-between;">
-                            <label for="hypothesis-category">カテゴリー</label>
-                            <button type="button" class="btn btn-secondary" onclick="editCategoryMaster()" style="padding:6px 10px; font-size:12px;">🗂 カテゴリ編集</button>
-                        </div>
-                        <select id="hypothesis-category" required>
-                            <!-- カテゴリオプションは動的に生成 -->
-                        </select>
-                    </div>
+                    <!-- カテゴリー機能は廃止 -->
 
                     
 
@@ -190,29 +153,8 @@
             </div>
         </div>
 
-        <!-- ステータス画面（ドラクエ風） -->
-        <div id="status-view" style="display:none;">
-            <div class="dq-card">
-                <div class="dq-title">なまえ: ゆうすけ</div>
-                <div class="dq-row">そうごうレベル: <span id="dq-level">1</span></div>
-                <div class="dq-row" style="color: #ffd700; font-size: 14px;">しょうごう: <span id="dq-level-title">見習い冒険者</span></div>
-                <div class="dq-row">そうごうポイント: <span id="dq-points">0</span>pt</div>
-                <div style="margin: 15px 0; border-top: 1px solid #555; padding-top: 10px;">
-                    <div class="dq-row" style="font-size: 14px; font-weight: bold; margin-bottom: 8px;">きほんのうりょく</div>
-                    <div class="dq-row">けいぞくりょく: <span id="dq-keizoku">20</span></div>
-                    <div class="dq-row">しゅうちゅうりょく: <span id="dq-shuchu">15</span></div>
-                    <div class="dq-row">かいふくりょく: <span id="dq-kaifuku">12</span></div>
-                    <div class="dq-row">せっけいりょく: <span id="dq-sekkei">12</span></div>
-                    <div class="dq-row">きそたいりょく: <span id="dq-kiso">12</span></div>
-                </div>
-                <div style="margin: 15px 0; border-top: 1px solid #555; padding-top: 10px;">
-                    <div class="dq-row" style="font-size: 14px; font-weight: bold; margin-bottom: 8px;">カテゴリーべつレベル</div>
-                    <div id="category-titles-list"></div>
-                </div>
-                <div class="dq-footer">
-                </div>
-            </div>
-        </div>
+        <!-- ステータス画面は廃止 -->
+        <!-- ステータス画面は廃止 -->
 
         
 
@@ -620,15 +562,7 @@
                         </div>
                     </div>
                     
-                    <!-- カテゴリー別統計 -->
-                    <div style="background: var(--surface); padding: 16px; border-radius: 12px; margin-bottom: 12px;">
-                        <h4 style="margin-bottom: 12px; font-size: 16px; cursor: pointer; user-select: none;" onclick="toggleStatSection('category-statistics')">
-                            <span id="category-statistics-arrow">▼</span> 📂 カテゴリー別使用状況
-                        </h4>
-                        <div id="category-statistics" style="display: grid; gap: 8px;">
-                            <!-- 動的に生成 -->
-                        </div>
-                    </div>
+                    <!-- カテゴリー別統計は廃止 -->
                     
                     <!-- 時間帯別使用パターン -->
                     <div style="background: var(--surface); padding: 16px; border-radius: 12px; margin-bottom: 12px;">
@@ -709,18 +643,7 @@
                         <input type="text" id="reward-emoji" placeholder="例: 📱" maxlength="2" autocomplete="off">
                     </div>
                     
-                    <div class="form-group">
-                        <label for="reward-category">カテゴリー</label>
-                        <select id="reward-category">
-                            <option value="休憩">🍵 休憩</option>
-                            <option value="娯楽">🎮 娯楽</option>
-                            <option value="食事">🍰 食事</option>
-                            <option value="買い物">🛍️ 買い物</option>
-                            <option value="体験">🎭 体験</option>
-                            <option value="自由時間">⏰ 自由時間</option>
-                            <option value="その他">📦 その他</option>
-                        </select>
-                    </div>
+                    <!-- リワードのカテゴリーは廃止 -->
                     
                     <div class="form-group">
                         <label for="reward-memo">メモ（任意）</label>
@@ -764,18 +687,7 @@
                             <input type="text" id="challenge-emoji" placeholder="例: 💪" maxlength="2" autocomplete="off">
                         </div>
                         
-                        <div class="form-group">
-                            <label for="challenge-category">カテゴリー</label>
-                            <select id="challenge-category">
-                                <option value="health">🏃 健康・運動</option>
-                                <option value="study">📚 学習・成長</option>
-                                <option value="mindfulness">🧘 マインドフルネス</option>
-                                <option value="social">🤝 社会・人間関係</option>
-                                <option value="creativity">🎨 創造性</option>
-                                <option value="productivity">⚡ 生産性</option>
-                                <option value="other">📦 その他</option>
-                            </select>
-                        </div>
+                        <!-- チャレンジのカテゴリーは廃止 -->
                         
                         <button type="submit" class="btn" style="width: 100%; margin-top: 16px;">
                             チャレンジを作成
