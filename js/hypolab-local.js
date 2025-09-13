@@ -8444,13 +8444,25 @@
             const wasFailed = !!hyp.failures[dateKey];
             
             if (makeAchieved === true && !wasAchieved) {
-                // 達成にする → +5pt
+                // 達成にする → ストリークに応じて加点（初期5pt、1日ごとに+1、最大10pt）
+                // 前日までの連続達成数を計算
+                let preStreak = 0;
+                try {
+                    const today0 = new Date(); today0.setHours(0,0,0,0);
+                    const d = new Date(today0); d.setDate(today0.getDate()-1);
+                    while (true) {
+                        const k = dateKeyLocal(d);
+                        if ((hyp.achievements || {})[k]) { preStreak++; d.setDate(d.getDate()-1); }
+                        else { break; }
+                    }
+                } catch(_) { preStreak = 0; }
+                const pointsToday = Math.min(10, 5 + preStreak);
                 hyp.achievements[dateKey] = true;
-                hyp.pointsByDate[dateKey] = 5;
+                hyp.pointsByDate[dateKey] = pointsToday;
                 if (wasFailed) delete hyp.failures[dateKey];
                 
-                data.pointSystem.currentPoints += 5;
-                data.pointSystem.lifetimeEarned = (data.pointSystem.lifetimeEarned || 0) + 5;
+                data.pointSystem.currentPoints += pointsToday;
+                data.pointSystem.lifetimeEarned = (data.pointSystem.lifetimeEarned || 0) + pointsToday;
                 data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
                 const lvl = calculateLevel(data.pointSystem.lifetimeEarned);
                 data.pointSystem.currentLevel = lvl.level;
@@ -8460,10 +8472,10 @@
                 data.pointSystem.transactions.unshift({
                     timestamp: new Date().toISOString(),
                     type: 'earn',
-                    amount: 5,
-                    finalAmount: 5,
+                    amount: pointsToday,
+                    finalAmount: pointsToday,
                     source: 'habit_simple',
-                    description: `${hyp.title} 達成 (+5pt)`,
+                    description: `${hyp.title} 達成 (+${pointsToday}pt)`,
                     habitId: hyp.id,
                     dateKey
                 });
