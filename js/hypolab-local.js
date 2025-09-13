@@ -6871,6 +6871,15 @@
         
         // 新規習慣作成画面を表示
         function showNewHypothesisView() {
+            // 制限: 進行中の習慣は最大3つまで
+            try {
+                const data = loadData();
+                if (Array.isArray(data.currentHypotheses) && data.currentHypotheses.length >= 3) {
+                    try { showNotification('⚠️ 習慣は最大3つまで作成できます。\nいずれかを完了/削除してから追加してください。', 'error'); } catch(_) { try { alert('習慣は最大3つまで作成できます。'); } catch(_) {} }
+                    try { showHomeView(); } catch(_) {}
+                    return;
+                }
+            } catch(_) {}
             resetScrollToTop();
             document.getElementById('home-view').style.display = 'none';
             document.getElementById('new-hypothesis-view').style.display = 'block';
@@ -6976,6 +6985,14 @@
         // 習慣を作成（無期限）
         function createHypothesis(event) {
             event.preventDefault();
+            // 制限: 進行中の習慣は最大3つまで
+            try {
+                const dataCheck = loadData();
+                if (Array.isArray(dataCheck.currentHypotheses) && dataCheck.currentHypotheses.length >= 3) {
+                    try { showNotification('⚠️ 習慣は最大3つまで作成できます。\nいずれかを完了/削除してから追加してください。', 'error'); } catch(_) { try { alert('習慣は最大3つまで作成できます。'); } catch(_) {} }
+                    return;
+                }
+            } catch(_) {}
             
             // 短期集中ペナルティのチェック
             if (window.shortTermOnly) {
@@ -8384,7 +8401,7 @@
                     <h3 style="font-size: 18px;">この日の状態を選択</h3>
                 </div>
                 <div style="display: grid; gap: 8px;">
-                    <button class="btn" id="btn-achieved" style="width: 100%;">✅ 達成（+1pt）</button>
+                    <button class="btn" id="btn-achieved" style="width: 100%;">✅ 達成（+5pt）</button>
                     <button class="btn btn-secondary" id="btn-unachieved" style="width: 100%;">❌ 未達成（0pt）</button>
                     <button class="btn btn-secondary" id="btn-clear" style="width: 100%; background: var(--surface); color: var(--text-secondary);">未入力に戻す</button>
                     <button class="btn btn-secondary" id="btn-cancel" style="width: 100%; background: var(--surface-light); color: var(--text-secondary);">キャンセル</button>
@@ -8401,7 +8418,7 @@
             overlay.onclick = (e) => { if (e.target === overlay) close(); };
         }
 
-        // 日の達成状態を設定（達成=+1pt / 未達成=0pt）
+        // 日の達成状態を設定（達成=+5pt / 未達成=0pt）
         function setDayStatus(dateKey, makeAchieved) {
             const data = loadData();
             const idx = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
@@ -8414,20 +8431,20 @@
             const wasFailed = !!hyp.failures[dateKey];
             
             if (makeAchieved === true && !wasAchieved) {
-                // 達成にする → +1pt
+                // 達成にする → +5pt
                 hyp.achievements[dateKey] = true;
-                hyp.pointsByDate[dateKey] = 1;
+                hyp.pointsByDate[dateKey] = 5;
                 if (wasFailed) delete hyp.failures[dateKey];
                 
-                data.pointSystem.currentPoints += 1;
-                data.pointSystem.lifetimeEarned = (data.pointSystem.lifetimeEarned || 0) + 1;
+                data.pointSystem.currentPoints += 5;
+                data.pointSystem.lifetimeEarned = (data.pointSystem.lifetimeEarned || 0) + 5;
                 data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
                 const lvl = calculateLevel(data.pointSystem.lifetimeEarned);
                 data.pointSystem.currentLevel = lvl.level;
                 
                 // カテゴリーポイントも加算
                 if (hyp.category && window.StatusManager && window.StatusManager.addCategoryPoints) {
-                    const categoryLevelUps = window.StatusManager.addCategoryPoints(hyp.category, 1);
+                    const categoryLevelUps = window.StatusManager.addCategoryPoints(hyp.category, 5);
                     // カテゴリーレベルアップ演出
                     if (categoryLevelUps && categoryLevelUps.length > 0) {
                         setTimeout(() => {
@@ -8443,10 +8460,10 @@
                 data.pointSystem.transactions.unshift({
                     timestamp: new Date().toISOString(),
                     type: 'earn',
-                    amount: 1,
-                    finalAmount: 1,
+                    amount: 5,
+                    finalAmount: 5,
                     source: 'habit_simple',
-                    description: `${hyp.title} 達成 (+1pt)`,
+                    description: `${hyp.title} 達成 (+5pt)`,
                     habitId: hyp.id,
                     dateKey
                 });
@@ -8454,18 +8471,19 @@
                 // 未達成として明示（0pt）。達成済みなら取り消し(-1pt)。
                 if (wasAchieved) {
                     delete hyp.achievements[dateKey];
-                    if (hyp.pointsByDate[dateKey]) {
-                        data.pointSystem.currentPoints = Math.max(0, data.pointSystem.currentPoints - 1);
-                        data.pointSystem.lifetimeEarned = Math.max(0, (data.pointSystem.lifetimeEarned || 0) - 1);
+                    const credited = Number(hyp.pointsByDate[dateKey] || 5);
+                    if (credited) {
+                        data.pointSystem.currentPoints = Math.max(0, data.pointSystem.currentPoints - credited);
+                        data.pointSystem.lifetimeEarned = Math.max(0, (data.pointSystem.lifetimeEarned || 0) - credited);
                         data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
                         const lvl = calculateLevel(data.pointSystem.lifetimeEarned);
                         data.pointSystem.currentLevel = lvl.level;
                         data.pointSystem.transactions.unshift({
                             timestamp: new Date().toISOString(),
                             type: 'spend',
-                            amount: 1,
+                            amount: credited,
                             source: 'habit_simple_cancel',
-                            description: `${hyp.title} 取り消し (-1pt)`,
+                            description: `${hyp.title} 取り消し (-${credited}pt)`,
                             habitId: hyp.id,
                             dateKey
                         });
@@ -8473,32 +8491,33 @@
                         
                         // カテゴリーポイントも減算
                         if (hyp.category && window.StatusManager && window.StatusManager.addCategoryPoints) {
-                            window.StatusManager.addCategoryPoints(hyp.category, -1);
+                            window.StatusManager.addCategoryPoints(hyp.category, -credited);
                         }
                     }
                 }
                 hyp.failures[dateKey] = true; // 明示的な未達成
             } else if (makeAchieved === null) {
                 // 未入力に戻す。達成/未達成の記録を消す。達成済みだった場合は-1ptで取り消し。
-                if (wasAchieved && hyp.pointsByDate[dateKey]) {
-                    data.pointSystem.currentPoints = Math.max(0, data.pointSystem.currentPoints - 1);
-                    data.pointSystem.lifetimeEarned = Math.max(0, (data.pointSystem.lifetimeEarned || 0) - 1);
+                const credited = Number(hyp.pointsByDate[dateKey] || 5);
+                if (wasAchieved && credited) {
+                    data.pointSystem.currentPoints = Math.max(0, data.pointSystem.currentPoints - credited);
+                    data.pointSystem.lifetimeEarned = Math.max(0, (data.pointSystem.lifetimeEarned || 0) - credited);
                     data.pointSystem.levelProgress = data.pointSystem.lifetimeEarned;
                     const lvl = calculateLevel(data.pointSystem.lifetimeEarned);
                     data.pointSystem.currentLevel = lvl.level;
                     data.pointSystem.transactions.unshift({
                         timestamp: new Date().toISOString(),
                         type: 'spend',
-                        amount: 1,
+                        amount: credited,
                         source: 'habit_simple_cancel',
-                        description: `${hyp.title} 取り消し (-1pt)`,
+                        description: `${hyp.title} 取り消し (-${credited}pt)`,
                         habitId: hyp.id,
                         dateKey
                     });
                     
                     // カテゴリーポイントも減算
                     if (hyp.category && window.StatusManager && window.StatusManager.addCategoryPoints) {
-                        window.StatusManager.addCategoryPoints(hyp.category, -1);
+                        window.StatusManager.addCategoryPoints(hyp.category, -credited);
                     }
                 }
                 delete hyp.pointsByDate[dateKey];
@@ -8533,11 +8552,11 @@
                 const prev = window.currentHypothesis;
                 window.currentHypothesis = hyp;
                 if (wasAchieved) {
-                    setDayStatus(todayKey, false); // 達成 → 未達成（-1pt）
+                    setDayStatus(todayKey, false); // 達成 → 未達成（-5pt）
                 } else if (wasFailed) {
                     setDayStatus(todayKey, null);  // 未達成 → 未入力
                 } else {
-                    setDayStatus(todayKey, true);  // 未入力 → 達成（+1pt）
+                    setDayStatus(todayKey, true);  // 未入力 → 達成（+5pt）
                 }
                 // 画面を再描画
                 try { updateCurrentHypothesisList(); } catch(_) {}
