@@ -8409,23 +8409,34 @@
             const idx = data.currentHypotheses.findIndex(h => h.id === window.currentHypothesis.id);
             if (idx === -1) return;
             const hyp = data.currentHypotheses[idx];
-            const beforeState = {
-                yesterdayAchieved: (function(){
-                    try {
-                        const y = new Date(); y.setDate(y.getDate()-1); y.setHours(0,0,0,0);
-                        const yKey = dateKeyLocal(y);
-                        return !!((hyp.achievements||{})[yKey]);
-                    } catch(_) { return false; }
-                })(),
-                weeklyCount: (function(){
-                    try {
-                        let cnt = 0; const today = new Date(); today.setHours(0,0,0,0);
-                        for (let i=0;i<7;i++) { const d=new Date(today); d.setDate(today.getDate()-i); const k=dateKeyLocal(d); if ((hyp.achievements||{})[k]) cnt++; }
-                        return cnt;
-                    } catch(_) { return 0; }
-                })(),
-                currentStreak: (function(){ try { return calculateCurrentStreak(hyp); } catch(_) { return 0; } })()
-            };
+            const beforeState = (function(){
+                try {
+                    const start0 = new Date(hyp.startDate); start0.setHours(0,0,0,0);
+                    const today0 = new Date(); today0.setHours(0,0,0,0);
+                    const y0 = new Date(today0); y0.setDate(today0.getDate()-1);
+                    const yKey = dateKeyLocal(y0);
+                    const within = (y0 >= start0);
+                    const yAch = within ? !!((hyp.achievements||{})[yKey]) : false;
+                    // 直近7日達成数（本日の達成はこの後加算する）
+                    let cnt = 0; for (let i=0;i<7;i++){ const d=new Date(today0); d.setDate(today0.getDate()-i); const k=dateKeyLocal(d); if ((hyp.achievements||{})[k]) cnt++; }
+                    // 初日かどうか（開始日と今日が同じ）
+                    const isFirstDay = (today0.getTime() === start0.getTime());
+                    // これまで一度も達成していないか
+                    const keys = Object.keys(hyp.achievements || {});
+                    const firstAchievement = keys.length === 0;
+                    const curStreak = (function(){ try { return calculateCurrentStreak(hyp); } catch(_) { return 0; } })();
+                    return {
+                        yesterdayWithinPeriod: within,
+                        yesterdayAchieved: yAch,
+                        weeklyCount: cnt,
+                        isFirstDay,
+                        firstAchievement,
+                        currentStreak: curStreak
+                    };
+                } catch(_) {
+                    return { yesterdayWithinPeriod:false, yesterdayAchieved:false, weeklyCount:0, isFirstDay:false, firstAchievement:false, currentStreak:0 };
+                }
+            })();
             hyp.achievements = hyp.achievements || {};
             hyp.pointsByDate = hyp.pointsByDate || {};
             hyp.failures = hyp.failures || {};
@@ -8528,8 +8539,11 @@
                         title: (lvl && lvl.name) ? lvl.name : '',
                         habitTitle: hyp.title || '',
                         yesterdayAchieved: beforeState.yesterdayAchieved,
+                        yesterdayWithinPeriod: beforeState.yesterdayWithinPeriod,
                         weeklyCount: (beforeState.weeklyCount||0) + 1,
-                        streak: Math.max((beforeState.currentStreak||0) + 1, 1)
+                        streak: Math.max((beforeState.currentStreak||0) + 1, 1),
+                        isFirstDay: !!beforeState.isFirstDay,
+                        firstAchievement: !!beforeState.firstAchievement
                     };
                     const msg = pickAchievementMessage(context);
                     showAchievementPopup(msg);
@@ -8733,7 +8747,25 @@
 
         function pickAchievementMessage(context) {
             ensureAchievementMessages();
-            if (!context.yesterdayAchieved) {
+            // 初日・初回達成 優先
+            if (context.isFirstDay || context.firstAchievement) {
+                const firstBases = [
+                    '初日おめでとう！最高のスタートです、{title}。',
+                    '記念すべき初回達成！この勢いでいきましょう。',
+                    'ゼロから一へ。今日の一歩が未来を変えます。',
+                    '新しい習慣の扉が開きました！{title}の名に恥じない滑り出し。',
+                    '初日クリア！最高の出だし、次もいけます。',
+                    '初回達成、素晴らしい踏み出し！',
+                    '最初のピースがはまりました。ここから積み上げていきましょう。',
+                    '今日が“できる”の証明日。ナイススタート！',
+                    '始めたその日に達成、これは強い。',
+                    '初日から達成、未来の自分が拍手しています。'
+                ];
+                const tpl = firstBases[Math.floor(Math.random()*firstBases.length)];
+                return formatTemplate(tpl, context);
+            }
+            // 昨日が習慣期間内かつ未達なら“挽回”メッセージ
+            if (context.yesterdayWithinPeriod && !context.yesterdayAchieved) {
                 const comebackSamples = [
                     '昨日は未達でしたが今日は達成。挽回できて素晴らしいですね。',
                     '見事なリカバリー！昨日の分も取り返しました。',
@@ -8742,14 +8774,17 @@
                 const tpl = comebackSamples[Math.floor(Math.random()*comebackSamples.length)];
                 return formatTemplate(tpl, context);
             }
+            // ストリーク系
             if (context.streak >= 10) {
                 const tpl = '{streak}日連続で達成です！素晴らしすぎて言葉も出ません…。';
                 return formatTemplate(tpl, context);
             }
+            // 週内回数系
             if (context.weeklyCount >= 5) {
                 const tpl = 'この一週間で{weekly}回達成です！いいペース。次は毎日達成に挑戦しましょう、{title}！';
                 return formatTemplate(tpl, context);
             }
+            // 汎用300プール
             const idx = nextMessageIndex();
             const tpl = window.__ACHIEVEMENT_MESSAGES[idx] || '本日も習慣を達成しました！さすが{title}ですね。';
             return formatTemplate(tpl, context);
