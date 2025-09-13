@@ -727,7 +727,7 @@
     <script src="js/modules/hypolab-points.js?v=20250828-01"></script>
     <script src="js/modules/hypolab-domain.js?v=20250828-01"></script>
     <script src="js/modules/hypolab-router.js?v=20250828-01"></script>
-    <!-- 習慣編集モーダル（カテゴリ/名称/内容を編集） -->
+    <!-- 習慣編集モーダル（名称/内容を編集） -->
     <div id="habit-edit-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); z-index: 10000; padding: 20px;">
         <div style="background: var(--surface); border-radius: 16px; max-width: 500px; margin: 50px auto; padding: 24px; max-height: 80vh; overflow-y: auto;">
             <h3 style="margin-bottom: 20px;">習慣を編集</h3>
@@ -736,9 +736,6 @@
                 <input type="text" id="edit-habit-title" style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--background); color: var(--text-primary); font-size: 16px;">
             </div>
             <div class="form-group">
-                <label for="edit-habit-category" style="margin-top: 12px;">カテゴリー</label>
-                <select id="edit-habit-category" style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--background); color: var(--text-primary); font-size: 16px;"></select>
-
                 <label for="edit-habit-description" style="margin-top: 12px;">習慣の詳細</label>
                 <textarea id="edit-habit-description" rows="4" style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--background); color: var(--text-primary); font-size: 16px; resize: vertical;"></textarea>
             </div>

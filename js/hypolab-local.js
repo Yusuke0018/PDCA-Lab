@@ -42,6 +42,9 @@
             });
         }
 
+        // カテゴリー機能は完全無効化
+        const CATEGORIES_DISABLED = true; try { window.CATEGORIES_DISABLED = true; } catch(_) {}
+
         // グローバルから呼び出せるように公開
         try { window.editCategoryMaster = editCategoryMaster; } catch(_) {}
         
@@ -53,12 +56,8 @@
             document.getElementById('edit-habit-title').value = window.currentHypothesis.title || '';
             document.getElementById('edit-habit-description').value = window.currentHypothesis.description || '';
             
-            // カテゴリ選択を更新
-            try {
-                updateCategoryDropdowns();
-                const catEl = document.getElementById('edit-habit-category');
-                if (catEl) catEl.value = window.currentHypothesis.category || 'other';
-            } catch(_) {}
+            // カテゴリは廃止
+            try { const catEl = document.getElementById('edit-habit-category'); if (catEl) catEl.closest('.form-group')?.remove(); } catch(_) {}
             
             // モーダルを表示
             document.getElementById('habit-edit-modal').style.display = 'block';
@@ -70,8 +69,8 @@
             
             const newTitle = document.getElementById('edit-habit-title').value.trim();
             const newDescription = document.getElementById('edit-habit-description').value.trim();
-            const catEl = document.getElementById('edit-habit-category');
-            const newCategory = catEl ? catEl.value : (window.currentHypothesis.category || 'other');
+            // カテゴリは廃止
+            const newCategory = null;
             
             if (!newTitle) {
                 alert('習慣の名前は必須です');
@@ -86,12 +85,12 @@
             // データを更新
             data.currentHypotheses[habitIndex].title = newTitle;
             data.currentHypotheses[habitIndex].description = newDescription;
-            data.currentHypotheses[habitIndex].category = newCategory;
+            // カテゴリは更新しない
             
             // 現在の習慣も更新
             window.currentHypothesis.title = newTitle;
             window.currentHypothesis.description = newDescription;
-            window.currentHypothesis.category = newCategory;
+            // カテゴリは更新しない
             
             // データを保存
             saveData(data);
@@ -629,16 +628,16 @@
                     duration: 'today'
                 },
                 
-                // カテゴリー系ブースト
-                {
-                    id: 'exercise_fever',
-                    name: '💪 運動フィーバー',
-                    description: '運動カテゴリーの習慣が2倍ポイント！',
-                    condition: () => Math.random() < 0.15,  // 15%の確率
-                    effect: { type: 'category_multiplier', target: 'exercise', value: 2.0 },
-                    rarity: 'uncommon',
-                    duration: 'today'
-                },
+            // カテゴリー系ブースト（無効化）
+            {
+                id: 'exercise_fever',
+                name: '💪 運動フィーバー',
+                description: '運動カテゴリーの習慣が2倍ポイント！',
+                condition: () => false,
+                effect: { type: 'none' },
+                rarity: 'uncommon',
+                duration: 'today'
+            },
                 {
                     id: 'study_power',
                     name: '📚 勉強パワーアップ',
@@ -3758,7 +3757,7 @@
             
             // カテゴリーポイントを加算（categoryパラメータがある場合）
             let categoryLevelUps = [];
-            if (category && window.StatusManager && window.StatusManager.addCategoryPoints) {
+            if (!window.CATEGORIES_DISABLED && category && window.StatusManager && window.StatusManager.addCategoryPoints) {
                 // カテゴリーにポイントを追加（素点×倍率を使用）
                 categoryLevelUps = window.StatusManager.addCategoryPoints(category, finalAmount);
             }
@@ -3768,7 +3767,7 @@
             try { if (typeof updateActiveEffectsDisplay === 'function') { updateActiveEffectsDisplay(); } } catch(_) {}
             
             // カテゴリーレベルアップ通知（全体レベルアップより先に表示）
-            if (categoryLevelUps && categoryLevelUps.length > 0) {
+            if (!window.CATEGORIES_DISABLED && categoryLevelUps && categoryLevelUps.length > 0) {
                 // カテゴリーレベルアップ演出をキュー式に表示
                 setTimeout(() => {
                     if (typeof showCategoryLevelUpQueue === 'function') {
@@ -8315,19 +8314,7 @@
                 { dateKey }
             );
             
-            // カテゴリーポイントも付与
-            if (window.currentHypothesis.category && typeof window.StatusManager !== 'undefined' && window.StatusManager.addCategoryPoints) {
-                const categoryPoints = actualPoints;
-                const levelUps = window.StatusManager.addCategoryPoints(window.currentHypothesis.category, categoryPoints);
-                console.log(`カテゴリー${window.currentHypothesis.category}に${categoryPoints}pt追加`);
-                
-                // カテゴリーレベルアップ通知
-                if (levelUps && levelUps.length > 0) {
-                    levelUps.forEach(lu => {
-                        showNotification(`🎉 ${lu.categoryName} Lv.${lu.level}！\n「${lu.title}」`, 'success');
-                    });
-                }
-            }
+            // カテゴリー機能は無効化
             // 当日付の実際の付与ポイントを記録（取り消し時に正確に減算するため）
             if (!window.currentHypothesis.pointsByDate) window.currentHypothesis.pointsByDate = {};
             window.currentHypothesis.pointsByDate[dateKey] = credited;
@@ -8457,20 +8444,7 @@
                 const lvl = calculateLevel(data.pointSystem.lifetimeEarned);
                 data.pointSystem.currentLevel = lvl.level;
                 
-                // カテゴリーポイントも加算
-                if (hyp.category && window.StatusManager && window.StatusManager.addCategoryPoints) {
-                    const categoryLevelUps = window.StatusManager.addCategoryPoints(hyp.category, 5);
-                    // カテゴリーレベルアップ演出
-                    if (categoryLevelUps && categoryLevelUps.length > 0) {
-                        setTimeout(() => {
-                            if (typeof showCategoryLevelUpQueue === 'function') {
-                                showCategoryLevelUpQueue(categoryLevelUps);
-                            } else if (typeof window.showCategoryLevelUpQueue === 'function') {
-                                window.showCategoryLevelUpQueue(categoryLevelUps);
-                            }
-                        }, 500);
-                    }
-                }
+                // カテゴリー機能は無効化
                 
                 data.pointSystem.transactions.unshift({
                     timestamp: new Date().toISOString(),
@@ -8504,10 +8478,7 @@
                         });
                         delete hyp.pointsByDate[dateKey];
                         
-                        // カテゴリーポイントも減算
-                        if (hyp.category && window.StatusManager && window.StatusManager.addCategoryPoints) {
-                            window.StatusManager.addCategoryPoints(hyp.category, -credited);
-                        }
+                        // カテゴリー機能は無効化
                     }
                 }
                 hyp.failures[dateKey] = true; // 明示的な未達成
@@ -8530,10 +8501,7 @@
                         dateKey
                     });
                     
-                    // カテゴリーポイントも減算
-                    if (hyp.category && window.StatusManager && window.StatusManager.addCategoryPoints) {
-                        window.StatusManager.addCategoryPoints(hyp.category, -credited);
-                    }
+                    // カテゴリー機能は無効化
                 }
                 delete hyp.pointsByDate[dateKey];
                 delete hyp.achievements[dateKey];
@@ -10816,8 +10784,8 @@
             // 日付が変わったら宣言状態をチェック（深夜対応）
             const todayKey = getActivityDateKey();
             
-            // カテゴリーマスターを初期化
-            const categoryMaster = initializeCategoryMaster();
+            // カテゴリ機能は廃止
+            const categoryMaster = { other: { name: 'その他', icon: '📝', color: '#6b7280' } };
             
             // 頻度タイプ別にグループ分け（大分類）
             const frequencyGroups = {
@@ -10869,7 +10837,7 @@
                     frequencyType = hypothesis.frequency.type || 'daily';
                 }
                 
-                const category = hypothesis.category || 'other'; // デフォルトはその他
+                const category = 'other'; // カテゴリー機能は廃止（固定）
                 
                 if (frequencyGroups[frequencyType]) {
                     if (!frequencyGroups[frequencyType].categories[category]) {
@@ -10880,7 +10848,7 @@
             });
             
             // トグル状態を管理（LocalStorageから読み込み）
-            const toggleStates = JSON.parse(localStorage.getItem('categoryToggleStates') || '{}');
+            const toggleStates = {}; // カテゴリートグルは廃止
             
             // 頻度グループごとに表示（大分類）
             const createFrequencySection = (frequencyKey, frequencyData) => {
@@ -11047,7 +11015,7 @@
                             <div style="display: flex; gap: 12px; font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
                                 <span>📅 継続${daysPassed}日</span>
                                 <span>✅ 達成${achievedDays}日</span>
-                                <span>📂 カテゴリ ${(initializeCategoryMaster()[hypothesis.category]||{}).name || hypothesis.category || 'その他'}</span>
+
                             </div>
                             <button class="btn btn-primary" style="width: 100%; padding: 10px; font-size: 14px;" onclick="event.stopPropagation(); window.openHabitEditModal(${hypothesis.id});">
                                 ✏️ 編集
@@ -11229,13 +11197,7 @@
                 }
             });
             
-            // カテゴリ編集ボタンを追加
-            const editButton = document.createElement('button');
-            editButton.className = 'btn btn-secondary';
-            editButton.style.cssText = 'width: 100%; margin-top: 16px; padding: 12px; font-size: 14px;';
-            editButton.innerHTML = '⚙️ カテゴリを編集';
-            editButton.onclick = editCategoryMaster;
-            listContainer.appendChild(editButton);
+            // カテゴリ編集は廃止
 
             // ホームのチェックボタンにイベントを付与（動的生成後にアタッチ）
             try {
@@ -14213,15 +14175,7 @@
                     multiplier *= pointGem.multiplier;
                 }
                 
-                // レインボーブースト効果
-                const rainbowBoost = data.cards.activeEffects.find(effect => 
-                    effect.type === 'all_category_boost' && 
-                    new Date(effect.startDate) <= now && 
-                    new Date(effect.endDate) >= now
-                );
-                if (rainbowBoost && category) {
-                    multiplier *= rainbowBoost.multiplier;
-                }
+                // レインボーブースト（カテゴリ）は無効
                 
                 // スローダウン効果
                 const slowdown = data.cards.activeEffects.find(effect => 
@@ -14261,8 +14215,8 @@
                         if (boost.hours && boost.hours.includes(currentHour)) {
                             bonus += boost.bonus;
                         }
-                    } else if (boost.effect === 'category_boost' && category === boost.category) {
-                        multiplier *= boost.multiplier;
+                    } else if (boost.effect === 'category_boost') {
+                        // カテゴリー機能は無効
                     } else if (boost.effect === 'perfect_bonus') {
                         // パーフェクトチャレンジは別処理で確認
                     } else if (boost.effect === 'streak_bonus') {
@@ -14354,15 +14308,11 @@
                 // ポイントジェム
                 const pointGem = data.cards.activeEffects.find(e => e.type === 'point_multiplier' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
                 if (pointGem) { multiplier *= pointGem.multiplier; notes.push(`PointGem ×${pointGem.multiplier}`); }
-                // レインボーブースト（カテゴリーにのみ）
-                const rainbow = data.cards.activeEffects.find(e => e.type === 'all_category_boost' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
-                if (rainbow && category) { multiplier *= rainbow.multiplier; notes.push(`RainbowBoost ×${rainbow.multiplier}`); }
+                // レインボーブースト（カテゴリ）は無効
                 // コンボチェーン（コンボのみ倍化）
                 const comboChain = data.cards.activeEffects.find(e => e.type === 'combo_multiplier' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
                 if (comboChain && source === 'combo') { multiplier *= (comboChain.value || 2.0); notes.push(`Combo ×${comboChain.value || 2.0}`); }
-                // カテゴリーフェス（対象カテゴリだけ）
-                const catFest = data.cards.activeEffects.find(e => e.type === 'category_theme_boost' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
-                if (catFest && category && catFest.target === category) { multiplier *= (catFest.multiplier || 1.5); notes.push(`Festival(${category}) ×${catFest.multiplier || 1.5}`); }
+                // カテゴリーフェスは無効
                 // ハッピーアワーは point_multiplier として処理されるので、ここでは削除
                 // const hh = data.cards.activeEffects.find(e => e.type === 'time_window_bonus' && new Date(e.startDate) <= now && new Date(e.endDate) >= now);
                 // if (hh) { bonus += (hh.value || 10); notes.push(`HappyHour +${hh.value || 10}`); }
@@ -14891,6 +14841,7 @@
 
         // カテゴリーフェス: 指定カテゴリ×1.5（今日）
         function useCategoryFestival() {
+            if (window.CATEGORIES_DISABLED) { closeCardUseMenu(); showNotification('カテゴリー機能は無効化されています', 'info'); return; }
             closeCardUseMenu();
             const data = loadData();
             const idx = data.cards.inventory.findIndex(c => c.cardId === 'category_festival' && !c.used);
@@ -14936,6 +14887,7 @@
 
         // ミニレインボー: 今日だけ全カテゴリ×1.2
         function useMiniRainbow() {
+            if (window.CATEGORIES_DISABLED) { closeCardUseMenu(); showNotification('カテゴリー機能は無効化されています', 'info'); return; }
             closeCardUseMenu();
             const data = loadData();
             const idx = data.cards.inventory.findIndex(c => c.cardId === 'mini_rainbow' && !c.used);
