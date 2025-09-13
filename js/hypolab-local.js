@@ -10907,7 +10907,7 @@
                 
                 // カテゴリ別のセクションを作成（小分類）
                 const categoriesContainer = document.createElement('div');
-                categoriesContainer.style.cssText = 'margin-left: 20px;';
+                categoriesContainer.style.cssText = 'margin-left: 0;';
                 
                 Object.entries(frequencyData.categories).forEach(([categoryKey, habits]) => {
                     if (habits.length === 0) return;
@@ -10916,27 +10916,7 @@
                     const categorySection = document.createElement('div');
                     categorySection.style.cssText = 'margin-bottom: 12px;';
                     
-                    // カテゴリヘッダー
-                    const categoryHeader = document.createElement('div');
-                    const unachievedCount = habits.filter(h => h.failures && h.failures[todayKey]).length;
-                    
-                    categoryHeader.style.cssText = `
-                        display: flex; 
-                        align-items: center; 
-                        gap: 8px; 
-                        padding: 10px 14px; 
-                        background: linear-gradient(135deg, ${categoryInfo.color}10, ${categoryInfo.color}05); 
-                        border-radius: 10px; 
-                        border-left: 3px solid ${categoryInfo.color};
-                    `;
-                    categoryHeader.innerHTML = `
-                        <span style="font-size: 18px;">${categoryInfo.icon}</span>
-                        <span style="font-weight: 600; font-size: 15px; color: var(--text-primary);">${categoryInfo.name}</span>
-                        <span style="font-size: 12px; color: var(--text-secondary); margin-left: 6px; background: ${categoryInfo.color}20; padding: 2px 8px; border-radius: 999px;">${habits.length}個</span>
-                        ${unachievedCount > 0 ? `<span style="margin-left: 6px; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; font-weight: 600;">未達成 ${unachievedCount}個</span>` : ''}
-                    `;
-                    
-                    categorySection.appendChild(categoryHeader);
+                    // カテゴリヘッダーは表示しない（カテゴリ機能廃止）
                     
                     // 習慣リスト（展開機能付き）
                     habits.forEach((hypothesis, index) => {
@@ -10944,7 +10924,7 @@
                         const habitContainer = document.createElement('div');
                         habitContainer.style.cssText = `
                             margin-top: 8px;
-                            margin-left: 20px;
+                            margin-left: 0;
                         `;
                         
                         // 習慣タイトル
